@@ -37,7 +37,7 @@
   (application/start view
                      :handle-event handle-event
                      :initialize initialize
-                     :framerate 160))
+                     :framerate 20))
 
 (defn refresh []
   (when @application/state-atom-atom
@@ -52,4 +52,5 @@
 
 (comment
   (start-async)
+  
   )

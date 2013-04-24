@@ -74,7 +74,7 @@
 (defn load-view-part [gpu-state view-state layout-path]
   (unload-view-part gpu-state layout-path)
 
-  (debug/debug :view-update "loading " layout-path)
+  (debug/do-debug :view-update "loading " layout-path)
 
   (if (dataflow/is-defined? view-state layout-path)
     (let [drawing-commands (if-let [layout (get view-state layout-path)]
@@ -101,7 +101,7 @@
   (->ViewPart local-id (dataflow/absolute-path local-id)))
 
 (defn initialize-view-part [view-part-id view-part-element-function]
-  (debug/debug :view-definition "initializing " view-part-id)
+  (debug/do-debug :view-definition "initializing " view-part-id)
   (dataflow/initialize view-part-id view-part-element-function)
   (let [view-part-path (dataflow/absolute-path view-part-id)]
     (dataflow/initialize (concat (dataflow/as-path view-part-id) [:preferred-width]) #(layoutable/preferred-width (dataflow/get-global-value view-part-path)))
@@ -115,7 +115,7 @@
 ;; RENDERING
 
 (defn draw-view-part [gpu-state layout-path]
-  (debug/debug :render "draw-view-part " layout-path)
+  (debug/do-debug :render "draw-view-part " layout-path)
 
   (doseq [command-runner (get-in gpu-state [:view-part-command-runners layout-path])]
     (if (instance? ViewPartCall command-runner)
@@ -124,6 +124,7 @@
                              (command/run command-runner)))))
 
 (defn render [gpu-state]
+  (println "render")
   (opengl/clear 0 0 0 0)
   (draw-view-part gpu-state [:layout]))
 
@@ -154,7 +155,7 @@
                                             y))))
 
 (defn mouse-event-handlers-in-coordinates [view-state x y]
-  (->> (flow-gl.debug/debug :default "layoutables-in-coordinates: " (vec (layoutables-in-coordinates view-state x y)))
+  (->> (debug/debug :default "layoutables-in-coordinates: " (vec (layoutables-in-coordinates view-state x y)))
        (filter #(not (= nil
                         (:mouse-event-handler %))))
        (map :mouse-event-handler)))
@@ -290,21 +291,21 @@
           changed-view-part-layout-paths (filter #(view-part-is-loaded? @(:gpu-state view-state) %)
                                                  (:changes-to-be-processed view-state))]
 
-      (debug/debug :events "New view state:")
-      (dorun (map #(debug/debug :events %)
-                  (dataflow/describe-dataflow view-state)))
+      (debug/do-debug :events "New view state:")
+      (debug/debug-all :events (dataflow/describe-dataflow view-state))
       (when (not (empty? changed-view-part-layout-paths))
-        (-> (swap! (:gpu-state view-state)
-                   (fn [gpu-state]
-                     (-> (reduce (fn [gpu-state layout-path]
-                                   (update-view-part gpu-state view-state layout-path))
-                                 gpu-state
-                                 changed-view-part-layout-paths)
-                         ((fn [gpu-state]
-                            (debug/debug :view-update "New gpu state:")
-                            (dorun (map #(debug/debug :view-update %) (describe-gpu-state gpu-state)))
-                            gpu-state)))))
-            (render))))))
+        (do (-> (swap! (:gpu-state view-state)
+                       (fn [gpu-state]
+                         (-> (reduce (fn [gpu-state layout-path]
+                                       (update-view-part gpu-state view-state layout-path))
+                                     gpu-state
+                                     changed-view-part-layout-paths)
+                             ((fn [gpu-state]
+                                (debug/do-debug :view-update "New gpu state:")
+                                (debug/debug-all :view-update (describe-gpu-state gpu-state))
+                                gpu-state)))))
+                (render))
+            (swap! view-atom assoc :needs-redraw true))))))
 
 ;; FPS
 
@@ -346,7 +347,7 @@
            (-> view
                (handle-events)
                (dataflow/propagate-changes)
-               (update-time)
+               ;;(update-time)
                ;;(update-fps)
                )))
 
@@ -388,10 +389,12 @@
     view-state))
 
 
-(defn handle-resize [view-atom width height]
-  (swap! view-atom dataflow/define-to
+(defn handle-resize [view-state-atom width height]
+  (swap! view-state-atom dataflow/define-to
          :width width
-         :height height))
+         :height height)
+  (swap! view-state-atom assoc
+         :needs-redraw true))
 
 
 (defn set-view [state view]

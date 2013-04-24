@@ -9,6 +9,12 @@
 
 ;; DEPENDANTS
 
+(defn set-dependencies [dataflow dependant dependencies]
+  (if (not= (get-in dataflow [::dependencies dependant])
+            dependencies)
+    (assoc-in dataflow [::dependencies dependant] dependencies)
+    dataflow))
+
 (defn dependants [dataflow path]
   (filter #(contains? (get-in dataflow [::dependencies %])
                       path)
@@ -49,7 +55,7 @@
 
 (defn describe-dataflow [dataflow]
   (describe-functions dataflow
-                      (sort (keys (::functions dataflow)))))
+                        (sort (keys (::functions dataflow)))))
 
 (defn describe-dataflow-undefined [dataflow]
   (describe-functions dataflow
@@ -139,7 +145,7 @@
                 dataflow
                 (get-in dataflow [::children path]))
         (update-in [::functions] dissoc path)
-        (update-in [::dependencies] dissoc path)
+        (set-dependencies path #{})
         (update-in [::children] dissoc path)
         (update-in [::changed-paths] conj path)
         (dissoc path))))
@@ -174,7 +180,7 @@
           (undefine-many children-to-be-undefined)
           (when-> (not (= new-value ::undefined))
                   (assoc path new-value))
-          (assoc-in [::dependencies path] @logged-access/reads)
+          (set-dependencies path @logged-access/reads)
           ((fn [dataflow]
              (assoc-in dataflow [::heights path] (height dataflow @logged-access/reads))))
           (when-> changed (declare-changed path))
@@ -258,7 +264,7 @@
     ::changed-paths #{}))
 
 (defn propagate-changes [dataflow]
-  (flow-gl.debug/debug :dataflow "propagate changes " (vec (map first (::need-to-be-updated dataflow))))
+  (flow-gl.debug/do-debug :dataflow "propagate changes " (vec (map first (::need-to-be-updated dataflow))))
   (let [dataflow (reduce (fn [dataflow [path priority]]
                            (let [old-value (get dataflow path)]
                              (-> dataflow
@@ -266,7 +272,7 @@
                                  (update-in [::need-to-be-updated] dissoc path)
                                  ((fn [dataflow] (if (not (= old-value
                                                              (get dataflow path)))
-                                                   (do (flow-gl.debug/debug :dataflow "updated path " path " = " (apply str (take 100 (str (get dataflow path)))))
+                                                   (do (flow-gl.debug/do-debug :dataflow "updated path " path " = " (apply str (take 100 (str (get dataflow path)))))
                                                        (reduce schedule-for-update dataflow (dependants dataflow path)))
                                                    dataflow))))))
                          dataflow

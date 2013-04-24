@@ -24,8 +24,11 @@
   (GL11/glScalef 1 -1 1)
   (GL11/glTranslatef 0 (- height) 0))
 
-(defn update [framerate]
-  (Display/update)
+(defn update [framerate redraw]
+  (Display/processMessages)
+  (when redraw
+    (println "redraw")
+    (Display/update false))
   (Display/sync framerate))
 
 (defn initialize-fps [window]
@@ -92,7 +95,7 @@
     (Display/create)
     (initialize-gl)
 
-    (update 10)
+    (update 10 true)
 
     window-atom))
 

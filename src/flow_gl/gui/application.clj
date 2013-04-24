@@ -40,14 +40,17 @@
               (do (view/send-close-event @state-atom)
                   (opengl/dispose)
                   (swap! window-atom window/close))
-              (do (window/update framerate)
-                  (swap! window-atom window/show-fps)
-                  (when resize-requested
+              (do (when resize-requested
                     (swap! window-atom assoc
                            :resize-requested false)
                     (window/resize width height)
                     (view/handle-resize state-atom width height))
                   (view/update state-atom)
+                  (let [needs-redraw (:needs-redraw @state-atom)]
+                    (window/update framerate needs-redraw)
+                    (when needs-redraw
+                      (swap! state-atom assoc :needs-redraw false)))
+                  ;;(swap! window-atom window/show-fps)
                   (recur))))))
       (catch Exception e
         (println "Exception in main loop: " e)
@@ -88,7 +91,7 @@
                   (opengl/dispose)
                   (swap! window-atom window/close)
                   (reset! state-atom-atom nil))
-              (do (window/update framerate)
+              (do (window/update framerate true)
                   (swap! window-atom window/show-fps)
                   (when resize-requested
                     (swap! window-atom assoc

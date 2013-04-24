@@ -5,11 +5,7 @@
                          [view :as view]
                          [application :as application])
 
-            (flow-gl.graphics.command [triangle-batch :as triangle-batch])
-            [flow-gl.graphics.vector :as graphics-vector]
-
-            (flow-gl [dataflow :as dataflow]
-                     [debug :as debug])))
+            (flow-gl [dataflow :as dataflow])))
 
 
 
@@ -83,21 +79,20 @@
 
 
 (defn clock []
-  (layout/->Absolute [(let [n 50
-                            l 200
-                            l2 30]
+  (layout/->Absolute [(let [l 200
+                            l2 10]
                         (let [angle (-> (dataflow/get-global-value :time)
-                                        (mod 1e9)
-                                        (/ 1e9)
+                                        (mod (* 4 1e9))
+                                        (/ (* 4 1e9))
                                         (* 1.0)
                                         (* 2 Math/PI))]
-                          (-> (drawable/->Line (map float [1 0 0 1])
-                                               1
+                          (-> (drawable/->Line (map float [0.4 0.9 0.1 1])
+                                               10
                                                (* l2 (Math/cos angle))
                                                (* l2 (Math/sin angle))
                                                (* l (Math/cos angle))
                                                (* l (Math/sin angle)))
-                              (assoc :x l :y l))))]))
+                              (assoc :x (+ 20 l) :y (+ 20 l)))))]))
 
 (defonce sa (atom nil))
 
@@ -107,9 +102,9 @@
 
 
 (defn start []
-  (application/start clock
+  (application/start rounded-rectangle-view
                      :initialize initialize
-                     :framerate 160))
+                     :framerate 60))
 
 (defn refresh []
   (when @sa
@@ -119,8 +114,7 @@
            ;;line-view
            ;;rounded-rectangle-view
            ;;polyline-view
-           clock
-           )))
+           clock)))
 
 (refresh)
 

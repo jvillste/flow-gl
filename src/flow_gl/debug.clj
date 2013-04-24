@@ -4,7 +4,7 @@
 ;; DEBUG
 
 (def log (atom []))
-(def active-channels (atom #{:default}))
+(defonce active-channels (atom #{}))
 
 (defn set-active-channels [& channels]
   (reset! active-channels (into #{} channels)))
@@ -12,25 +12,45 @@
 (defn reset-log []
   (reset! log []))
 
-(defn debug [channel & messages]
-  (when (contains? @active-channels channel)
-    (swap! log conj (apply str messages)))
-  (last messages))
+(defn if-channel-active [channel then else]
+  (if (contains? @active-channels channel)
+    then
+    else))
 
-(defn debug-all [channel messages]
-  (doseq [message messages]
-    (debug channel message)))
+(defmacro debug [channel & messages]
+  (if-channel-active channel
+                     `(let [messages# (list ~@messages)]
+                        (swap! log conj (apply str messages#))
+                        (last messages#))
+                     (last messages)))
 
-(defn debug-drop-last [channel & messages]
-  (when (contains? @active-channels channel)
-    (swap! log conj (apply str (drop-last messages))))
-  (last messages))
+(defmacro do-debug [channel & messages]
+  (if-channel-active channel
+                     `(let [messages# (list ~@messages)]
+                        (swap! log conj (apply str messages#))
+                        (last messages#))
+                     nil))
 
-(defn debug-if [channel condition & messages]
-  (when (and (contains? @active-channels channel)
-             (condition (last messages)))
-      (swap! log conj (apply str messages)))
-  (last messages))
+(defmacro debug-all [channel messages]
+  (if-channel-active channel
+                     `(doseq [message# ~messages]
+                        (debug ~channel message#))
+                     nil))
+
+(defmacro debug-drop-last [channel & messages]
+  (if-channel-active channel
+                     `(let [messages# (list ~@messages)]
+                        (swap! log conj (apply str (drop-last messages#)))
+                        (last messages#))
+                     (last messages)))
+
+(defmacro debug-if [channel condition & messages]
+  (if-channel-active channel
+                     `(let [messages# (list ~@messages)]
+                        (when (condition (last messages#))
+                          (swap! log conj (apply str messages#)))
+                        (last messages#))
+                     (last messages)))
 
 (defn write-log []
   (with-open [writer (io/writer "debug-log.txt")]

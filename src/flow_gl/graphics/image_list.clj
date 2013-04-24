@@ -6,19 +6,16 @@
   (:import [java.awt Color AlphaComposite]))
 
 (defrecord ImageList [images
-                      id-list
-                      shared-resources])
+                      id-list])
 
 (defn create []
   (ImageList. {}
-              (zipper-list/create)
-              (image/create-shared-resources)))
+              (zipper-list/create)))
 
 (defn add-image-for-texture [image-list id x y texture]
   (assoc image-list
     :images (assoc (:images image-list)
-              id (image/create (:shared-resources image-list)
-                               x
+              id (image/create x
                                y
                                texture))
     :id-list (zipper-list/add (:id-list image-list)
@@ -71,5 +68,4 @@
 
 (defn delete [image-list]
   (doseq [image (vals (:images image-list))]
-    (image/delete image))
-  (image/delete-shared-resources (:shared-resources image-list)))
+    (image/delete image)))
