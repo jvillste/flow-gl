@@ -47,7 +47,7 @@
                     (view/handle-resize state-atom width height))
                   (view/update state-atom)
                   (let [needs-redraw (:needs-redraw @state-atom)]
-                    (window/update framerate needs-redraw)
+                    (swap! window-atom window/update framerate needs-redraw)
                     (when needs-redraw
                       (swap! state-atom assoc :needs-redraw false)))
                   ;;(swap! window-atom window/show-fps)

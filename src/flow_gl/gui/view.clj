@@ -124,7 +124,6 @@
                              (command/run command-runner)))))
 
 (defn render [gpu-state]
-  (println "render")
   (opengl/clear 0 0 0 0)
   (draw-view-part gpu-state [:layout]))
 

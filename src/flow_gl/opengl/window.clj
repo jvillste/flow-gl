@@ -3,8 +3,8 @@
   (:import [org.lwjgl.opengl GLContext PixelFormat Display DisplayMode GL11 GL12  GL30 ARBVertexBufferObject]
            [org.lwjgl.input Mouse]
            [org.lwjgl BufferUtils]
-           [java.awt Frame Canvas]
-           [java.awt.event WindowAdapter ComponentAdapter]
+           [java.awt Frame Canvas BorderLayout Button]
+           [java.awt.event WindowAdapter ComponentAdapter KeyAdapter]
            [java.nio IntBuffer FloatBuffer]))
 
 (defrecord Window [frame
@@ -24,12 +24,14 @@
   (GL11/glScalef 1 -1 1)
   (GL11/glTranslatef 0 (- height) 0))
 
-(defn update [framerate redraw]
-  (Display/processMessages)
-  (when redraw
-    (println "redraw")
+(defn update [window framerate redraw]
+  (when (or redraw
+            ;;(:needs-redraw window)
+            (Display/isDirty))
+    (println "window redraw")
     (Display/update false))
-  (Display/sync framerate))
+  (Display/sync framerate)
+  (assoc window :needs-redraw false))
 
 (defn initialize-fps [window]
   (assoc window
@@ -62,12 +64,16 @@
   (GL11/glBlendFunc GL11/GL_SRC_ALPHA GL11/GL_ONE_MINUS_SRC_ALPHA))
 
 (defn create [initial-width initial-height]
-  (let [canvas (Canvas.)
-        window-atom  (atom (map->Window {:frame (new Frame)
+  (let [canvas (proxy [Canvas] []
+                 (paint [g] (println "canvas paint")))
+        window-atom  (atom (map->Window {:frame (proxy [Frame] []
+                                                  (paint [g] (println "frame paint")))
+                                         :canvas canvas
                                          :close-requested false
                                          :resize-requested false
                                          :width 0
-                                         :height 0}))]
+                                         :height 0
+                                         :needs-redraw true}))]
 
     (swap! window-atom initialize-fps)
 
@@ -79,23 +85,31 @@
                                       :height (-> canvas .getSize .getHeight)
                                       :resize-requested true))))
 
+    (.addKeyListener (:frame @window-atom)
+                     (proxy [KeyAdapter] []
+                       (keyPressed [e]
+                         (println "key:" (.getKeyCode e)))))
+
     (doto (:frame @window-atom)
       (.add canvas)
       (.addWindowListener
        (proxy [WindowAdapter] []
          (windowClosing [e]
            (swap! window-atom assoc
-                  :close-requested true))))
+                  :close-requested true))
+         (windowActivated [e]
+           (swap! window-atom assoc
+                  :needs-redraw true))))
       (.setSize initial-width initial-height)
       .show)
-
-    (.requestFocus canvas)
+    (.setFocusable canvas false)
+    ;;(.requestFocus canvas)
 
     (Display/setParent canvas)
     (Display/create)
     (initialize-gl)
 
-    (update 10 true)
+    ;;    (update 10 true)
 
     window-atom))
 
