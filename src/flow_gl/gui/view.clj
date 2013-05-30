@@ -7,6 +7,7 @@
                           [layoutable :as layoutable]
                           [drawable :as drawable]
                           [input :as input])
+             (flow-gl.opengl [window :as window])
              (flow-gl [opengl :as opengl]
                       [dataflow :as dataflow]
                       [debug :as debug])
@@ -235,11 +236,7 @@
               (update-mouse-position event))
       (send-mouse-event event)))
 
-(defn handle-keyboard-event [view-state event]
-  ((:event-handler view-state)
-   view-state
-   [:elements]
-     event))
+
 
 (defn trim-mouse-movements [events]
   (letfn [(is-mouse-move [event] (= :mouse-moved (:type event)))]
@@ -255,56 +252,62 @@
 
 ;; EVENT HANDLING
 
-(defn send-close-event [view-state]
+(defn call-event-handler [view-state event]
   ((:event-handler view-state)
    view-state
    [:elements]
-     {:type :close}))
+     event))
 
 (defn handle-event [view-state event]
   (debug/debug :events "handle event " event)
   (let [view-state (assoc view-state :event-handled false)]
-    (case (:source event)
-      :keyboard (handle-keyboard-event view-state event)
-      :mouse (handle-mouse-event view-state event)
-      (throw (Exception. (str "unknown source " (:source event)))))))
+    (cond (= (:source event) :mouse)
+          (handle-mouse-event view-state event)
 
-(defn handle-events [view]
-  (let [unread-events (->> (concat (input/unread-keyboard-events)
-                                   (->> (input/unread-mouse-events)
-                                        (trim-mouse-movements)
-                                        (map (partial invert-mouse-y (get view [:height])))))
-                           (sort-by :time))]
+          (= (:type event) :resize-requested)
+          (dataflow/define-to view-state
+            :width (:width event)
+            :height (:height event))
 
-    (reduce handle-event view unread-events)))
+          (= (:type event) :close-requested)
+          (-> view-state
+              (assoc :closing true)
+              (call-event-handler event))
+
+          :default
+          (call-event-handler view-state event))))
+
+(defn handle-events [view events]
+  (let [events (->> events
+                    (trim-mouse-movements)
+                    (map (partial invert-mouse-y (get view [:height]))))]
+
+    (reduce handle-event view events)))
 
 
-(defn update-view [view-atom]
-  (when (not (empty? (dataflow/changes @view-atom)))
-    (let [view-state (swap! view-atom (fn [view-state]
-                                        (-> view-state
-                                            (assoc :changes-to-be-processed (dataflow/changes view-state))
+(defn update-gpu [view-state]
+  (let [changes-to-be-processed (dataflow/changes view-state)
+        resized (some #{[:width] [:height]} changes-to-be-processed)
+        changed-view-part-layout-paths (filter #(view-part-is-loaded? @(:gpu-state view-state) %)
+                                               changes-to-be-processed)]
 
-                                            (dataflow/reset-changes))))
-
-          changed-view-part-layout-paths (filter #(view-part-is-loaded? @(:gpu-state view-state) %)
-                                                 (:changes-to-be-processed view-state))]
-
-      (debug/do-debug :events "New view state:")
-      (debug/debug-all :events (dataflow/describe-dataflow view-state))
-      (when (not (empty? changed-view-part-layout-paths))
-        (do (-> (swap! (:gpu-state view-state)
-                       (fn [gpu-state]
-                         (-> (reduce (fn [gpu-state layout-path]
-                                       (update-view-part gpu-state view-state layout-path))
-                                     gpu-state
-                                     changed-view-part-layout-paths)
-                             ((fn [gpu-state]
-                                (debug/do-debug :view-update "New gpu state:")
-                                (debug/debug-all :view-update (describe-gpu-state gpu-state))
-                                gpu-state)))))
-                (render))
-            (swap! view-atom assoc :needs-redraw true))))))
+    (debug/do-debug :events "New view state:")
+    (debug/debug-all :events (dataflow/describe-dataflow view-state))
+    (when resized
+      (window/resize (get view-state [:width])
+                     (get view-state [:height])))
+    (when (not (empty? changed-view-part-layout-paths))
+      (-> (swap! (:gpu-state view-state)
+                 (fn [gpu-state]
+                   (-> (reduce (fn [gpu-state layout-path]
+                                 (update-view-part gpu-state view-state layout-path))
+                               gpu-state
+                               changed-view-part-layout-paths)
+                       ((fn [gpu-state]
+                          (debug/do-debug :view-update "New gpu state:")
+                          (debug/debug-all :view-update (describe-gpu-state gpu-state))
+                          gpu-state)))))
+          (render)))))
 
 ;; FPS
 
@@ -340,17 +343,15 @@
 
 ;; UPDATE
 
-(defn update [view-atom]
+(defn update [view-atom events]
   (swap! view-atom
          (fn [view]
            (-> view
-               (handle-events)
+               (handle-events events)
                (dataflow/propagate-changes)
                ;;(update-time)
                ;;(update-fps)
-               )))
-
-  (update-view view-atom))
+               ))))
 
 
 ;; INITIALIZATION
@@ -387,13 +388,6 @@
 
     view-state))
 
-
-(defn handle-resize [view-state-atom width height]
-  (swap! view-state-atom dataflow/define-to
-         :width width
-         :height height)
-  (swap! view-state-atom assoc
-         :needs-redraw true))
 
 
 (defn set-view [state view]

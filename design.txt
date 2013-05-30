@@ -1,17 +1,18 @@
 Event handling
 -------------
-When awt event occurs, it is added to an event queue.
+When awt event occurs, it is added to an event queue (persistent queue in a ref).
 
 Application loop
-- if the event queue is empty and no animations are running
-  - block until the event queue contains something
+- if the event queue is empty and no animations are running block
+  until the event queue contains something
 - update application state based on events from the event queue
 - update application state based on elapsed time
-- signal render loop with the new application state to be rendered
+- offer the render loop the new application state to be rendered using a SynchronousQueue
 - wait for the next frame to achieve the requested frames per second
 
 Render loop
-- wait for a new application state to be rendered
+- wait for a new application state to be rendered using a SynchronousQueue
 - update gpu state based on the application state
 - render
+
 

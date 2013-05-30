@@ -9,3 +9,5 @@ pom.xml
 *.iml
 *.jpg
 *~
+config_debug.clj
+debug-log.txt

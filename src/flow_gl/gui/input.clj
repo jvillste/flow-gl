@@ -50,17 +50,17 @@
 
 (defn create-mouse-event [lwjgl-event]
   (->(cond (or (not (= (:mouse-delta-x lwjgl-event) 0))
-             (not (= (:mouse-delta-y lwjgl-event) 0)))
-         {:type :mouse-moved
-          :mouse-x (:mouse-x lwjgl-event)
-          :mouse-y (:mouse-y lwjgl-event)}
+               (not (= (:mouse-delta-y lwjgl-event) 0)))
+           {:type :mouse-moved
+            :mouse-x (:mouse-x lwjgl-event)
+            :mouse-y (:mouse-y lwjgl-event)}
 
-         (not (= 0 (:mouse-wheel-delta lwjgl-event)))
-         {:type :mouse-wheel-moved
-          :mouse-wheel-delta (:mouse-wheel-delta lwjgl-event)}
+           (not (= 0 (:mouse-wheel-delta lwjgl-event)))
+           {:type :mouse-wheel-moved
+            :mouse-wheel-delta (:mouse-wheel-delta lwjgl-event)}
 
-         (not (= (:mouse-button lwjgl-event) -1))
-         {:type (mouse-button-event-type lwjgl-event)})
+           (not (= (:mouse-button lwjgl-event) -1))
+           {:type (mouse-button-event-type lwjgl-event)})
      (assoc :time (:time lwjgl-event)
             :source :mouse)))
 
@@ -96,25 +96,29 @@
 
 
 ;; KEYBOARD
+(comment
+  (def escape 1)
+  (def backspace 14)
+  (def up 200)
+  (def left 203)
+  (def down 208)
+  (def right 205)
+  (def page-down 209)
+  (def page-up 201)
+  (def enter 28)
+  (def space 57)
+  (def left-shift 42)
+  (def right-shift 54)
+  (def left-control 29)
+  (def right-control 157)
+  (def alt 56)
+  (def alt-gr 184)
+  (def p 25))
 
-(def escape 1)
-(def backspace 14)
-(def up 200)
-(def left 203)
-(def down 208)
-(def right 205)
-(def page-down 209)
-(def page-up 201)
-(def enter 28)
-(def space 57)
-(def left-shift 42)
-(def right-shift 54)
-(def left-control 29)
-(def right-control 157)
-(def alt 56)
-(def alt-gr 184)
-
-(def p 25)
+(def down java.awt.event.KeyEvent/VK_DOWN)
+(def up java.awt.event.KeyEvent/VK_UP)
+(def right java.awt.event.KeyEvent/VK_RIGHT)
+(def left java.awt.event.KeyEvent/VK_LEFT)
 
 (def shift :shift)
 (def control :control)
@@ -160,8 +164,8 @@
                      (conj (:key-code keyboard-event))
                      (conj-if-not-nil (combined-key-code (:key-code keyboard-event))))
     :key-released (-> keys-down
-                     (disj (:key-code keyboard-event))
-                     (disj (combined-key-code (:key-code keyboard-event))))
+                      (disj (:key-code keyboard-event))
+                      (disj (combined-key-code (:key-code keyboard-event))))
     keys-down))
 
 (defn update-keyboard-state [gui event]
@@ -179,4 +183,3 @@
           key)
        (= (:type keyboard-event)
           :key-pressed)))
-
