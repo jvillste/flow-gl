@@ -34,14 +34,21 @@
   (try
     (debug/do-debug :events "starting event loop")
     (loop []
-      (let [events (awt-input/dequeue-events)]
-        (debug/do-debug :events "handling events " events)
-        (debug/write-log)
-        (view/update state-atom events)
-        (.put state-queue @state-atom)
-        (swap! state-atom dataflow/reset-changes)
-        (when (not (:closing @state-atom))
-          (recur))))
+      (if (view/is-time-dependant? @state-atom)
+        (do (swap! state-atom view/update-time)
+            (let [events (awt-input/dequeue-events)]
+              (if (not (empty? events))
+                (do (debug/do-debug :events "handling events " events)
+                    (view/update state-atom events)))))
+        (let [events (awt-input/dequeue-events-or-wait)]
+          (debug/do-debug :events "handling events " events)
+          (debug/write-log)
+          (view/update state-atom events)))
+      (println "sending new state")
+      (.put state-queue @state-atom)
+      (swap! state-atom dataflow/reset-changes)
+      (when (not (:closing @state-atom))
+        (recur)))
     (debug/do-debug :events "event loop exit")
     (catch Exception e
       (println "Exception in event loop: " e)

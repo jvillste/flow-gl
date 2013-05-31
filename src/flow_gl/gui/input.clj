@@ -96,7 +96,6 @@
 
 
 ;; KEYBOARD
-(comment
   (def escape 1)
   (def backspace 14)
   (def up 200)
@@ -113,12 +112,8 @@
   (def right-control 157)
   (def alt 56)
   (def alt-gr 184)
-  (def p 25))
+  (def p 25)
 
-(def down java.awt.event.KeyEvent/VK_DOWN)
-(def up java.awt.event.KeyEvent/VK_UP)
-(def right java.awt.event.KeyEvent/VK_RIGHT)
-(def left java.awt.event.KeyEvent/VK_LEFT)
 
 (def shift :shift)
 (def control :control)

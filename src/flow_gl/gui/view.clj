@@ -291,8 +291,8 @@
         changed-view-part-layout-paths (filter #(view-part-is-loaded? @(:gpu-state view-state) %)
                                                changes-to-be-processed)]
 
-    (debug/do-debug :events "New view state:")
-    (debug/debug-all :events (dataflow/describe-dataflow view-state))
+    ;;(debug/do-debug :view-update "New view state:")
+    ;;(debug/debug-all :view-update (dataflow/describe-dataflow view-state))
     (when resized
       (window/resize (get view-state [:width])
                      (get view-state [:height])))
@@ -338,8 +338,13 @@
 ;; TIME
 
 (defn update-time [view]
-  (dataflow/define-to view :time (System/nanoTime)))
+  (-> view
+     (dataflow/define-to :time (System/nanoTime))
+     (dataflow/propagate-changes)))
 
+
+(defn is-time-dependant? [view]
+  (not (empty? (dataflow/dependants view [:time]))))
 
 ;; UPDATE
 

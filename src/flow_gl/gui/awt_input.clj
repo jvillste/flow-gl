@@ -6,15 +6,19 @@
 (def event-queue (java.util.concurrent.LinkedBlockingQueue.))
 
 (defn dequeue-events []
-  (if (not (.poll event-queue))
+  (loop [events (list)]
+    (if (.peek event-queue)
+      (do (debug/do-debug :events "deque event " (.peek event-queue))
+          (recur (conj events (.take event-queue))))
+      events)))
+
+(defn dequeue-events-or-wait []
+  (if (not (.peek event-queue))
     (list (.take event-queue))
-    (loop [events (list)]
-      (if (.poll event-queue)
-        (recur (conj events (.take event-queue)))
-        events))))
+    (dequeue-events)))
 
 (defn add-event [event]
-  (debug/do-debug :events "add-event " event)  
+  (debug/do-debug :events "add-event " event)
   (.put event-queue event))
 
 (defn create-keyboard-event [awt-event]
@@ -29,8 +33,21 @@
    :time (.getWhen awt-event)
    :source :keyboard})
 
+(defn key-pressed? [keyboard-event key]
+  (and (= (:key-code keyboard-event)
+          key)
+       (= (:type keyboard-event)
+          :key-pressed)))
+
 (defn set-key-listener [component]
   (.addKeyListener component
                    (proxy [KeyAdapter] []
                      (keyPressed [e]
                        (add-event (create-keyboard-event e))))))
+
+
+(def down java.awt.event.KeyEvent/VK_DOWN)
+(def up java.awt.event.KeyEvent/VK_UP)
+(def right java.awt.event.KeyEvent/VK_RIGHT)
+(def left java.awt.event.KeyEvent/VK_LEFT)
+(def space java.awt.event.KeyEvent/VK_SPACE)
