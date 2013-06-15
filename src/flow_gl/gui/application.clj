@@ -8,10 +8,11 @@
 
 (defonce state-atom-atom (atom nil))
 
-(defn render-loop [width height state-queue framerate]
+(defn render-loop [width height initial-state state-queue framerate]
   (let [window-atom (window/create width height)]
     (try (debug/do-debug :render "starting render loop")
          (opengl/initialize)
+         (view/initialize-gpu-state initial-state)
          (loop []
            (let [state (.take state-queue)]
              (debug/do-debug :render "rendering new state")
@@ -31,31 +32,24 @@
          (finally (debug/write-log)))))
 
 (defn event-loop [state-atom state-queue]
-  (try
-    (debug/do-debug :events "starting event loop")
-    (loop []
-      (if (view/is-time-dependant? @state-atom)
-        (do (swap! state-atom view/update-time)
-            (let [events (awt-input/dequeue-events)]
-              (if (not (empty? events))
-                (do (debug/do-debug :events "handling events " events)
-                    (view/update state-atom events)))))
-        (let [events (awt-input/dequeue-events-or-wait)]
-          (debug/do-debug :events "handling events " events)
-          (debug/write-log)
-          (view/update state-atom events)))
-      (println "sending new state")
-      (.put state-queue @state-atom)
-      (swap! state-atom dataflow/reset-changes)
-      (when (not (:closing @state-atom))
-        (recur)))
-    (debug/do-debug :events "event loop exit")
-    (catch Exception e
-      (println "Exception in event loop: " e)
-      (.printStackTrace e)
-      (.put state-queue (assoc @state-atom :closing true))
-      (throw e))
-    (finally (debug/write-log))))
+  (debug/do-debug :events "starting event loop")
+  (loop []
+    (if (view/is-time-dependant? @state-atom)
+      (do (swap! state-atom view/update-time)
+          (let [events (awt-input/dequeue-events)]
+            (if (not (empty? events))
+              (do (debug/do-debug :events "handling events " events)
+                  (view/update state-atom events)))))
+      (let [events (awt-input/dequeue-events-or-wait)]
+        (debug/do-debug :events "handling events " events)
+        (debug/write-log)
+        (view/update state-atom events)))
+    (println "sending new state")
+    (.put state-queue @state-atom)
+    (swap! state-atom dataflow/reset-changes)
+    (when (not (:closing @state-atom))
+      (recur)))
+  (debug/do-debug :events "event loop exit"))
 
 
 (defn start  [root-layoutable-constructor & {:keys [handle-event initialize width height framerate]
@@ -65,34 +59,38 @@
                                                   height 500
                                                   framerate 30}} ]
   (debug/reset-log)
+
   (let [state-queue (java.util.concurrent.SynchronousQueue.)]
 
-    (.start (Thread. (fn [] (render-loop width height state-queue framerate))))
-    (let [state-atom (-> (view/create width height handle-event root-layoutable-constructor)
-                         ;;(assoc :window-atom window-atom)
-                         (atom))]
 
-      (reset! state-atom-atom state-atom)
 
-      (swap! state-atom
-             (fn [state]
-               (-> state
-                   ;; (assoc :state-atom state-atom)
-                   (initialize state-atom)
-                   (dataflow/propagate-changes)
-                   ((fn [view-state]
-                      (flow-gl.debug/debug :initialization "Initial view state:")
-                      (flow-gl.debug/debug-all :initialization (dataflow/dependency-tree view-state))
-                      view-state)))))
+    (try
+      (let [state-atom (-> (view/create width height handle-event root-layoutable-constructor)
+                           ;;(assoc :window-atom window-atom)
+                           (atom))]
 
-      (event-loop state-atom state-queue))
+        (reset! state-atom-atom state-atom)
 
-    nil))
+        (swap! state-atom
+               (fn [state]
+                 (-> state
+                     ;; (assoc :state-atom state-atom)
+                     (initialize state-atom)
+                     (dataflow/propagate-changes)
+                     ((fn [view-state]
+                        (flow-gl.debug/debug :initialization "Initial view state:")
+                        (flow-gl.debug/debug-all :initialization (dataflow/dependency-tree view-state))
+                        view-state)))))
 
-(defn close [application-state]
-  (swap! (:window-atom application-state) window/request-close)
-  application-state)
+        (.start (Thread. (fn [] (render-loop width height @state-atom state-queue framerate))))
 
+        (event-loop state-atom state-queue))
+      (catch Exception e
+        (println "Exception in event loop: " e)
+        (.printStackTrace e)
+        (.put state-queue {:closing true})
+        (throw e))
+      (finally (debug/write-log)))))
 
 (defn start-viewless [update & {:keys [initialize close resize width height framerate]
                                 :or {initialize (fn [state state-atom] state)

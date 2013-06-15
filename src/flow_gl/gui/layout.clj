@@ -111,11 +111,13 @@
   layoutable/Layoutable
   (layoutable/preferred-width [absolute] (apply max (map (fn [layoutable]
                                                            (+ (:x layoutable)
-                                                              (layoutable/preferred-width layoutable))))))
+                                                              (layoutable/preferred-width layoutable)))
+                                                         layoutables)))
 
-  (layoutable/preferred-height [box] (apply max (map (fn [layoutable]
+  (layoutable/preferred-height [absolute] (apply max (map (fn [layoutable]
                                                        (+ (:y layoutable)
-                                                          (layoutable/preferred-height layoutable))))))
+                                                          (layoutable/preferred-height layoutable)))
+                                                     layoutables)))
 
   drawable/Drawable
   (drawing-commands [this] (layout-drawing-commands layoutables))

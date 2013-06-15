@@ -13,21 +13,27 @@
   (reset! log []))
 
 (defn if-channel-active [channel then else]
-  (if (contains? @active-channels channel)
+  (if (or (contains? @active-channels channel)
+          (contains? @active-channels :all))
     then
     else))
+
+(defn append-log [channel messages]
+  (swap! log conj (str (name channel) " : " (apply str messages))))
 
 (defmacro debug [channel & messages]
   (if-channel-active channel
                      `(let [messages# (list ~@messages)]
-                        (swap! log conj (apply str messages#))
+                        (append-log ~channel messages#)
+                        ;;                        (swap! log conj (str ~channel " " (apply str messages#)))
                         (last messages#))
                      (last messages)))
 
 (defmacro do-debug [channel & messages]
   (if-channel-active channel
                      `(let [messages# (list ~@messages)]
-                        (swap! log conj (apply str messages#))
+                        (append-log ~channel messages#)
+                        ;;(swap! log conj (str ~channel " " (apply str messages#)))
                         (last messages#))
                      nil))
 
@@ -40,7 +46,8 @@
 (defmacro debug-drop-last [channel & messages]
   (if-channel-active channel
                      `(let [messages# (list ~@messages)]
-                        (swap! log conj (apply str (drop-last messages#)))
+                        ;;                        (swap! log conj (str ~channel " " (apply str (drop-last messages#))))
+                        (append-log ~channel (drop-last messages#))
                         (last messages#))
                      (last messages)))
 
@@ -48,7 +55,9 @@
   (if-channel-active channel
                      `(let [messages# (list ~@messages)]
                         (when (condition (last messages#))
-                          (swap! log conj (apply str messages#)))
+                          (append-log ~channel messages#)
+                          ;;(swap! log conj (str ~channel " " (apply str messages#)))
+                          )
                         (last messages#))
                      (last messages)))
 

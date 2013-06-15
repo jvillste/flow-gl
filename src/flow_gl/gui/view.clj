@@ -339,8 +339,8 @@
 
 (defn update-time [view]
   (-> view
-     (dataflow/define-to :time (System/nanoTime))
-     (dataflow/propagate-changes)))
+      (dataflow/define-to :time (System/nanoTime))
+      (dataflow/propagate-changes)))
 
 
 (defn is-time-dependant? [view]
@@ -377,23 +377,19 @@
                                                    (dataflow/get-global-value :height)))))
 
 (defn create [width height event-handler root-element-constructor]
-  (let [gpu-state (atom {:view-part-command-runners {}})
-        view-state (-> (initialize-view-state width
-                                              height
-                                              root-element-constructor)
-                       (assoc
-                           :fpss []
-                           :last-update-time (System/nanoTime)
-                           :mouse-event-handlers-under-mouse []
-                           :gpu-state gpu-state
-                           :event-handler event-handler))]
+  (-> (initialize-view-state width
+                             height
+                             root-element-constructor)
+      (assoc
+          :fpss []
+          :last-update-time (System/nanoTime)
+          :mouse-event-handlers-under-mouse []
+          :gpu-state (atom {:view-part-command-runners {}})
+          :event-handler event-handler)))
 
-    (swap! gpu-state load-view-part
-           view-state [:layout])
-
-    view-state))
-
-
+(defn initialize-gpu-state [view-state]
+  (swap! (:gpu-state view-state) load-view-part
+         view-state [:layout]))
 
 (defn set-view [state view]
   (-> state

@@ -18,7 +18,7 @@
     (dequeue-events)))
 
 (defn add-event [event]
-  (debug/do-debug :events "add-event " event)
+  (debug/do-debug :events "add event " event)
   (.put event-queue event))
 
 (defn create-keyboard-event [awt-event]
