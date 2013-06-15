@@ -56,7 +56,6 @@ void main() {
 (def shader-program-atom (atom nil))
 
 (defn create-shared-resources []
-  (println "create shared")
   (reset! shader-program-atom (shader/compile-program vertex-shader-source
                                                  fragment-shader-source)))
 
@@ -65,7 +64,6 @@ void main() {
   (reset! shader-program-atom nil))
 
 (defn create [mode]
-  (println "creating for " @shader-program-atom)
   (map->TriangleList {:mode mode
                       :vertex-coordinate-attribute-index (ARBVertexShader/glGetAttribLocationARB @shader-program-atom "vertex_coordinate_attribute")
                       :vertex-color-attribute-index (ARBVertexShader/glGetAttribLocationARB @shader-program-atom "vertex_color_attribute")

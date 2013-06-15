@@ -15,7 +15,6 @@
                    (view/init-and-call :box2 box/view)]))
 
 (defn handle-event [state view event]
-  (println "event " event)
   (box/handle-event state
                     (concat view [:box1])
                     event))
