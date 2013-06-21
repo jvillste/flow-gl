@@ -16,3 +16,9 @@ Render loop
 - render
 
 
+Aspects
+--------------
+GPU update
+Event handling
+View state
+Layout

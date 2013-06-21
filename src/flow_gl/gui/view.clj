@@ -253,10 +253,10 @@
 ;; EVENT HANDLING
 
 (defn call-event-handler [view-state event]
-  ((:event-handler view-state)
-   view-state
-   [:elements]
-     event))
+  (binding [dataflow/current-path [:elements]]
+    ((:event-handler view-state)
+     view-state
+       event)))
 
 (defn handle-event [view-state event]
   (debug/debug :events "handle event " event)

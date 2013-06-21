@@ -2,8 +2,7 @@
   (:require (flow-gl.gui [awt-input :as input]
                          [drawable :as drawable]
                          [layout :as layout]
-                         [view :as view]
-                         [application :as application])
+                         [events :as events])
             (flow-gl [dataflow :as dataflow])))
 
 (defn view []
@@ -22,7 +21,9 @@
                         (* 2 Math/PI)
                         (Math/sin)
                         (+ 1)
-                        (/ 2))
+                        (/ 2)
+                        (* 0.2)
+                        (+ 0.8))
         max-size 80
         half-size (/ max-size 2)
         size (+ half-size (* time-factor half-size))]
@@ -34,24 +35,11 @@
                           :y (+ (* max-size (dataflow/get-value :y))
                                 (/ (- max-size size) 2)))])))
 
-(defn on-key-apply-one [state event key path function]
-  `((input/key-pressed? ~event ~key)
-    (dataflow/apply-to-value ~state ~path ~function)))
 
-(defmacro on-key-apply [state event & specs]
-  (let [specs (partition 3 specs)]
-    `(cond ~@(mapcat (fn [[key path function]]
-                       (on-key-apply-one state event key path function))
-                     specs )
-           :default ~state)))
-
-(defn p [prefix key]
-  (concat prefix [key]))
-
-(defn handle-event [state box event]
-  (on-key-apply state event
-                input/down (p box :y) inc
-                input/up (p box :y) dec
-                input/left (p box :x) dec
-                input/right (p box :x) inc
-                input/space (p box :animate) not))
+(defn handle-event [state event]
+  (events/on-key-apply state event
+                       input/down :y inc
+                       input/up :y dec
+                       input/left :x dec
+                       input/right :x inc
+                       input/space :animate not))
