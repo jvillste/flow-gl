@@ -256,11 +256,13 @@
   (binding [dataflow/current-path [:elements]]
     ((:event-handler view-state)
      view-state
-       event)))
+     event)))
 
 (defn handle-event [view-state event]
   (debug/debug :events "handle event " event)
-  (let [view-state (assoc view-state :event-handled false)]
+  (let [view-state (-> view-state
+                       (assoc :event-handled false)
+                       (update-time #_(:time event)))]
     (cond (= (:source event) :mouse)
           (handle-mouse-event view-state event)
 
@@ -337,10 +339,14 @@
 
 ;; TIME
 
-(defn update-time [view]
-  (-> view
-      (dataflow/define-to :time (System/nanoTime))
-      (dataflow/propagate-changes)))
+(defn update-time
+  ([view]
+     (update-time view (System/nanoTime)))
+
+  ([view time]
+     (-> view
+         (dataflow/define-to :time time)
+         (dataflow/propagate-changes))))
 
 
 (defn is-time-dependant? [view]

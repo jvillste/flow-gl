@@ -3,6 +3,9 @@
              [flow-gl.gui.awt-input :as input])
   (:use clojure.test))
 
+(defn get-child-event-handler [state child]
+  (get (dataflow/get-value-from state :child-event-handlers) child))
+
 (defn set-focusable-children [& names]
   (dataflow/define :focusable-children names)
   (dataflow/define :child-in-focus (first names))
@@ -42,7 +45,11 @@
     (-> state
         (dataflow/define-to [was-in-focus :has-focus] false)
         (dataflow/define-to [now-in-focus :has-focus] true)
-        (dataflow/define-to :child-in-focus now-in-focus))))
+        (dataflow/define-to :child-in-focus now-in-focus)
+        (as-> state
+              (let [handler (get-child-event-handler state now-in-focus)]
+                (binding [dataflow/current-path (dataflow/path dataflow/current-path now-in-focus)]
+                  (handler state {:type :gain-focus})))))))
 
 (deftest move-focus-test
   (is (= (-> (dataflow/create)
@@ -57,9 +64,8 @@
           [:view :child2 :has-focus] false
           [:view :focusable-children] [:child1 :child2]})))
 
-
 (defn pass-event-to-focused-child [state event]
   (let [child-in-focus (dataflow/get-value-from state :child-in-focus)
-        handler (get (dataflow/get-value-from state :child-event-handlers) child-in-focus)]
+        handler (get-child-event-handler state child-in-focus)]
     (binding [dataflow/current-path (dataflow/path dataflow/current-path child-in-focus)]
       (handler state event))))
