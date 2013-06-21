@@ -44,7 +44,6 @@
         (debug/do-debug :events "handling events " events)
         (debug/write-log)
         (view/update state-atom events)))
-    (println "sending new state")
     (.put state-queue @state-atom)
     (swap! state-atom dataflow/reset-changes)
     (when (not (:closing @state-atom))
@@ -134,3 +133,7 @@
         (throw e))
       (finally (debug/write-log)))
     nil))
+
+
+(defn request-close []
+  (awt-input/add-event {:type :close-requested}))

@@ -40,14 +40,18 @@
           :key-pressed)))
 
 (defn set-key-listener [component]
+  (.setFocusTraversalKeysEnabled component false)
   (.addKeyListener component
                    (proxy [KeyAdapter] []
                      (keyPressed [e]
                        (add-event (create-keyboard-event e))))))
 
-
+(def esc java.awt.event.KeyEvent/VK_ESCAPE)
+(def tab java.awt.event.KeyEvent/VK_TAB)
 (def down java.awt.event.KeyEvent/VK_DOWN)
 (def up java.awt.event.KeyEvent/VK_UP)
 (def right java.awt.event.KeyEvent/VK_RIGHT)
 (def left java.awt.event.KeyEvent/VK_LEFT)
 (def space java.awt.event.KeyEvent/VK_SPACE)
+
+

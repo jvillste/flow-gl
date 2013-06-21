@@ -21,19 +21,12 @@
           (keys (::dependencies dataflow))))
 
 
-(deftest dependants-test
-  (is (= (dependants {::dependencies {[:a] #{[:b] [:c]}
-                                      [:b] #{[:d]}}}
-                     [:b])
-         '([:a])))
-
-  (is (= (dependants {::dependencies {[:a] #{[:b] [:c]}
-                                      [:b] #{[:d]}}}
-                     [:e])
-         '())))
 
 
 ;; DEBUG
+
+(defn to-map [dataflow]
+  (dissoc dataflow ::heights ::dependencies ::functions ::changed-paths ::children ::need-to-be-updated))
 
 (defn function-to-string [dataflow key]
   (str key " (height: " (get-in dataflow [::heights key]) ") = " (if (contains? dataflow key)
@@ -55,7 +48,7 @@
 
 (defn describe-dataflow [dataflow]
   (describe-functions dataflow
-                        (sort (keys (::functions dataflow)))))
+                      (sort (keys (::functions dataflow)))))
 
 (defn describe-dataflow-undefined [dataflow]
   (describe-functions dataflow
@@ -205,11 +198,13 @@
             paths-and-functions))
 
   ([dataflow path function]
+;;       (println "define to " (absolute-path path) function)
      (let [function (if (fn? function)
                       function
                       (fn [] function))
            path (absolute-path path)
            old-value (get dataflow path)]
+
        (-> dataflow
            (assoc-in [::functions path] function)
            (update-in [::children] #(multimap-add % current-path path))
@@ -281,31 +276,12 @@
       dataflow
       (recur dataflow))))
 
-(comment
-
-  (do (debug/reset-log)
-      (-> (create)
-          (define-to
-            :a 1
-            :b #(+ 1
-                   (get-global-value :a))
-            :c #(+ 1
-                   (get-global-value :b))
-            :d 1
-            :e #(+ (get-global-value :b)
-                   (get-global-value :d)))
-
-          (define-to :d 2)
-          (define-to :a 3)
-
-          (propagate-changes)
-          ((fn [dataflow]
-             (debug/debug-all (describe-dataflow dataflow)))))
-      (debug/write-log)))
-
 
 
 ;; ACCESS
+
+(defn path [parent & path]
+  (concat parent path))
 
 (defn get-global-value-from [dataflow path]
   (logged-access/get dataflow (as-path path)))
@@ -319,6 +295,11 @@
 
 (defn get-value [path-or-key]
   (get-global-value (absolute-path path-or-key)))
+
+(defn get-value-or-nil [path-or-key]
+  (if (is-defined? @current-dataflow (absolute-path path-or-key))
+    (get-global-value (absolute-path path-or-key))
+    nil))
 
 (defn get-value-or-initialize [path-or-key default]
   (when (not (is-defined? @current-dataflow (absolute-path path-or-key)))
@@ -334,8 +315,8 @@
 (defn bind [target source]
   (define target #(get-global-value source)))
 
-(defn apply-to-value [dataflow path function]
-  (define-to dataflow path (function (get dataflow (absolute-path path)))))
+(defn apply-to-value [dataflow path function & arguments]
+  (define-to dataflow path (apply function (get dataflow (absolute-path path)) arguments)))
 
 (defn values-to-map [& keys]
   (reduce (fn [result key] (assoc result key (get-value key)))
@@ -361,6 +342,29 @@
 
 
 ;; TESTS
+
+(deftest dependants-test
+  (is (= (dependants {::dependencies {[:a] #{[:b] [:c]}
+                                      [:b] #{[:d]}}}
+                     [:b])
+         '([:a])))
+
+  (is (= (dependants {::dependencies {[:a] #{[:b] [:c]}
+                                      [:b] #{[:d]}}}
+                     [:e])
+         '())))
+
+(deftest get-value-or-nil-test
+  (is (= (binding [current-dataflow (atom (-> (create)
+                                              (define-to :foo 2)))]
+           (get-value :foo))
+         2)))
+
+(deftest is-defined?-test
+  (is (= (is-defined? (-> (create)
+                          (define-to :foo 2))
+                      [:foo])
+         true)))
 
 (deftest describe-dataflow-test
   (is (= (-> (create)
@@ -400,8 +404,6 @@
            "  [:foo3] = 4"
            "    [:foo] = 2"))))
 
-
-;; TESTS
 
 (deftest propagate-test
   (is (= (-> (create)
@@ -483,39 +485,6 @@
                      (debug-dataflow))]
     (are [x y] (= x y)
          3 (get-value-from dataflow :a))))
-
-(comment
-
-  (do
-    (debug/set-active-channels #_:view-definition
-                               #_:initialization
-                               :dataflow
-                               #_:events
-                               #_:view-update
-                               #_:default)
-    (debug/reset-log)
-    (undefined-test)
-    (debug/write-log))
-
-  (do (debug/reset-log)
-      (-> (create)
-          (define-to
-            :a #(do (initialize :b 1)
-                    (get-value :b)))
-
-          (define-to [:a :b] 2)
-
-          (propagate-changes)
-          (debug-dataflow))
-      (debug/write-log))
-
-  (-> {:p (priority-map/priority-map)}
-      (assoc-in [:p :a] 3)
-      (assoc-in [:p :b] 1)
-      (assoc-in [:p :c] 2)
-      (get :p)
-      (seq)))
-
 
 
 (run-tests)

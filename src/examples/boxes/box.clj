@@ -26,7 +26,9 @@
         max-size 80
         half-size (/ max-size 2)
         size (+ half-size (* time-factor half-size))]
-    (layout/->Absolute [(assoc (drawable/->FilledRoundedRectangle size size 20 [1 0 0 1])
+    (layout/->Absolute [(assoc (drawable/->FilledRoundedRectangle size size 20 (if (dataflow/get-value-or-nil :has-focus)
+                                                                                 [1 0 0 1]
+                                                                                 [0 1 0 1]))
                           :x (+ (* max-size (dataflow/get-value :x))
                                 (/ (- max-size size) 2))
                           :y (+ (* max-size (dataflow/get-value :y))
