@@ -37,10 +37,10 @@
 (defn start []
   (application/start view
                      :handle-event handle-event
-                     :framerate 50))
+                     :framerate 60))
 
 
 (comment
   (.start (Thread. start))
-  (start)
+(start)
   )

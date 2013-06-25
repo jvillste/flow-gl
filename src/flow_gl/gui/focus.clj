@@ -49,7 +49,7 @@
         (as-> state
               (let [handler (get-child-event-handler state now-in-focus)]
                 (binding [dataflow/current-path (dataflow/path dataflow/current-path now-in-focus)]
-                  (handler state {:type :gain-focus})))))))
+                  (handler state {:type :focus-gained})))))))
 
 (deftest move-focus-test
   (is (= (-> (dataflow/create)

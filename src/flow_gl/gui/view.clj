@@ -250,6 +250,21 @@
                  (conj trimmed-events event)))
         trimmed-events))))
 
+;; TIME
+
+(defn update-time
+  ([view]
+     (update-time view (System/nanoTime)))
+
+  ([view time]
+     (-> view
+         (dataflow/define-to :time time)
+         (dataflow/propagate-changes))))
+
+
+(defn is-time-dependant? [view]
+  (not (empty? (dataflow/dependants view [:time]))))
+
 ;; EVENT HANDLING
 
 (defn call-event-handler [view-state event]
@@ -337,20 +352,6 @@
         (dataflow/define-to :fps (average-fps view))
         (assoc :last-update-time time-now))))
 
-;; TIME
-
-(defn update-time
-  ([view]
-     (update-time view (System/nanoTime)))
-
-  ([view time]
-     (-> view
-         (dataflow/define-to :time time)
-         (dataflow/propagate-changes))))
-
-
-(defn is-time-dependant? [view]
-  (not (empty? (dataflow/dependants view [:time]))))
 
 ;; UPDATE
 
