@@ -288,6 +288,7 @@
 
 (defn get-global-value [path]
   (let [path (as-path path)]
+;;    (println "get global value " path)
     (if (contains? @current-dataflow path)
       (get-global-value-from @current-dataflow path)
       (do (logged-access/add-read path)
