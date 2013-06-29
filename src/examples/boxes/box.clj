@@ -13,7 +13,6 @@
    :x 0
    :y 0)
 
-
   (animation/initialize-animation :focus)
 
   (let [max-size 80
