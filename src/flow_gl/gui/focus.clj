@@ -16,7 +16,7 @@
         names (keys event-handlers-map)]
     (dataflow/define :child-event-handlers event-handlers-map)
     (dataflow/define :focusable-children names)
-    (dataflow/define :child-in-focus (first names))
+    (dataflow/initialize :child-in-focus (first names))
     (dataflow/define [(first names) :has-focus] true)))
 
 (defn next-in-focus [in-focus focusables]

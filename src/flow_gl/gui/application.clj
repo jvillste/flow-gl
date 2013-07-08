@@ -4,7 +4,8 @@
             [flow-gl.debug :as debug]
             [flow-gl.dataflow :as dataflow]
             [flow-gl.opengl :as opengl]
-            [flow-gl.gui.awt-input :as awt-input]))
+            [flow-gl.gui.awt-input :as awt-input])
+  (:import [java.io PrintWriter StringWriter]))
 
 (defonce state-atom-atom (atom nil))
 
@@ -26,7 +27,10 @@
          (debug/do-debug :render "render loop exit")
          (catch Exception e
            (println "Exception in render loop: " e)
-           (.printStackTrace e)
+           (let [string-writer (StringWriter.)]
+             (.printStackTrace e (PrintWriter. string-writer))
+             (println (.toString string-writer)))
+
            (swap! window-atom window/close)
            (throw e))
          (finally (debug/write-log)))))
@@ -86,8 +90,12 @@
         (event-loop state-atom state-queue))
       (catch Exception e
         (println "Exception in event loop: " e)
-        (.printStackTrace e)
-        (.put state-queue {:closing true})
+        (let [string-writer (StringWriter.)]
+          (.printStackTrace e (PrintWriter. string-writer))
+          (println (.toString string-writer)))
+
+        (.offer state-queue {:closing true})
+
         (throw e))
       (finally (debug/write-log)))))
 

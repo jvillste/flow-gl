@@ -198,7 +198,7 @@
             paths-and-functions))
 
   ([dataflow path function]
-;;       (println "define to " (absolute-path path) function)
+       (println "define to " (absolute-path path) function)
      (let [function (if (fn? function)
                       function
                       (fn [] function))
