@@ -13,38 +13,34 @@
 
 
 (defn focus-box-view [view-to-follow]
-  (println (-> view-to-follow
-               dataflow/get-global-value
-               view/element-path-to-layout-path
-               (dataflow/path :y)
-               dataflow/get-global-value))
 
-  (layout/->Absolute [(-> (drawable/->FilledRoundedRectangle 40
-                                                             40
-                                                             20
-                                                             [0 0 1 1])
-                          (assoc :x 10 :y (-> view-to-follow
-                                              dataflow/get-global-value
-                                              view/element-path-to-layout-path
-                                              (dataflow/path :y)
-                                              dataflow/get-global-value)))]))
+  (let [layout-path (-> view-to-follow
+                        dataflow/get-global-value
+                        view/element-path-to-layout-path)
+        layout-property (fn [key] (-> (dataflow/path layout-path key)
+                                      dataflow/get-global-value))]
 
-(defn box-view []
+    (layout/->Absolute [(-> (drawable/->FilledRoundedRectangle (layout-property :width)
+                                                               (layout-property :height)
+                                                               10
+                                                               [0 0 1 0.3])
+                            (assoc :x (layout-property :x)
+                                   :y (layout-property :y)))])))
+
+(defn box-view [width height]
   (dataflow/initialize :checked false)
 
   (let [size 80]
-    (layout/->Box 5 (drawable/->Empty) (drawable/->FilledRoundedRectangle size
-                                                                          size
-                                                                          20
-                                                                          (if (dataflow/get-value-or-nil :checked)
-                                                                            [1 0 0 1]
-                                                                            [0 1 0 1])))))
-
+    (drawable/->FilledRoundedRectangle width
+                                       height
+                                       5
+                                       (if (dataflow/get-value-or-nil :checked)
+                                         [1 0 0 1]
+                                         [0 1 0 1]))
+    ))
 
 (defn box-handle-event [state event]
   (events/on-key-apply state event input/space :checked not))
-
-
 
 (defn view []
   (apply focus/set-focusable-children (apply concat (for [index (range 1 4)]
@@ -56,8 +52,15 @@
                                                    (dataflow/path parent-path)))))
 
 
-  (layout/->Stack [(layout/->VerticalStack (vec (for [index (range 1 4)]
-                                                  (view/init-and-call (keyword (str "box" index)) box-view))))
+  (layout/->Stack [(drawable/->Rectangle (dataflow/get-global-value :width)
+                                         (dataflow/get-global-value :height)
+                                         [1 1 1 1])
+
+                   (layout/->VerticalStack (vec (for [index (range 1 4)]
+                                                  (layout/->Box 5
+                                                                (drawable/->Empty)
+                                                                (view/init-and-call (keyword (str "box" index)) (partial box-view (+ 20 (rand-int 100)) (+ 20 (rand-int 100))))))))
+
                    (view/init-and-call :focus-highlight (partial focus-box-view (dataflow/absolute-path :highlighted-view)))]))
 
 

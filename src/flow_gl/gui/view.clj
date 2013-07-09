@@ -46,8 +46,11 @@
 
   layout/Layout
   (layout [view-part requested-width requested-height]
-    (dataflow/define [(:local-id view-part) :x]  (:x view-part))
+    (dataflow/define [(:local-id view-part) :x] (:x view-part))
     (dataflow/define [(:local-id view-part) :y] (:y view-part))
+    (dataflow/define [(:local-id view-part) :width] requested-width)
+    (dataflow/define [(:local-id view-part) :height] requested-height)
+
     (dataflow/initialize (:local-id view-part)
                          #(layout/set-dimensions-and-layout (dataflow/get-global-value (:root-element-path view-part))
                                                             0
