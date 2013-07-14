@@ -179,6 +179,7 @@
           (when-> changed (declare-changed path))
           (when-> (= new-value ::undefined)
                   ((fn [dataflow]
+                     (println "Warning: " (function-to-string dataflow path))
                      (flow-gl.debug/debug :dataflow "Warning: " (function-to-string dataflow path))
                      dataflow)))))))
 
@@ -198,7 +199,7 @@
             paths-and-functions))
 
   ([dataflow path function]
-       (println "define to " (absolute-path path) function)
+     (println "define to " (absolute-path path) function)
      (let [function (if (fn? function)
                       function
                       (fn [] function))
@@ -288,7 +289,7 @@
 
 (defn get-global-value [path]
   (let [path (as-path path)]
-;;    (println "get global value " path)
+    ;;    (println "get global value " path)
     (if (contains? @current-dataflow path)
       (get-global-value-from @current-dataflow path)
       (do (logged-access/add-read path)

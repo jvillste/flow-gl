@@ -22,3 +22,11 @@ GPU update
 Event handling
 View state
 Layout
+
+Tooling
+-------------
+Inspect element
+- Shows view part path and code
+- Shows drawables
+In process code editor
+Dataflow visualizer

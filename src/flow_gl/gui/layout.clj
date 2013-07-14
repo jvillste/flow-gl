@@ -17,10 +17,12 @@
 
 ;; UTILITIES
 
-(defn set-dimensions-and-layout [layout-instance x y width height]
+(defn set-dimensions-and-layout [layout-instance x y parent-global-x parent-global-y width height]
   (-> layout-instance
       (assoc :x x
              :y y
+             :global-x (+ x parent-global-x)
+             :global-y (+ y parent-global-y)
              :width width
              :height height)
       (layout width
@@ -80,8 +82,8 @@
   Layout
   (layout [box requested-width requested-height]
     (-> box
-        (update-in [:outer] set-dimensions-and-layout 0 0 requested-width requested-height)
-        (update-in [:inner] set-dimensions-and-layout margin margin (layoutable/preferred-width inner) (layoutable/preferred-height inner))))
+        (update-in [:outer] set-dimensions-and-layout 0 0 (:global-x box) (:global-y box) requested-width requested-height)
+        (update-in [:inner] set-dimensions-and-layout margin margin (:global-x box) (:global-y box) (layoutable/preferred-width inner) (layoutable/preferred-height inner))))
 
   (children-in-coordinates [this view-state x y] (all-children-in-coordinates [outer inner] view-state x y ))
 
@@ -103,7 +105,7 @@
   Layout
   (layout [absolute requested-width requested-height]
     (assoc absolute :layoutables
-           (vec (map #(set-dimensions-and-layout % (or (:x %) 0) (or (:y %) 0) (layoutable/preferred-width %) (layoutable/preferred-height %))
+           (vec (map #(set-dimensions-and-layout % (or (:x %) 0) (or (:y %) 0) (:global-x absolute) (:global-y absolute) (layoutable/preferred-width %) (layoutable/preferred-height %))
                      layoutables))))
 
   (children-in-coordinates [this view-state x y] (all-children-in-coordinates layoutables view-state x y))
@@ -115,15 +117,17 @@
                                                          layoutables)))
 
   (layoutable/preferred-height [absolute] (apply max (map (fn [layoutable]
-                                                       (+ (:y layoutable)
-                                                          (layoutable/preferred-height layoutable)))
-                                                     layoutables)))
+                                                            (+ (:y layoutable)
+                                                               (layoutable/preferred-height layoutable)))
+                                                          layoutables)))
 
   drawable/Drawable
   (drawing-commands [this] (layout-drawing-commands layoutables))
 
   Object
   (toString [this] (layoutable/describe-layoutable this "Absolute" :layoutables)))
+
+
 
 (defrecord VerticalStack [layoutables]
   Layout
@@ -136,7 +140,7 @@
                     layoutables layoutables]
                (if (seq layoutables)
                  (let [height (layoutable/preferred-height (first layoutables))]
-                   (recur (conj layouted-layoutables (set-dimensions-and-layout (first layoutables) 0 y width height))
+                   (recur (conj layouted-layoutables (set-dimensions-and-layout (first layoutables) 0 y  (:global-x vertical-stack) (:global-y vertical-stack) width height))
                           (+ y height)
                           (rest layoutables)))
                  layouted-layoutables)))))
@@ -159,7 +163,7 @@
   Layout
   (layout [stack requested-width requested-height]
     (assoc stack :layoutables
-           (vec (map #(set-dimensions-and-layout % 0 0 requested-width requested-height)
+           (vec (map #(set-dimensions-and-layout % 0 0  (:global-x stack) (:global-y stack) requested-width requested-height)
                      layoutables))))
 
   (children-in-coordinates [this view-state x y] (all-children-in-coordinates layoutables view-state x y))
@@ -179,6 +183,28 @@
   Object
   (toString [this] (layoutable/describe-layoutable this "Stack" :layoutables)))
 
+(defrecord Superimpose [layoutables]
+  Layout
+  (layout [stack requested-width requested-height]
+    (assoc stack :layoutables
+           (vec (map #(set-dimensions-and-layout % 0 0  (:global-x stack) (:global-y stack) requested-width requested-height)
+                     layoutables))))
+
+  (children-in-coordinates [this view-state x y] (all-children-in-coordinates layoutables view-state x y))
+
+  layoutable/Layoutable
+  (layoutable/preferred-width [stack]
+    (layoutable/preferred-width (first layoutables)))
+
+  (layoutable/preferred-height [stack]
+    (layoutable/preferred-height (first layoutables)))
+
+  drawable/Drawable
+  (drawing-commands [this] (layout-drawing-commands layoutables))
+
+  Object
+  (toString [this] (layoutable/describe-layoutable this "Superimpose" :layoutables)))
+
 
 (defrecord Translation [translate-x translate-y layoutable]
   Layout
@@ -187,6 +213,8 @@
            (set-dimensions-and-layout layoutable
                                       translate-x
                                       translate-y
+                                      (:global-x translation)
+                                      (:global-y translation)
                                       (layoutable/preferred-width layoutable)
                                       (layoutable/preferred-height layoutable))))
 
@@ -212,7 +240,8 @@
                                         0
                                         (- requested-height
                                            height)
-
+                                        (:global-x dock-bottom)
+                                        (:global-y dock-bottom)
                                         (layoutable/preferred-width layoutable)
                                         height))))
 

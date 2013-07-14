@@ -12,20 +12,30 @@
   (:use clojure.test))
 
 
-(defn focus-box-view [view-to-follow]
+(defn focus-box-view [target-path-value]
 
-  (let [layout-path (-> view-to-follow
-                        dataflow/get-global-value
-                        view/element-path-to-layout-path)
-        layout-property (fn [key] (-> (dataflow/path layout-path key)
-                                      dataflow/get-global-value))]
+  (let [target-layout (-> target-path-value
+                          dataflow/get-global-value
+                          view/element-path-to-layout-path
+                          dataflow/get-global-value)
 
-    (layout/->Absolute [(-> (drawable/->FilledRoundedRectangle (layout-property :width)
-                                                               (layout-property :height)
+        parent-layout (-> dataflow/current-path
+                          (drop-last)
+                          (view/element-path-to-layout-path)
+                          (dataflow/get-global-value))
+        margin 5]
+
+    (layout/->Absolute [(-> (drawable/->FilledRoundedRectangle (+ (* 2 margin) (:width target-layout))
+                                                               (+ (* 2 margin) (:height target-layout))
                                                                10
                                                                [0 0 1 0.3])
-                            (assoc :x (layout-property :x)
-                                   :y (layout-property :y)))])))
+                            (assoc :x (- (:global-x target-layout)
+                                         (:global-x parent-layout)
+                                         margin)
+
+                                   :y (- (:global-y target-layout)
+                                         (:global-y parent-layout)
+                                         margin)))])))
 
 (defn box-view [width height]
   (dataflow/initialize :checked false)
@@ -35,38 +45,52 @@
                                        height
                                        5
                                        (if (dataflow/get-value-or-nil :checked)
-                                         [1 0 0 1]
-                                         [0 1 0 1]))
-    ))
+                                         [0.8 0.2 0 1]
+                                         [0.2 0.8 0 1]))))
 
 (defn box-handle-event [state event]
   (events/on-key-apply state event input/space :checked not))
 
-(defn view []
+
+(defn list-view []
   (apply focus/set-focusable-children (apply concat (for [index (range 1 4)]
                                                       [(keyword (str "box" index)) box-handle-event])))
 
   (let [child-in-focus-path (dataflow/absolute-path :child-in-focus)
         parent-path dataflow/current-path]
-    (dataflow/define :highlighted-view (fn [] (->> (dataflow/get-global-value child-in-focus-path)
-                                                   (dataflow/path parent-path)))))
 
+    (dataflow/define :highlighted-view #(dataflow/path parent-path
+                                                       (dataflow/get-global-value child-in-focus-path))))
+  #_(layout/->Translation 20 30 )
+
+  (layout/->Superimpose [(layout/->VerticalStack (vec (for [index (range 1 4)]
+                                                        (layout/->Box 5
+                                                                      (drawable/->Empty)
+                                                                      (view/init-and-call (keyword (str "box" index)) (partial box-view (+ 20 (rand-int 100)) (+ 20 (rand-int 100))))))))
+                         (view/init-and-call :focus-highlight (partial focus-box-view (dataflow/absolute-path :highlighted-view)))]))
+
+
+(defn list-view-handle-event [state event]
+  (cond (input/key-pressed? event input/tab)
+        (focus/move-focus state)
+
+        :default
+        (focus/pass-event-to-focused-child state event)))
+
+(defn view []
+  (focus/set-focusable-children :list-view-1 list-view-handle-event
+                                :list-view-2 list-view-handle-event)
 
   (layout/->Stack [(drawable/->Rectangle (dataflow/get-global-value :width)
                                          (dataflow/get-global-value :height)
                                          [1 1 1 1])
 
-                   (layout/->VerticalStack (vec (for [index (range 1 4)]
-                                                  (layout/->Box 5
-                                                                (drawable/->Empty)
-                                                                (view/init-and-call (keyword (str "box" index)) (partial box-view (+ 20 (rand-int 100)) (+ 20 (rand-int 100))))))))
-
-                   (view/init-and-call :focus-highlight (partial focus-box-view (dataflow/absolute-path :highlighted-view)))]))
-
+                   (layout/->VerticalStack [(view/init-and-call :list-view-1 list-view)
+                                            (view/init-and-call :list-view-2 list-view)])]))
 
 
 (defn handle-event [state event]
-  (cond (input/key-pressed? event input/tab)
+  (cond (input/key-pressed? event input/space)
         (focus/move-focus state)
 
         (input/key-pressed? event input/esc)
@@ -75,7 +99,6 @@
 
         :default
         (focus/pass-event-to-focused-child state event)))
-
 
 (defn start []
   (application/start view

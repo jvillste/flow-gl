@@ -46,15 +46,15 @@
 
   layout/Layout
   (layout [view-part requested-width requested-height]
-    (dataflow/define [(:local-id view-part) :x] (:x view-part))
-    (dataflow/define [(:local-id view-part) :y] (:y view-part))
-    (dataflow/define [(:local-id view-part) :width] requested-width)
-    (dataflow/define [(:local-id view-part) :height] requested-height)
+    #_(doseq [key [:x :y :global-x :global-y :width :height]]
+        (dataflow/define [(:local-id view-part) key] (key view-part)) )
 
     (dataflow/initialize (:local-id view-part)
                          #(layout/set-dimensions-and-layout (dataflow/get-global-value (:root-element-path view-part))
                                                             0
                                                             0
+                                                            (:global-x view-part)
+                                                            (:global-y view-part)
                                                             requested-width
                                                             requested-height))
     view-part)
@@ -383,6 +383,8 @@
         :fps 0
         :elements root-element-constructor
         :layout #(layout/set-dimensions-and-layout (dataflow/get-global-value :elements)
+                                                   0
+                                                   0
                                                    0
                                                    0
                                                    (dataflow/get-global-value :width)
