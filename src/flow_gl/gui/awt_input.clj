@@ -53,5 +53,6 @@
 (def right java.awt.event.KeyEvent/VK_RIGHT)
 (def left java.awt.event.KeyEvent/VK_LEFT)
 (def space java.awt.event.KeyEvent/VK_SPACE)
+(def enter java.awt.event.KeyEvent/VK_ENTER)
 
 

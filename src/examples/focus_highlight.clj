@@ -1,4 +1,4 @@
-(ns examples.vertical-boxes
+(ns examples.focus-highlight
   (:require (flow-gl.gui [awt-input :as input]
                          [drawable :as drawable]
                          [layout :as layout]
@@ -49,25 +49,17 @@
                                          [0.2 0.8 0 1]))))
 
 (defn box-handle-event [state event]
-  (events/on-key-apply state event input/space :checked not))
+  (events/on-key-apply state event input/enter :checked not))
 
 
 (defn list-view []
   (apply focus/set-focusable-children (apply concat (for [index (range 1 4)]
                                                       [(keyword (str "box" index)) box-handle-event])))
 
-  (let [child-in-focus-path (dataflow/absolute-path :child-in-focus)
-        parent-path dataflow/current-path]
-
-    (dataflow/define :highlighted-view #(dataflow/path parent-path
-                                                       (dataflow/get-global-value child-in-focus-path))))
-  #_(layout/->Translation 20 30 )
-
-  (layout/->Superimpose [(layout/->VerticalStack (vec (for [index (range 1 4)]
-                                                        (layout/->Box 5
-                                                                      (drawable/->Empty)
-                                                                      (view/init-and-call (keyword (str "box" index)) (partial box-view (+ 20 (rand-int 100)) (+ 20 (rand-int 100))))))))
-                         (view/init-and-call :focus-highlight (partial focus-box-view (dataflow/absolute-path :highlighted-view)))]))
+  (layout/->VerticalStack (vec (for [index (range 1 4)]
+                                 (layout/->Box 5
+                                               (drawable/->Empty)
+                                               (view/init-and-call (keyword (str "box" index)) (partial box-view (+ 20 (rand-int 100)) (+ 20 (rand-int 100)))))))))
 
 
 (defn list-view-handle-event [state event]
@@ -77,16 +69,23 @@
         :default
         (focus/pass-event-to-focused-child state event)))
 
+(defn view-path-in-focus [parent-path]
+  (if-let [child-in-focus-key (dataflow/maybe-get-global-value (dataflow/path parent-path :child-in-focus))]
+    (recur (dataflow/path parent-path child-in-focus-key))
+    parent-path))
+
 (defn view []
+  (dataflow/define :highlighted-view-path (partial view-path-in-focus dataflow/current-path))
+
   (focus/set-focusable-children :list-view-1 list-view-handle-event
                                 :list-view-2 list-view-handle-event)
 
   (layout/->Stack [(drawable/->Rectangle (dataflow/get-global-value :width)
                                          (dataflow/get-global-value :height)
                                          [1 1 1 1])
-
-                   (layout/->VerticalStack [(view/init-and-call :list-view-1 list-view)
-                                            (view/init-and-call :list-view-2 list-view)])]))
+                   (layout/->Superimpose [(layout/->VerticalStack [(view/init-and-call :list-view-1 list-view)
+                                                                   (view/init-and-call :list-view-2 list-view)])
+                                          (view/init-and-call :focus-highlight (partial focus-box-view (dataflow/absolute-path :highlighted-view-path)))])]))
 
 
 (defn handle-event [state event]

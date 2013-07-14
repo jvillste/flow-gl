@@ -295,6 +295,11 @@
       (do (logged-access/add-read path)
           (slingshot/throw+ {:type ::undefined-value} (str "Undefined value: " path))))))
 
+(defn maybe-get-global-value [path-or-key]
+  (if (is-defined? @current-dataflow (as-path path-or-key))
+    (get-global-value path-or-key)
+    nil))
+
 (defn get-value [path-or-key]
   (get-global-value (absolute-path path-or-key)))
 
