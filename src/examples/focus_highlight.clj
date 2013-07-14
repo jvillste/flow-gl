@@ -83,8 +83,9 @@
   (layout/->Stack [(drawable/->Rectangle (dataflow/get-global-value :width)
                                          (dataflow/get-global-value :height)
                                          [1 1 1 1])
-                   (layout/->Superimpose [(layout/->VerticalStack [(view/init-and-call :list-view-1 list-view)
-                                                                   (view/init-and-call :list-view-2 list-view)])
+                   (layout/->Superimpose [#_(view/init-and-call :list-view-1 list-view)
+                                          (layout/->HorizontalStack [(view/init-and-call :list-view-1 list-view)
+                                                                     (view/init-and-call :list-view-2 list-view)])
                                           (view/init-and-call :focus-highlight (partial focus-box-view (dataflow/absolute-path :highlighted-view-path)))])]))
 
 

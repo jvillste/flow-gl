@@ -159,6 +159,36 @@
   Object
   (toString [this] (layoutable/describe-layoutable this "VerticalStack" :layoutables)))
 
+(defrecord HorizontalStack [layoutables]
+  Layout
+  (layout [this requested-width requested-height]
+    (assoc this :layoutables
+           (let [height (apply max (conj (map layoutable/preferred-height layoutables)
+                                        0))]
+             (loop [layouted-layoutables []
+                    x 0
+                    layoutables layoutables]
+               (if (seq layoutables)
+                 (let [width (layoutable/preferred-width (first layoutables))]
+                   (recur (conj layouted-layoutables (set-dimensions-and-layout (first layoutables) x 0  (:global-x this) (:global-y this) width height))
+                          (+ x width)
+                          (rest layoutables)))
+                 layouted-layoutables)))))
+
+  (children-in-coordinates [this view-state x y] (all-children-in-coordinates layoutables view-state x y))
+
+  layoutable/Layoutable
+  (layoutable/preferred-height [this] (apply max (conj (map layoutable/preferred-height layoutables)
+                                                                0)))
+
+  (layoutable/preferred-width [this] (reduce + (map layoutable/preferred-width layoutables)))
+
+  drawable/Drawable
+  (drawing-commands [this] (layout-drawing-commands layoutables))
+
+  Object
+  (toString [this] (layoutable/describe-layoutable this "HorizontalStack" :layoutables)))
+
 (defrecord Stack [layoutables]
   Layout
   (layout [stack requested-width requested-height]
