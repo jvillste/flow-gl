@@ -20,9 +20,9 @@
                           dataflow/get-global-value)
 
         parent-layout (-> dataflow/current-path
-                          (drop-last)
-                          (view/element-path-to-layout-path)
-                          (dataflow/get-global-value))
+                          drop-last
+                          view/element-path-to-layout-path
+                          dataflow/get-global-value)
         margin 5]
 
     (layout/->Absolute [(-> (drawable/->FilledRoundedRectangle (+ (* 2 margin) (:width target-layout))
@@ -69,13 +69,9 @@
         :default
         (focus/pass-event-to-focused-child state event)))
 
-(defn view-path-in-focus [parent-path]
-  (if-let [child-in-focus-key (dataflow/maybe-get-global-value (dataflow/path parent-path :child-in-focus))]
-    (recur (dataflow/path parent-path child-in-focus-key))
-    parent-path))
 
 (defn view []
-  (dataflow/define :highlighted-view-path (partial view-path-in-focus dataflow/current-path))
+  (dataflow/define :highlighted-view-path (partial focus/view-path-in-focus dataflow/current-path))
 
   (focus/set-focusable-children :list-view-1 list-view-handle-event
                                 :list-view-2 list-view-handle-event)
@@ -83,8 +79,7 @@
   (layout/->Stack [(drawable/->Rectangle (dataflow/get-global-value :width)
                                          (dataflow/get-global-value :height)
                                          [1 1 1 1])
-                   (layout/->Superimpose [#_(view/init-and-call :list-view-1 list-view)
-                                          (layout/->HorizontalStack [(view/init-and-call :list-view-1 list-view)
+                   (layout/->Superimpose [(layout/->HorizontalStack [(view/init-and-call :list-view-1 list-view)
                                                                      (view/init-and-call :list-view-2 list-view)])
                                           (view/init-and-call :focus-highlight (partial focus-box-view (dataflow/absolute-path :highlighted-view-path)))])]))
 

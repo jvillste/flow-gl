@@ -19,6 +19,11 @@
     (dataflow/initialize :child-in-focus (first names))
     (dataflow/define [(first names) :has-focus] true)))
 
+(defn view-path-in-focus [parent-path]
+  (if-let [child-in-focus-key (dataflow/maybe-get-global-value (dataflow/path parent-path :child-in-focus))]
+    (recur (dataflow/path parent-path child-in-focus-key))
+    parent-path))
+
 (defn next-in-focus [in-focus focusables]
   (loop [next-focusables focusables]
     (if (seq next-focusables)

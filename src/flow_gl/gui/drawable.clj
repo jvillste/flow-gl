@@ -25,16 +25,16 @@
   Object
   (toString [this] (layoutable/describe-layoutable this "Text" :contents :font :color)))
 
-(defrecord Empty []
+(defrecord Empty [width height]
   Drawable
   (drawing-commands [empty] [])
 
   layoutable/Layoutable
-  (preferred-width [empty] 0)
-  (preferred-height [empty] 0)
+  (preferred-width [empty] width)
+  (preferred-height [empty] height)
 
   Object
-  (toString [this] (layoutable/describe-layoutable this "Empty")))
+  (toString [this] (layoutable/describe-layoutable this "Empty" :width :height)))
 
 (defrecord Rectangle [width height color]
   Drawable

@@ -46,6 +46,8 @@
                   (view/update state-atom events)))))
       (let [events (awt-input/dequeue-events-or-wait)]
         (debug/do-debug :events "handling events " events)
+        (println "handling " events)
+
         (debug/write-log)
         (view/update state-atom events)))
     (.put state-queue @state-atom)
@@ -145,3 +147,6 @@
 
 (defn request-close []
   (awt-input/add-event {:type :close-requested}))
+
+(defn request-redraw []
+  (awt-input/add-event {:type :redraw-requested}))

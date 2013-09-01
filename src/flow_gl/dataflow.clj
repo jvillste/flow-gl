@@ -219,7 +219,9 @@
                                        (dependants dataflow path)))
                              dataflow)))))))
 
-
+(defn define-to-global [dataflow path function & paths-and-functions]
+  (binding [current-path []]
+    (apply define-to dataflow path function paths-and-functions)))
 
 (defn define [& paths-and-functions]
   (swap! current-dataflow (fn [dataflow]
