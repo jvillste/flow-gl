@@ -7,16 +7,18 @@
   (:use clojure.test
         flow-gl.threading))
 
+
+
 (comment (defprotocol TripleStore
            (set [triple-store subject predicate object])
            (get [triple-store subject predicate]))
 
          (defprotocol KeyValueStore
-           (set-value [key-value-store key value])
-           (get-value [key-value-store key value]))
+           (set-value [key-value-store cell value])
+           (get-value [key-value-store cell value]))
 
          (defprotocol Dataflow
-           (define [dataflow key function-or-value]))
+           (define [dataflow cell function-or-value]))
 
          (defn create [key-value-store]))
 
@@ -31,51 +33,59 @@
     (assoc-in dataflow [::dependencies dependant] dependencies)
     dataflow))
 
-(defn dependants [dataflow key]
+(defn dependants [dataflow cell]
   (filter #(contains? (get-in dataflow [::dependencies %])
-                      key)
+                      cell)
           (keys (::dependencies dataflow))))
+
+
+
+;; ACCESS
+
+(defn is-defined? [dataflow cell]
+  (contains? (::functions dataflow)
+             cell))
+
+(defn get-value [dataflow cell]
+  (if (and (is-defined? dataflow cell)
+           (not (= (get dataflow cell)
+                   ::undefined)))
+    (logged-access/get (::storage dataflow) cell)
+    (do (logged-access/add-read cell)
+        (slingshot/throw+ {:type ::undefined-value} (str "Undefined value: " cell)))))
+
+(defn maybe-get-value [dataflow cell]
+  (if (is-defined? dataflow cell)
+    (get-value cell)
+    nil))
+
+
+
 
 
 ;; DEBUG
 
-(defn function-to-string [dataflow key]
-  (str key " (height: " (get-in dataflow [::heights key]) ") = " (if (contains? dataflow key)
-                                                                   #_(apply str (take 100 (str (get dataflow key))))
-                                                                   (str (get dataflow key))
+(defn function-to-string [dataflow cell]
+  (str cell " (height: " (get-in dataflow [::heights cell]) ") = " (if (contains? dataflow cell)
+                                                                   #_(apply str (take 100 (str (get-value dataflow cell))))
+                                                                   (str (get-value dataflow cell))
                                                                    "UNDEFINED!")
-       (if (empty? (get-in dataflow [::dependencies key]))
+       (if (empty? (get-in dataflow [::dependencies cell]))
          ""
-         (str " depends on " (reduce (fn [string key]
-                                       (str string " " key (if (contains? dataflow key)
+         (str " depends on " (reduce (fn [string cell]
+                                       (str string " " cell (if (contains? dataflow cell)
                                                              ""
                                                              " = UNDEFINED! ")))
                                      ""
-                                     (get-in dataflow [::dependencies key]))))))
-
-;; UTILITIES
-
-(defn multimap-add
-  "Adds key-value pairs to the multimap."
-  ([mm k v]
-     (assoc mm k (conj (get mm k #{}) v)))
-  ([mm k v & kvs]
-     (apply multimap-add (multimap-add mm k v) kvs)))
-
-(defn multimap-del
-  "Removes key-value pairs from the multimap."
-  ([mm k v]
-     (assoc mm k (disj (get mm k) v)))
-  ([mm k v & kvs]
-     (apply multimap-del (multimap-del mm k v) kvs)))
-
+                                     (get-in dataflow [::dependencies cell]))))))
 
 ;; CREATE
 
-(defn create []
+(defn create [storage]
   {::changed-keys #{}
    ::need-to-be-updated (priority-map/priority-map)
-   ::heights {}})
+   ::heights {}
+   ::storage storage})
 
 
 
@@ -87,86 +97,90 @@
                          dependencies)
                     (conj -1)))))
 
-(defn undefine [dataflow key]
+(defn undefine [dataflow cell]
   (do
-    (debug/debug :dataflow "undefining" key)
-    (-> (update-in [::functions] dissoc key)
-        (set-dependencies key #{})
-        (update-in [::changed-keys] conj key)
-        (dissoc key))))
+    (debug/debug :dataflow "undefining" cell)
+    (-> (update-in [::functions] dissoc cell)
+        (set-dependencies cell #{})
+        (update-in [::changed-keys] conj cell)
+        (update-in [::storage] dissoc cell))))
 
 (defn undefine-many [dataflow keys]
-  (reduce (fn [dataflow key]
-            (undefine dataflow key))
+  (reduce (fn [dataflow cell]
+            (undefine dataflow cell))
           dataflow
           keys))
 
-(defn declare-changed [dataflow key]
-  (update-in dataflow [::changed-keys] conj key))
+(defn declare-changed [dataflow cell]
+  (update-in dataflow [::changed-keys] conj cell))
 
-(defn update-value [dataflow key]
+(defn update-value [dataflow cell]
   (logged-access/with-access-logging
-    (let [old-value (get dataflow key)
-          new-value (slingshot/try+ ((get-in dataflow [::functions key]) dataflow)
+    (let [old-value (get-in dataflow [::storage cell])
+          new-value (slingshot/try+ ((get-in dataflow [::functions cell]) dataflow)
                                     (catch [:type ::undefined-value] _
                                       ::undefined))
           changed (not (= old-value new-value))]
 
       (-> dataflow
-          (when-> (not (= new-value ::undefined))
-                  (assoc key new-value))
-          (set-dependencies key @logged-access/reads)
+          (assoc-in [::storage cell] new-value)
+          (set-dependencies cell @logged-access/reads)
           ((fn [dataflow]
-             (assoc-in dataflow [::heights key] (height dataflow @logged-access/reads))))
-          (when-> changed (declare-changed key))
+             (assoc-in dataflow [::heights cell] (height dataflow @logged-access/reads))))
+          (when-> changed (declare-changed cell))
           (when-> (= new-value ::undefined)
                   ((fn [dataflow]
-                     (println "Warning: " (function-to-string dataflow key))
-                     (flow-gl.debug/debug :dataflow "Warning: " (function-to-string dataflow key))
+                     (println "Warning: " (function-to-string dataflow cell))
+                     (flow-gl.debug/debug :dataflow "Warning: " (function-to-string dataflow cell))
                      dataflow)))))))
 
-(defn is-defined? [dataflow key]
-  (contains? (::functions dataflow)
-             key))
 
-(defn schedule-for-update [dataflow key]
-  (assoc-in dataflow [::need-to-be-updated key] (get-in dataflow [::heights key])))
+
+(defn schedule-for-update [dataflow cell]
+  (assoc-in dataflow [::need-to-be-updated cell] (get-in dataflow [::heights cell])))
 
 
 (defn define
-  ([dataflow key function & keys-and-functions]
+  ([dataflow cell function & keys-and-functions]
      (apply define
-            (define dataflow key function)
+            (define dataflow cell function)
             keys-and-functions))
 
-  ([dataflow key function]
-     (println "define to " key function)
+  ([dataflow cell function]
+     #_(println "define to " cell function)
      (let [function (if (fn? function)
                       function
                       (fn [dataflow] function))
-           old-value (get dataflow key)]
+           old-value (get-in dataflow [::storage cell])]
 
        (-> dataflow
-           (assoc-in [::functions key] function)
-           (update-value key)
+           (assoc-in [::functions cell] function)
+           (update-value cell)
            ((fn [dataflow] (if (not (= old-value
-                                       (get dataflow key)))
+                                       (get-value dataflow cell)))
                              (do
-                               (flow-gl.debug/debug :dataflow "defined " key " = " (apply str (take 100 (str (get dataflow key)))))
+                               (flow-gl.debug/debug :dataflow "defined " cell " = " (apply str (take 100 (str (get-in dataflow [::storage cell])))))
                                (reduce schedule-for-update
                                        dataflow
-                                       (dependants dataflow key)))
+                                       (dependants dataflow cell)))
                              dataflow)))))))
 
 (defn initialize [dataflow & keys-and-functions]
   (let [keys-and-functions (->> keys-and-functions
                                 (partition 2)
-                                (filter (fn [[key function]]
-                                          (not (contains? dataflow key))))
+                                (filter (fn [[cell function]]
+                                          (not (contains? dataflow cell))))
                                 (apply concat))]
     (when (not (empty? keys-and-functions))
       (apply define dataflow keys-and-functions))))
 
+(defn get-value-or-initialize [dataflow cell default]
+  (when (not (is-defined? dataflow cell))
+    (initialize dataflow cell default))
+  (get-value dataflow cell))
+
+(defn apply-to-value [dataflow cell function & arguments]
+  (define dataflow cell (apply function (get-value dataflow cell) arguments)))
 
 
 ;; UPDATE
@@ -181,15 +195,15 @@
 
 (defn propagate-changes [dataflow]
   (flow-gl.debug/do-debug :dataflow "propagate changes " (vec (map first (::need-to-be-updated dataflow))))
-  (let [dataflow (reduce (fn [dataflow [key priority]]
-                           (let [old-value (get dataflow key)]
+  (let [dataflow (reduce (fn [dataflow [cell priority]]
+                           (let [old-value (get-value dataflow cell)]
                              (-> dataflow
-                                 (update-value key)
-                                 (update-in [::need-to-be-updated] dissoc key)
+                                 (update-value cell)
+                                 (update-in [::need-to-be-updated] dissoc cell)
                                  ((fn [dataflow] (if (not (= old-value
-                                                             (get dataflow key)))
-                                                   (do (flow-gl.debug/do-debug :dataflow "updated key " key " = " (apply str (take 100 (str (get dataflow key)))))
-                                                       (reduce schedule-for-update dataflow (dependants dataflow key)))
+                                                             (get-value dataflow cell)))
+                                                   (do (flow-gl.debug/do-debug :dataflow "updated cell " cell " = " (apply str (take 100 (str (get-value dataflow cell)))))
+                                                       (reduce schedule-for-update dataflow (dependants dataflow cell)))
                                                    dataflow))))))
                          dataflow
                          (::need-to-be-updated dataflow))]
@@ -198,37 +212,15 @@
       (recur dataflow))))
 
 
-
-;; ACCESS
-
-(defn get-value [dataflow key]
-  (if (contains? dataflow key)
-    (logged-access/get dataflow key)
-    (do (logged-access/add-read key)
-        (slingshot/throw+ {:type ::undefined-value} (str "Undefined value: " key)))))
-
-(defn maybe-get-value [dataflow key]
-  (if (is-defined? dataflow key)
-    (get-value key)
-    nil))
-
-(defn get-value-or-initialize [dataflow key default]
-  (when (not (is-defined? dataflow key))
-    (initialize dataflow key default))
-  (get-value dataflow key))
-
-(defn apply-to-value [dataflow key function & arguments]
-  (define dataflow key (apply function (get dataflow key) arguments)))
-
-
-
 ;; TESTS
 
 (debug/reset-log)
-(debug/set-active-channels :dataflow)
+
+(comment 
+(debug/set-active-channels :dataflow))
 
 (deftest get-value-or-nil-test
-  (is (= (-> (create)
+  (is (= (-> (create {})
              (define :foo 2)
              (define :foo2 (fn [dataflow] (+ 1 (get-value dataflow :foo))))
              (define :foo 3)
