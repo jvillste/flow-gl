@@ -7,6 +7,7 @@
   (:use clojure.test
         flow-gl.threading))
 
+
 ;; DEPENDANTS
 
 (defn set-dependencies [dataflow dependant dependencies]
