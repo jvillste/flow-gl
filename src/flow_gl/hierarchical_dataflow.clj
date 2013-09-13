@@ -39,6 +39,8 @@
       (update-in [::children] dissoc cell)
       (triple-dataflow/undefine cell)))
 
+(defn child-cell-key [parent-cell child-cell]
+  (keyword (str (name parent-cell) "_" (name child-cell))))
 
 (defn update-cell [hierarchical-dataflow cell]
   (let [new-child-definitions (atom [])
@@ -46,33 +48,47 @@
                                child-definitions new-child-definitions]
                        (triple-dataflow/update-cell hierarchical-dataflow
                                                     cell))
-        new-child-cells (for [[cell function] (partition 2 @new-child-definitions)] cell)
         removed-child-cells (clojure.set/difference (get-in hierarchical-dataflow [::children cell])
-                                                    new-child-cells)]
+                                                    (map :child-cell @new-child-definitions))]
+
     (debug/debug :dataflow "updating " cell)
 
-    (-> (reduce (fn [dataflow [child-cell function]]
+    (-> (reduce (fn [dataflow {:keys [child-cell function action]}]
                   (-> dataflow
                       (update-in [::children] #(multimap-add % cell child-cell))
-                      (dataflow/define child-cell function)))
+                      ((fn [dataflow]
+                         (case action
+                           :define (dataflow/define dataflow child-cell function)
+                           :initialize (dataflow/initialize dataflow child-cell function))))))
                 new-dataflow
-                (partition 2 @new-child-definitions))
+                @new-child-definitions)
+
         (dataflow/undefine-many (if (= (get new-dataflow cell)
                                        :dataflow/undefined)
                                   #{}
                                   removed-child-cells))
+
         ((fn [dataflow]
-           (if (not (empty? removed-child-cells))
-             (reduce (fn [dataflow removed-child-cell]
-                       (update-in dataflow [::children] #(multimap-del % cell removed-child-cell)))
-                     dataflow
-                     removed-child-cells)
-             dataflow))))))
+           (reduce (fn [dataflow removed-child-cell]
+                     (update-in dataflow [::children] #(multimap-del % cell removed-child-cell)))
+                   dataflow
+                   removed-child-cells))))))
 
+(defn create-child-definitions [cells-and-functions action]
+  (vec (for [[child-cell function] (partition 2 cells-and-functions)]
+         {:child-cell (child-cell-key current-cell child-cell)
+          :function function
+          :action action})))
 
+(defn define-children [& cells-and-functions]
+  (swap! child-definitions concat (create-child-definitions cells-and-functions :define)))
 
-(defn define-children [& paths-and-functions]
-  (swap! child-definitions concat paths-and-functions))
+(defn initialize-children [& cells-and-functions]
+  (swap! child-definitions concat (create-child-definitions cells-and-functions :initialize)))
+
+(defn get-child-value [dataflow child-cell]
+  (dataflow/get-value dataflow (child-cell-key current-cell child-cell)))
+
 
 
 ;; PROTOCOL
@@ -109,14 +125,14 @@
 
                      (dataflow/define :foo2 (fn [dataflow]
                                               (define-children :foo2.1 (fn [_] 1))
-                                              (+ 1 (dataflow/get-value dataflow :foo))))
+                                              (+ (get-child-value dataflow :foo2.1) (dataflow/get-value dataflow :foo))))
                      (dataflow/define :foo 3)
                      (dataflow/propagate-changes)
                      ((fn [dataflow] (triple-dataflow/debug-dataflow dataflow) dataflow)))]
     (is (= (dataflow/get-value dataflow :foo2)
            4))
 
-    (is (= (dataflow/get-value dataflow :foo2.1)
+    (is (= (dataflow/get-value dataflow :foo2_foo2.1)
            1))
 
     (is (= (dataflow/is-defined? dataflow :foo2.2)
