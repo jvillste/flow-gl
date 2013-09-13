@@ -200,52 +200,27 @@
 
 ;; DEBUG
 
-(defn to-map [dataflow]
-  (dissoc dataflow ::heights ::dependencies ::functions ::changed-paths ::children ::need-to-be-updated))
-
-(defn function-to-string [dataflow key]
-  (str key " (height: " (get-in dataflow [::heights key]) ") = " (if (contains? dataflow key)
-                                                                   #_(apply str (take 100 (str (get dataflow key))))
-                                                                   (str (get dataflow key))
+(defn cell-to-string [dataflow cell]
+  (str cell " (height: " (get-in dataflow [::heights cell]) ") = " (if (contains? (::storage dataflow) cell)
+                                                                   #_(apply str (take 100 (str (get dataflow cell))))
+                                                                   (str (get (::storage dataflow) cell))
                                                                    "UNDEFINED!")
-       (if (empty? (get-in dataflow [::dependencies key]))
+       (if (empty? (get-in dataflow [::dependencies cell]))
          ""
-         (str " depends on " (reduce (fn [string key]
-                                       (str string " " key (if (contains? dataflow key)
+         (str " depends on " (reduce (fn [string cell]
+                                       (str string " " cell (if (contains? (::storage dataflow) cell)
                                                              ""
                                                              " = UNDEFINED! ")))
                                      ""
-                                     (get-in dataflow [::dependencies key]))))))
+                                     (get-in dataflow [::dependencies cell]))))))
 
-(defn describe-functions [dataflow functions]
-  (for [function functions]
-    (function-to-string dataflow function)))
+(defn describe-cells [dataflow cells]
+  (for [cell cells]
+    (cell-to-string dataflow cell)))
 
 (defn describe-dataflow [dataflow]
-  (describe-functions dataflow
+  (describe-cells dataflow
                       (sort (keys (::functions dataflow)))))
-
-(defn describe-dataflow-undefined [dataflow]
-  (describe-functions dataflow
-                      (filter #(not (contains? dataflow %))
-                              (sort (keys (::functions dataflow))))))
-
-
-(defn dependency-tree-for-path [dataflow path depth]
-  (into [(str (apply str (take depth (repeat "  ")))
-              (str path " = " (if (contains? dataflow path)
-                                (apply str (take 100 (str (get dataflow path))))
-                                #_(str (get dataflow path))
-                                "UNDEFINED!")))]
-        (mapcat #(dependency-tree-for-path dataflow % (inc depth))
-                (get-in dataflow [::dependencies path]))))
-
-
-(defn dependency-tree [dataflow]
-  (mapcat #(dependency-tree-for-path dataflow % 0)
-          (filter #(empty? (dependants dataflow %))
-                  (sort (keys (::functions dataflow))))))
-
 
 (defn debug-dataflow [dataflow]
   (debug/debug-all :dataflow (describe-dataflow dataflow))

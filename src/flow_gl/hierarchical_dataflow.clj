@@ -49,7 +49,7 @@
                        (triple-dataflow/update-cell hierarchical-dataflow
                                                     cell))
         removed-child-cells (clojure.set/difference (get-in hierarchical-dataflow [::children cell])
-                                                    (map :child-cell @new-child-definitions))]
+                                                    (apply hash-set (map :child-cell @new-child-definitions)))]
 
     (debug/debug :dataflow "updating " cell)
 
@@ -114,28 +114,27 @@
 (debug/reset-log)
 
 (comment
-  (debug/set-active-channels :dataflow))
+(debug/set-active-channels :dataflow))
 
 (deftest get-value-or-nil-test
   (let [dataflow (-> (create {})
-                     (dataflow/define :foo 2)
-                     (dataflow/define :foo2 (fn [dataflow]
-                                              (define-children :foo2.2 (fn [_] 1))
-                                              (+ 1 (dataflow/get-value dataflow :foo))))
-
-                     (dataflow/define :foo2 (fn [dataflow]
-                                              (define-children :foo2.1 (fn [_] 1))
-                                              (+ (get-child-value dataflow :foo2.1) (dataflow/get-value dataflow :foo))))
                      (dataflow/define :foo 3)
+                     (dataflow/define :foo2 (fn [dataflow]
+                                              (initialize-children :x 1
+                                                                   :y 2)
+                                              (dotimes [n (dataflow/get-value dataflow :foo)]
+                                                (define-children (keyword (str "child-" n)) n))
+                                              (+ 1 (get-child-value dataflow :x))))
+                     (dataflow/define :foo 2)
                      (dataflow/propagate-changes)
                      ((fn [dataflow] (triple-dataflow/debug-dataflow dataflow) dataflow)))]
     (is (= (dataflow/get-value dataflow :foo2)
-           4))
+           2))
 
-    (is (= (dataflow/get-value dataflow :foo2_foo2.1)
+    (is (= (dataflow/get-value dataflow :foo2_x)
            1))
 
-    (is (= (dataflow/is-defined? dataflow :foo2.2)
+    (is (= (dataflow/is-defined? dataflow :foo2_child-2)
            false))))
 
 (run-tests)
