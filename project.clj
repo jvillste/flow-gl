@@ -7,7 +7,8 @@
                  [org.lwjgl/lwjgl-native-platform "2.7.1"]
                  [slingshot "0.10.3"]
                  [org.clojure/data.priority-map "0.0.2"]
-                 [com.datomic/datomic-free "0.8.4020.24"]]
+                 [com.datomic/datomic-free "0.8.4020.24"]
+                 [org.clojure/core.async "0.1.242.0-44b1e3-alpha"]]
 
   ;; :java-cmd "/usr/lib/jvm/java-6-sun/bin/java"
   :java-opts ["-Xmx60m"

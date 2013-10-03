@@ -58,7 +58,7 @@
 
   (layout/->VerticalStack (vec (for [index (range 1 4)]
                                  (layout/->Box 5
-                                               (drawable/->Empty)
+                                               (drawable/->Empty 0 0)
                                                (view/init-and-call (keyword (str "box" index)) (partial box-view (+ 20 (rand-int 100)) (+ 20 (rand-int 100)))))))))
 
 
@@ -103,5 +103,5 @@
 
 (comment
   (.start (Thread. start))
-  (start)
+(start)
   )

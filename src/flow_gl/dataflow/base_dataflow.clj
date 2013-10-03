@@ -1,13 +1,28 @@
-(ns flow-gl.triple-dataflow
+(ns flow-gl.dataflow.base-dataflow
   (:require [flow-gl.logged-access :as logged-access]
             [flow-gl.debug :as debug]
-            [flow-gl.p-dataflow :as dataflow]
+            [flow-gl.dataflow.dataflow :as dataflow]
             clojure.set
             [slingshot.slingshot :as slingshot]
             [clojure.data.priority-map :as priority-map])
   (:use clojure.test
         flow-gl.threading))
 
+;; DEBUG
+
+(defn cell-to-string [dataflow cell]
+  (str cell " (height: " (get-in dataflow [::heights cell]) ") = " (if (contains? (::storage dataflow) cell)
+                                                                   #_(apply str (take 100 (str (get dataflow cell))))
+                                                                   (str (get (::storage dataflow) cell))
+                                                                   "UNDEFINED!")
+       (if (empty? (get-in dataflow [::dependencies cell]))
+         ""
+         (str " depends on " (reduce (fn [string cell]
+                                       (str string " " cell (if (contains? (::storage dataflow) cell)
+                                                             ""
+                                                             " = UNDEFINED! ")))
+                                     ""
+                                     (get-in dataflow [::dependencies cell]))))))
 
 ;; DEPENDANTS
 
@@ -30,6 +45,9 @@
   (contains? (::functions dataflow)
              cell))
 
+(defn unlogged-get-value [dataflow cell]
+  (get-in dataflow [::storage cell]))
+
 (defn get-value [dataflow cell]
   (if (and (is-defined? dataflow cell)
            (not (= (get dataflow cell)
@@ -37,27 +55,6 @@
     (logged-access/get (::storage dataflow) cell)
     (do (logged-access/add-read cell)
         (slingshot/throw+ {:type ::undefined-value} (str "Undefined value: " cell)))))
-
-(defn maybe-get-value [dataflow cell]
-  (if (is-defined? dataflow cell)
-    (get-value cell)
-    nil))
-
-;; DEBUG
-
-(defn function-to-string [dataflow cell]
-  (str cell " (height: " (get-in dataflow [::heights cell]) ") = " (if (contains? dataflow cell)
-                                                                     #_(apply str (take 100 (str (get-value dataflow cell))))
-                                                                     (str (get-value dataflow cell))
-                                                                     "UNDEFINED!")
-       (if (empty? (get-in dataflow [::dependencies cell]))
-         ""
-         (str " depends on " (reduce (fn [string cell]
-                                       (str string " " cell (if (contains? dataflow cell)
-                                                              ""
-                                                              " = UNDEFINED! ")))
-                                     ""
-                                     (get-in dataflow [::dependencies cell]))))))
 
 
 
@@ -97,8 +94,8 @@
           (when-> changed (declare-changed cell))
           (when-> (= new-value ::undefined)
                   ((fn [dataflow]
-                     (println "Warning: " (function-to-string dataflow cell))
-                     (flow-gl.debug/debug :dataflow "Warning: " (function-to-string dataflow cell))
+                     (println "Warning: " (cell-to-string dataflow cell))
+                     (flow-gl.debug/debug :dataflow "Warning: " (cell-to-string dataflow cell))
                      dataflow)))))))
 
 
@@ -131,17 +128,6 @@
                                        dataflow
                                        (dependants dataflow cell)))
                              dataflow)))))))
-
-(defn initialize [dataflow & keys-and-functions]
-  (let [keys-and-functions (->> keys-and-functions
-                                (partition 2)
-                                (filter (fn [[cell function]]
-                                          (not (contains? dataflow cell))))
-                                (apply concat))]
-    (when (not (empty? keys-and-functions))
-      (apply define dataflow keys-and-functions))))
-
-
 
 ;; UPDATE
 
@@ -177,14 +163,14 @@
 (def dataflow-implementation {:define define
                               :undefine undefine
                               :get-value get-value
+                              :unlogged-get-value unlogged-get-value
                               :is-defined? is-defined?
-                              :initialize initialize
                               :update-cell update-cell
                               :propagate-changes propagate-changes})
 
-(defrecord TripleDataflow [])
+(defrecord BaseDataflow [])
 
-(extend TripleDataflow
+(extend BaseDataflow
   dataflow/Dataflow
   dataflow-implementation)
 
@@ -192,27 +178,12 @@
 ;; CREATE
 
 (defn create [storage]
-  (map->TripleDataflow {::changed-cells #{}
+  (map->BaseDataflow {::changed-cells #{}
                         ::need-to-be-updated (priority-map/priority-map)
                         ::heights {}
                         ::storage storage}))
 
 
-;; DEBUG
-
-(defn cell-to-string [dataflow cell]
-  (str cell " (height: " (get-in dataflow [::heights cell]) ") = " (if (contains? (::storage dataflow) cell)
-                                                                   #_(apply str (take 100 (str (get dataflow cell))))
-                                                                   (str (get (::storage dataflow) cell))
-                                                                   "UNDEFINED!")
-       (if (empty? (get-in dataflow [::dependencies cell]))
-         ""
-         (str " depends on " (reduce (fn [string cell]
-                                       (str string " " cell (if (contains? (::storage dataflow) cell)
-                                                             ""
-                                                             " = UNDEFINED! ")))
-                                     ""
-                                     (get-in dataflow [::dependencies cell]))))))
 
 (defn describe-cells [dataflow cells]
   (for [cell cells]
