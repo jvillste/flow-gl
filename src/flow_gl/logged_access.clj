@@ -11,18 +11,13 @@
              reads (atom #{})]
      ~@body))
 
-(defn add-access [log key]
-  (swap! log (fn [log]
-               (clojure.set/union log
-                                  (hash-set key)))))
-
 (defn add-change [key]
   (when (bound? (var changes))
-    (add-access changes key)))
+    (swap! changes conj key)))
 
 (defn add-read [key]
   (when (bound? (var reads))
-    (add-access reads key)))
+    (swap! reads conj key)))
 
 
 ;;; PUBLIC
