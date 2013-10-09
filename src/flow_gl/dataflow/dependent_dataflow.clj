@@ -18,20 +18,23 @@
     (application/start view-dataflow
                        view)))
 
-(defn create []
-  {::remote-dataflow-atoms {}
-   ::notification-channels {}
-   ::remote-dependencies {}
-   ::new-remote-dependencies {}
-   ::remote-dataflows-to-be-refreshed #{}})
 
+(defn start [dataflow-atom]
+  )
 
 (defn add-remote-dataflow [dataflow-atom remote-dataflow-key remote-dataflow-atom]
-  (swap! dataflow-atom (fn [dataflow]
-                         (let [notification-channel (async/chan 10)]
+  (let [notification-channel (async/chan 10)]
+    (swap! dataflow-atom (fn [dataflow]
                            (-> dataflow
                                (assoc-in [::remote-dataflow-atoms remote-dataflow-key] remote-dataflow-atom)
-                               (assoc-in [::notification-channels remote-dataflow-key] notification-channel))))))
+                               (assoc-in [::notification-channels remote-dataflow-key] notification-channel))))
+
+    (async/go (loop [changed-cell (async/<! notification-channel)]
+                (when changed-cell
+                  (swap! dataflow-atom dataflow/declare-changed {::type ::remote-dependency
+                                                                 ::remote-dataflow remote-dataflow-key
+                                                                 ::cell changed-cell})
+                  (recur (async/<! notification-channel)))))))
 
 
 (defn remote-dataflow-dependents [dataflow remote-dataflow]
@@ -61,7 +64,7 @@
     (swap! (get-in dataflow [::remote-dataflow-atoms remote-dataflow])
            dependable-dataflow/set-notification-channel-dependencies
            (get-in dataflow [::notification-channels remote-dataflow])
-           (remote-dataflow-dependencies dataflow remote-dataflow))))
+           (remote-dataflow-dependents dataflow remote-dataflow))))
 
 (defn map-vals [m f]
   (zipmap (keys m) (map f (vals m))))
@@ -74,13 +77,13 @@
                                 (map-vals #(map ::cell %)))]
     (-> dataflow
         (assoc-in [::remote-dependencies dependent] remote-dependencies)
-        (update-in [::remote-dataflows-to-be-refreshed] into (keys remote-dependencies))
+        (update-in [::remote-dataflows-with-changed-dependencies] into (keys remote-dependencies))
         (base-set-dependencies dependent dependencies))))
 
 (deftest set-dependencies-test
   (is (= (set-dependencies (fn [dataflow _ _] dataflow)
 
-                           {::remote-dataflows-to-be-refreshed #{:remeote-3}
+                           {::remote-dataflows-with-changed-dependencies #{:remeote-3}
                             ::remote-dependencies {:dependent-2 {:remote-2 '(:target-cell-1)}}}
 
                            :dependent
@@ -114,18 +117,47 @@
   (dataflow/unlogged-get-value (get-in dataflow [::remote-dataflows remote-dataflow])
                                cell))
 
-(defn update-cell [base-update-cell dataflow cell]
+(defn undefine [base-undefine dataflow cell]
+  (-> dataflow
+      (update-in [::remote-dataflows-with-changed-dependencies] into (keys (get-in dataflow [::remote-dependencies cell])))
+      (update-in [::remote-dependencies] disj cell)
+      (base-undefine)))
+
+
+
+
+
+
+;; PROTOCOL
+
+(defrecord DependentDataflow [])
+
+(extend DependentDataflow
+  dataflow/Dataflow
+  (merge base-dataflow/dataflow-implementation
+         {:undefine (partial undefine base-dataflow/undefine)
+          :set-dependencies (partial set-dependencies base-dataflow/set-dependencies)}))
+
+
+;; CREATE
+
+(defn initialize []
+  {::remote-dataflow-atoms {}
+   ::notification-channels {}
+   ::remote-dependencies {}
+   ::new-remote-dependencies {}
+   ::remote-dataflows-with-changed-dependencies #{}})
+
+(defn create [storage]
+  (-> (base-dataflow/create storage)
+      (merge (initialize))
+      (map->DependentDataflow)))
+
+(deftest dependent-dataflow-test
+  (let [dependable-dataflow-atom (atom (dependable-dataflow/create {}))
+        dependent-dataflow-atom (atom (create {}))])
+
   )
-
-(defn undefine [base-undefine dataflow cell])
-
-
-(defn start [dataflow-atom]
-  (async/go (loop [definition (async/<! (::definition-channel @dataflow-atom))]
-              (when definition
-                (let [[cell function] definition]
-                  (swap! dataflow-atom dataflow/define cell function)
-                  (recur (async/<! (::definition-channel @dataflow-atom))))))))
 
 (run-tests)
 

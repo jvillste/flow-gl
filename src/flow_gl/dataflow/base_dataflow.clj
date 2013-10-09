@@ -29,7 +29,7 @@
 (defn set-dependencies [dataflow dependant dependencies]
   (assoc-in dataflow [::dependencies dependant] dependencies))
 
-; TODO: Make this efficient
+                                        ; TODO: Make this efficient
 (defn dependents [dataflow cell]
   (filter #(contains? (get-in dataflow [::dependencies %])
                       cell)
@@ -65,15 +65,19 @@
                     (conj -1)))))
 
 (defn undefine [dataflow cell]
-  (do
-    (debug/debug :dataflow "undefining" cell)
-    (-> (update-in dataflow [::functions] dissoc cell)
-        (dataflow/set-dependencies cell #{})
-        (update-in [::changed-cells] conj cell)
-        (update-in [::storage] dissoc cell))))
+  (debug/debug :dataflow "undefining" cell)
+  (-> (update-in dataflow [::functions] dissoc cell)
+      (dataflow/set-dependencies cell #{})
+      (update-in [::changed-cells] conj cell)
+      (update-in [::storage] dissoc cell)))
 
 (defn declare-changed [dataflow cell]
-  (update-in dataflow [::changed-cells] conj cell))
+  (flow-gl.debug/debug :dataflow "cell value changed " cell " = " (apply str (take 100 (str (unlogged-get-value dataflow cell)))))
+  (-> (reduce (fn [dataflow dependent]
+                (assoc-in dataflow [::need-to-be-updated dependent] (get-in dataflow [::heights cell])))
+              dataflow
+              (dependents dataflow cell))
+      (update-in [::changed-cells] conj cell)))
 
 (defn update-cell [dataflow cell]
   (logged-access/with-access-logging
@@ -97,10 +101,6 @@
 
 
 
-(defn schedule-for-update [dataflow cell]
-  (assoc-in dataflow [::need-to-be-updated cell] (get-in dataflow [::heights cell])))
-
-
 (defn define
   ([dataflow cell function & keys-and-functions]
      (apply define
@@ -116,15 +116,7 @@
 
        (-> dataflow
            (assoc-in [::functions cell] function)
-           (dataflow/update-cell cell)
-           ((fn [dataflow] (if (not (= old-value
-                                       (get-value dataflow cell)))
-                             (do
-                               (flow-gl.debug/debug :dataflow "defined " cell " = " (apply str (take 100 (str (get-in dataflow [::storage cell])))))
-                               (reduce schedule-for-update
-                                       dataflow
-                                       (dependents dataflow cell)))
-                             dataflow)))))))
+           (dataflow/update-cell cell)))))
 
 ;; UPDATE
 
@@ -142,12 +134,7 @@
                            (let [old-value (get-value dataflow cell)]
                              (-> dataflow
                                  (dataflow/update-cell cell)
-                                 (update-in [::need-to-be-updated] dissoc cell)
-                                 (as-> dataflow (if (not (= old-value
-                                                            (get-value dataflow cell)))
-                                                  (do (flow-gl.debug/do-debug :dataflow "updated cell " cell " = " (apply str (take 100 (str (get-value dataflow cell)))))
-                                                      (reduce schedule-for-update dataflow (dependents dataflow cell)))
-                                                  dataflow)))))
+                                 (update-in [::need-to-be-updated] dissoc cell))))
                          dataflow
                          (::need-to-be-updated dataflow))]
     (if (empty? (::need-to-be-updated dataflow))
@@ -164,7 +151,8 @@
                               :is-defined? is-defined?
                               :update-cell update-cell
                               :propagate-changes propagate-changes
-                              :set-dependencies set-dependencies})
+                              :set-dependencies set-dependencies
+                              :declare-changed declare-changed})
 
 (defrecord BaseDataflow [])
 

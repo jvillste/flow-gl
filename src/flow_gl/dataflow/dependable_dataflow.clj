@@ -1,11 +1,9 @@
 (ns flow-gl.dataflow.dependable-dataflow
   (:require [clojure.core.async :as async]
             [flow-gl.multimap :as multimap]
-            [flow-gl.dataflow.dataflow :as dataflow]))
+            [flow-gl.dataflow.dataflow :as dataflow]
+            [flow-gl.dataflow.base-dataflow :as base-dataflow]))
 
-(defn create []
-  {::notification-channel-dependencies {}
-   ::changes-to-be-notified #{}})
 
 (defn set-notification-channel-dependencies [dataflow notification-channel dependencies]
   (update-in dataflow [::notification-channel-dependencies notification-channel] assoc dependencies))
@@ -37,3 +35,25 @@
       new-dataflow)))
 
 (def dataflow-implementation {:update-cell update-cell})
+
+
+;; PROTOCOL
+
+(defrecord DependableDataflow [])
+
+(extend DependableDataflow
+  dataflow/Dataflow
+  (merge base-dataflow/dataflow-implementation
+         {:update-cell (partial update-cell base-dataflow/update-cell)}))
+
+
+;; CREATE
+
+(defn initialize []
+  {::notification-channel-dependencies {}
+   ::changes-to-be-notified #{}})
+
+(defn create [storage]
+  (-> (base-dataflow/create storage)
+      (merge (initialize))
+      (map->DependableDataflow)))

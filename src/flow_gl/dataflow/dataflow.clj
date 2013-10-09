@@ -8,7 +8,8 @@
   (is-defined? [dataflow cell])
   (update-cell [dataflow cell])
   (propagate-changes [dataflow])
-  (set-dependencies [dataflow cell reads]))
+  (set-dependencies [dataflow cell reads])
+  (declare-changed [dataflow cell]))
 
 
 (defn undefine-many [dataflow cells]
