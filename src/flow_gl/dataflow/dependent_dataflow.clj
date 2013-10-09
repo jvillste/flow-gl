@@ -19,8 +19,6 @@
                        view)))
 
 
-(defn start [dataflow-atom]
-  )
 
 (defn add-remote-dataflow [dataflow-atom remote-dataflow-key remote-dataflow-atom]
   (let [notification-channel (async/chan 10)]
@@ -36,6 +34,16 @@
                                                                  ::cell changed-cell})
                   (recur (async/<! notification-channel)))))))
 
+
+(defn dispose [dataflow]
+  (doseq [[remote-dataflow-key remote-dataflow-atom] (::remote-dataflow-atoms dataflow)]
+    (swap! remote-dataflow-atom
+           dependable-dataflow/set-notification-channel-dependencies
+           (get-in dataflow [::notification-channels remote-dataflow-key])
+           []))
+
+  (doseq [notification-channel (vals (::notification-channels dataflow))]
+    (async/close! notification-channel)))
 
 (defn remote-dataflow-dependents [dataflow remote-dataflow]
   (filter #(-> (get-in dataflow [::remote-dependencies %])
@@ -156,8 +164,21 @@
 (deftest dependent-dataflow-test
   (let [dependable-dataflow-atom (atom (dependable-dataflow/create {}))
         dependent-dataflow-atom (atom (create {}))])
+  (add-remote-dataflow dependent-dataflow-atom :remote-1 remote-dataflow-atom)
+  (swap! dependable-dataflow-atom dataflow/define :foo 1)
+  (swap! dependent-dataflow-atom dataflow/define :dependent-foo (fn [dataflow]
+                                                                  (+ 1
+                                                                     (get-remote-value dataflow :remote-1 :foo))))
 
-  )
+  (is (= (dataflow/unlogged-get-value @dependent-dataflow-atom :dependent-foo)
+         2))
+
+  (swap! dependable-dataflow-atom dataflow/define :foo 2)
+
+  (is (= (dataflow/unlogged-get-value @dependent-dataflow-atom :dependent-foo)
+         3))
+
+  (dispose @dependent-dataflow-atom))
 
 (run-tests)
 

@@ -6,7 +6,9 @@
 
 
 (defn set-notification-channel-dependencies [dataflow notification-channel dependencies]
-  (update-in dataflow [::notification-channel-dependencies notification-channel] assoc dependencies))
+  (if (empty? dependencies)
+    (update-in dataflow [::notification-channel-dependencies] disj notification-channel)
+    (assoc-in dataflow [::notification-channel-dependencies notification-channel] dependencies)))
 
 (defn dependent-notification-channels [dataflow cell]
   (filter #(contains? (get-in dataflow [::notification-channel-dependencies %])
