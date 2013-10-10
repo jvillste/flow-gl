@@ -72,7 +72,11 @@
       (update-in [::storage] dissoc cell)))
 
 (defn declare-changed [dataflow cell]
-  (flow-gl.debug/debug :dataflow "cell value changed " cell " = " (apply str (take 100 (str (unlogged-get-value dataflow cell)))))
+  (if (keyword? cell)
+    (flow-gl.debug/debug :dataflow "Set " cell " = " (apply str (take 100 (str (dataflow/unlogged-get-value dataflow cell)))))
+    (flow-gl.debug/debug :dataflow "Set " cell))
+
+
   (-> (reduce (fn [dataflow dependent]
                 (assoc-in dataflow [::need-to-be-updated dependent] (get-in dataflow [::heights cell])))
               dataflow
@@ -81,7 +85,7 @@
 
 (defn update-cell [dataflow cell]
   (logged-access/with-access-logging
-    (let [old-value (unlogged-get-value dataflow cell)
+    (let [old-value (dataflow/unlogged-get-value dataflow cell)
           new-value (slingshot/try+ ((get-in dataflow [::functions cell]) dataflow)
                                     (catch [:type ::undefined-value]
                                         _ ::undefined))
@@ -92,7 +96,7 @@
           (dataflow/set-dependencies cell @logged-access/reads)
           (assoc-in [::heights cell] new-height)
           (when-> (not (= old-value new-value))
-                  (declare-changed cell))
+                  (dataflow/declare-changed cell))
 
           (when-> (= new-value ::undefined)
                   (as-> dataflow

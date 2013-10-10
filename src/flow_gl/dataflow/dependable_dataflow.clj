@@ -2,29 +2,37 @@
   (:require [clojure.core.async :as async]
             [flow-gl.multimap :as multimap]
             [flow-gl.dataflow.dataflow :as dataflow]
-            [flow-gl.dataflow.base-dataflow :as base-dataflow]))
+            [flow-gl.dataflow.base-dataflow :as base-dataflow])
+  (:use clojure.test))
 
 
 (defn set-notification-channel-dependencies [dataflow notification-channel dependencies]
+  (flow-gl.debug/debug :dataflow "setting notification channel dependencies: "  notification-channel " = " dependencies)
   (if (empty? dependencies)
-    (update-in dataflow [::notification-channel-dependencies] disj notification-channel)
+    (update-in  dataflow [::notification-channel-dependencies] dissoc notification-channel)
     (assoc-in dataflow [::notification-channel-dependencies notification-channel] dependencies)))
 
 (defn dependent-notification-channels [dataflow cell]
-  (filter #(contains? (get-in dataflow [::notification-channel-dependencies %])
-                      cell)
+  (filter #(some #{cell} (get-in dataflow [::notification-channel-dependencies %]))
           (keys (::notification-channel-dependencies dataflow))))
+
+(deftest dependent-notification-channels-test
+  (is (= (dependent-notification-channels (set-notification-channel-dependencies {} :channel [:cell-1 :cell-2])
+                                          :cell-1)
+         '(:channel))))
 
 (defn notify-dependents [dataflow-atom]
   (let [dataflow (swap! dataflow-atom
                         (fn [dataflow]
                           (assoc dataflow
-                            ::cnahges-to-be-notified-now (::changes-to-be-notified dataflow)
+                            ::changes-to-be-notified-now (::changes-to-be-notified dataflow)
                             ::changes-to-be-notified #{})))]
-
-    (doseq [cell (::cnahges-to-be-notified-now dataflow)
+    (flow-gl.debug/debug :dataflow "notifiying: " (::changes-to-be-notified-now dataflow) " : " (::notification-channel-dependencies dataflow))
+    (doseq [cell (::changes-to-be-notified-now dataflow)
             channel (dependent-notification-channels dataflow cell)]
-      (async/go (async/>! channel cell)))))
+      (flow-gl.debug/debug :dataflow "notifiying cell " cell " " channel)
+
+      (async/>!! channel cell))))
 
 (defn schedule-for-notification [dataflow cell]
   (update-in dataflow [::changes-to-be-notified] conj cell))
@@ -59,3 +67,5 @@
   (-> (base-dataflow/create storage)
       (merge (initialize))
       (map->DependableDataflow)))
+
+(run-tests)
