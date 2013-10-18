@@ -1,0 +1,57 @@
+(ns examples.size-group
+  (:require (flow-gl.gui [awt-input :as input]
+                         [drawable :as drawable]
+                         [layout :as layout]
+                         [view :as view]
+                                        ;[animation :as animation]
+                         [events :as events]
+                         [application :as application]
+                         [reset-view :as reset-view]
+
+                                        ;[focus :as focus]
+                         )
+            (flow-gl.graphics [font :as font])
+            (flow-gl [dataflow :as dataflow]))
+  (:use flow-gl.utils
+        flow-gl.gui.layout-dsl))
+
+(def data [{:foo "asdfasdf"
+            :bar "sdf"}
+           {:foo "asdfa"
+            :bar "sdfsdfsf"}
+           {:foo "asdfasf"
+            :bar "sdf"}
+           {:foo "asdfasd"
+            :bar "sdsdfdfsdsdff"}])
+
+(defn row [size-group row-data]
+  (let [font (font/create "LiberationSans-Regular.ttf" 15)]
+    (hs (layout/size-group-member size-group
+                                  (layout/->Box 3
+                                                (drawable/->Rectangle 0 0 [0.5 0.5 0.5 1])
+                                                (drawable/->Text (:foo row-data)
+                                                                 font
+                                                                 [1 1 1 1])))
+
+        (drawable/->Text (:bar row-data)
+                         font
+                         [1 1 1 1]))))
+
+(defn view []
+  (let [size-group (layout/create-size-group)]
+    (apply vs (forall [row-data data]
+                      (row size-group row-data)))))
+
+
+(defn start []
+  (application/start view
+                     :initialize reset-view/initialize
+                     :handle-event events/close-on-esc
+                     :framerate 60))
+
+(reset-view/reset-view view)
+
+(comment
+  (.start (Thread. start))
+  (start)
+  )

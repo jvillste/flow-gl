@@ -19,9 +19,6 @@
     (application/start view-dataflow
                        view)))
 
-(defn map-vals [m f]
-  (zipmap (keys m) (map f (vals m))))
-
 
 (defn add-remote-dataflow [dataflow-atom remote-dataflow-key remote-dataflow-atom]
   (let [notification-channel (async/chan 10)]
@@ -102,7 +99,7 @@
                                      (filter #(= (::type %)
                                                  ::remote-dependency))
                                      (group-by ::remote-dataflow))
-                                (map-vals #(map ::cell %)))]
+                                (utils/map-vals #(map ::cell %)))]
     (flow-gl.debug/debug :dataflow "setting remote dependencies : " remote-dependencies )
     (-> dataflow
         (assoc-in [::remote-dependencies dependent] remote-dependencies)
@@ -130,7 +127,7 @@
 
 (defn snapshot-remote-dataflows [dataflow]
   (assoc dataflow
-    ::remote-dataflows (map-vals (::remote-dataflow-atoms dataflow)
+    ::remote-dataflows (utils/map-vals (::remote-dataflow-atoms dataflow)
                                  deref)))
 
 (defn get-remote-value [dataflow remote-dataflow cell]

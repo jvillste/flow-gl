@@ -164,7 +164,7 @@
   (layout [this requested-width requested-height]
     (assoc this :layoutables
            (let [height (apply max (conj (map layoutable/preferred-height layoutables)
-                                        0))]
+                                         0))]
              (loop [layouted-layoutables []
                     x 0
                     layoutables layoutables]
@@ -179,7 +179,7 @@
 
   layoutable/Layoutable
   (layoutable/preferred-height [this] (apply max (conj (map layoutable/preferred-height layoutables)
-                                                                0)))
+                                                       0)))
 
   (layoutable/preferred-width [this] (reduce + (map layoutable/preferred-width layoutables)))
 
@@ -188,6 +188,55 @@
 
   Object
   (toString [this] (layoutable/describe-layoutable this "HorizontalStack" :layoutables)))
+
+
+
+(defn set-size-group-size [size-group]
+  (when (= nil
+           (:width @size-group))
+    (swap! size-group
+           #(assoc %
+              :width (apply max (conj (map layoutable/preferred-width (:members %))
+                                      0))
+              :height (apply max (conj (map layoutable/preferred-height (:members %))
+                                       0))))))
+
+
+(defrecord SizeGroupMember [size-group layoutable]
+  Layout
+  (layout [this requested-width requested-height]
+    (assoc this :layoutable
+           (set-dimensions-and-layout layoutable
+                                      0
+                                      0
+                                      (:global-x this)
+                                      (:global-y this)
+                                      (layoutable/preferred-width layoutable)
+                                      (layoutable/preferred-height layoutable))))
+
+  (children-in-coordinates [this view-state x y] (all-children-in-coordinates [layoutable] view-state x y))
+
+  layoutable/Layoutable
+  (layoutable/preferred-height [this] (do (set-size-group-size size-group)
+                                          (:height @size-group)))
+
+  (layoutable/preferred-width [this] (do (set-size-group-size size-group)
+                                         (:width @size-group)))
+
+  drawable/Drawable
+  (drawing-commands [this] (layout-drawing-commands [layoutable]))
+
+  Object
+  (toString [this] (layoutable/describe-layoutable this "SizeGroupMember" :size-group :layoutables)))
+
+(defn create-size-group []
+  (atom {:members #{}}))
+
+(defn size-group-member [size-group layoutable]
+  (swap! size-group #(update-in % [:members] conj layoutable))
+  (->SizeGroupMember size-group layoutable))
+
+
 
 (defrecord Stack [layoutables]
   Layout

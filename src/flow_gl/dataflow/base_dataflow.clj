@@ -53,7 +53,8 @@
     (do (logged-access/add-read cell)
         (slingshot/throw+ {:type ::undefined-value} (str "Undefined value: " cell)))))
 
-
+(defn cells [dataflow]
+  (keys (::storage dataflow)))
 
 
 ;; DEFINE
@@ -156,7 +157,8 @@
                               :update-cell update-cell
                               :propagate-changes propagate-changes
                               :set-dependencies set-dependencies
-                              :declare-changed declare-changed})
+                              :declare-changed declare-changed
+                              :cells cells})
 
 (defrecord BaseDataflow [])
 
@@ -173,7 +175,7 @@
                       ::heights {}
                       ::storage storage}))
 
-
+;; DEBUG
 
 (defn describe-cells [dataflow cells]
   (for [cell cells]

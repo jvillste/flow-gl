@@ -44,10 +44,9 @@
       (schedule-for-notification new-dataflow cell)
       new-dataflow)))
 
-(def dataflow-implementation {:update-cell update-cell})
-
-
 ;; PROTOCOL
+
+(def dataflow-implementation {:update-cell update-cell})
 
 (defrecord DependableDataflow [])
 

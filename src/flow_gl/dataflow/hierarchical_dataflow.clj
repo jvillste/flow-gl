@@ -100,7 +100,7 @@
 (comment
 (debug/set-active-channels :dataflow))
 
-(deftest get-value-or-nil-test
+(deftest hierarchical-dataflow-test
   (let [dataflow (-> (create {})
                      (dataflow/define :foo 3)
                      (dataflow/define :foo2 (fn [dataflow]
