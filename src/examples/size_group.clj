@@ -15,7 +15,7 @@
   (:use flow-gl.utils
         flow-gl.gui.layout-dsl))
 
-(def data [{:foo "asdfasdf"
+(def data [{:foo "asdfasdfsdfdsfdsf"
             :bar "sdf"}
            {:foo "asdfa"
             :bar "sdfsdfsf"}
@@ -27,11 +27,9 @@
 (defn row [size-group row-data]
   (let [font (font/create "LiberationSans-Regular.ttf" 15)]
     (hs (layout/size-group-member size-group
-                                  (layout/->Box 3
-                                                (drawable/->Rectangle 0 0 [0.5 0.5 0.5 1])
-                                                (drawable/->Text (:foo row-data)
-                                                                 font
-                                                                 [1 1 1 1])))
+                                  (drawable/->Text (:foo row-data)
+                                                   font
+                                                   [1 1 1 1]))
 
         (drawable/->Text (:bar row-data)
                          font
