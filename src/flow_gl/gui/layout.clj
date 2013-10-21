@@ -66,10 +66,10 @@
 
 (defn all-children-in-coordinates [children view-state x y]
   (let [children (filter-by-coordinates x y children)]
-    (concat children (mapcat (fn [child] [] (children-in-coordinates child
-                                                                     view-state
-                                                                     (+ x (:x child))
-                                                                     (+ y (:y child))))
+    (concat children (mapcat (fn [child] (children-in-coordinates child
+                                                                  view-state
+                                                                  (+ x (:x child))
+                                                                  (+ y (:y child))))
                              children))))
 
 (comment
@@ -99,6 +99,33 @@
 
   Object
   (toString [this] (layoutable/describe-layoutable this "Box" :margin :outer :inner)))
+
+
+(defrecord Margin [margin-left margin-top margin-right margin-bottom layoutable]
+  Layout
+  (layout [box requested-width requested-height]
+    (update-in box [:layoutable] set-dimensions-and-layout
+               margin-left
+               margin-top
+               (:global-x box)
+               (:global-y box)
+               (layoutable/preferred-width layoutable)
+               (layoutable/preferred-height layoutable)))
+
+  (children-in-coordinates [this view-state x y] (all-children-in-coordinates [layoutable] view-state x y ))
+
+  layoutable/Layoutable
+  (layoutable/preferred-width [box] (+ margin-left margin-right
+                                       (layoutable/preferred-width layoutable)))
+
+  (layoutable/preferred-height [box] (+ margin-top margin-bottom
+                                        (layoutable/preferred-height layoutable)))
+
+  drawable/Drawable
+  (drawing-commands [this] (layout-drawing-commands [layoutable]))
+
+  Object
+  (toString [this] (layoutable/describe-layoutable this "Margin" :margin-left :margin-top :margin-right :margin-bottom :layoutable)))
 
 
 (defrecord Absolute [layoutables]
@@ -191,18 +218,16 @@
 
 
 
-(defn set-size-group-size [size-group]
-  (when (= nil
-           (:width @size-group))
-    (swap! size-group
-           #(assoc %
-              :width (apply max (conj (map layoutable/preferred-width (:members %))
-                                      0))
-              :height (apply max (conj (map layoutable/preferred-height (:members %))
-                                       0))))))
+(defn size-group-width [size-group]
+  (apply max (conj (map layoutable/preferred-width (:members @size-group))
+                   0)))
+
+(defn size-group-height [size-group]
+  (apply max (conj (map layoutable/preferred-height (:members @size-group))
+                   0)))
 
 
-(defrecord SizeGroupMember [size-group layoutable]
+(defrecord SizeGroupMember [size-group mode layoutable]
   Layout
   (layout [this requested-width requested-height]
     (assoc this :layoutable
@@ -217,11 +242,13 @@
   (children-in-coordinates [this view-state x y] (all-children-in-coordinates [layoutable] view-state x y))
 
   layoutable/Layoutable
-  (layoutable/preferred-height [this] (do (set-size-group-size size-group)
-                                          (:height @size-group)))
+  (layoutable/preferred-height [this] (if (#{:height :both} mode)
+                                        (size-group-height size-group)
+                                        (layoutable/preferred-height layoutable)))
 
-  (layoutable/preferred-width [this] (do (set-size-group-size size-group)
-                                         (:width @size-group)))
+  (layoutable/preferred-width [this] (if (#{:width :both} mode)
+                                       (size-group-width size-group)
+                                       (layoutable/preferred-width layoutable)))
 
   drawable/Drawable
   (drawing-commands [this] (layout-drawing-commands [layoutable]))
@@ -232,9 +259,27 @@
 (defn create-size-group []
   (atom {:members #{}}))
 
-(defn size-group-member [size-group layoutable]
+(defn size-group-member [size-group mode layoutable]
   (swap! size-group #(update-in % [:members] conj layoutable))
-  (->SizeGroupMember size-group layoutable))
+  (->SizeGroupMember size-group mode layoutable))
+
+
+
+;; GRID
+
+(defn size-groups []
+  (cons (create-size-group)
+        (lazy-seq (size-groups))))
+
+(defn grid [rows]
+  (let [size-groups (size-groups)]
+    (->VerticalStack
+     (for [row rows]
+       (->HorizontalStack (for [[cell size-group] (partition 2
+                                                             (interleave row
+                                                                         size-groups))]
+                            (size-group-member size-group :width cell)))))))
+
 
 
 

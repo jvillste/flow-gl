@@ -27,6 +27,7 @@
 (defn row [size-group row-data]
   (let [font (font/create "LiberationSans-Regular.ttf" 15)]
     (hs (layout/size-group-member size-group
+                                  :width
                                   (drawable/->Text (:foo row-data)
                                                    font
                                                    [1 1 1 1]))

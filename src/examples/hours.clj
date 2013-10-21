@@ -131,7 +131,6 @@
                        font
                        [0 0 0 1])))
 
-
 (defn day-view [font day]
   (layout/->Box 3
                 (drawable/->Rectangle 0 0 [1 1 1 1])
@@ -142,8 +141,19 @@
                                           (:year day))
                                      font
                                      [0 0 0 1])
-                    (hs (apply vs (forall [session (:sessions day)]
-                                          (session-edit-view font session)))
+
+                    (hs (layout/->Margin 0 0 20 0
+                                         (layout/grid (forall [session (:sessions day)]
+                                                              [(layout/->Margin 5 0 5 0
+                                                                                (drawable/->Text (:task session)
+                                                                                                 font
+                                                                                                 [0 0 0 1]))
+                                                               (drawable/->Text (-> session
+                                                                                    :start-time
+                                                                                    time-to-str)
+                                                                                font
+                                                                                [0 0 0 1])])))
+
                         (apply vs (forall [session (->> (:sessions day)
                                                         calculate-durations
                                                         sum-up-sessions)]
