@@ -72,10 +72,6 @@
                                                                   (+ y (:y child))))
                              children))))
 
-(comment
-  (mapcat (fn [child]  [child child])
-          [1 2 3]))
-
 ;; LAYOUTS
 
 (defrecord Box [margin outer inner]
@@ -112,7 +108,7 @@
                (layoutable/preferred-width layoutable)
                (layoutable/preferred-height layoutable)))
 
-  (children-in-coordinates [this view-state x y] (all-children-in-coordinates [layoutable] view-state x y ))
+  (children-in-coordinates [this view-state x y] (all-children-in-coordinates [layoutable] view-state x y))
 
   layoutable/Layoutable
   (layoutable/preferred-width [box] (+ margin-left margin-right

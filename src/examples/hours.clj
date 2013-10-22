@@ -12,7 +12,9 @@
             (flow-gl.graphics [font :as font])
             (flow-gl [dataflow :as dataflow]))
 
-  (:import [java.util GregorianCalendar Calendar] ))
+  (:import [java.util GregorianCalendar Calendar] )
+  (:use flow-gl.utils
+        flow-gl.gui.layout-dsl))
 
 (def log [{:year 2013
            :month 10
@@ -102,15 +104,6 @@
 
 ;;  GUI
 
-(defn vs [& contents]
-  (layout/->VerticalStack contents))
-
-(defn hs [& contents]
-  (layout/->HorizontalStack contents))
-
-(defmacro forall [bindings body]
-  `(doall (for ~bindings ~body)))
-
 (defn session-view [font session]
   (drawable/->Text (str (:task session)
                         " "
@@ -132,38 +125,41 @@
                        [0 0 0 1])))
 
 (defn day-view [font day]
-  (layout/->Box 3
-                (drawable/->Rectangle 0 0 [1 1 1 1])
-                (vs (drawable/->Text (str (:day day)
-                                          "."
-                                          (:month day)
-                                          "."
-                                          (:year day))
-                                     font
-                                     [0 0 0 1])
+  (layout/->Margin 0 10 0 0
+                   (vs (drawable/->Text (str (:day day)
+                                             "."
+                                             (:month day)
+                                             "."
+                                             (:year day))
+                                        font
+                                        [0 0 0 1])
 
-                    (hs (layout/->Margin 0 0 20 0
-                                         (layout/grid (forall [session (:sessions day)]
-                                                              [(layout/->Margin 5 0 5 0
-                                                                                (drawable/->Text (:task session)
-                                                                                                 font
-                                                                                                 [0 0 0 1]))
-                                                               (drawable/->Text (-> session
-                                                                                    :start-time
-                                                                                    time-to-str)
-                                                                                font
-                                                                                [0 0 0 1])])))
+                       (hs (layout/->Margin 0 0 20 0
+                                            (layout/grid (forall [session (:sessions day)]
+                                                                 [(layout/->Margin 0 0 10 0
+                                                                                   (drawable/->Text (:task session)
+                                                                                                    font
+                                                                                                    [0 0 0 1]))
+                                                                  (drawable/->Text (-> session
+                                                                                       :start-time
+                                                                                       time-to-str)
+                                                                                   font
+                                                                                   [0 0 0 1])])))
 
-                        (apply vs (forall [session (->> (:sessions day)
-                                                        calculate-durations
-                                                        sum-up-sessions)]
-                                          (session-view font session)))))))
+                           (apply vs (forall [session (->> (:sessions day)
+                                                           calculate-durations
+                                                           sum-up-sessions)]
+                                             (session-view font session)))))))
 
 
 (defn view [log]
-  (let [font (font/create "LiberationSans-Regular.ttf" 15)]
-    (apply vs (forall [day log]
-                      (day-view font day)))))
+  (layout/->Stack [(drawable/->Rectangle (dataflow/get-global-value :width)
+                                         (dataflow/get-global-value :height)
+                                         [1 1 1 1])
+                   (layout/->Margin 10 0 0 0
+                                    (let [font (font/create "LiberationSans-Regular.ttf" 15)]
+                                      (apply vs (forall [day log]
+                                                        (day-view font day)))))]))
 
 
 
