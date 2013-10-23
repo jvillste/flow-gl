@@ -3,6 +3,8 @@
             [flow-gl.dataflow.dataflow :as dataflow])
   (:use clojure.test))
 
+(defn create-entity []
+  (keyword (str "entity-" (rand-int 1000000))))
 
 (defn set [dataflow subject predicate object]
   (dataflow/define dataflow [subject predicate] object))
@@ -20,9 +22,9 @@
   (getKey [_] predicate)
   (getValue [_] (get dataflow entity predicate)))
 
-(deftype Entity [dataflow entity]
+(deftype Entity [dataflow modifications entity-id]
   clojure.lang.IPersistentMap
-  (assoc [_ k v])
+  (assoc [entity k v] ( entity [:modifications] v))
   (assocEx [_ k v])
   (without [_ k])
 
@@ -31,9 +33,9 @@
 
   clojure.lang.Associative
   (containsKey [_ k]
-    (some #{k} (properties dataflow entity)))
+    (some #{k} (properties dataflow entity-id)))
   (entryAt [_ k]
-    (get dataflow entity k))
+    (get dataflow entity-id k))
 
   clojure.lang.IPersistentCollection
   (count [_])
@@ -43,16 +45,19 @@
 
   clojure.lang.Seqable
   (seq [_]
-    (for [property (properties dataflow entity)]
-      (EntityMapEntry. dataflow entity property)))
+    (for [property (properties dataflow entity-id)]
+      (EntityMapEntry. dataflow entity-id property)))
 
   clojure.lang.ILookup
   (valAt [_ k]
-    (get dataflow entity k))
+    (get dataflow entity-id k))
   (valAt [_ k not-found]
     (if (dataflow/is-defined? dataflow k)
-      (get dataflow entity k)
+      (get dataflow entity-id k)
       not-found)))
+
+(defn get-entity [dataflow entity-id]
+  (Entity. dataflow {} entity-id))
 
 (deftest properties-test
   (let [dataflow (-> (base-dataflow/create {})
@@ -62,10 +67,11 @@
            '(:property-2 :property-1)))))
 
 (deftest entity-test
-  (let [dataflow (-> (base-dataflow/create {})
-                     (set :entity :property-1 :property-1-value)
-                     (set :entity :property-2 :property-2-value))
-        entity (Entity. dataflow :entity)]
+  (let [entity-id (create-entity)
+        dataflow (-> (base-dataflow/create {})
+                     (set entity-id :property-1 :property-1-value)
+                     (set entity-id :property-2 :property-2-value))
+        entity (get-entity dataflow entity-id)]
 
     (is (= (:property-1 entity)
            :property-1-value))
@@ -74,9 +80,7 @@
            '(:property-2 :property-1)))
 
     (is (= (assoc entity :foo 1)
-           '(:property-2 :property-1)))
-
-    ))
+           '(:property-2 :property-1)))))
 
 
 (run-tests)

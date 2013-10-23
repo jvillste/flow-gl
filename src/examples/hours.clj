@@ -78,7 +78,7 @@
     :sessions []))
 
 (defn create-session []
-  {:task ""
+  {:task "work"
    :start-time (current-time)})
 
 (defn calculate-durations [log]
@@ -104,15 +104,18 @@
 
 ;;  GUI
 
-(defn session-view [font session]
-  (drawable/->Text (str (:task session)
-                        " "
-                        (-> session
-                            :duration-in-minutes
-                            minutes-to-time
-                            time-to-str))
-                   font
-                   [0 0 0 1]))
+(defn text [style string]
+  (drawable/->Text string
+                   (:font style)
+                   (:foreground style)))
+
+(defn session-view [style session]
+  (text style (str (:task session)
+                   " "
+                   (-> session
+                       :duration-in-minutes
+                       minutes-to-time
+                       time-to-str))))
 
 (defn session-edit-view [font session]
   (hs (drawable/->Text (:task session)
@@ -124,49 +127,54 @@
                        font
                        [0 0 0 1])))
 
-(defn day-view [font day]
+
+(defn time-editor-view [time-editor style subject predicate]
+  (text style (-> subject
+                  predicate
+                  time-to-str)))
+
+
+(defn day-view [style day]
   (layout/->Margin 0 10 0 0
-                   (vs (drawable/->Text (str (:day day)
-                                             "."
-                                             (:month day)
-                                             "."
-                                             (:year day))
-                                        font
-                                        [0 0 0 1])
+                   (vs (text style (str (:day day)
+                                        "."
+                                        (:month day)
+                                        "."
+                                        (:year day)))
 
                        (hs (layout/->Margin 0 0 20 0
                                             (layout/grid (forall [session (:sessions day)]
                                                                  [(layout/->Margin 0 0 10 0
-                                                                                   (drawable/->Text (:task session)
-                                                                                                    font
-                                                                                                    [0 0 0 1]))
-                                                                  (drawable/->Text (-> session
-                                                                                       :start-time
-                                                                                       time-to-str)
-                                                                                   font
-                                                                                   [0 0 0 1])])))
+                                                                                   (text style (:task session)))
+                                                                  (time-editor-view {} style session :start-time)])))
 
                            (apply vs (forall [session (->> (:sessions day)
                                                            calculate-durations
                                                            sum-up-sessions)]
-                                             (session-view font session)))))))
+                                             (session-view style session)))))))
 
 
-(defn view [log]
+(defn view []
+
   (layout/->Stack [(drawable/->Rectangle (dataflow/get-global-value :width)
                                          (dataflow/get-global-value :height)
                                          [1 1 1 1])
                    (layout/->Margin 10 0 0 0
-                                    (let [font (font/create "LiberationSans-Regular.ttf" 15)]
-                                      (apply vs (forall [day log]
-                                                        (day-view font day)))))]))
-
+                                    (let [style {:font (font/create "LiberationSans-Regular.ttf" 15)
+                                                 :foreground [0 0 0 1]}]
+                                      (apply vs (forall [day (dataflow/get-global-value :log)]
+                                                        (day-view style day)))))]))
 
 
 (defn handle-event [state event]
   (cond (input/key-pressed? event input/esc)
         (do (application/request-close)
             state)
+
+        (input/key-pressed? event input/enter)
+        (dataflow/define-to-global state [:log] (conj (get state [:log])
+                                                          (-> (create-day)
+                                                              (assoc :sessions [(create-session)]))))
 
         :default state))
 
@@ -176,23 +184,23 @@
 
 (defn initialize [state state-atom]
   (reset! sa state-atom)
-  state)
+  (dataflow/define-to state [:log] log))
 
 (defn refresh []
   (when @sa
-    (swap! @sa view/set-view (partial view log))))
+    (swap! @sa view/set-view view)))
 
 (refresh)
 
 
 (defn start []
-  (application/start (partial view log)
+  (application/start view
                      :initialize initialize
                      :handle-event handle-event
                      :framerate 60))
 
 
 (comment
-  (.start (Thread. start))
+(.start (Thread. start))
   (start)
   )

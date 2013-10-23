@@ -261,14 +261,8 @@
 
 
 
-;; GRID
-
-(defn size-groups []
-  (cons (create-size-group)
-        (lazy-seq (size-groups))))
-
 (defn grid [rows]
-  (let [size-groups (size-groups)]
+  (let [size-groups (repeatedly create-size-group)]
     (->VerticalStack
      (for [row rows]
        (->HorizontalStack (for [[cell size-group] (partition 2
