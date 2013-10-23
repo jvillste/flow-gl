@@ -22,9 +22,15 @@
   (getKey [_] predicate)
   (getValue [_] (get dataflow entity predicate)))
 
+(defprotocol EntityProtocol
+  (modifications [entity]))
+
 (deftype Entity [dataflow modifications entity-id]
+  EntityProtocol
+  (modifications [_] modifications)
+
   clojure.lang.IPersistentMap
-  (assoc [entity k v] ( entity [:modifications] v))
+  (assoc [entity k v] (Entity. dataflow (assoc modifications k v) entity-id))
   (assocEx [_ k v])
   (without [_ k])
 
@@ -79,8 +85,8 @@
     (is (= (keys entity)
            '(:property-2 :property-1)))
 
-    (is (= (assoc entity :foo 1)
-           '(:property-2 :property-1)))))
+    (is (= (modifications (assoc entity :foo 1))
+           {:foo 1}))))
 
 
 (run-tests)
