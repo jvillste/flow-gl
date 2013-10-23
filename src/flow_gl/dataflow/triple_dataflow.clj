@@ -11,13 +11,19 @@
     ::entity-id (create-entity-id)))
 
 (defn entity? [data]
-  (contains? data ::entity-id))
+  (and  (map? data)
+        (contains? data ::entity-id)))
+
+(defn entity-vector? [data]
+  (and  (vector? data)
+        (every? #(contains? % ::entity-id)
+                data)))
+
 
 (defn create-entity-reference [entity-id]
   {::type :entity-reference
    ::entity-id entity-id})
 
-(defn save-entity [dataflow])
 
 (defn set [dataflow subject predicate object]
   (dataflow/define dataflow [subject predicate] object))
@@ -30,6 +36,12 @@
                           entity)
                       (dataflow/cells dataflow))))
 
+(defn save-entity [dataflow entity]
+  (reduce (fn [dataflow key]
+            (set dataflow (::entity-id entity) key (key entity)))
+          dataflow
+          (remove #{::entity-id} (keys entity))))
+
 (deftype EntityMapEntry [dataflow entity predicate]
   clojure.lang.IMapEntry
   (getKey [_] predicate)
@@ -38,13 +50,28 @@
 (defprotocol EntityProtocol
   (get-dataflow [entity]))
 
+
+
+
 (deftype Entity [dataflow entity-id]
   EntityProtocol
   (get-dataflow [entity] dataflow)
 
   clojure.lang.IPersistentMap
-  (assoc [entity key value] (if (entity? value)
-                              (Entity. (set dataflow entity-id key value) entity-id)))
+  (assoc [entity key value] (cond (entity? value)
+                                  (Entity. (set (save-entity dataflow value)
+                                                entity-id
+                                                key
+                                                (create-entity-reference (::entity-id value)))
+                                           entity-id)
+
+                                  (entity-vector? value)
+                                  (Entity. (-> (reduce save-entity dataflow value)
+                                               (set entity-id key (create-entity-reference (::entity-id value))))
+                                           entity-id)
+
+                                  :default
+                                  (Entity. (set dataflow entity-id key value) entity-id)))
   (assocEx [_ k v])
   (without [_ k])
 
@@ -101,10 +128,26 @@
                (get entity-id :foo))
            1))
 
-    (is (= (-> (assoc entity :foo (create-entity {:foo 1}))
-               get-dataflow
-               (get entity-id :foo))
-           1))))
+
+    (let [dataflow (-> entity
+                       (assoc :foo {:bar 1
+                                    ::entity-id :entity-1}
+                              :bar {:x :y}
+                              :baz [{::entity-id :entity-2
+                                     :bar 2}
+                                    {::entity-id :entity-3
+                                     :bar 3}])
+                       get-dataflow)]
+
+      (is (= (get dataflow entity-id :foo)
+             {:flow-gl.triple-dataflow/type :entity-reference,
+              :flow-gl.triple-dataflow/entity-id :entity-1}))
+
+      (is (= (get dataflow entity-id :bar)
+             {:x :y}))
+
+      (is (= (get dataflow :entity-1 :bar)
+             1)))))
 
 
 (run-tests)
