@@ -42,6 +42,22 @@
           dataflow
           (remove #{::entity-id} (keys entity))))
 
+
+(defn create-references [dataflow value]
+  (cond (entity? value)
+        [(save-entity dataflow value)
+         (create-entity-reference (::entity-id value))]
+
+        (entity-vector? value)
+        [(reduce save-entity dataflow value)
+         (vec (map create-entity-reference (map ::entity-id value)))]
+
+        :default
+        [dataflow
+         value]))
+
+
+
 (deftype EntityMapEntry [dataflow entity predicate]
   clojure.lang.IMapEntry
   (getKey [_] predicate)
@@ -51,27 +67,14 @@
   (get-dataflow [entity]))
 
 
-
-
 (deftype Entity [dataflow entity-id]
   EntityProtocol
   (get-dataflow [entity] dataflow)
 
   clojure.lang.IPersistentMap
-  (assoc [entity key value] (cond (entity? value)
-                                  (Entity. (set (save-entity dataflow value)
-                                                entity-id
-                                                key
-                                                (create-entity-reference (::entity-id value)))
-                                           entity-id)
-
-                                  (entity-vector? value)
-                                  (Entity. (-> (reduce save-entity dataflow value)
-                                               (set entity-id key (create-entity-reference (::entity-id value))))
-                                           entity-id)
-
-                                  :default
-                                  (Entity. (set dataflow entity-id key value) entity-id)))
+  (assoc [entity key value] (let [[dataflow value] (create-references dataflow value)]
+                              (Entity. (set dataflow entity-id key value)
+                                       entity-id)))
   (assocEx [_ k v])
   (without [_ k])
 
@@ -102,6 +105,35 @@
     (if (dataflow/is-defined? dataflow k)
       (get dataflow entity-id k)
       not-found)))
+
+
+(defn assoc-child [parent-entity key function]
+  (let [entity-id (if (contains? parent-entity key)
+                    (
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+(parent-entity key))
+                    (create-entity-id))]
+    
+    (assoc parent-entity key (fn [dataflow] (function (Entity. dataflow (create-entity-id))))))
+
+  )
+
 
 (deftest properties-test
   (let [dataflow (-> (base-dataflow/create {})
@@ -136,18 +168,50 @@
                               :baz [{::entity-id :entity-2
                                      :bar 2}
                                     {::entity-id :entity-3
-                                     :bar 3}])
+                                     :bar 3}]
+
+                              :foobar [{::entity-id :entity-4
+                                        :bar {::entity-id :entity-5
+                                              :bar 2}}
+
+                                       {::entity-id :entity-6
+                                        :bar 3}])
                        get-dataflow)]
 
       (is (= (get dataflow entity-id :foo)
              {:flow-gl.triple-dataflow/type :entity-reference,
               :flow-gl.triple-dataflow/entity-id :entity-1}))
 
+      (is (= (get dataflow :entity-1 :bar)
+             1))
+
       (is (= (get dataflow entity-id :bar)
              {:x :y}))
 
-      (is (= (get dataflow :entity-1 :bar)
-             1)))))
+      (is (= (get dataflow entity-id :baz)
+             [{:flow-gl.triple-dataflow/type :entity-reference
+               :flow-gl.triple-dataflow/entity-id :entity-2}
+
+              {:flow-gl.triple-dataflow/type :entity-reference
+               :flow-gl.triple-dataflow/entity-id :entity-3}]))
+
+      (is (= (get dataflow entity-id :foobar)
+             [{:flow-gl.triple-dataflow/type :entity-reference, :flow-gl.triple-dataflow/entity-id :entity-4}
+              {:flow-gl.triple-dataflow/type :entity-reference, :flow-gl.triple-dataflow/entity-id :entity-6}]))
+
+      #_(is (= (get dataflow :entity-4 :bar)
+               {:flow-gl.triple-dataflow/type :entity-reference, :flow-gl.triple-dataflow/entity-id :entity-5})))
+
+
+    (let [dataflow (-> entity
+                       (assoc :child-view {:contents "foobar"
+                                           ::entity-id :entity-1}
+                              :child-view-value (fn [state]
+                                                  {:text (:contents state)}))
+                       get-dataflow)]
+
+      (is (= (get dataflow entity-id :child-view-value)
+             {:text "foobar"})))))
 
 
 (run-tests)
