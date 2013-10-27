@@ -56,7 +56,18 @@
         [dataflow
          value]))
 
-
+(defn assoc-new
+  ([map key val] (if (contains? map key)
+                   map
+                   (assoc map key val)))
+  ([map key val & kvs]
+     (let [ret (assoc-new map key val)]
+       (if kvs
+         (if (next kvs)
+           (recur ret (first kvs) (second kvs) (nnext kvs))
+           (throw (IllegalArgumentException.
+                   "assoc-new expects even number of arguments after map/vector, found odd number")))
+         ret))))
 
 (deftype EntityMapEntry [dataflow entity predicate]
   clojure.lang.IMapEntry
@@ -64,12 +75,14 @@
   (getValue [_] (get dataflow entity predicate)))
 
 (defprotocol EntityProtocol
-  (get-dataflow [entity]))
+  (get-dataflow [entity])
+  (get-entity-id [entity]))
 
 
 (deftype Entity [dataflow entity-id]
   EntityProtocol
   (get-dataflow [entity] dataflow)
+  (get-entity-id [entity] entity-id)
 
   clojure.lang.IPersistentMap
   (assoc [entity key value] (let [[dataflow value] (create-references dataflow value)]
@@ -82,8 +95,9 @@
   (iterator [this])
 
   clojure.lang.Associative
-  (containsKey [_ k]
-    (some #{k} (properties dataflow entity-id)))
+  (containsKey [entity k]
+    (if (some #{k} (keys entity))
+      true false))
   (entryAt [_ k]
     (get dataflow entity-id k))
 
@@ -95,8 +109,11 @@
 
   clojure.lang.Seqable
   (seq [_]
-    (for [property (properties dataflow entity-id)]
-      (EntityMapEntry. dataflow entity-id property)))
+    (let [properties (properties dataflow entity-id)]
+      (if (empty? properties)
+        nil
+        (for [property properties]
+          (EntityMapEntry. dataflow entity-id property)))))
 
   clojure.lang.ILookup
   (valAt [_ k]
@@ -107,32 +124,19 @@
       not-found)))
 
 
-(defn assoc-child [parent-entity key function]
+(defn define-child [parent-entity key function]
   (let [entity-id (if (contains? parent-entity key)
-                    (
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-(parent-entity key))
+                    (::entity-id (key parent-entity))
                     (create-entity-id))]
-    
-    (assoc parent-entity key (fn [dataflow] (function (Entity. dataflow (create-entity-id))))))
 
-  )
+    (println "id:" entity-id)
+
+    (-> (Entity. (get-dataflow parent-entity)
+                 entity-id)
+        function
+        get-dataflow
+        (Entity. (get-entity-id parent-entity))
+        (assoc key (create-entity-reference entity-id)))))
 
 
 (deftest properties-test
@@ -154,6 +158,12 @@
 
     (is (= (keys entity)
            '(:property-2 :property-1)))
+
+    (is (= (contains? entity :property-1)
+           true))
+
+    (is (= (seq (Entity. dataflow (create-entity-id)))
+           nil))
 
     (is (= (-> (assoc entity :foo 1)
                get-dataflow
@@ -204,13 +214,13 @@
 
 
     (let [dataflow (-> entity
-                       (assoc :child-view {:contents "foobar"
-                                           ::entity-id :entity-1}
-                              :child-view-value (fn [state]
-                                                  {:text (:contents state)}))
+                       (define-child :child-view (fn [state]
+                                                   (let [state (assoc-new state :contents "foobar")]
+                                                     (assoc state :view {:text (:contents state)}))))
                        get-dataflow)]
 
-      (is (= (get dataflow entity-id :child-view-value)
+      (is (= (-> (get dataflow entity-id :child-view)
+                 ::entity-id)
              {:text "foobar"})))))
 
 
