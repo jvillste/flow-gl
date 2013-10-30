@@ -31,6 +31,16 @@
 (defn get [dataflow subject predicate]
   (dataflow/get-value dataflow [subject predicate]))
 
+(defn get-entity [dataflow subject predicate]
+  (Entity. dataflow (::entity-id (dataflow/get-value dataflow [subject predicate]))))
+
+(defn get-value-or-entity [dataflow subject predicate]
+  (let [value (get dataflow subject predicate)]
+    (if (and (map? value)
+             (contains? value ::entity-id))
+      (Entity. dataflow (::entity-id value))
+      value)))
+
 (defn properties [dataflow entity]
   (map second (filter #(= (first %)
                           entity)
@@ -117,19 +127,17 @@
 
   clojure.lang.ILookup
   (valAt [_ k]
-    (get dataflow entity-id k))
+    (get-value-or-entity dataflow entity-id k))
   (valAt [_ k not-found]
     (if (dataflow/is-defined? dataflow k)
-      (get dataflow entity-id k)
+      (get-value-or-entity dataflow entity-id k)
       not-found)))
 
 
-(defn define-child [parent-entity key function]
+(defn initialize-new-entity [parent-entity key function]
   (let [entity-id (if (contains? parent-entity key)
                     (::entity-id (key parent-entity))
                     (create-entity-id))]
-
-    (println "id:" entity-id)
 
     (-> (Entity. (get-dataflow parent-entity)
                  entity-id)
@@ -138,6 +146,23 @@
         (Entity. (get-entity-id parent-entity))
         (assoc key (create-entity-reference entity-id)))))
 
+(defn assoc-with-this [entity key function]
+  (assoc entity key (fn [dataflow]
+                      (let [state (Entity. dataflow (get-entity-id entity))]
+                        (function state)))))
+
+(def ^:dynamic delayed-applications)
+
+(defn with-delayed-applications [state function]
+  (binding [delayed-applications (atom [])]
+    (let [state (function state)]
+      (reduce (fn [state function]
+                (function state))
+              state
+              @delayed-applications))))
+
+(defn apply-delayed [function]
+  (swap! delayed-applications conj function))
 
 (deftest properties-test
   (let [dataflow (-> (base-dataflow/create {})
@@ -145,6 +170,7 @@
                      (set :entity :property-2 :property-2-value))]
     (is (= (properties dataflow :entity)
            '(:property-2 :property-1)))))
+
 
 (deftest entity-test
   (let [entity-id (create-entity-id)
@@ -214,14 +240,53 @@
 
 
     (let [dataflow (-> entity
-                       (define-child :child-view (fn [state]
-                                                   (let [state (assoc-new state :contents "foobar")]
-                                                     (assoc state :view {:text (:contents state)}))))
-                       get-dataflow)]
+                       (initialize-new-entity :child-view (fn [state]
+                                                            (-> state
+                                                                (assoc-new :contents "foobar")
+                                                                (assoc-with-this :view (fn [state]
+                                                                                         {:text (str "bar =" (:contents state))})))))
+                       get-dataflow)
+          dataflow-after-content-change (-> (get-entity dataflow entity-id :child-view)
+                                            (assoc :contents "foobar 2")
+                                            get-dataflow
+                                            dataflow/propagate-changes)
+          ]
 
-      (is (= (-> (get dataflow entity-id :child-view)
-                 ::entity-id)
-             {:text "foobar"})))))
+      (is (= (:view (get-entity dataflow entity-id :child-view))
+             {:text "bar =foobar"}))
+
+      (is (= (:view (get-entity dataflow-after-content-change entity-id :child-view))
+             {:text "bar =foobar 2"})))
+
+
+    (let [child-view (fn [text state]
+                       (assoc state :view
+                              {:child-text text}))
+          init-and-call (fn [key view]
+                          (do (apply-delayed (fn [state]
+                                               (initialize-new-entity state key view)))
+                              {:call key}))
+
+          root-view (fn [state]
+                      (with-delayed-applications state
+                        (fn [state]
+                          (assoc state :view
+                                 [(init-and-call :child-view-1 (partial child-view "text-1"))
+                                  (init-and-call :child-view-2 (partial child-view "text-2"))]))))
+
+          state (initialize-new-entity entity
+                                       :root-view root-view)]
+
+      (is (= (:view (:root-view state))
+             [{:call :child-view-1} {:call :child-view-2}]))
+
+      (is (= (-> (:root-view state)
+                 :child-view-1
+                 :view)
+             {:child-text "text-1"})))))
+
+
+
 
 
 (run-tests)
