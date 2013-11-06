@@ -399,12 +399,13 @@
            1))))
 
 (deftest view-test
-  (let [entity-id (create-entity-id)
-        application-state (-> (create-entity (base-dataflow/create {}) entity-id)
-                              (assoc :texts ["foo" "bar"]))
-        child-view (fn [text state]
+  (let [application-state (-> (create-entity (base-dataflow/create {}) :application-state)
+                              (assoc :todos [(new-entity :text "do this")
+                                             (new-entity :text "do that")] ))
+
+        child-view (fn [todo-id state]
                      (assoc state :view
-                            {:child-text text}))
+                            {:child-text (:text (other-entity state todo-id))}))
 
         init-and-call (fn [key view]
                         (do (apply-delayed (fn [state]
@@ -414,19 +415,17 @@
         root-view (fn [state]
                     (with-delayed-applications state
                       (assoc state :view
-                             [(init-and-call :child-view-1 (partial child-view "text-1"))
-                              (init-and-call :child-view-2 (partial child-view "text-2"))])))
+                             (for [todo (:todos (other-entity state :application-state))]
+                               (init-and-call (keyword (str "child-view-" (name (get-entity-id todo))))
+                                              (partial child-view (get-entity-id todo)))))))
 
         state (initialize-new-entity application-state
                                      :root-view root-view)]
 
-    (is (= (:view (:root-view state))
-           [{:call :child-view-1} {:call :child-view-2}]))
 
-    (is (= (-> (:root-view state)
-               :child-view-1
-               :view)
-           {:child-text "text-1"}))))
+    (is (= (let [child-view (:call (first (:view (:root-view state))))]
+             (get (get-dataflow state) child-view :view)) 
+           nil))))
 
 
 (run-tests)
