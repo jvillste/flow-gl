@@ -1,7 +1,9 @@
 (ns flow-gl.triple-dataflow
   (:require [flow-gl.dataflow.base-dataflow :as base-dataflow]
+            [flow-gl.debug :as debug]
             [flow-gl.dataflow.dataflow :as dataflow])
-  (:use clojure.test))
+  (:use clojure.test
+        flow-gl.utils))
 
 (defn create-entity-id []
   (keyword (str "entity-" (rand-int 1000000))))
@@ -53,6 +55,9 @@
 
 
 (def create-entity-reference-for-id)
+(def create-entity-reference)
+(def entity?)
+(def get-dataflow)
 
 (defn create-references [dataflow value]
   (cond
@@ -398,34 +403,88 @@
                (get entity-id :foo))
            1))))
 
+(deftest dependency-test
+  (debug/reset-log)
+
+  (-> (base-dataflow/create {})
+
+      (create-entity :root)
+      (assoc :foo :root-foo)
+      (initialize-new-entity :child (fn [entity]
+                                      (assoc entity :foo (fn [dataflow]
+                                                           (get dataflow :root :foo)))))
+      (get-dataflow)
+      (base-dataflow/debug-dataflow)))
+
+
+(defmacro view [parameters view-expression]
+  (let [state-symbol (last parameters)
+        dataflow-symbol (gensym)]
+    `(fn ~parameters
+       (with-delayed-applications ~state-symbol
+         (assoc ~state-symbol :view
+                (fn [~dataflow-symbol]
+                  (let [~state-symbol (create-entity ~dataflow-symbol (get-entity-id ~state-symbol))]
+                    ~view-expression)))))))
+
+
+(defn init-and-call [identifiers view & parameters]
+  (let [key (keyword (str "child-view-" identifiers))]
+    (do (apply-delayed (fn [state]
+                         (initialize-new-entity state key (apply partial view parameters))))
+        {:call key})))
+
+(deftest view-macro-test
+  #_(is (= (view [state] (:foo state))
+           nil)))
+
+(defn defview [name parameters view-expression]
+  '(def ~name (view parameters view-expression)))
+
 (deftest view-test
+  (debug/reset-log)
   (let [application-state (-> (create-entity (base-dataflow/create {}) :application-state)
                               (assoc :todos [(new-entity :text "do this")
                                              (new-entity :text "do that")] ))
 
-        child-view (fn [todo-id state]
-                     (assoc state :view
-                            {:child-text (:text (other-entity state todo-id))}))
-
-        init-and-call (fn [key view]
-                        (do (apply-delayed (fn [state]
-                                             (initialize-new-entity state key view)))
-                            {:call key}))
-
-        root-view (fn [state]
-                    (with-delayed-applications state
-                      (assoc state :view
-                             (for [todo (:todos (other-entity state :application-state))]
-                               (init-and-call (keyword (str "child-view-" (name (get-entity-id todo))))
-                                              (partial child-view (get-entity-id todo)))))))
-
-        state (initialize-new-entity application-state
-                                     :root-view root-view)]
+        child-view (view [todo-id state]
+                         {:child-text (:text (other-entity state todo-id))})
 
 
-    (is (= (let [child-view (:call (first (:view (:root-view state))))]
-             (get (get-dataflow state) child-view :view)) 
-           nil))))
 
+        root-view (view [state]
+                        (for [todo (:todos (other-entity state :application-state))]
+                          (init-and-call [(get-entity-id todo)]
+                                         child-view (get-entity-id todo))))
+
+        application-state (initialize-new-entity application-state
+                                                 :root-view root-view)]
+
+    #_(doseq [line (base-dataflow/describe-dataflow (get-dataflow application-state))]
+        (println line))
+
+    (is (= (let [child-view ((:call (first (:view (:root-view application-state)))) (:root-view application-state))]
+             (:view child-view))
+           {:child-text "do this"}))
+
+    (let [application-state (-> (:todos application-state)
+                                (first)
+                                (assoc :text "foo")
+                                (get-dataflow)
+                                (dataflow/propagate-changes)
+                                (create-entity :application-state))]
+
+      (base-dataflow/debug-dataflow (get-dataflow application-state))
+
+      (is (= (let [child-view ((:call (first (:view (:root-view application-state)))) (:root-view application-state))]
+               (:view child-view))
+             {:child-text "foo"})))))
+
+
+(debug/set-active-channels :all)
+
+(debug/reset-log)
 
 (run-tests)
+
+(debug/write-log)
