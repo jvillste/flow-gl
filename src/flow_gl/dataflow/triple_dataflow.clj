@@ -1,9 +1,10 @@
-(ns flow-gl.triple-dataflow
+(ns flow-gl.dataflow.triple-dataflow
   (:require [flow-gl.dataflow.base-dataflow :as base-dataflow]
             [flow-gl.debug :as debug]
             [flow-gl.dataflow.dataflow :as dataflow])
   (:use clojure.test
         flow-gl.utils))
+
 
 (defn create-entity-id []
   (keyword (str "entity-" (rand-int 1000000))))
@@ -11,6 +12,10 @@
 (defn create-entity [data]
   (assoc data
     ::entity-id (create-entity-id)))
+
+(defn create-property [subject predicate]
+  {:subject subject
+   :predicate predicate})
 
 (defn new-entity? [value]
   (and (map? value)
@@ -36,6 +41,9 @@
 
 (defn get [dataflow subject predicate]
   (dataflow/get-value dataflow [subject predicate]))
+
+(defn get-property [dataflow property]
+  (get dataflow (:subject property) (:predicate property)))
 
 (defn undefine [dataflow subject predicate]
   (dataflow/undefine dataflow [subject predicate]))
@@ -146,6 +154,7 @@
 
   clojure.lang.Seqable
   (seq [_]
+
     (let [properties (properties dataflow entity-id)]
       (if (empty? properties)
         nil
@@ -379,6 +388,7 @@
            "foo"))))
 
 
+
 (deftest entity-test
   (let [entity-id (create-entity-id)
         dataflow (-> (base-dataflow/create {})
@@ -427,6 +437,12 @@
                   (let [~state-symbol (create-entity ~dataflow-symbol (get-entity-id ~state-symbol))]
                     ~view-expression)))))))
 
+(deftest view-test
+  #_(is (= (view [state] (:foo state))
+           nil)))
+
+(defn defview [name parameters view-expression]
+  '(def ~name (view parameters view-expression)))
 
 (defn init-and-call [identifiers view & parameters]
   (let [key (keyword (str "child-view-" identifiers))]
@@ -434,28 +450,20 @@
                          (initialize-new-entity state key (apply partial view parameters))))
         {:call key})))
 
-(deftest view-macro-test
-  #_(is (= (view [state] (:foo state))
-           nil)))
 
-(defn defview [name parameters view-expression]
-  '(def ~name (view parameters view-expression)))
-
-(deftest view-test
+(deftest view-definition-test
   (debug/reset-log)
   (let [application-state (-> (create-entity (base-dataflow/create {}) :application-state)
                               (assoc :todos [(new-entity :text "do this")
                                              (new-entity :text "do that")] ))
 
-        child-view (view [todo-id state]
-                         {:child-text (:text (other-entity state todo-id))})
-
-
+        child-view (view [property state]
+                         {:child-text (get-property (get-dataflow state) property)})
 
         root-view (view [state]
                         (for [todo (:todos (other-entity state :application-state))]
                           (init-and-call [(get-entity-id todo)]
-                                         child-view (get-entity-id todo))))
+                                         child-view (create-property (get-entity-id todo) :text))))
 
         application-state (initialize-new-entity application-state
                                                  :root-view root-view)]

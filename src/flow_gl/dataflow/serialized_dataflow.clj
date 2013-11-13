@@ -16,4 +16,4 @@
                   (recur (async/<! (::definition-channel @dataflow-atom))))))))
 
 (defn schedule-definition [dataflow cell function]
-  (async/go (async/>! (::definition-channel dataflow) [cel function])))
+  (async/go (async/>! (::definition-channel dataflow) [cell function])))

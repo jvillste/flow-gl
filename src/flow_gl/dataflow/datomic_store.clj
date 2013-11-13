@@ -1,4 +1,4 @@
-(ns flow-gl.datomic-store
+(ns flow-gl.dataflow.datomic-store
   (:require [datomic.api :as d]))
 
 (def uri "datomic:mem://hello")

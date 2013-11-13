@@ -155,13 +155,19 @@
 
 
 (defn view []
-
   (layout/->Stack [(drawable/->Rectangle (dataflow/get-global-value :width)
                                          (dataflow/get-global-value :height)
                                          [1 1 1 1])
+
+
+
+
+
+
                    (layout/->Margin 10 0 0 0
                                     (let [style {:font (font/create "LiberationSans-Regular.ttf" 15)
                                                  :foreground [0 0 0 1]}]
+
                                       (apply vs (forall [day (dataflow/get-global-value :log)]
                                                         (day-view style day)))))]))
 

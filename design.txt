@@ -30,3 +30,11 @@ Inspect element
 - Shows drawables
 In process code editor
 Dataflow visualizer
+
+
+(use '[clojure.tools.namespace.repl :only (refresh set-refresh-dirs disable-reload!)])
+(set-refresh-dirs "src/flow-gl/dataflow")
+(disable-reload! flow-gl.dataflow.hierarchical-dataflow)
+(clojure.tools.namespace.repl/refresh)
+
+
