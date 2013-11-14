@@ -169,11 +169,12 @@
 
 ;; CREATE
 
-(defn create [storage]
+(defn create []
   (map->BaseDataflow {::changed-cells #{}
                       ::need-to-be-updated (priority-map/priority-map)
                       ::heights {}
-                      ::storage storage}))
+                      ::storage {}}))
+
 
 ;; DEBUG
 
@@ -198,7 +199,7 @@
   (debug/set-active-channels :dataflow))
 
 (deftest get-value-or-nil-test
-  (is (= (-> (create {})
+  (is (= (-> (create)
              (define :foo 2)
              (define :foo2 (fn [dataflow] (+ 1 (get-value dataflow :foo))))
              (define :foo 3)
@@ -206,5 +207,4 @@
              (get-value :foo2))
          4)))
 
-(run-tests)
 (debug/write-log)

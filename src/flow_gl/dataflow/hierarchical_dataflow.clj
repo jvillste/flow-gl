@@ -88,8 +88,8 @@
 
 ;; CREATE
 
-(defn create [storage]
-  (-> (base-dataflow/create storage)
+(defn create []
+  (-> (base-dataflow/create)
       (assoc ::children {})
       (map->HierarchicalDataflow)))
 
@@ -101,7 +101,7 @@
 (debug/set-active-channels :dataflow))
 
 (deftest hierarchical-dataflow-test
-  (let [dataflow (-> (create {})
+  #_(let [dataflow (-> (create)
                      (dataflow/define :foo 3)
                      (dataflow/define :foo2 (fn [dataflow]
                                               (initialize-children :x 1
@@ -121,5 +121,5 @@
     (is (= (dataflow/is-defined? dataflow :foo2_child-2)
            false))))
 
-(run-tests)
+
 (debug/write-log)

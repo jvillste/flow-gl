@@ -6,6 +6,7 @@
   (:use clojure.test))
 
 
+
 (defn set-notification-channel-dependencies [dataflow notification-channel dependencies]
   (flow-gl.debug/debug :dataflow "setting notification channel dependencies: "  notification-channel " = " dependencies)
   (if (empty? dependencies)
@@ -62,9 +63,9 @@
   {::notification-channel-dependencies {}
    ::changes-to-be-notified #{}})
 
-(defn create [storage]
-  (-> (base-dataflow/create storage)
+(defn create []
+  (-> (base-dataflow/create)
       (merge (initialize))
       (map->DependableDataflow)))
 
-(run-tests)
+#_(run-tests)

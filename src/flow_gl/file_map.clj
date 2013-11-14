@@ -1,7 +1,7 @@
 (ns flow-gl.file-map)
 
 
-(deftype FileMap [a b]
+#_(deftype FileMap [a b]
   clojure.lang.IPersistentCollection
   (seq [self] (if (seq a) self nil))
   (cons [self o] (Foo. a (conj b o)))
@@ -19,5 +19,5 @@
   Object
   (toString [self] (str "Foo of a: " a ", b: " b)))
 
-(defn assoc [file-map]
+#_(defn assoc [file-map]
   )

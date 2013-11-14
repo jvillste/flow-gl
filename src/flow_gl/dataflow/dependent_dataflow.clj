@@ -6,7 +6,7 @@
             [flow-gl.dataflow.base-dataflow :as base-dataflow]
             [flow-gl.dataflow.dataflow :as dataflow]
             [flow-gl.dataflow.dependable-dataflow :as dependable-dataflow])
-  (:use clojure.test))
+  (:use midje.sweet))
 
 (comment
   (let [common-dataflow (create-dataflow (create-file-storage "file.db"))
@@ -52,34 +52,35 @@
                (contains? remote-dataflow))
           (keys (::remote-dependencies dataflow))))
 
-(deftest remote-dataflow-dependents-test
-  (is (= (remote-dataflow-dependents {:flow-gl.dataflow.dependent-dataflow/remote-dependencies
-                                      {:dependent
-                                       {:remote-2 '(:target-cell-1),
-                                        :remote-1 '(:target-cell-1 :target-cell-2)},
-                                       :dependent-2 {:remote-2 '(:target-cell-1)}}}
 
-                                     :remote-2)
-         '(:dependent :dependent-2))))
+#_(expect (remote-dataflow-dependents {:flow-gl.dataflow.dependent-dataflow/remote-dependencies
+                                     {:dependent
+                                      {:remote-2 '(:target-cell-1),
+                                       :remote-1 '(:target-cell-1 :target-cell-2)},
+                                      :dependent-2 {:remote-2 '(:target-cell-1)}}}
+
+                                    :remote-2)
+        '(:dependent :dependent-2))
+
 
 
 (defn remote-dataflow-dependencies [dataflow remote-dataflow]
   (->> (vals (::remote-dependencies dataflow))
-      (mapcat remote-dataflow)
-      (filter (complement nil?)) 
-      (apply hash-set)))
+       (mapcat remote-dataflow)
+       (filter (complement nil?))
+       (apply hash-set)))
 
-(deftest remote-dataflow-dependencies-test
-  (is (= (remote-dataflow-dependencies {:flow-gl.dataflow.dependent-dataflow/remote-dependencies
-                                      {:dependent
-                                       {:remote-2 '(:target-cell-1),
-                                        :remote-1 '(:target-cell-1 :target-cell-2)},
+#_(expect (remote-dataflow-dependencies {:flow-gl.dataflow.dependent-dataflow/remote-dependencies
+                                        {:dependent
+                                         {:remote-2 '(:target-cell-1),
+                                          :remote-1 '(:target-cell-1 :target-cell-2)},
 
-                                       :dependent-2 {:remote-2 '(:target-cell-1 :target-cell-3)}}}
+                                         :dependent-2 {:remote-2 '(:target-cell-1 :target-cell-3)}}}
 
-                                     :remote-2)
+                                       :remote-2)
 
-        #{:target-cell-1 :target-cell-3})))
+         #{:target-cell-1 :target-cell-3})
+
 
 (defn refresh-remote-dataflow-dependencies [dataflow-atom]
   (let [dataflow (utils/get-and-reset dataflow-atom ::remote-dataflows-with-changed-dependencies #{})]
@@ -106,29 +107,29 @@
         (update-in [::remote-dataflows-with-changed-dependencies] into (keys remote-dependencies))
         (base-set-dependencies dependent dependencies))))
 
-(deftest set-dependencies-test
-  (is (= (set-dependencies (fn [dataflow _ _] dataflow)
+#_(expect (set-dependencies (fn [dataflow _ _] dataflow)
 
-                           {::remote-dataflows-with-changed-dependencies #{:remeote-3}
-                            ::remote-dependencies {:dependent-2 {:remote-2 '(:target-cell-1)}}}
+                          {::remote-dataflows-with-changed-dependencies #{:remeote-3}
+                           ::remote-dependencies {:dependent-2 {:remote-2 '(:target-cell-1)}}}
 
-                           :dependent
-                           [{::type ::remote-dependency
-                             ::cell :target-cell-1
-                             ::remote-dataflow :remote-1}
-                            {::type ::remote-dependency
-                             ::cell :target-cell-2
-                             ::remote-dataflow :remote-1}
-                            {::type ::remote-dependency
-                             ::cell :target-cell-1
-                             ::remote-dataflow :remote-2}])
+                          :dependent
+                          [{::type ::remote-dependency
+                            ::cell :target-cell-1
+                            ::remote-dataflow :remote-1}
+                           {::type ::remote-dependency
+                            ::cell :target-cell-2
+                            ::remote-dataflow :remote-1}
+                           {::type ::remote-dependency
+                            ::cell :target-cell-1
+                            ::remote-dataflow :remote-2}])
 
-         '{:flow-gl.dataflow.dependent-dataflow/remote-dependencies {:dependent {:remote-2 (:target-cell-1), :remote-1 (:target-cell-1 :target-cell-2)}, :dependent-2 {:remote-2 (:target-cell-1)}}, :flow-gl.dataflow.dependent-dataflow/remote-dataflows-with-changed-dependencies #{:remote-2 :remote-1 :remeote-3}})))
+        '{:flow-gl.dataflow.dependent-dataflow/remote-dependencies {:dependent {:remote-2 (:target-cell-1), :remote-1 (:target-cell-1 :target-cell-2)}, :dependent-2 {:remote-2 (:target-cell-1)}}, :flow-gl.dataflow.dependent-dataflow/remote-dataflows-with-changed-dependencies #{:remote-2 :remote-1 :remeote-3}})
+
 
 (defn snapshot-remote-dataflows [dataflow]
   (assoc dataflow
     ::remote-dataflows (utils/map-vals (::remote-dataflow-atoms dataflow)
-                                 deref)))
+                                       deref)))
 
 (defn get-remote-value [dataflow remote-dataflow cell]
   (logged-access/add-read {::type ::remote-dependency
@@ -169,46 +170,47 @@
    ::new-remote-dependencies {}
    ::remote-dataflows-with-changed-dependencies #{}})
 
-(defn create [storage]
-  (-> (base-dataflow/create storage)
+(defn create []
+  (-> (base-dataflow/create)
       (merge (initialize))
       (map->DependentDataflow)))
 
-(deftest dependent-dataflow-test
-  (let [dependable-dataflow-atom (atom (dependable-dataflow/create {}))
-        dependent-dataflow-atom (atom (create {}))]
+#_(let [dependable-dataflow-atom (atom (dependable-dataflow/create))
+      dependent-dataflow-atom (atom (create))]
 
-    (add-remote-dataflow dependent-dataflow-atom :remote-1 dependable-dataflow-atom)
+  (add-remote-dataflow dependent-dataflow-atom :remote-1 dependable-dataflow-atom)
 
-    (try
-      (swap! dependable-dataflow-atom dataflow/define :foo 1)
-      (swap! dependent-dataflow-atom snapshot-remote-dataflows)
+  (try
+    (swap! dependable-dataflow-atom dataflow/define :foo 1)
+    (swap! dependent-dataflow-atom snapshot-remote-dataflows)
 
-      (swap! dependent-dataflow-atom dataflow/define :dependent-foo (fn [dataflow]
-                                                                      (+ 1
-                                                                         (get-remote-value dataflow :remote-1 :foo))))
+    (swap! dependent-dataflow-atom dataflow/define :dependent-foo (fn [dataflow]
+                                                                    (+ 1
+                                                                       (get-remote-value dataflow :remote-1 :foo))))
 
                                         ;(flow-gl.debug/debug :dataflow "dependnet-dataflow-now : " (apply hash-map @dependent-dataflow-atom))
-      (flow-gl.debug/debug :dataflow "::remote-dataflows-with-changed-dependencies " (::remote-dataflows-with-changed-dependencies @dependent-dataflow-atom))
+    (flow-gl.debug/debug :dataflow "::remote-dataflows-with-changed-dependencies " (::remote-dataflows-with-changed-dependencies @dependent-dataflow-atom))
 
-      (refresh-remote-dataflow-dependencies dependent-dataflow-atom )
+    (refresh-remote-dataflow-dependencies dependent-dataflow-atom )
 
-      (is (= (dataflow/unlogged-get-value @dependent-dataflow-atom :dependent-foo)
-             2))
+    (expect (dataflow/unlogged-get-value @dependent-dataflow-atom :dependent-foo)
+            2)
 
-      (swap! dependable-dataflow-atom dataflow/define :foo 2)
-      (dependable-dataflow/notify-dependents dependable-dataflow-atom)
+    (swap! dependable-dataflow-atom dataflow/define :foo 2)
+    (dependable-dataflow/notify-dependents dependable-dataflow-atom)
 
-      (Thread/sleep 500)
+    (Thread/sleep 500)
 
-      (swap! dependent-dataflow-atom snapshot-remote-dataflows)
-      (swap! dependent-dataflow-atom dataflow/propagate-changes)
+    (swap! dependent-dataflow-atom snapshot-remote-dataflows)
+    (swap! dependent-dataflow-atom dataflow/propagate-changes)
 
-      (is (= (dataflow/unlogged-get-value @dependent-dataflow-atom :dependent-foo)
-             3))
+    (expect (dataflow/unlogged-get-value @dependent-dataflow-atom :dependent-foo)
+            3)
 
-      (finally
-        (dispose @dependent-dataflow-atom)))))
+    (finally
+      (dispose @dependent-dataflow-atom))))
+
+
 
 
 (debug/reset-log)
@@ -216,7 +218,6 @@
 (comment
   (debug/set-active-channels :dataflow))
 
-(run-tests)
 
 (debug/write-log)
 

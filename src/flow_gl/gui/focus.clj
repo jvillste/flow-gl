@@ -56,6 +56,7 @@
                 (binding [dataflow/current-path (dataflow/path dataflow/current-path now-in-focus)]
                   (handler state {:type :focus-gained})))))))
 
+
 (deftest move-focus-test
   (is (= (-> (dataflow/create)
              (dataflow/define-to [:view :child-in-focus] :child1)

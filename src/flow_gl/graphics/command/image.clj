@@ -1,9 +1,9 @@
 (ns flow-gl.graphics.command.image
   (:require (flow-gl.graphics [image :as image]
-                              [texture :as texture]
                               [image-list :as image-list]
-                              [buffered-image :as buffered-image])
-            [clojure-lwjgl.command.command :as command]))
+                              [command :as command])
+            (flow-gl.opengl [texture :as texture]
+                            [buffered-image :as buffered-image])))
 
 (defrecord Image [x y file-name])
 

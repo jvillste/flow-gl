@@ -497,4 +497,3 @@
          3 (get-value-from dataflow :a))))
 
 
-(run-tests)
