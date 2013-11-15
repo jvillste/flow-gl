@@ -51,6 +51,6 @@
 (reset-view/reset-view view)
 
 (comment
-  (.start (Thread. start))
+(.start (Thread. start))
   (start)
   )

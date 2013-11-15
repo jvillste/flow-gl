@@ -18,7 +18,7 @@
 
 (deftest sin-wave-test
   (are [time result] (= result
-                        (sin-wave 1 2 1 0 time))
+                        (sin-wave 1 2 1 time))
        0 1.0
        (- 1e9 1) 2.0
        (* 1e9 1/2) 1.5))

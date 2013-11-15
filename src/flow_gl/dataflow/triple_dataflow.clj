@@ -4,6 +4,7 @@
             [flow-gl.debug :as debug]
             [flow-gl.dataflow.dataflow :as dataflow])
   (:use midje.sweet
+        clojure.test
         flow-gl.utils))
 
 (defprotocol EntityProtocol
@@ -127,24 +128,14 @@
                               (Entity. (set dataflow entity-id key value)
                                        entity-id
                                        (conj definitions key))))
-  (assocEx [_ k v])
   (without [_ key] (Entity. (undefine dataflow entity-id key) entity-id definitions))
-
-  java.lang.Iterable
-  (iterator [this])
 
   clojure.lang.Associative
   (containsKey [entity k]
     (if (some #{k} (keys entity))
       true false))
-  (entryAt [_ k]
-    (get-value-or-entity dataflow entity-id k))
 
   clojure.lang.IPersistentCollection
-  (count [_])
-
-  (cons [_ o])
-  (empty [_])
   (equiv [this that]
     (and (entity? that)
          (= (keys this)
@@ -155,7 +146,6 @@
 
   clojure.lang.Seqable
   (seq [_]
-
     (let [properties (properties dataflow entity-id)]
       (if (empty? properties)
         nil
@@ -220,12 +210,12 @@
   (= (type value)
      Entity))
 
-#_(deftest entity?-test
-    (is (= (entity? (create-entity {} :id))
-           true))
+(deftest entity?-test
+  (is (= (entity? (create-entity {} :id))
+         true))
 
-    (is (= (entity? {})
-           false)))
+  (is (= (entity? {})
+         false)))
 
 (def undefine-entity)
 
@@ -249,29 +239,29 @@
     (filter #(not (definitions %))
             (keys entity))))
 
-#_(deftest keys-to-be-undefined-test
-    (is (= (-> (base-dataflow/create)
-               (create-entity :entity-1)
-               (assoc :foo 1
-                      :bar 2)
-               (reset-definitions)
-               (assoc :foo 1)
-               (keys-to-be-undefined))
-           '(:bar))))
+(deftest keys-to-be-undefined-test
+  (is (= (-> (base-dataflow/create)
+             (create-entity :entity-1)
+             (assoc :foo 1
+                    :bar 2)
+             (reset-definitions)
+             (assoc :foo 1)
+             (keys-to-be-undefined))
+         '(:bar))))
 
 (defn collect-garbage [entity]
   (undefine-keys entity (keys-to-be-undefined entity)))
 
-#_(deftest collect-garbage-test
-    (is (= (-> (base-dataflow/create)
-               (create-entity :entity-1)
-               (assoc :foo 1
-                      :bar 2)
-               (reset-definitions)
-               (assoc :foo 1)
-               (collect-garbage)
-               (keys))
-           '(:foo))))
+(deftest collect-garbage-test
+  (is (= (-> (base-dataflow/create)
+             (create-entity :entity-1)
+             (assoc :foo 1
+                    :bar 2)
+             (reset-definitions)
+             (assoc :foo 1)
+             (collect-garbage)
+             (keys))
+         '(:foo))))
 
 (defn assoc-with-this [entity key function]
   (assoc entity key (fn [dataflow]
@@ -295,137 +285,137 @@
 (defn apply-delayed [function]
   (swap! delayed-applications conj function))
 
-#_(deftest properties-test
-    #_(let [dataflow (-> (base-dataflow/create)
-                         (set :entity :property-1 :property-1-value)
-                         (set :entity :property-2 :property-2-value))]
-        (is (= (properties dataflow :entity)
-               '(:property-2 :property-1)))))
+(deftest properties-test
+  (let [dataflow (-> (base-dataflow/create)
+                     (set :entity :property-1 :property-1-value)
+                     (set :entity :property-2 :property-2-value))]
+    (is (= (properties dataflow :entity)
+           '(:property-2 :property-1)))))
 
-#_(deftest initialize-new-entity-test
-    #_(let [entity-id (create-entity-id)
-            entity (create-entity (base-dataflow/create) entity-id)
-            dataflow (-> entity
-                         (initialize-new-entity :child-view (fn [state]
-                                                              (-> state
-                                                                  (assoc-new :contents "foobar")
-                                                                  (assoc-with-this :view (fn [state]
-                                                                                           {:text (str "bar =" (:contents state))})))))
-                         get-dataflow)
-            dataflow-after-content-change (-> (get-entity dataflow entity-id :child-view)
-                                              (assoc :contents "foobar 2")
-                                              get-dataflow
-                                              dataflow/propagate-changes)]
+(deftest initialize-new-entity-test
+  (let [entity-id (create-entity-id)
+        entity (create-entity (base-dataflow/create) entity-id)
+        dataflow (-> entity
+                     (initialize-new-entity :child-view (fn [state]
+                                                          (-> state
+                                                              (assoc-new :contents "foobar")
+                                                              (assoc-with-this :view (fn [state]
+                                                                                       {:text (str "bar =" (:contents state))})))))
+                     get-dataflow)
+        dataflow-after-content-change (-> (get-entity dataflow entity-id :child-view)
+                                          (assoc :contents "foobar 2")
+                                          get-dataflow
+                                          dataflow/propagate-changes)]
 
-        (is (= (:view (get-entity dataflow entity-id :child-view))
-               {:text "bar =foobar"}))
+    (is (= (:view (get-entity dataflow entity-id :child-view))
+           {:text "bar =foobar"}))
 
-        (is (= (:view (get-entity dataflow-after-content-change entity-id :child-view))
-               {:text "bar =foobar 2"}))))
+    (is (= (:view (get-entity dataflow-after-content-change entity-id :child-view))
+           {:text "bar =foobar 2"}))))
 
 (defn new-entity [& key-values]
   (merge {::type :new-entity
           ::entity-id (create-entity-id)}
          (apply hash-map key-values )))
 
-#_(deftest entity-equiv-test
-    (let [dataflow (base-dataflow/create)]
-      (is (= (-> (create-entity dataflow)
-                 (assoc :foo 1))
-             (-> (create-entity dataflow)
-                 (assoc :foo 1))))
+(deftest entity-equiv-test
+  (let [dataflow (base-dataflow/create)]
+    (is (= (-> (create-entity dataflow)
+               (assoc :foo 1))
+           (-> (create-entity dataflow)
+               (assoc :foo 1))))
 
-      (is (not= (-> (create-entity dataflow)
-                    (assoc :foo 3))
-                (-> (create-entity dataflow)
-                    (assoc :foo 1)))
+    (is (not= (-> (create-entity dataflow)
+                  (assoc :foo 3))
+              (-> (create-entity dataflow)
+                  (assoc :foo 1)))
 
-          (not= (-> (create-entity dataflow)
-                    (assoc :foo 1)
-                    (assoc :bar 1))
-                (-> (create-entity dataflow)
-                    (assoc :foo 1))))))
+        (not= (-> (create-entity dataflow)
+                  (assoc :foo 1)
+                  (assoc :bar 1))
+              (-> (create-entity dataflow)
+                  (assoc :foo 1))))))
 
-#_(deftest assoc-new-entity-test
-    (let [entity-id (create-entity-id)
-          entity (-> (create-entity (base-dataflow/create) entity-id)
-                     (assoc :single-entity (new-entity :bar 1)
-                            :map {:bar 2}
-                            :entity-vector [(new-entity :bar 3)
-                                            (new-entity :bar 4)]
+(deftest assoc-new-entity-test
+  (let [entity-id (create-entity-id)
+        entity (-> (create-entity (base-dataflow/create) entity-id)
+                   (assoc :single-entity (new-entity :bar 1)
+                          :map {:bar 2}
+                          :entity-vector [(new-entity :bar 3)
+                                          (new-entity :bar 4)]
 
-                            :deep-entity-vector [(new-entity :bar (new-entity :bar 5))
-                                                 (new-entity :bar 6)]
+                          :deep-entity-vector [(new-entity :bar (new-entity :bar 5))
+                                               (new-entity :bar 6)]
 
-                            :deep-entity (new-entity :bar (new-entity :bar 5))
+                          :deep-entity (new-entity :bar (new-entity :bar 5))
 
-                            :number 1
-                            :string "foo"))
-          dataflow (get-dataflow entity)]
+                          :number 1
+                          :string "foo"))
+        dataflow (get-dataflow entity)]
 
-      (is (= (get dataflow (get-entity-id (:single-entity entity)) :bar)
-             1))
+    (is (= (get dataflow (get-entity-id (:single-entity entity)) :bar)
+           1))
 
-      (is (= (:bar (:single-entity entity))
-             1))
+    (is (= (:bar (:single-entity entity))
+           1))
 
-      (is (= (:bar (:map entity))
-             2))
+    (is (= (:bar (:map entity))
+           2))
 
-      (is (= (:bar (first (:entity-vector entity)))
-             3))
+    (is (= (:bar (first (:entity-vector entity)))
+           3))
 
-      (is (= (:bar (:bar (first (:deep-entity-vector entity))))
-             5))
+    (is (= (:bar (:bar (first (:deep-entity-vector entity))))
+           5))
 
-      (is (= (-> (update-in entity [:deep-entity :bar :bar] inc)
-                 (get-in [:deep-entity :bar :bar]))
-             6))
+    (is (= (-> (update-in entity [:deep-entity :bar :bar] inc)
+               (get-in [:deep-entity :bar :bar]))
+           6))
 
-      (is (= (:number entity)
-             1))
+    (is (= (:number entity)
+           1))
 
-      (is (= (:string entity)
-             "foo"))))
+    (is (= (:string entity)
+           "foo"))))
 
 
 
-#_(deftest entity-test
-    (let [entity-id (create-entity-id)
-          dataflow (-> (base-dataflow/create)
-                       (set entity-id :property-1 :property-1-value)
-                       (set entity-id :property-2 :property-2-value))
-          entity (create-entity dataflow entity-id)]
+(deftest entity-test
+  (let [entity-id (create-entity-id)
+        dataflow (-> (base-dataflow/create)
+                     (set entity-id :property-1 :property-1-value)
+                     (set entity-id :property-2 :property-2-value))
+        entity (create-entity dataflow entity-id)]
 
-      (is (= (:property-1 entity)
-             :property-1-value))
+    (is (= (:property-1 entity)
+           :property-1-value))
 
-      (is (= (keys entity)
-             '(:property-2 :property-1)))
+    (is (= (keys entity)
+           '(:property-2 :property-1)))
 
-      (is (= (contains? entity :property-1)
-             true))
+    (is (= (contains? entity :property-1)
+           true))
 
-      (is (= (seq (create-entity dataflow (create-entity-id)))
-             nil))
+    (is (= (seq (create-entity dataflow (create-entity-id)))
+           nil))
 
-      (is (= (-> (assoc entity :foo 1)
-                 get-dataflow
-                 (get entity-id :foo))
-             1))))
+    (is (= (-> (assoc entity :foo 1)
+               get-dataflow
+               (get entity-id :foo))
+           1))))
 
-#_(deftest dependency-test
-    (debug/reset-log)
+(deftest dependency-test
+  (debug/reset-log)
 
-    (-> (base-dataflow/create)
+  (-> (base-dataflow/create)
 
-        (create-entity :root)
-        (assoc :foo :root-foo)
-        (initialize-new-entity :child (fn [entity]
-                                        (assoc entity :foo (fn [dataflow]
-                                                             (get dataflow :root :foo)))))
-        (get-dataflow)
-        (base-dataflow/debug-dataflow)))
+      (create-entity :root)
+      (assoc :foo :root-foo)
+      (initialize-new-entity :child (fn [entity]
+                                      (assoc entity :foo (fn [dataflow]
+                                                           (get dataflow :root :foo)))))
+      (get-dataflow)
+      (base-dataflow/debug-dataflow)))
 
 
 (defmacro view [parameters view-expression]
@@ -438,9 +428,9 @@
                   (let [~state-symbol (create-entity ~dataflow-symbol (get-entity-id ~state-symbol))]
                     ~view-expression)))))))
 
-#_(deftest view-test
-    #_(is (= (view [state] (:foo state))
-             nil)))
+(deftest view-test
+  #_(is (= (view [state] (:foo state))
+           nil)))
 
 (defn defview [name parameters view-expression]
   '(def ~name (view parameters view-expression)))
@@ -452,52 +442,46 @@
         {:call key})))
 
 
-#_(deftest view-definition-test
-    (debug/reset-log)
-    (let [application-state (-> (create-entity (base-dataflow/create) :application-state)
-                                (assoc :todos [(new-entity :text "do this")
-                                               (new-entity :text "do that")] ))
+(deftest view-definition-test
+  (debug/reset-log)
+  (let [application-state (-> (create-entity (base-dataflow/create) :application-state)
+                              (assoc :todos [(new-entity :text "do this")
+                                             (new-entity :text "do that")] ))
 
-          child-view (view [property state]
-                           {:child-text (get-property (get-dataflow state) property)})
+        child-view (view [property state]
+                         {:child-text (get-property (get-dataflow state) property)})
 
-          root-view (view [state]
-                          (for [todo (:todos (other-entity state :application-state))]
-                            (init-and-call [(get-entity-id todo)]
-                                           child-view (create-property (get-entity-id todo) :text))))
+        root-view (view [state]
+                        (for [todo (:todos (other-entity state :application-state))]
+                          (init-and-call [(get-entity-id todo)]
+                                         child-view (create-property (get-entity-id todo) :text))))
 
-          application-state (initialize-new-entity application-state
-                                                   :root-view root-view)]
+        application-state (initialize-new-entity application-state
+                                                 :root-view root-view)]
 
-      #_(doseq [line (base-dataflow/describe-dataflow (get-dataflow application-state))]
-          (println line))
+    #_(doseq [line (base-dataflow/describe-dataflow (get-dataflow application-state))]
+        (println line))
+
+    (is (= (let [child-view ((:call (first (:view (:root-view application-state)))) (:root-view application-state))]
+             (:view child-view))
+           {:child-text "do this"}))
+
+    (let [application-state (-> (:todos application-state)
+                                (first)
+                                (assoc :text "foo")
+                                (get-dataflow)
+                                (dataflow/propagate-changes)
+                                (create-entity :application-state))]
+
+      (base-dataflow/debug-dataflow (get-dataflow application-state))
 
       (is (= (let [child-view ((:call (first (:view (:root-view application-state)))) (:root-view application-state))]
                (:view child-view))
-             {:child-text "do this"}))
+             {:child-text "foo"})))))
 
-      (let [application-state (-> (:todos application-state)
-                                  (first)
-                                  (assoc :text "foo")
-                                  (get-dataflow)
-                                  (dataflow/propagate-changes)
-                                  (create-entity :application-state))]
+(comment
+  (debug/set-active-channels :all)
 
-        (base-dataflow/debug-dataflow (get-dataflow application-state))
+  (debug/reset-log)
 
-        (is (= (let [child-view ((:call (first (:view (:root-view application-state)))) (:root-view application-state))]
-                 (:view child-view))
-               {:child-text "foo"})))))
-
-
-(debug/set-active-channels :all)
-
-(debug/reset-log)
-
-#_(run-tests)
-
-(debug/write-log)
-
-
-(fact "foo"
-      (+ 1 1) => 2)
+  (debug/write-log))
