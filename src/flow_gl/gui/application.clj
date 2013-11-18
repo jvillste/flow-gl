@@ -2,7 +2,7 @@
   (:require (flow-gl.opengl [window :as window])
             (flow-gl.gui [view :as view])
             [flow-gl.debug :as debug]
-            [flow-gl.dataflow :as dataflow]
+            [flow-gl.dataflow.dataflow :as dataflow]
             [flow-gl.opengl :as opengl]
             [flow-gl.gui.awt-input :as awt-input])
   (:import [java.io PrintWriter StringWriter]))
@@ -63,8 +63,7 @@
                                                   width 700
                                                   height 500
                                                   framerate 30}} ]
-  (debug/reset-log)
-
+  
   (let [state-queue (java.util.concurrent.SynchronousQueue.)]
 
 

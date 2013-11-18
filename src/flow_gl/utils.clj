@@ -19,3 +19,21 @@
 
 (defmacro forall [bindings body]
   `(doall (for ~bindings ~body)))
+
+
+(def ^:dynamic delayed-applications)
+
+(defn with-delayed-applications-function [state function]
+  (binding [delayed-applications (atom [])]
+    (let [state (function state)]
+      (reduce (fn [state function]
+                (function state))
+              state
+              @delayed-applications))))
+
+(defmacro with-delayed-applications [value & body]
+  `(with-delayed-applications-function ~value (fn [~value] ~@body)))
+
+
+(defn apply-delayed [function]
+  (swap! delayed-applications conj function))

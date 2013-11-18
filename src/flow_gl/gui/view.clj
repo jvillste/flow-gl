@@ -9,8 +9,9 @@
                           [input :as input])
              (flow-gl.opengl [window :as window])
              (flow-gl [opengl :as opengl]
-                      [dataflow :as dataflow]
                       [debug :as debug])
+             [flow-gl.dataflow.dataflow :as dataflow]
+             [flow-gl.dataflow.triple-dataflow :as triple-dataflow]
              [clojure.data.priority-map :as priority-map])
 
   (:use clojure.test
@@ -46,9 +47,6 @@
 
   layout/Layout
   (layout [view-part requested-width requested-height]
-    #_(doseq [key [:x :y :global-x :global-y :width :height]]
-        (dataflow/define [(:local-id view-part) key] (key view-part)))
-
     (dataflow/initialize (:local-id view-part)
                          #(layout/set-dimensions-and-layout (dataflow/get-global-value (:root-element-path view-part))
                                                             0
@@ -113,10 +111,15 @@
     (dataflow/initialize (concat (dataflow/as-path view-part-id) [:preferred-width]) #(layoutable/preferred-width (dataflow/get-global-value view-part-path)))
     (dataflow/initialize (concat (dataflow/as-path view-part-id) [:preferred-height]) #(layoutable/preferred-height (dataflow/get-global-value view-part-path)))))
 
-(defn init-and-call [view-part-id view-part-element-function]
+#_(defn init-and-call [view-part-id view-part-element-function]
   (initialize-view-part view-part-id view-part-element-function)
   (call-view-part view-part-id))
 
+(defn init-and-call [identifiers view & parameters]
+  (let [key (keyword (str "child-view-" identifiers))]
+    (do (apply-delayed (fn [state]
+                         (triple-dataflow/initialize-new-entity state key (apply partial view parameters))))
+        (->ViewPart key (dataflow/absolute-path local-id)))))
 
 ;; RENDERING
 
@@ -427,6 +430,3 @@
                                  :mouse-entered (dataflow/define-property-to application-state this key true)
                                  :mouse-left (dataflow/define-property-to application-state this key false)
                                  application-state)))))
-
-
-
