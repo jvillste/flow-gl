@@ -158,7 +158,9 @@
                               :propagate-changes propagate-changes
                               :set-dependencies set-dependencies
                               :declare-changed declare-changed
-                              :cells cells})
+                              :cells cells
+                              :changes changes
+                              :reset-changes reset-changes})
 
 (defrecord BaseDataflow [])
 

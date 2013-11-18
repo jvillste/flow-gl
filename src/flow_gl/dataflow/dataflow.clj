@@ -10,7 +10,9 @@
   (propagate-changes [dataflow])
   (set-dependencies [dataflow cell reads])
   (declare-changed [dataflow cell])
-  (cells [dataflow]))
+  (cells [dataflow])
+  (changes [dataflow])
+  (reset-changes [dataflow]))
 
 
 (defn undefine-many [dataflow cells]

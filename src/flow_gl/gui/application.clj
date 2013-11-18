@@ -22,7 +22,7 @@
                    (swap! window-atom window/close))
                (do (view/update-gpu state)
                    (window/update @window-atom framerate)
-                   ;;(swap! window-atom window/show-fps)
+                   ; (swap! window-atom window/show-fps)
                    (recur)))))
          (debug/do-debug :render "render loop exit")
          (catch Exception e
@@ -58,7 +58,7 @@
 
 
 (defn start  [root-layoutable-constructor & {:keys [handle-event initialize width height framerate]
-                                             :or {handle-event (fn [state view event] state)
+                                             :or {handle-event (fn [state event] state)
                                                   initialize (fn [state state-atom] state)
                                                   width 700
                                                   height 500
@@ -147,6 +147,3 @@
 
 (defn request-close []
   (awt-input/add-event {:type :close-requested}))
-
-(defn request-redraw []
-  (awt-input/add-event {:type :redraw-requested}))

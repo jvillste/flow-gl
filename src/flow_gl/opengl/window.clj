@@ -79,8 +79,7 @@
                                          :close-requested false
                                          :resize-requested false
                                          :width 0
-                                         :height 0
-                                         :needs-redraw true}))]
+                                         :height 0}))]
 
     (swap! window-atom initialize-fps)
 

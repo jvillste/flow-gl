@@ -57,18 +57,18 @@
                   (handler state {:type :focus-gained})))))))
 
 
-(deftest move-focus-test
-  (is (= (-> (dataflow/create)
-             (dataflow/define-to [:view :child-in-focus] :child1)
-             (dataflow/define-to [:view :focusable-children] [:child1 :child2])
-             (move-focus [:view])
-             (move-focus [:view])
-             (dataflow/to-map))
+#_(deftest move-focus-test
+    (is (= (-> (dataflow/create)
+               (dataflow/define-to [:view :child-in-focus] :child1)
+               (dataflow/define-to [:view :focusable-children] [:child1 :child2])
+               (move-focus [:view])
+               (move-focus [:view])
+               (dataflow/to-map))
 
-         {[:view :child-in-focus] :child1
-          [:view :child1 :has-focus] true
-          [:view :child2 :has-focus] false
-          [:view :focusable-children] [:child1 :child2]})))
+           {[:view :child-in-focus] :child1
+            [:view :child1 :has-focus] true
+            [:view :child2 :has-focus] false
+            [:view :focusable-children] [:child1 :child2]})))
 
 (defn pass-event-to-focused-child [state event]
   (let [child-in-focus (dataflow/get-value-from state :child-in-focus)

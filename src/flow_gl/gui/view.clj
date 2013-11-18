@@ -47,7 +47,7 @@
   layout/Layout
   (layout [view-part requested-width requested-height]
     #_(doseq [key [:x :y :global-x :global-y :width :height]]
-        (dataflow/define [(:local-id view-part) key] (key view-part)) )
+        (dataflow/define [(:local-id view-part) key] (key view-part)))
 
     (dataflow/initialize (:local-id view-part)
                          #(layout/set-dimensions-and-layout (dataflow/get-global-value (:root-element-path view-part))
