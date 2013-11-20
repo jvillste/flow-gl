@@ -112,8 +112,25 @@
     (dataflow/initialize (concat (dataflow/as-path view-part-id) [:preferred-height]) #(layoutable/preferred-height (dataflow/get-global-value view-part-path)))))
 
 #_(defn init-and-call [view-part-id view-part-element-function]
-  (initialize-view-part view-part-id view-part-element-function)
-  (call-view-part view-part-id))
+    (initialize-view-part view-part-id view-part-element-function)
+    (call-view-part view-part-id))
+
+(defn init-and-call [parent-entity identifiers view & parameters]
+  (let [key (keyword (str "child-view-" identifiers))
+        entity-id (if (contains? parent-entity key)
+                    (triple-dataflow/get-entity-id (key parent-entity))
+                    (triple-dataflow/create-entity-id))]
+    (do (when (not (contains? parent-entity key))
+          (apply-delayed (fn [state]
+                           (-> (triple-dataflow/create-entity (triple-dataflow/get-dataflow state)
+                                              entity-id)
+                               (as-> new-entity
+                                     ((apply partial view parameters) new-entity)
+                                     #_(apply view new-entity parameters))
+                               (other-entity (get-entity-id state))
+                               (assoc key (create-entity-reference-for-id entity-id))))))
+
+        (->ViewPart key entity-id))))
 
 (defn init-and-call [identifiers view & parameters]
   (let [key (keyword (str "child-view-" identifiers))]

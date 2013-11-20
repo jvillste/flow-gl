@@ -7,12 +7,6 @@
         clojure.test
         flow-gl.utils))
 
-(defprotocol EntityProtocol
-  (get-dataflow [entity])
-  (get-entity-id [entity])
-  (get-definitions [entity])
-  (add-definition [entity key])
-  (reset-definitions [entity]))
 
 (defn create-entity-id []
   (keyword (str "entity-" (rand-int 1000000))))
@@ -78,7 +72,7 @@
   (cond
 
    (entity? value)
-   [(get-dataflow value)
+   [(::dataflow value)
     (create-entity-reference value)]
 
    (new-entity? value)
@@ -112,23 +106,30 @@
   (getValue [_] (get dataflow entity predicate)))
 
 
+(defn reset-definitions [entity]
+  (assoc entity ::definitions #{}))
 
 (def get-value-or-entity)
 
 (deftype Entity [dataflow entity-id definitions]
-  EntityProtocol
-  (get-dataflow [entity] dataflow)
-  (get-entity-id [entity] entity-id)
-  (get-definitions [entity] definitions)
-  (add-definition [entity key] (Entity. dataflow entity-id (conj definitions key)))
-  (reset-definitions [entity] (Entity. dataflow entity-id #{}))
 
   clojure.lang.IPersistentMap
-  (assoc [entity key value] (let [[dataflow value] (create-references dataflow value)]
-                              (Entity. (set dataflow entity-id key value)
-                                       entity-id
-                                       (conj definitions key))))
-  (without [_ key] (Entity. (undefine dataflow entity-id key) entity-id definitions))
+  (assoc [entity key value] (case key
+                              ::entity-id (Entity. dataflow
+                                                   value
+                                                   definitions)
+                              ::dataflow (Entity. value
+                                                  entity-id
+                                                  definitions)
+                              ::definitions (Entity. dataflow
+                                                     entity-id
+                                                     value)
+                              (let [[dataflow value] (create-references dataflow value)]
+                                (Entity. (set dataflow entity-id key value)
+                                         entity-id
+                                         (conj definitions key)))))
+
+  (without [entity key] (update-in entity [::dataflow] undefine entity-id key))
 
   clojure.lang.Associative
   (containsKey [entity k]
@@ -154,19 +155,20 @@
 
   clojure.lang.ILookup
   (valAt [_ k]
-    (get-value-or-entity dataflow entity-id k))
-  (valAt [_ k not-found]
-    (if (dataflow/is-defined? dataflow k)
-      (get-value-or-entity dataflow entity-id k)
-      not-found)))
+    (case k
+      ::entity-id entity-id
+      ::dataflow dataflow
+      ::definitions definitions
+      (get-value-or-entity dataflow entity-id k))))
+
+
 
 (defn create-entity-reference-for-id [entity-id]
   {::type :entity-reference
    ::entity-id entity-id})
 
 (defn create-entity-reference [entity]
-  (create-entity-reference-for-id (get-entity-id entity)))
-
+  (create-entity-reference-for-id (::entity-id entity)))
 
 
 (defn create-entity
@@ -180,7 +182,7 @@
   (create-entity dataflow (::entity-id (dataflow/get-value dataflow [subject predicate]))))
 
 (defn other-entity [entity entity-id]
-  (create-entity (get-dataflow entity) entity-id))
+  (create-entity (::dataflow entity) entity-id))
 
 (defn get-value-or-entity [dataflow subject predicate]
   (let [value (get dataflow subject predicate)]
@@ -197,17 +199,24 @@
 
 (defn initialize-new-entity [parent-entity key function]
   (if (not (contains? parent-entity key))
-    (let [new-entity (create-entity (get-dataflow parent-entity)
+    (let [new-entity (create-entity (::dataflow parent-entity)
                                     (create-entity-id))]
       (-> new-entity
           function
-          (other-entity (get-entity-id parent-entity))
+          (other-entity (::entity-id parent-entity))
           (assoc key (create-entity-reference new-entity))))
     parent-entity))
 
 (defn entity? [value]
   (= (type value)
      Entity))
+
+(fact (-> (create-entity (base-dataflow/create))
+          (assoc ::entity-id :foo)
+          (assoc :bar 1)
+          (::dataflow)
+          (get :foo :bar))
+      => 1)
 
 (deftest entity?-test
   (is (= (entity? (create-entity {} :id))
@@ -222,9 +231,9 @@
   (reduce (fn [entity key-to-be-undefined]
             (let [value (key-to-be-undefined entity)]
               (if (entity? value)
-                (dissoc (create-entity (undefine-entity (get-dataflow entity)
-                                                        (get-entity-id value))
-                                       (get-entity-id entity))
+                (dissoc (create-entity (undefine-entity (::dataflow entity)
+                                                        (::entity-id value))
+                                       (::entity-id entity))
                         key-to-be-undefined)
                 (dissoc entity key-to-be-undefined))))
           entity
@@ -235,7 +244,7 @@
   (undefine-keys (create-entity dataflow entity-id) (properties dataflow entity-id)))
 
 (defn keys-to-be-undefined [entity]
-  (let [definitions (get-definitions entity)]
+  (let [definitions (::definitions entity)]
     (filter #(not (definitions %))
             (keys entity))))
 
@@ -265,7 +274,7 @@
 
 (defn assoc-with-this [entity key function]
   (assoc entity key (fn [dataflow]
-                      (let [state (create-entity dataflow (get-entity-id entity))]
+                      (let [state (create-entity dataflow (::entity-id entity))]
                         (function state)))))
 
 (deftest properties-test
@@ -284,10 +293,10 @@
                                                               (assoc-new :contents "foobar")
                                                               (assoc-with-this :view (fn [state]
                                                                                        {:text (str "bar =" (:contents state))})))))
-                     get-dataflow)
+                     ::dataflow)
         dataflow-after-content-change (-> (get-entity dataflow entity-id :child-view)
                                           (assoc :contents "foobar 2")
-                                          get-dataflow
+                                          ::dataflow
                                           dataflow/propagate-changes)]
 
     (is (= (:view (get-entity dataflow entity-id :child-view))
@@ -334,9 +343,9 @@
 
                           :number 1
                           :string "foo"))
-        dataflow (get-dataflow entity)]
+        dataflow (::dataflow entity)]
 
-    (is (= (get dataflow (get-entity-id (:single-entity entity)) :bar)
+    (is (= (get dataflow (::entity-id (:single-entity entity)) :bar)
            1))
 
     (is (= (:bar (:single-entity entity))
@@ -354,6 +363,10 @@
     (is (= (-> (update-in entity [:deep-entity :bar :bar] inc)
                (get-in [:deep-entity :bar :bar]))
            6))
+
+    (is (= (-> (assoc-in entity [:deep-entity :bar :foo] :foobar)
+               (get-in [:deep-entity :bar :foo]))
+           :foobar))
 
     (is (= (:number entity)
            1))
@@ -383,7 +396,7 @@
            nil))
 
     (is (= (-> (assoc entity :foo 1)
-               get-dataflow
+               ::dataflow
                (get entity-id :foo))
            1))))
 
@@ -397,7 +410,7 @@
       (initialize-new-entity :child (fn [entity]
                                       (assoc entity :foo (fn [dataflow]
                                                            (get dataflow :root :foo)))))
-      (get-dataflow)
+      (::dataflow)
       (base-dataflow/debug-dataflow)))
 
 
@@ -408,12 +421,9 @@
        (with-delayed-applications ~state-symbol
          (assoc ~state-symbol :view
                 (fn [~dataflow-symbol]
-                  (let [~state-symbol (create-entity ~dataflow-symbol (get-entity-id ~state-symbol))]
+                  (let [~state-symbol (create-entity ~dataflow-symbol (::entity-id ~state-symbol))]
                     ~view-expression)))))))
 
-#_(fact (view [state] (:foo state))
-    =expands-to=>
-    (clojure.core/fn [state] (flow-gl.utils/with-delayed-applications state (clojure.core/assoc state :view (clojure.core/fn [G__21077] (clojure.core/let [state (flow-gl.dataflow.triple-dataflow/create-entity G__21077 (flow-gl.dataflow.triple-dataflow/get-entity-id state))] (:foo state)))))))
 
 (defn defview [name parameters view-expression]
   '(def ~name (view parameters view-expression)))
@@ -421,16 +431,16 @@
 (defn init-and-call [parent-entity identifiers view & parameters]
   (let [key (keyword (str "child-view-" identifiers))
         entity-id (if (contains? parent-entity key)
-                    (get-entity-id (key parent-entity))
+                    (::entity-id (key parent-entity))
                     (create-entity-id))]
     (do (when (not (contains? parent-entity key))
           (apply-delayed (fn [state]
-                           (-> (create-entity (get-dataflow state)
+                           (-> (create-entity (::dataflow state)
                                               entity-id)
                                (as-> new-entity
                                      ((apply partial view parameters) new-entity)
                                      #_(apply view new-entity parameters))
-                               (other-entity (get-entity-id state))
+                               (other-entity (::entity-id state))
                                (assoc key (create-entity-reference-for-id entity-id))))))
         {:type :view-part-call
          :key key
@@ -444,19 +454,19 @@
                                              (new-entity :text "do that")] ))
 
         child-view (view [property  state ]
-                         {:child-text (get-property (get-dataflow state) property)})
+                         {:child-text (get-property (::dataflow state) property)})
 
         root-view (view [state]
                         (for [todo (:todos (other-entity state :application-state))]
                           (init-and-call state
-                                         [(get-entity-id todo)]
+                                         [(::entity-id todo)]
                                          child-view
-                                         (create-property (get-entity-id todo) :text))))
+                                         (create-property (::entity-id todo) :text))))
 
-        application-state (initialize-new-entity application-state
-                                                 :root-view root-view)]
+        application-state (-> application-state
+                              (initialize-new-entity :root-view root-view))]
 
-    #_(doseq [line (base-dataflow/describe-dataflow (get-dataflow application-state))]
+    #_(doseq [line (base-dataflow/describe-dataflow (::dataflow application-state))]
         (println line))
 
     (is (= (let [child-view ((:key (first (:view (:root-view application-state)))) (:root-view application-state))]
@@ -466,11 +476,11 @@
     (let [application-state (-> (:todos application-state)
                                 (first)
                                 (assoc :text "foo")
-                                (get-dataflow)
+                                (::dataflow)
                                 (dataflow/propagate-changes)
                                 (create-entity :application-state))]
 
-      (base-dataflow/debug-dataflow (get-dataflow application-state))
+      (base-dataflow/debug-dataflow (::dataflow application-state))
 
       (is (= (let [child-view ((:key (first (:view (:root-view application-state)))) (:root-view application-state))]
                (:view child-view))
