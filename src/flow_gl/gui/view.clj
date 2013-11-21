@@ -101,42 +101,38 @@
     (unload-view-part gpu-state layout-path)))
 
 
-(defn call-view-part [local-id]
-  (->ViewPart local-id (dataflow/absolute-path local-id)))
+#_(defn call-view-part [local-id]
+    (->ViewPart local-id (dataflow/absolute-path local-id)))
 
-(defn initialize-view-part [view-part-id view-part-element-function]
-  (debug/do-debug :view-definition "initializing " view-part-id)
-  (dataflow/initialize view-part-id view-part-element-function)
-  (let [view-part-path (dataflow/absolute-path view-part-id)]
-    (dataflow/initialize (concat (dataflow/as-path view-part-id) [:preferred-width]) #(layoutable/preferred-width (dataflow/get-global-value view-part-path)))
-    (dataflow/initialize (concat (dataflow/as-path view-part-id) [:preferred-height]) #(layoutable/preferred-height (dataflow/get-global-value view-part-path)))))
+#_(defn initialize-view-part [view-part-id view-part-element-function]
+    (debug/do-debug :view-definition "initializing " view-part-id)
+    (dataflow/initialize view-part-id view-part-element-function)
+    (let [view-part-path (dataflow/absolute-path view-part-id)]
+      (dataflow/initialize (concat (dataflow/as-path view-part-id) [:preferred-width]) #(layoutable/preferred-width (dataflow/get-global-value view-part-path)))
+      (dataflow/initialize (concat (dataflow/as-path view-part-id) [:preferred-height]) #(layoutable/preferred-height (dataflow/get-global-value view-part-path)))))
 
 #_(defn init-and-call [view-part-id view-part-element-function]
     (initialize-view-part view-part-id view-part-element-function)
     (call-view-part view-part-id))
 
-(defn init-and-call [parent-entity identifiers view & parameters]
+(defn init-and-call [parent-view identifiers view & parameters]
   (let [key (keyword (str "child-view-" identifiers))
-        entity-id (if (contains? parent-entity key)
-                    (triple-dataflow/get-entity-id (key parent-entity))
-                    (triple-dataflow/create-entity-id))]
-    (do (when (not (contains? parent-entity key))
-          (apply-delayed (fn [state]
-                           (-> (triple-dataflow/create-entity (triple-dataflow/get-dataflow state)
-                                              entity-id)
-                               (as-> new-entity
-                                     ((apply partial view parameters) new-entity)
-                                     #_(apply view new-entity parameters))
-                               (other-entity (get-entity-id state))
-                               (assoc key (create-entity-reference-for-id entity-id))))))
+        child-view-id (if (contains? parent-view key)
+                        (:triple-dataflow/entity-id (key parent-view))
+                        (triple-dataflow/create-entity-id))]
+    (do (when (not (contains? parent-view key))
+          (apply-delayed (fn [parent-view]
+                           (let [child-view (-> (triple-dataflow/switch-entity parent-view child-view-id)
+                                                (as-> child-view
+                                                      ((apply partial view parameters) child-view)
+                                                      #_(apply view child-view parameters))
+                                                (assoc-with-this :preferred-width #(layoutable/preferred-width (:view %))
+                                                                 :preferred-height #(layoutable/preferred-height (:view %))))]
+                             (-> (triple-dataflow/switch-entity child-view parent-view)
+                                 (assoc key child-view))))))
 
-        (->ViewPart key entity-id))))
+        (->ViewPart key child-view-id))))
 
-(defn init-and-call [identifiers view & parameters]
-  (let [key (keyword (str "child-view-" identifiers))]
-    (do (apply-delayed (fn [state]
-                         (triple-dataflow/initialize-new-entity state key (apply partial view parameters))))
-        (->ViewPart key (dataflow/absolute-path local-id)))))
 
 ;; RENDERING
 

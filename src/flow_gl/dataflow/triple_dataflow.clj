@@ -138,7 +138,7 @@
 
   clojure.lang.IPersistentCollection
   (equiv [this that]
-    (and (entity? that)
+    (and (map? that)
          (= (keys this)
             (keys that))
          (every? #(= (% this)
@@ -181,8 +181,10 @@
 (defn get-entity [dataflow subject predicate]
   (create-entity dataflow (::entity-id (dataflow/get-value dataflow [subject predicate]))))
 
-(defn other-entity [entity entity-id]
-  (create-entity (::dataflow entity) entity-id))
+(defn switch-entity [entity entity-or-entity-id]
+  (if (entity? entity-or-entity-id)
+    (create-entity (::dataflow entity) (::entity-id entity-or-entity-id))
+    (create-entity (::dataflow entity) entity-or-entity-id)))
 
 (defn get-value-or-entity [dataflow subject predicate]
   (let [value (get dataflow subject predicate)]
@@ -203,7 +205,7 @@
                                     (create-entity-id))]
       (-> new-entity
           function
-          (other-entity (::entity-id parent-entity))
+          (switch-entity parent-entity)
           (assoc key (create-entity-reference new-entity))))
     parent-entity))
 
@@ -326,7 +328,11 @@
                   (assoc :foo 1)
                   (assoc :bar 1))
               (-> (create-entity dataflow)
-                  (assoc :foo 1))))))
+                  (assoc :foo 1))))
+
+    (is (= (-> (create-entity dataflow)
+               (assoc :foo 3))
+           {:foo 3}))))
 
 (deftest assoc-new-entity-test
   (let [entity-id (create-entity-id)
@@ -435,13 +441,13 @@
                     (create-entity-id))]
     (do (when (not (contains? parent-entity key))
           (apply-delayed (fn [state]
-                           (-> (create-entity (::dataflow state)
-                                              entity-id)
-                               (as-> new-entity
-                                     ((apply partial view parameters) new-entity)
-                                     #_(apply view new-entity parameters))
-                               (other-entity (::entity-id state))
-                               (assoc key (create-entity-reference-for-id entity-id))))))
+                           (let [new-entity (-> (create-entity (::dataflow state)
+                                                               entity-id)
+                                                (as-> new-entity
+                                                      ((apply partial view parameters) new-entity)
+                                                      #_(apply view new-entity parameters)))]
+                             (-> (switch-entity new-entity state)
+                                 (assoc key new-entity))))))
         {:type :view-part-call
          :key key
          :entity-id entity-id})))
@@ -457,7 +463,7 @@
                          {:child-text (get-property (::dataflow state) property)})
 
         root-view (view [state]
-                        (for [todo (:todos (other-entity state :application-state))]
+                        (for [todo (:todos (switch-entity state :application-state))]
                           (init-and-call state
                                          [(::entity-id todo)]
                                          child-view
