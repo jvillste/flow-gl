@@ -27,7 +27,7 @@
 
 ;; VIEW PARTS
 
-(defrecord ViewPartCall [view-part-layout-path layer]
+(defrecord ViewPartCall [view-id]
   command/Command
   (create-runner [view-part-call] view-part-call)
   command/CommandRunner
@@ -37,10 +37,12 @@
 (defn element-path-to-layout-path [element-path]
   (vec (concat [:layout] (rest element-path))))
 
+(def ^:dynamic view-being-laid-out)
+
 (defrecord ViewPart [local-id view-id]
   drawable/Drawable
   (drawing-commands [view-part]
-    [(->ViewPartCall (element-path-to-layout-path root-element-path) 0)])
+    [(->ViewPartCall view-id)])
 
   layoutable/Layoutable
   (preferred-width [view-part] (dataflow/property root-element-path [:preferred-width]))
@@ -64,7 +66,6 @@
 
   Object
   (toString [_] (str "(->ViewPart " view-id)))
-
 
 (defn loaded-view-parts [gpu-state]
   (keys (:view-part-command-runners gpu-state)))
@@ -101,7 +102,6 @@
     (load-view-part gpu-state view-state layout-path)
     (unload-view-part gpu-state layout-path)))
 
-
 (defn init-and-call [parent-view identifiers view & parameters]
   (let [key (keyword (str "child-view-" identifiers))
         child-view-id (if (contains? parent-view key)
@@ -111,15 +111,20 @@
           (apply-delayed (fn [parent-view]
                            (let [child-view (-> (triple-dataflow/switch-entity parent-view child-view-id)
                                                 (as-> child-view
-                                                      ((apply partial view parameters) child-view)
-                                                      #_(apply view child-view parameters))
-                                                (assoc-with-this :preferred-width #(layoutable/preferred-width (:view %))
-                                                                 :preferred-height #(layoutable/preferred-height (:view %))))]
+                                                      (apply view child-view parameters))
+                                                (triple-dataflow/assoc-with-this :preferred-width #(layoutable/preferred-width (:view %))
+                                                                                 :preferred-height #(layoutable/preferred-height (:view %))
+                                                                                 :layout #(layout/set-dimensions-and-layout (:view %)
+                                                                                                                            0
+                                                                                                                            0
+                                                                                                                            (:global-x %)
+                                                                                                                            (:global-y %)
+                                                                                                                            requested-width
+                                                                                                                            requested-height)))]
                              (-> (triple-dataflow/switch-entity child-view parent-view)
                                  (assoc key child-view))))))
 
         (->ViewPart key child-view-id))))
-
 
 ;; RENDERING
 
@@ -137,7 +142,6 @@
   (draw-view-part gpu-state [:layout]))
 
 
-
 ;; TIME
 
 (defn update-time
@@ -149,9 +153,9 @@
          (dataflow/define-to :time time)
          (dataflow/propagate-changes))))
 
-
 (defn is-time-dependant? [view]
   (not (empty? (dataflow/dependants view [:time]))))
+
 
 ;; EVENT HANDLING
 
@@ -190,6 +194,8 @@
     (reduce handle-event view events)))
 
 
+;; UPDATE
+
 (defn update-gpu [view-state]
   (let [changes-to-be-processed (dataflow/changes view-state)
         resized (some #{[:width] [:height]} changes-to-be-processed)
@@ -213,10 +219,6 @@
                           (debug/debug-all :view-update (describe-gpu-state gpu-state))
                           gpu-state)))))
           (render)))))
-
-
-
-;; UPDATE
 
 (defn update [view-atom events]
   (swap! view-atom

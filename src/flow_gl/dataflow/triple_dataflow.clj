@@ -37,7 +37,6 @@
   (and (vector? data)
        (every? entity-reference? data)))
 
-
 (defn set [dataflow subject predicate object]
   (dataflow/define dataflow [subject predicate] object))
 
@@ -161,8 +160,6 @@
       ::definitions definitions
       (get-value-or-entity dataflow entity-id k))))
 
-
-
 (defn create-entity-reference-for-id [entity-id]
   {::type :entity-reference
    ::entity-id entity-id})
@@ -274,10 +271,30 @@
              (keys))
          '(:foo))))
 
-(defn assoc-with-this [entity key function]
-  (assoc entity key (fn [dataflow]
-                      (let [state (create-entity dataflow (::entity-id entity))]
-                        (function state)))))
+(defn assoc-with-this
+  ([entity key function & keys-and-functions]
+     (apply assoc-with-this
+            (assoc-with-this entity key function)
+            keys-and-functions))
+
+  ([entity key function]
+     (assoc entity key (fn [dataflow]
+                         (let [state (create-entity dataflow (::entity-id entity))]
+                           (function state))))))
+
+
+
+(deftest assoc-with-this-test
+  (is (= (-> (base-dataflow/create)
+             (create-entity)
+             (assoc :foo 1)
+             (assoc-with-this :bar #(+ (:foo %)
+                                       1)
+
+                              :foobar #(+ (:bar %)
+                                          1))
+             (:foobar))
+         3)))
 
 (deftest properties-test
   (let [dataflow (-> (base-dataflow/create)
@@ -421,14 +438,15 @@
 
 
 (defmacro view [parameters view-expression]
-  (let [state-symbol (last parameters)
-        dataflow-symbol (gensym)]
+  (let [state-symbol (first parameters)]
     `(fn ~parameters
        (with-delayed-applications ~state-symbol
-         (assoc ~state-symbol :view
-                (fn [~dataflow-symbol]
-                  (let [~state-symbol (create-entity ~dataflow-symbol (::entity-id ~state-symbol))]
-                    ~view-expression)))))))
+         (-> ~state-symbol
+             (assoc  :view
+               (fn [dataflow#]
+                 (let [~state-symbol (create-entity dataflow# (::entity-id ~state-symbol))]
+                   ~view-expression)))
+             (assoc-with-this :layout (fn [state#] [:layout (:view state#)])))))))
 
 
 (defn defview [name parameters view-expression]
@@ -444,8 +462,7 @@
                            (let [new-entity (-> (create-entity (::dataflow state)
                                                                entity-id)
                                                 (as-> new-entity
-                                                      ((apply partial view parameters) new-entity)
-                                                      #_(apply view new-entity parameters)))]
+                                                      (apply view new-entity parameters)))]
                              (-> (switch-entity new-entity state)
                                  (assoc key new-entity))))))
         {:type :view-part-call
@@ -459,7 +476,7 @@
                               (assoc :todos [(new-entity :text "do this")
                                              (new-entity :text "do that")] ))
 
-        child-view (view [property  state ]
+        child-view (view [state property]
                          {:child-text (get-property (::dataflow state) property)})
 
         root-view (view [state]
@@ -490,7 +507,11 @@
 
       (is (= (let [child-view ((:key (first (:view (:root-view application-state)))) (:root-view application-state))]
                (:view child-view))
-             {:child-text "foo"})))))
+             {:child-text "foo"}))
+
+      (is (= (let [child-view ((:key (first (:view (:root-view application-state)))) (:root-view application-state))]
+               (:layout child-view))
+             [:layout {:child-text "foo"}])))))
 
 (run-tests)
 
