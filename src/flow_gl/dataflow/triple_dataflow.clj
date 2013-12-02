@@ -15,7 +15,7 @@
   (assoc data
     ::entity-id (create-entity-id)))
 
-(defn create-property [subject predicate]
+(defn property [subject predicate]
   {:subject subject
    :predicate predicate})
 
@@ -282,8 +282,6 @@
                          (let [state (create-entity dataflow (::entity-id entity))]
                            (function state))))))
 
-
-
 (deftest assoc-with-this-test
   (is (= (-> (base-dataflow/create)
              (create-entity)
@@ -470,11 +468,25 @@
          :entity-id entity-id})))
 
 
+(def ^:dynamic view-being-laid-out)
+
+(defn preferred-width [layoutable]
+  (case :type layoutable
+        :view-part-call (get view-being-laid-out (:entity-id layoutable) :preferred-width)
+        :text (cout (:text layoutable))
+        :margin (+ 10 (preferred-width layoutable))
+        0))
+
+(defn layout [layoutable requested-width global-x]
+  (case (:type layoutable)
+        :margin (update-in layoutable [:child] assoc :x 10 :global-x (+ global-x 10))
+        layoutable))
+
 (deftest view-definition-test
   (debug/reset-log)
   (let [application-state (-> (create-entity (base-dataflow/create) :application-state)
                               (assoc :todos [(new-entity :text "do this")
-                                             (new-entity :text "do that")] ))
+                                             (new-entity :text "do that")]))
 
         child-view (view [state property]
                          {:child-text (get-property (::dataflow state) property)})
@@ -484,7 +496,7 @@
                           (init-and-call state
                                          [(::entity-id todo)]
                                          child-view
-                                         (create-property (::entity-id todo) :text))))
+                                         (property (::entity-id todo) :text))))
 
         application-state (-> application-state
                               (initialize-new-entity :root-view root-view))]

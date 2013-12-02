@@ -99,22 +99,22 @@
 
 (defrecord Margin [margin-left margin-top margin-right margin-bottom layoutable]
   Layout
-  (layout [box requested-width requested-height]
-    (update-in box [:layoutable] set-dimensions-and-layout
+  (layout [this requested-width requested-height]
+    (update-in this [:layoutable] set-dimensions-and-layout
                margin-left
                margin-top
-               (:global-x box)
-               (:global-y box)
+               (:global-x this)
+               (:global-y this)
                (layoutable/preferred-width layoutable)
                (layoutable/preferred-height layoutable)))
 
   (children-in-coordinates [this view-state x y] (all-children-in-coordinates [layoutable] view-state x y))
 
   layoutable/Layoutable
-  (layoutable/preferred-width [box] (+ margin-left margin-right
+  (layoutable/preferred-width [this] (+ margin-left margin-right
                                        (layoutable/preferred-width layoutable)))
 
-  (layoutable/preferred-height [box] (+ margin-top margin-bottom
+  (layoutable/preferred-height [this] (+ margin-top margin-bottom
                                         (layoutable/preferred-height layoutable)))
 
   drawable/Drawable
@@ -275,19 +275,19 @@
 
 (defrecord Stack [layoutables]
   Layout
-  (layout [stack requested-width requested-height]
-    (assoc stack :layoutables
-           (vec (map #(set-dimensions-and-layout % 0 0  (:global-x stack) (:global-y stack) requested-width requested-height)
+  (layout [this requested-width requested-height]
+    (assoc this :layoutables
+           (vec (map #(set-dimensions-and-layout % 0 0  (:global-x this) (:global-y this) requested-width requested-height)
                      layoutables))))
 
   (children-in-coordinates [this view-state x y] (all-children-in-coordinates layoutables view-state x y))
 
   layoutable/Layoutable
-  (layoutable/preferred-width [stack]
+  (layoutable/preferred-width [this]
     (apply max (conj (map layoutable/preferred-width layoutables)
                      0)))
 
-  (layoutable/preferred-height [stack]
+  (layoutable/preferred-height [this]
     (apply max (conj (map layoutable/preferred-height layoutables)
                      0)))
 
@@ -299,18 +299,18 @@
 
 (defrecord Superimpose [layoutables]
   Layout
-  (layout [stack requested-width requested-height]
-    (assoc stack :layoutables
-           (vec (map #(set-dimensions-and-layout % 0 0  (:global-x stack) (:global-y stack) requested-width requested-height)
+  (layout [this requested-width requested-height]
+    (assoc this :layoutables
+           (vec (map #(set-dimensions-and-layout % 0 0  (:global-x this) (:global-y this) requested-width requested-height)
                      layoutables))))
 
   (children-in-coordinates [this view-state x y] (all-children-in-coordinates layoutables view-state x y))
 
   layoutable/Layoutable
-  (layoutable/preferred-width [stack]
+  (layoutable/preferred-width [this]
     (layoutable/preferred-width (first layoutables)))
 
-  (layoutable/preferred-height [stack]
+  (layoutable/preferred-height [this]
     (layoutable/preferred-height (first layoutables)))
 
   drawable/Drawable
