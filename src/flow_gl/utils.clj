@@ -26,10 +26,10 @@
 (defn with-delayed-applications-function [state function]
   (binding [delayed-applications (atom [])]
     (let [state (function state)]
-      (reduce (fn [state function]
-                (function state))
-              state
-              @delayed-applications))))
+      (doall (reduce (fn [state function]
+                       (function state))
+                     state
+                     @delayed-applications)))))
 
 (defmacro with-delayed-applications [value & body]
   `(with-delayed-applications-function ~value (fn [~value] ~@body)))

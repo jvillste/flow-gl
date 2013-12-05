@@ -6,6 +6,7 @@
             [slingshot.slingshot :as slingshot]
             [clojure.data.priority-map :as priority-map])
   (:use clojure.test
+        midje.sweet
         flow-gl.threading))
 
 ;; DEBUG
@@ -101,8 +102,9 @@
 
           (when-> (= new-value ::undefined)
                   (as-> dataflow
-                        (do (println "Warning: " (cell-to-string dataflow cell))
-                            (flow-gl.debug/debug :dataflow "Warning: " (cell-to-string dataflow cell)))))))))
+                        (do #_(println "Warning: " (cell-to-string dataflow cell))
+                            (flow-gl.debug/debug :dataflow "Warning: " (cell-to-string dataflow cell))
+                            dataflow)))))))
 
 
 
@@ -200,13 +202,16 @@
 (comment
   (debug/set-active-channels :dataflow))
 
-(deftest get-value-or-nil-test
-  (is (= (-> (create)
-             (define :foo 2)
-             (define :foo2 (fn [dataflow] (+ 1 (get-value dataflow :foo))))
-             (define :foo 3)
-             (propagate-changes)
-             (get-value :foo2))
-         4)))
+(fact (let [dataflow (-> (create)
+                         (define :foo1 (fn [dataflow] (+ 1
+                                                         (get-value dataflow :bar1))))
+                         (define :foo2 (fn [dataflow] (+ 1
+                                                         (get-value dataflow :bar2))))
+                         (define :bar1 3)
+                         (propagate-changes))]
+
+        (get-value dataflow :foo1) => 4
+        (get-value dataflow :foo2) => ::undefined))
+
 
 (debug/write-log)
