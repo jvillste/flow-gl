@@ -467,7 +467,7 @@
     :margin (-> layoutable
                 (assoc :global-x global-x)
                 (update-in [:child] layout requested-width (+ global-x 10)))
-    :child-view-call (do (apply-delayed (fn [dataflow]
+    :child-view-call (do (base-dataflow/apply-to-dataflow (fn [dataflow]
                                           (-> dataflow
                                               (set-value (:child-view-id layoutable) :requested-width requested-width)
                                               (set-value (:child-view-id layoutable) :global-x global-x))))
@@ -479,21 +479,16 @@
 (defmacro view [parameters view-expression]
   (let [state-symbol (first parameters)]
     `(fn ~parameters
-       (println "running view" (type ~state-symbol))
-       (println "running view" (type (::dataflow ~state-symbol)))
        (assoc-with-this ~state-symbol
                         :view (fn [~state-symbol]
-                                (println ":view " (type ~state-symbol))
                                 ~view-expression)
 
                         :layout (fn [state#]
-                                  (println "layout")
                                   (layout (:view state#)
                                           (:requested-width state#)
                                           (:global-x state#)))
 
                         :preferred-width (fn [state#]
-                                           (println "preferred width")
                                            (binding [view-being-laid-out (::dataflow state#)]
                                              (preferred-width (:view state#))))))))
 
@@ -510,7 +505,7 @@
                         (create-entity-id))]
 
     (do (when (not (contains? parent-view key))
-          (apply-delayed (fn [dataflow]
+          (base-dataflow/apply-to-dataflow (fn [dataflow]
                            (-> (apply view
                                       (create-entity dataflow child-view-id)
                                       parameters)
@@ -523,7 +518,6 @@
 
 
 (facts layout-test
-  (println)
   (let [child-view (view [state]
                          {:type :margin
                           :child {:type :text
@@ -579,21 +573,21 @@
                 :preferred-width)
         => 16)
 
-      (doseq [line (base-dataflow/describe-dataflow (::dataflow application-state))]
+      #_(doseq [line (base-dataflow/describe-dataflow (::dataflow application-state))]
         (println line)))
 
 
     #_(doseq [line (base-dataflow/describe-dataflow dataflow)]
         (println line))))
 
-(facts layout-tests
+#_(facts layout-tests
   (fact text-layout (layout {:type :text} 10 10) => {:type :text :global-x 10})
 
   (let [view-entity (-> (create-entity (base-dataflow/create) :view-1)
                         (assoc :view {:type :text
                                       :text "foo"}))
         dataflow (binding [view-being-laid-out (::dataflow view-entity)]
-                   (with-delayed-applications view-being-laid-out
+                   (with-delayed-applications  view-being-laid-out
                      (set-value view-being-laid-out :view-1 :layout
                                 (layout {:type :child-view-call
                                          :child-view-id :view-1}
@@ -605,7 +599,7 @@
 
 (deftest view-definition-test
   (debug/reset-log)
-  #_(let [application-state (-> (create-entity (base-dataflow/create) :application-state)
+  (let [application-state (-> (create-entity (base-dataflow/create) :application-state)
                                 (assoc :todos [(new-entity :text "do this")
                                                (new-entity :text "do that")]))
 

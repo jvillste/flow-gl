@@ -1,5 +1,5 @@
 (ns flow-gl.utils
-  (:use clojure.test))
+  (:use midje.sweet))
 
 (defn map-vals [m f]
   (zipmap (keys m) (map f (vals m))))
@@ -11,29 +11,45 @@
                   (assoc value now-key (key value)
                          key new-value)))))
 
-(deftest get-and-reset-test
-  (is (= (get-and-reset (atom {::foo 4})
-                        ::foo
-                        0)
-         {::foo-now 4, ::foo 0})))
+(fact get-and-reset-test
+  (get-and-reset (atom {::foo 4})
+                 ::foo
+                 0)
+  =>
+  {::foo-now 4, ::foo 0})
 
 (defmacro forall [bindings body]
   `(doall (for ~bindings ~body)))
 
 
-(def ^:dynamic delayed-applications)
-
-(defn with-delayed-applications-function [state function]
-  (binding [delayed-applications (atom [])]
-    (let [state (function state)]
-      (doall (reduce (fn [state function]
-                       (function state))
-                     state
-                     @delayed-applications)))))
-
-(defmacro with-delayed-applications [value & body]
-  `(with-delayed-applications-function ~value (fn [~value] ~@body)))
 
 
-(defn apply-delayed [function]
-  (swap! delayed-applications conj function))
+(defn with-delayed-applications-function [delayed-applications-var state function]
+  (let [state (function state)]
+    (reduce (fn [state function]
+              (function state))
+            state
+            @delayed-applications-var)))
+
+(defmacro with-delayed-applications [delayed-applications-var value & body]
+  `(binding [~delayed-applications-var (atom [])]
+     (with-delayed-applications-function ~delayed-applications-var ~value (fn [~value] ~@body))))
+
+
+(defn apply-delayed [delayed-applications-var function]
+  (swap! delayed-applications-var conj function))
+
+
+
+(def ^:dynamic test-var-x)
+
+(fact (let [x 1]
+        (binding [test-var-x (atom [])]
+          (with-delayed-applications-function test-var-x x (fn [x] (+ 1 x))))))
+(fact
+    (let [x 1]
+      (with-delayed-applications test-var-x x
+        (apply-delayed test-var-x (fn [x] (+ x 1)))
+        (+ x 1)))
+    => 3)
+
