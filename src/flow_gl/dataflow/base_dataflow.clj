@@ -87,31 +87,33 @@
       (update-in [::changed-cells] conj cell)))
 
 (def ^:dynamic delayed-dataflow-applications)
+(def ^:dynamic current-dataflow)
 
 (defn apply-to-dataflow [function]
-  (apply-delayed delayed-dataflow-applications function))
+  (apply-later #'delayed-dataflow-applications function))
 
 (defn update-cell [dataflow cell]
   (logged-access/with-access-logging
     (with-delayed-applications delayed-dataflow-applications dataflow
-      (let [old-value (dataflow/unlogged-get-value dataflow cell)
-            new-value (slingshot/try+ ((get-in dataflow [::functions cell]) dataflow)
-                                      (catch [:type ::undefined-value]
-                                          _ ::undefined))
-            new-height (height dataflow @logged-access/reads)]
+      (binding [current-dataflow dataflow]
+        (let [old-value (dataflow/unlogged-get-value dataflow cell)
+              new-value (slingshot/try+ ((get-in dataflow [::functions cell]) dataflow)
+                                        (catch [:type ::undefined-value]
+                                            _ ::undefined))
+              new-height (height dataflow @logged-access/reads)]
 
-        (-> dataflow
-            (assoc-in [::storage cell] new-value)
-            (dataflow/set-dependencies cell @logged-access/reads)
-            (assoc-in [::heights cell] new-height)
-            (when-> (not (= old-value new-value))
-                    (dataflow/declare-changed cell))
+          (-> dataflow
+              (assoc-in [::storage cell] new-value)
+              (dataflow/set-dependencies cell @logged-access/reads)
+              (assoc-in [::heights cell] new-height)
+              (when-> (not (= old-value new-value))
+                      (dataflow/declare-changed cell))
 
-            (when-> (= new-value ::undefined)
-                    (as-> dataflow
-                          (do #_(println "Warning: " (cell-to-string dataflow cell))
-                              (flow-gl.debug/debug :dataflow "Warning: " (cell-to-string dataflow cell))
-                              dataflow))))))))
+              (when-> (= new-value ::undefined)
+                      (as-> dataflow
+                            (do #_(println "Warning: " (cell-to-string dataflow cell))
+                                (flow-gl.debug/debug :dataflow "Warning: " (cell-to-string dataflow cell))
+                                dataflow)))))))))
 
 
 

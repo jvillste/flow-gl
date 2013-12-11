@@ -45,12 +45,12 @@
     [(->ViewPartCall view-id)])
 
   layoutable/Layoutable
-  (preferred-width [view-part] (dataflow/property root-element-path [:preferred-width]))
-  (preferred-height [view-part] (dataflow/property root-element-path [:preferred-height]))
+  (preferred-width [view-part] #_(dataflow/property root-element-path [:preferred-width]))
+  (preferred-height [view-part] #_(dataflow/property root-element-path [:preferred-height]))
 
   layout/Layout
   (layout [view-part requested-width requested-height]
-    (dataflow/initialize (:local-id view-part)
+    #_(dataflow/initialize (:local-id view-part)
                          #(layout/set-dimensions-and-layout (dataflow/get-global-value (:root-element-path view-part))
                                                             0
                                                             0
@@ -103,7 +103,7 @@
     (unload-view-part gpu-state layout-path)))
 
 (defn init-and-call [parent-view identifiers view & parameters]
-  (let [key (keyword (str "child-view-" identifiers))
+  #_(let [key (keyword (str "child-view-" identifiers))
         child-view-id (if (contains? parent-view key)
                         (:triple-dataflow/entity-id (key parent-view))
                         (triple-dataflow/create-entity-id))]
@@ -149,29 +149,29 @@
      (update-time view (System/nanoTime)))
 
   ([view time]
-     (-> view
+     #_(-> view
          (dataflow/define-to :time time)
          (dataflow/propagate-changes))))
 
 (defn is-time-dependant? [view]
-  (not (empty? (dataflow/dependants view [:time]))))
+  #_(not (empty? (dataflow/dependants view [:time]))))
 
 
 ;; EVENT HANDLING
 
 (defn call-event-handler [view-state event]
-  (binding [dataflow/current-path [:elements]]
+  #_(binding [dataflow/current-path [:elements]]
     ((:event-handler view-state)
      view-state
      event)))
 
 (defn handle-event [view-state event]
   (debug/debug :events "handle event " event)
-  (let [view-state (-> view-state
+  #_(let [view-state (-> view-state
                        (assoc :event-handled false)
                        (update-time #_(:time event)))]
     (cond (= (:source event) :mouse)
-          (handle-mouse-event view-state event)
+          (mouse/handle-mouse-event view-state event)
 
           (= (:type event) :resize-requested)
           (dataflow/define-to view-state
@@ -188,8 +188,8 @@
 
 (defn handle-events [view events]
   (let [events (->> events
-                    (trim-mouse-movements)
-                    (map (partial invert-mouse-y (get view [:height]))))]
+                    (mouse/trim-mouse-movements)
+                    (map (partial mouse/invert-mouse-y (get view [:height]))))]
 
     (reduce handle-event view events)))
 
@@ -234,7 +234,7 @@
 ;; INITIALIZATION
 
 (defn initialize-view-state [width height root-element-constructor]
-  (-> (dataflow/create)
+  #_(-> (dataflow/create)
       (dataflow/define-to
         :width width
         :height height
@@ -266,6 +266,6 @@
          view-state [:layout]))
 
 (defn set-view [state view]
-  (-> state
+  #_(-> state
       (dataflow/define-to [:elements] view)
       (dataflow/propagate-changes)))

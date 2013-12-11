@@ -12,17 +12,17 @@
                          key new-value)))))
 
 (fact get-and-reset-test
-  (get-and-reset (atom {::foo 4})
-                 ::foo
-                 0)
-  =>
-  {::foo-now 4, ::foo 0})
+      (get-and-reset (atom {::foo 4})
+                     ::foo
+                     0)
+      =>
+      {::foo-now 4, ::foo 0})
 
 (defmacro forall [bindings body]
   `(doall (for ~bindings ~body)))
 
 
-
+(def ^:dynamic delayed-applications)
 
 (defn with-delayed-applications-function [delayed-applications-var state function]
   (let [state (function state)]
@@ -31,25 +31,46 @@
             state
             @delayed-applications-var)))
 
-(defmacro with-delayed-applications [delayed-applications-var value & body]
-  `(binding [~delayed-applications-var (atom [])]
-     (with-delayed-applications-function ~delayed-applications-var ~value (fn [~value] ~@body))))
+(defmacro with-delayed-applications [delayed-applications-var-symbol value & body]
+  `(binding [~delayed-applications-var-symbol (atom [])]
+     (with-delayed-applications-function ~delayed-applications-var-symbol ~value (fn [~value] ~@body))))
+
+(defn apply-later [delayed-applications-var function]
+  (if (bound? delayed-applications-var)
+    (swap! (deref delayed-applications-var) conj function)
+    (throw (Exception. (str delayed-applications-var " is not boundsdf")))))
 
 
-(defn apply-delayed [delayed-applications-var function]
-  (swap! delayed-applications-var conj function))
+;; Tests
 
+(def ^:dynamic delayed-applications-to-x)
+(def ^:dynamic delayed-applications-to-y)
 
+(fact delayed-applications-with-one-var
+      (let [x {}]
+        (binding [delayed-applications-to-x :foo]
 
-(def ^:dynamic test-var-x)
+          (with-delayed-applications delayed-applications-to-x x
+            (assoc x :foo (do
+                            (apply-later #'delayed-applications-to-x
+                                         (fn [x] (assoc x :x-bar :x-bar-value)))
 
-(fact (let [x 1]
-        (binding [test-var-x (atom [])]
-          (with-delayed-applications-function test-var-x x (fn [x] (+ 1 x))))))
-(fact
-    (let [x 1]
-      (with-delayed-applications test-var-x x
-        (apply-delayed test-var-x (fn [x] (+ x 1)))
-        (+ x 1)))
-    => 3)
+                            :foo-value)))))
 
+      => {:foo :foo-value
+          :x-bar :x-bar-value})
+
+#_(fact delayed-applications-with-two-vars
+        (let [x {}
+              y {}]
+          (with-delayed-applications delayed-applications-to-x x
+            (assoc x :x-foo (with-delayed-applications delayed-applications-to-y y
+                              (assoc y :y-foo (do
+                                                (apply-later delayed-applications-to-x
+                                                             (fn [x] (assoc x :x-bar :x-bar-value)))
+                                                (apply-later delayed-applications-to-y
+                                                             (fn [y] (assoc y :y-bar :y-bar-value)))
+                                                :y-foo-value))))))
+        => {:x-bar :x-bar-value
+            :x-foo {:y-bar :y-bar-value
+                    :y-foo :y-foo-value}})

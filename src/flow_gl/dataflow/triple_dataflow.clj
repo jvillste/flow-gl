@@ -63,11 +63,6 @@
           dataflow
           (remove #{::entity-id ::type} (keys entity))))
 
-
-
-
-
-
 (defn create-references [dataflow value]
   (cond
 
@@ -108,7 +103,6 @@
   clojure.lang.IMapEntry
   (getKey [_] predicate)
   (getValue [_] (get-value dataflow entity predicate)))
-
 
 (defn reset-definitions [entity]
   (assoc entity ::definitions #{}))
@@ -171,7 +165,6 @@
 
 (defn create-entity-reference [entity]
   (create-entity-reference-for-id (::entity-id entity)))
-
 
 (defn create-entity
   ([dataflow entity-id]
@@ -243,7 +236,6 @@
           entity
           keys))
 
-
 (defn undefine-entity [dataflow entity-id]
   (undefine-keys (create-entity dataflow entity-id) (properties dataflow entity-id)))
 
@@ -276,8 +268,6 @@
              (keys))
          '(:foo))))
 
-
-
 (defn assoc-with-this
   ([entity key function & keys-and-functions]
      (apply assoc-with-this
@@ -288,7 +278,6 @@
      (assoc entity key (fn [dataflow]
                          (let [state (create-entity dataflow (::entity-id entity))]
                            (function state))))))
-
 
 (fact setget-test
   (-> (base-dataflow/create)
@@ -412,8 +401,6 @@
 
     (is (= (:string entity)
            "foo"))))
-
-
 
 (deftest entity-test
   (let [entity-id (create-entity-id)
