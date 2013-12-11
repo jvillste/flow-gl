@@ -213,7 +213,7 @@
           (assoc :bar 1)
           (::dataflow)
           (get-value :foo :bar))
-  => 1)
+      => 1)
 
 (deftest entity?-test
   (is (= (entity? (create-entity {} :id))
@@ -280,14 +280,14 @@
                            (function state))))))
 
 (fact setget-test
-  (-> (base-dataflow/create)
-      (set-value :foo :foobar (fn [dataflow]
-                                (+ (get-value dataflow :foo :bar)
-                                   1)))
-      (set-value :foo :bar 1)
-      dataflow/propagate-changes
-      (get-value :foo :foobar))
-  => 2)
+      (-> (base-dataflow/create)
+          (set-value :foo :foobar (fn [dataflow]
+                                    (+ (get-value dataflow :foo :bar)
+                                       1)))
+          (set-value :foo :bar 1)
+          dataflow/propagate-changes
+          (get-value :foo :foobar))
+      => 2)
 
 (deftest assoc-with-this-test
   (is (= (-> (base-dataflow/create)
@@ -440,11 +440,9 @@
       (base-dataflow/debug-dataflow)))
 
 
-(def ^:dynamic view-being-laid-out)
-
 (defn preferred-width [layoutable]
   (case (:type layoutable)
-    :child-view-call (get-value view-being-laid-out (:child-view-id layoutable) :preferred-width)
+    :child-view-call (get-value base-dataflow/current-dataflow (:child-view-id layoutable) :preferred-width)
     :text (count (:text layoutable))
     :margin (+ 10 (preferred-width (:child layoutable)))
     0))
@@ -455,9 +453,9 @@
                 (assoc :global-x global-x)
                 (update-in [:child] layout requested-width (+ global-x 10)))
     :child-view-call (do (base-dataflow/apply-to-dataflow (fn [dataflow]
-                                          (-> dataflow
-                                              (set-value (:child-view-id layoutable) :requested-width requested-width)
-                                              (set-value (:child-view-id layoutable) :global-x global-x))))
+                                                            (-> dataflow
+                                                                (set-value (:child-view-id layoutable) :requested-width requested-width)
+                                                                (set-value (:child-view-id layoutable) :global-x global-x))))
                          layoutable)
     (assoc layoutable
       :global-x global-x)))
@@ -476,8 +474,7 @@
                                           (:global-x state#)))
 
                         :preferred-width (fn [state#]
-                                           (binding [view-being-laid-out (::dataflow state#)]
-                                             (preferred-width (:view state#))))))))
+                                           (preferred-width (:view state#)))))))
 
 (defn defview [name parameters view-expression]
   '(def ~name (view parameters view-expression)))
@@ -493,140 +490,139 @@
 
     (do (when (not (contains? parent-view key))
           (base-dataflow/apply-to-dataflow (fn [dataflow]
-                           (-> (apply view
-                                      (create-entity dataflow child-view-id)
-                                      parameters)
-                               (switch-entity  parent-view)
-                               (assoc key (create-entity-reference-for-id child-view-id))
-                               ::dataflow))))
+                                             (-> (apply view
+                                                        (create-entity dataflow child-view-id)
+                                                        parameters)
+                                                 (switch-entity  parent-view)
+                                                 (assoc key (create-entity-reference-for-id child-view-id))
+                                                 ::dataflow))))
         {:type :child-view-call
          :key key
          :child-view-id child-view-id})))
 
 
 (facts layout-test
-  (let [child-view (view [state]
-                         {:type :margin
-                          :child {:type :text
-                                  :text "Foo"}})
+       (let [child-view (view [state]
+                              {:type :margin
+                               :child {:type :text
+                                       :text "Foo"}})
 
-        root-view (view [state]
-                        {:type :margin
-                         :child (call-child-view state [:child] child-view)})
+             root-view (view [state]
+                             {:type :margin
+                              :child (call-child-view state [:child] child-view)})
 
-        dataflow (-> (create-entity (base-dataflow/create) :application-state)
-                     (initialize-new-entity :root-view root-view)
+             dataflow (-> (create-entity (base-dataflow/create) :application-state)
+                          (initialize-new-entity :root-view root-view)
+                          :root-view
+                          (assoc :requested-width 100
+                                 :global-x 0)
+                          ::dataflow
+                          (dataflow/propagate-changes))
+             application-state (create-entity dataflow :application-state)]
+
+         (fact (-> application-state
+                   :root-view
+                   :preferred-width)
+               => 23)
+
+         (fact (-> application-state
+                   :root-view
+                   ((child-view-key :child))
+                   :preferred-width)
+               => 13)
+
+         (fact (-> application-state
+                   :root-view
+                   ((child-view-key :child))
+                   :global-x)
+               => 10)
+
+         (fact (-> application-state
+                   :root-view
+                   ((child-view-key :child))
+                   :layout
+                   :child
+                   :global-x)
+               => 20)
+
+         (let [application-state (-> application-state
+                                     :root-view
+                                     ((child-view-key :child))
+                                     (assoc-in [:view :child :text] "foobar")
+                                     (update-in [::dataflow] dataflow/propagate-changes)
+                                     (switch-entity :application-state))]
+           (fact (-> application-state
                      :root-view
-                     (assoc :requested-width 100
-                            :global-x 0)
-                     ::dataflow
-                     (dataflow/propagate-changes))
-        application-state (create-entity dataflow :application-state)]
+                     ((child-view-key :child))
+                     :preferred-width)
+                 => 16)
 
-    (fact (-> application-state
-              :root-view
-              :preferred-width)
-      => 23)
-
-    (fact (-> application-state
-              :root-view
-              ((child-view-key :child))
-              :preferred-width)
-      => 13)
-
-    (fact (-> application-state
-              :root-view
-              ((child-view-key :child))
-              :global-x)
-      => 10)
-
-    (fact (-> application-state
-              :root-view
-              ((child-view-key :child))
-              :layout
-              :child
-              :global-x)
-      => 20)
-
-    (let [application-state (-> application-state
-                                :root-view
-                                ((child-view-key :child))
-                                (assoc-in [:view :child :text] "foobar")
-                                (update-in [::dataflow] dataflow/propagate-changes)
-                                (switch-entity :application-state))]
-      (fact (-> application-state
-                :root-view
-                ((child-view-key :child))
-                :preferred-width)
-        => 16)
-
-      #_(doseq [line (base-dataflow/describe-dataflow (::dataflow application-state))]
-        (println line)))
+           #_(doseq [line (base-dataflow/describe-dataflow (::dataflow application-state))]
+               (println line)))
 
 
-    #_(doseq [line (base-dataflow/describe-dataflow dataflow)]
-        (println line))))
+         #_(doseq [line (base-dataflow/describe-dataflow dataflow)]
+             (println line))))
 
-#_(facts layout-tests
-  (fact text-layout (layout {:type :text} 10 10) => {:type :text :global-x 10})
+(facts layout-tests
+         (fact text-layout (layout {:type :text} 10 10) => {:type :text :global-x 10})
 
-  (let [view-entity (-> (create-entity (base-dataflow/create) :view-1)
-                        (assoc :view {:type :text
-                                      :text "foo"}))
-        dataflow (binding [view-being-laid-out (::dataflow view-entity)]
-                   (with-delayed-applications  view-being-laid-out
-                     (set-value view-being-laid-out :view-1 :layout
-                                (layout {:type :child-view-call
-                                         :child-view-id :view-1}
-                                        10 10))))]
+         (let [view-entity (-> (create-entity (base-dataflow/create) :view-1)
+                               (assoc :view {:type :text
+                                             :text "foo"}))
+               dataflow (set-value (::dataflow view-entity) :view-1 :layout
+                                   (fn [state]
+                                     (layout {:type :child-view-call
+                                              :child-view-id :view-1}
+                                             10 10)))]
 
-    (fact view (get-value dataflow :view-1 :view) => {:type :text, :text "foo"})
-    (fact layout (get-value dataflow :view-1 :layout) => {:type :child-view-call
-                                                          :child-view-id :view-1})))
+           (fact view (get-value dataflow :view-1 :view) => {:type :text, :text "foo"})
+           (fact layout (get-value dataflow :view-1 :layout) => {:type :child-view-call
+                                                                 :child-view-id :view-1})))
 
 (deftest view-definition-test
   (debug/reset-log)
   (let [application-state (-> (create-entity (base-dataflow/create) :application-state)
-                                (assoc :todos [(new-entity :text "do this")
-                                               (new-entity :text "do that")]))
+                              (assoc :todos [(new-entity :text "do this")
+                                             (new-entity :text "do that")]))
 
-          child-view (view [state property]
-                           {:type :text
-                            :text (get-property (::dataflow state) property)})
+        child-view (view [state property]
+                         {:type :text
+                          :text (get-property (::dataflow state) property)})
 
-          root-view (view [state]
-                          (for [todo (:todos (switch-entity state :application-state))]
-                            (call-child-view state
-                                             [(::entity-id todo)]
-                                             child-view
-                                             (property (::entity-id todo) :text))))
+        root-view (view [state]
+                        (for [todo (:todos (switch-entity state :application-state))]
+                          (call-child-view state
+                                           [(::entity-id todo)]
+                                           child-view
+                                           (property (::entity-id todo) :text))))
 
-          application-state (-> application-state
-                                (initialize-new-entity :root-view root-view))]
+        application-state (-> application-state
+                              (initialize-new-entity :root-view root-view))]
 
-      #_(doseq [line (base-dataflow/describe-dataflow (::dataflow application-state))]
-          (println line))
+    #_(doseq [line (base-dataflow/describe-dataflow (::dataflow application-state))]
+        (println line))
+
+    (is (= (let [child-view ((:key (first (:view (:root-view application-state)))) (:root-view application-state))]
+             (:view child-view))
+           {:type :text, :text "do this"}))
+
+    (let [application-state (-> (:todos application-state)
+                                (first)
+                                (assoc :text "foo")
+                                (::dataflow)
+                                (dataflow/propagate-changes)
+                                (create-entity :application-state))]
+
+      (base-dataflow/debug-dataflow (::dataflow application-state))
 
       (is (= (let [child-view ((:key (first (:view (:root-view application-state)))) (:root-view application-state))]
                (:view child-view))
-             {:type :text, :text "do this"}))
+             {:type :text, :text "foo"}))
 
-      (let [application-state (-> (:todos application-state)
-                                  (first)
-                                  (assoc :text "foo")
-                                  (::dataflow)
-                                  (dataflow/propagate-changes)
-                                  (create-entity :application-state))]
-
-        (base-dataflow/debug-dataflow (::dataflow application-state))
-
-        (is (= (let [child-view ((:key (first (:view (:root-view application-state)))) (:root-view application-state))]
-                 (:view child-view))
-               {:type :text, :text "foo"}))
-
-        (is (= (let [child-view ((:key (first (:view (:root-view application-state)))) (:root-view application-state))]
-                 (:layout child-view))
-               :flow-gl.dataflow.base-dataflow/undefined)))))
+      (is (= (let [child-view ((:key (first (:view (:root-view application-state)))) (:root-view application-state))]
+               (:layout child-view))
+             :flow-gl.dataflow.base-dataflow/undefined)))))
 
 (comment
   (debug/set-active-channels :all)

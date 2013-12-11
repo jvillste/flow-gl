@@ -86,15 +86,14 @@
               (dependents dataflow cell))
       (update-in [::changed-cells] conj cell)))
 
-(def ^:dynamic delayed-dataflow-applications)
 (def ^:dynamic current-dataflow)
 
 (defn apply-to-dataflow [function]
-  (apply-later #'delayed-dataflow-applications function))
+  (apply-later ::dataflow function))
 
 (defn update-cell [dataflow cell]
   (logged-access/with-access-logging
-    (with-delayed-applications delayed-dataflow-applications dataflow
+    (with-delayed-applications ::dataflow dataflow
       (binding [current-dataflow dataflow]
         (let [old-value (dataflow/unlogged-get-value dataflow cell)
               new-value (slingshot/try+ ((get-in dataflow [::functions cell]) dataflow)
