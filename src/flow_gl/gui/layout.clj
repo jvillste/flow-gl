@@ -7,8 +7,9 @@
                           [drawable :as drawable])))
 
 (defprotocol Layout
-  (layout [layout requested-width requested-height])
-  (children-in-coordinates [layout view-state x y]))
+  (layout [layout requested-width requested-height globa-x global-y])
+  (children [layout]))
+
 
 (extend Object
   Layout {:layout (fn [layout requested-width requested-height] layout)
@@ -17,16 +18,18 @@
 
 ;; UTILITIES
 
-(defn set-dimensions-and-layout [layout-instance x y parent-global-x parent-global-y width height]
+(defn set-dimensions-and-layout [layout-instance x y global-x global-y width height]
   (-> layout-instance
       (assoc :x x
              :y y
-             :global-x (+ x parent-global-x)
-             :global-y (+ y parent-global-y)
+             :global-x global-x
+             :global-y global-y
              :width width
              :height height)
       (layout width
-              height)))
+              height
+              (+ x global-x)
+              (+ y global-y))))
 
 (defn layout-drawing-commands [drawables]
   (vec (concat [(push-modelview/->PushModelview)]
@@ -64,8 +67,8 @@
 (defn filter-by-coordinates [x y layoutables]
   (filter (partial in-coordinates x y) layoutables))
 
-(defn all-children-in-coordinates [children view-state x y]
-  (let [children (filter-by-coordinates x y children)]
+(defn children-in-coordinates [layout view-state x y]
+  (let [children (filter-by-coordinates x y (children layout))]
     (concat children (mapcat (fn [child] (children-in-coordinates child
                                                                   view-state
                                                                   (+ x (:x child))
@@ -76,10 +79,11 @@
 
 (defrecord Box [margin outer inner]
   Layout
-  (layout [box requested-width requested-height]
+  (layout [box requested-width requested-height global-x global-y]
     (-> box
-        (update-in [:outer] set-dimensions-and-layout 0 0 (:global-x box) (:global-y box) requested-width requested-height)
-        (update-in [:inner] set-dimensions-and-layout margin margin (:global-x box) (:global-y box) (layoutable/preferred-width inner) (layoutable/preferred-height inner))))
+        (update-in [:outer] set-dimensions-and-layout 0 0  global-x global-y requested-width requested-height)
+        (update-in [:inner] set-dimensions-and-layout margin margin  global-x global-y (layoutable/preferred-width inner) (layoutable/preferred-height inner))))
+  (children [this] [outer inner])
 
   (children-in-coordinates [this view-state x y] (all-children-in-coordinates [outer inner] view-state x y ))
 
@@ -90,6 +94,7 @@
   (layoutable/preferred-height [box] (+ (* 2 margin)
                                         (layoutable/preferred-height inner)))
 
+
   drawable/Drawable
   (drawing-commands [this] (layout-drawing-commands [outer inner]))
 
@@ -99,12 +104,12 @@
 
 (defrecord Margin [margin-left margin-top margin-right margin-bottom layoutable]
   Layout
-  (layout [this requested-width requested-height]
+  (layout [this requested-width requested-height global-x global-y]
     (update-in this [:layoutable] set-dimensions-and-layout
                margin-left
                margin-top
-               (:global-x this)
-               (:global-y this)
+               global-x
+               global-y
                (layoutable/preferred-width layoutable)
                (layoutable/preferred-height layoutable)))
 
@@ -112,10 +117,10 @@
 
   layoutable/Layoutable
   (layoutable/preferred-width [this] (+ margin-left margin-right
-                                       (layoutable/preferred-width layoutable)))
+                                        (layoutable/preferred-width layoutable)))
 
   (layoutable/preferred-height [this] (+ margin-top margin-bottom
-                                        (layoutable/preferred-height layoutable)))
+                                         (layoutable/preferred-height layoutable)))
 
   drawable/Drawable
   (drawing-commands [this] (layout-drawing-commands [layoutable]))

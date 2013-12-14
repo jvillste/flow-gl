@@ -26,12 +26,12 @@
                                      ""
                                      (get-in dataflow [::dependencies cell]))))))
 
-;; DEPENDANTS
+;; DEPENDENTS
 
-(defn set-dependencies [dataflow dependant dependencies]
-  (assoc-in dataflow [::dependencies dependant] dependencies))
+(defn set-dependencies [dataflow dependent dependencies]
+  (assoc-in dataflow [::dependencies dependent] dependencies))
 
-                                        ; TODO: Make this efficient
+;; TODO: Make this efficient
 (defn dependents [dataflow cell]
   (filter #(contains? (get-in dataflow [::dependencies %])
                       cell)
@@ -170,7 +170,8 @@
                               :declare-changed declare-changed
                               :cells cells
                               :changes changes
-                              :reset-changes reset-changes})
+                              :reset-changes reset-changes
+                              :dependents dependents})
 
 (defrecord BaseDataflow [])
 

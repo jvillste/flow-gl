@@ -10,6 +10,15 @@
 (def create-entity-reference)
 (def entity?)
 
+(defn cell-key [subject predicate]
+  [subject predicate])
+
+(defn dependents [dataflow subject predicate]
+  (dataflow/dependents dataflow (cell-key subject predicate)))
+
+(defn is-defined? [dataflow subject predicate]
+  (dataflow/is-defined? dataflow (cell-key subject predicate)))
+
 (defn create-entity-id []
   (keyword (str "entity-" (rand-int 1000000))))
 
@@ -41,16 +50,16 @@
        (every? entity-reference? data)))
 
 (defn set-value [dataflow subject predicate object]
-  (dataflow/define dataflow [subject predicate] object))
+  (dataflow/define dataflow (cell-key subject predicate) object))
 
 (defn get-value [dataflow subject predicate]
-  (dataflow/get-value dataflow [subject predicate]))
+  (dataflow/get-value dataflow (cell-key subject predicate)))
 
 (defn get-property [dataflow property]
   (get-value dataflow (:subject property) (:predicate property)))
 
 (defn undefine [dataflow subject predicate]
-  (dataflow/undefine dataflow [subject predicate]))
+  (dataflow/undefine dataflow (cell-key subject predicate)))
 
 (defn properties [dataflow entity-id]
   (map second (filter #(= (first %)
@@ -174,7 +183,7 @@
      (Entity. dataflow (create-entity-id) #{})))
 
 (defn get-entity [dataflow subject predicate]
-  (create-entity dataflow (::entity-id (dataflow/get-value dataflow [subject predicate]))))
+  (create-entity dataflow (::entity-id (dataflow/get-value dataflow (cell-key subject predicate)))))
 
 (defn switch-entity [entity entity-or-entity-id]
   (if (entity? entity-or-entity-id)
@@ -448,6 +457,7 @@
     0))
 
 (defn layout [layoutable requested-width global-x]
+  (println "layoutable " layoutable)
   (case (:type layoutable)
     :margin (-> layoutable
                 (assoc :global-x global-x)
@@ -497,7 +507,7 @@
                                                  (assoc key (create-entity-reference-for-id child-view-id))
                                                  ::dataflow))))
         {:type :child-view-call
-         :key key
+         :kwey key
          :child-view-id child-view-id})))
 
 
@@ -565,64 +575,73 @@
              (println line))))
 
 (facts layout-tests
-         (fact text-layout (layout {:type :text} 10 10) => {:type :text :global-x 10})
+       (fact text-layout (layout {:type :text} 10 10) => {:type :text :global-x 10})
 
-         (let [view-entity (-> (create-entity (base-dataflow/create) :view-1)
-                               (assoc :view {:type :text
-                                             :text "foo"}))
-               dataflow (set-value (::dataflow view-entity) :view-1 :layout
-                                   (fn [state]
-                                     (layout {:type :child-view-call
-                                              :child-view-id :view-1}
-                                             10 10)))]
+       (let [view-entity (-> (create-entity (base-dataflow/create) :view-1)
+                             (assoc :view {:type :text
+                                           :text "foo"}))
+             dataflow (set-value (::dataflow view-entity) :view-1 :layout
+                                 (fn [state]
+                                   (layout {:type :child-view-call
+                                            :child-view-id :view-1}
+                                           10 10)))]
 
-           (fact view (get-value dataflow :view-1 :view) => {:type :text, :text "foo"})
-           (fact layout (get-value dataflow :view-1 :layout) => {:type :child-view-call
-                                                                 :child-view-id :view-1})))
+         (fact view (get-value dataflow :view-1 :view) => {:type :text, :text "foo"})
+         (fact layout (get-value dataflow :view-1 :layout) => {:type :child-view-call
+                                                               :child-view-id :view-1})))
 
-(deftest view-definition-test
-  (debug/reset-log)
-  (let [application-state (-> (create-entity (base-dataflow/create) :application-state)
-                              (assoc :todos [(new-entity :text "do this")
-                                             (new-entity :text "do that")]))
+#_(facts view-definition-test
+       (debug/reset-log)
+       (let [application-state (-> (create-entity (base-dataflow/create) :application-state)
+                                   (assoc :todos [(new-entity :text "do this")
+                                                  (new-entity :text "do that")]))
 
-        child-view (view [state property]
-                         {:type :text
-                          :text (get-property (::dataflow state) property)})
+             child-view (view [state property]
+                              {:type :text
+                               :text (get-property (::dataflow state) property)})
 
-        root-view (view [state]
-                        (for [todo (:todos (switch-entity state :application-state))]
-                          (call-child-view state
-                                           [(::entity-id todo)]
-                                           child-view
-                                           (property (::entity-id todo) :text))))
+             root-view (view [state]
+                             (forall [todo (:todos (switch-entity state :application-state))]
+                                     (call-child-view state
+                                                      [(::entity-id todo)]
+                                                      child-view
+                                                      (property (::entity-id todo) :text))))
 
-        application-state (-> application-state
-                              (initialize-new-entity :root-view root-view))]
+             application-state (-> application-state
+                                   (initialize-new-entity :root-view root-view)
+                                   :root-view
+                                   (assoc :requested-width 100
+                                          :global-x 0)
+                                   (switch-entity :application-state))]
 
-    #_(doseq [line (base-dataflow/describe-dataflow (::dataflow application-state))]
-        (println line))
+         (doseq [line (base-dataflow/describe-dataflow (dataflow/propagate-changes (::dataflow application-state)))]
+           (println line))
 
-    (is (= (let [child-view ((:key (first (:view (:root-view application-state)))) (:root-view application-state))]
-             (:view child-view))
-           {:type :text, :text "do this"}))
+         (fact (let [child-view ((:key (first (:view (:root-view application-state)))) (:root-view application-state))]
+                 (:view child-view))
+               =>
+               {:type :text, :text "do this"})
 
-    (let [application-state (-> (:todos application-state)
-                                (first)
-                                (assoc :text "foo")
-                                (::dataflow)
-                                (dataflow/propagate-changes)
-                                (create-entity :application-state))]
 
-      (base-dataflow/debug-dataflow (::dataflow application-state))
+         (let [application-state (-> (:todos application-state)
+                                     (first)
+                                     (assoc :text "foo")
+                                     (::dataflow)
+                                     (dataflow/propagate-changes)
+                                     (create-entity :application-state))]
 
-      (is (= (let [child-view ((:key (first (:view (:root-view application-state)))) (:root-view application-state))]
-               (:view child-view))
-             {:type :text, :text "foo"}))
+           (base-dataflow/debug-dataflow (::dataflow application-state))
 
-      (is (= (let [child-view ((:key (first (:view (:root-view application-state)))) (:root-view application-state))]
-               (:layout child-view))
-             :flow-gl.dataflow.base-dataflow/undefined)))))
+           (fact (let [child-view ((:key (first (:view (:root-view application-state)))) (:root-view application-state))]
+                   (:view child-view))
+                 =>
+                 {:type :text, :text "foo"})
+
+
+           (let [child-view ((:key (first (:view (:root-view application-state)))) (:root-view application-state))]
+             (:layout child-view))
+           =>
+           :flow-gl.dataflow.base-dataflow/undefined)))
 
 (comment
   (debug/set-active-channels :all)
@@ -630,5 +649,3 @@
   (debug/reset-log)
 
   (debug/write-log))
-
-(run-tests)

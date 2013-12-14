@@ -12,7 +12,8 @@
   (declare-changed [dataflow cell])
   (cells [dataflow])
   (changes [dataflow])
-  (reset-changes [dataflow]))
+  (reset-changes [dataflow])
+  (dependents [dataflow cell]))
 
 
 (defn undefine-many [dataflow cells]
