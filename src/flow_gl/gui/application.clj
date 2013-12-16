@@ -3,6 +3,7 @@
             (flow-gl.gui [view :as view])
             [flow-gl.debug :as debug]
             [flow-gl.dataflow.dataflow :as dataflow]
+            [flow-gl.dataflow.base-dataflow :as base-dataflow]
             [flow-gl.opengl :as opengl]
             [flow-gl.gui.awt-input :as awt-input])
   (:import [java.io PrintWriter StringWriter]))
@@ -22,7 +23,7 @@
                    (swap! window-atom window/close))
                (do (view/update-gpu state)
                    (window/update @window-atom framerate)
-                   ; (swap! window-atom window/show-fps)
+                                        ; (swap! window-atom window/show-fps)
                    (recur)))))
          (debug/do-debug :render "render loop exit")
          (catch Exception e
@@ -57,19 +58,17 @@
   (debug/do-debug :events "event loop exit"))
 
 
-(defn start  [root-layoutable-constructor & {:keys [handle-event initialize width height framerate]
-                                             :or {handle-event (fn [state event] state)
-                                                  initialize (fn [state state-atom] state)
-                                                  width 700
-                                                  height 500
-                                                  framerate 30}} ]
-  
+(defn start  [root-view & {:keys [handle-event initialize width height framerate]
+                           :or {handle-event (fn [state event] state)
+                                initialize (fn [state state-atom] state)
+                                width 700
+                                height 500
+                                framerate 30}} ]
+
   (let [state-queue (java.util.concurrent.SynchronousQueue.)]
 
-
-
     (try
-      (let [state-atom (-> (view/create width height handle-event root-layoutable-constructor)
+      (let [state-atom (-> (view/create width height handle-event root-view)
                            ;;(assoc :window-atom window-atom)
                            (atom))]
 
@@ -83,7 +82,7 @@
                      (dataflow/propagate-changes)
                      ((fn [view-state]
                         (flow-gl.debug/debug :initialization "Initial view state:")
-                        (flow-gl.debug/debug-all :initialization (dataflow/dependency-tree view-state))
+                        (base-dataflow/debug-dataflow view-state)
                         view-state)))))
 
         (.start (Thread. (fn [] (render-loop width height @state-atom state-queue framerate))))

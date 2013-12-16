@@ -7,7 +7,8 @@
                           [layoutable :as layoutable]
                           [drawable :as drawable]
                           [input :as input]
-                          [mouse :as mouse])
+                          [mouse :as mouse]
+                          [drawable :as drawable])
              (flow-gl.opengl [window :as window])
              (flow-gl [opengl :as opengl]
                       [debug :as debug])
@@ -19,6 +20,7 @@
              [clojure.data.priority-map :as priority-map])
 
   (:use clojure.test
+        midje.sweet
         flow-gl.threading))
 
 ;; DEBUG
@@ -30,22 +32,22 @@
 
 ;; VIEW PARTS
 
-(defrecord ViewPartCall [view-id]
+(defrecord ChildViewCall [view-id]
   command/Command
   (create-runner [view-part-call] view-part-call)
   command/CommandRunner
   (delete [view-part-call])
   (run [view-part-call]))
 
-(defn element-path-to-layout-path [element-path]
-  (vec (concat [:layout] (rest element-path))))
+#_(defn element-path-to-layout-path [element-path]
+    (vec (concat [:layout] (rest element-path))))
 
 (def ^:dynamic view-being-laid-out)
 
 (defrecord ViewPart [local-id view-id]
   drawable/Drawable
   (drawing-commands [view-part]
-    [(->ViewPartCall view-id)])
+    [(->ChildViewCall view-id)])
 
   layoutable/Layoutable
   (preferred-width [view-part] (triple-dataflow/get-value base-dataflow/current-dataflow view-id :preferred-width))
@@ -53,24 +55,20 @@
 
   layout/Layout
   (layout [view-part requested-width requested-height global-x global-y]
-    (do (base-dataflow/apply-to-dataflow (fn [dataflow]
-                                           (-> (triple-dataflow/create-entity dataflow
-                                                                              view-id)
+    (base-dataflow/apply-to-dataflow (fn [dataflow]
+                                       (-> (triple-dataflow/create-entity dataflow
+                                                                          view-id)
 
-                                               (assoc :requested-width requested-width
-                                                      :requested-height requested-height
-                                                      :global-x global-x
-                                                      :global-y global-y)
+                                           (assoc :requested-width requested-width
+                                                  :requested-height requested-height
+                                                  :global-x global-x
+                                                  :global-y global-y)
 
-                                               :tripple-dataflow/dataflow)))
-        layoutable)
+                                           :tripple-dataflow/dataflow)))
     view-part)
 
-  (children-in-coordinates [this view-state x y]
-    (layout/children-in-coordinates (triple-dataflow/get-value base-dataflow/current-dataflow view-id :layout)
-                                    view-state
-                                    x
-                                    y))
+  (children [this]
+    (layout/children (triple-dataflow/get-value base-dataflow/current-dataflow view-id :layout)))
 
   Object
   (toString [_] (str "(->ViewPart " view-id)))
@@ -97,10 +95,10 @@
           gpu-state (reduce (fn [gpu-state view-id]
                               (load-view-part gpu-state view-state view-id))
                             gpu-state
-                            (->> (filter #(and (instance? ViewPartCall %)
-                                               (not (view-part-is-loaded? gpu-state (:view-part-layout-path %))))
+                            (->> (filter #(and (instance? ChildViewCall %)
+                                               (not (view-part-is-loaded? gpu-state (:view-id %))))
                                          drawing-commands)
-                                 (map :view-part-layout-path)))]
+                                 (map :view-id)))]
 
       (assoc-in gpu-state [:view-part-command-runners view-id] (command/command-runners-for-commands drawing-commands)))
     gpu-state))
@@ -110,42 +108,44 @@
     (load-view-part gpu-state view-state view-id)
     (unload-view-part gpu-state view-id)))
 
-
 (defmacro view [parameters view-expression]
   (let [state-symbol (first parameters)]
     `(fn ~parameters
-       (assoc-with-this ~state-symbol
-                        :view (fn [~state-symbol]
-                                ~view-expression)
+       (triple-dataflow/assoc-with-this ~state-symbol
+                                        :view (fn [~state-symbol]
+                                                ~view-expression)
 
-                        :layout (fn [state#]
-                                  (layout (:view state#)
-                                          (:requested-width state#)
-                                          (:global-x state#)))
+                                        :layout (fn [state#]
+                                                  (layout/layout (:view state#)
+                                                                 (:requested-width state#)
+                                                                 (:requested-height state#)
+                                                                 (:global-x state#)
+                                                                 (:global-y state#)))
 
-                        :preferred-width (fn [state#]
-                                           (preferred-width (:view state#)))))))
+                                        :preferred-width (fn [state#]
+                                                           (layoutable/preferred-width (:view state#)))))))
 
 (defn defview [name parameters view-expression]
   '(def ~name (view parameters view-expression)))
+
+(defn child-view-key [& identifiers]
+  (keyword (str "child-view-" identifiers)))
 
 (defn call-child-view [parent-view identifiers view & parameters]
   (let [key (apply child-view-key identifiers)
         child-view-id (if (contains? parent-view key)
                         (::entity-id (key parent-view))
-                        (create-entity-id))]
+                        (triple-dataflow/create-entity-id))]
 
     (do (when (not (contains? parent-view key))
           (base-dataflow/apply-to-dataflow (fn [dataflow]
                                              (-> (apply view
-                                                        (create-entity dataflow child-view-id)
+                                                        (triple-dataflow/create-entity dataflow child-view-id)
                                                         parameters)
-                                                 (switch-entity  parent-view)
-                                                 (assoc key (create-entity-reference-for-id child-view-id))
+                                                 (triple-dataflow/switch-entity  parent-view)
+                                                 (assoc key (triple-dataflow/create-entity-reference-for-id child-view-id))
                                                  ::dataflow))))
-        {:type :child-view-call
-         :kwey key
-         :child-view-id child-view-id})))
+        (->ChildViewCall child-view-id))))
 
 #_(defn init-and-call [parent-view identifiers view & parameters]
     (let [key (keyword (str "child-view-" identifiers))
@@ -177,14 +177,14 @@
   (debug/do-debug :render "draw-view-part " view-id)
 
   (doseq [command-runner (get-in gpu-state [:view-part-command-runners view-id])]
-    (if (instance? ViewPartCall command-runner)
+    (if (instance? ChildViewCall command-runner)
       (draw-view-part gpu-state (:view-id command-runner))
       (debug/debug-drop-last :render "running" (type command-runner)
                              (command/run command-runner)))))
 
 (defn render [gpu-state]
   (opengl/clear 0 0 0 0)
-  (draw-view-part gpu-state [:layout]))
+  (draw-view-part gpu-state :root-view))
 
 
 ;; TIME
@@ -199,44 +199,41 @@
          (dataflow/propagate-changes))))
 
 (defn is-time-dependant? [view]
-  (not (empty? (triple-dataflow/dependents view [:time]))))
+  (not (empty? (triple-dataflow/dependents view :globals :time))))
 
 
 ;; EVENT HANDLING
 
 (defn call-event-handler [view-state event]
-  #_(binding [dataflow/current-path [:elements]]
-      ((:event-handler view-state)
-       view-state
-       event)))
-
-
+  ((:event-handler view-state)
+   (triple-dataflow/create-entity view-state :root-view)
+   event))
 
 (defn handle-event [view-state event]
   (debug/debug :events "handle event " event)
-  #_(let [view-state (-> view-state
-                         (assoc :event-handled false)
-                         (update-time #_(:time event)))]
-      (cond (= (:source event) :mouse)
-            (mouse/handle-mouse-event view-state event)
+  (let [view-state (-> view-state
+                       (assoc :event-handled false)
+                       (update-time #_(:time event)))]
+    (cond (= (:source event) :mouse)
+          (mouse/handle-mouse-event view-state event)
 
-            (= (:type event) :resize-requested)
-            (dataflow/define-to view-state
-              :width (:width event)
-              :height (:height event))
+          (= (:type event) :resize-requested)
+          (-> view-state
+              (triple-dataflow/set-value :globals :width (:width event))
+              (triple-dataflow/set-value :globals :height (:height event)))
 
-            (= (:type event) :close-requested)
-            (-> view-state
-                (assoc :closing true)
-                (call-event-handler event))
+          (= (:type event) :close-requested)
+          (-> view-state
+              (assoc :closing true)
+              (call-event-handler event))
 
-            :default
-            (call-event-handler view-state event))))
+          :default
+          (call-event-handler view-state event))))
 
 (defn handle-events [view events]
   (let [events (->> events
                     (mouse/trim-mouse-movements)
-                    (map (partial mouse/invert-mouse-y (get view [:height]))))]
+                    (map (partial mouse/invert-mouse-y (triple-dataflow/get-value view :globals :height))))]
 
     (reduce handle-event view events)))
 
@@ -245,22 +242,22 @@
 
 (defn update-gpu [view-state]
   (let [changes-to-be-processed (dataflow/changes view-state)
-        resized (some #{[:width] [:height]} changes-to-be-processed)
-        changed-view-part-layout-paths (filter #(view-part-is-loaded? @(:gpu-state view-state) %)
-                                               changes-to-be-processed)]
+        resized (some #{[:globals :width] [:globals :height]} changes-to-be-processed)
+        changed-view-ids (filter #(view-part-is-loaded? @(:gpu-state view-state) %)
+                                 (map second changes-to-be-processed))]
 
     ;;(debug/do-debug :view-update "New view state:")
     ;;(debug/debug-all :view-update (dataflow/describe-dataflow view-state))
     (when resized
-      (window/resize (get view-state [:width])
-                     (get view-state [:height])))
-    (when (not (empty? changed-view-part-layout-paths))
+      (window/resize (triple-dataflow/get-value view-state :globals :width)
+                     (triple-dataflow/get-value view-state :globals :height)))
+    (when (not (empty? changed-view-ids))
       (-> (swap! (:gpu-state view-state)
                  (fn [gpu-state]
-                   (-> (reduce (fn [gpu-state layout-path]
-                                 (update-view-part gpu-state view-state layout-path))
+                   (-> (reduce (fn [gpu-state view-id]
+                                 (update-view-part gpu-state view-state view-id))
                                gpu-state
-                               changed-view-part-layout-paths)
+                               changed-view-ids)
                        ((fn [gpu-state]
                           (debug/do-debug :view-update "New gpu state:")
                           (debug/debug-all :view-update (describe-gpu-state gpu-state))
@@ -280,27 +277,29 @@
 
 ;; INITIALIZATION
 
-(defn initialize-view-state [width height root-element-constructor]
-  #_(-> (dataflow/create)
-        (dataflow/define-to
-          :width width
-          :height height
-          :mouse-x 0
-          :mouse-y 0
-          :fps 0
-          :elements root-element-constructor
-          :layout #(layout/set-dimensions-and-layout (dataflow/get-global-value :elements)
-                                                     0
-                                                     0
-                                                     0
-                                                     0
-                                                     (dataflow/get-global-value :width)
-                                                     (dataflow/get-global-value :height)))))
+(defn initialize-view-state [width height root-view]
+  (-> (base-dataflow/create)
+      (triple-dataflow/create-entity :globals)
+      (assoc :width width
+             :height height
+             :mouse-x 0
+             :mouse-y 0
+             :fps 0)
+      (triple-dataflow/initialize-new-entity :root-view root-view)
+      :root-view
+      (assoc :global-x 0
+             :global-y 0
+             :requested-width (fn [dataflow] (triple-dataflow/get-value :globals :width))
+             :requested-height (fn [dataflow] (triple-dataflow/get-value :globals :height)))
+      :triple-dataflow/dataflow))
 
-(defn create [width height event-handler root-element-constructor]
+(fact (initialize-view-state 100 100 (view [state] (drawable/->Rectangle 100 100 [0 0 1 1])))
+      => nil)
+
+(defn create [width height event-handler root-view]
   (-> (initialize-view-state width
                              height
-                             root-element-constructor)
+                             root-view)
       (assoc
           :fpss []
           :last-update-time (System/nanoTime)
@@ -310,9 +309,11 @@
 
 (defn initialize-gpu-state [view-state]
   (swap! (:gpu-state view-state) load-view-part
-         view-state [:layout]))
+         view-state :root-view))
 
-(defn set-view [state view]
-  #_(-> state
-        (dataflow/define-to [:elements] view)
-        (dataflow/propagate-changes)))
+(defn set-view [view-state view]
+  (-> view-state
+      (triple-dataflow/create-entity :globals)
+      (triple-dataflow/initialize-new-entity :root-view view)
+      :triple-dataflow/dataflow
+      (dataflow/propagate-changes)))
