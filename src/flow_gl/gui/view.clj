@@ -76,8 +76,8 @@
 (defn loaded-view-parts [gpu-state]
   (keys (:view-part-command-runners gpu-state)))
 
-(defn view-part-is-loaded? [gpu-state view-part-layout-path]
-  (contains? (:view-part-command-runners gpu-state) view-part-layout-path))
+(defn view-part-is-loaded? [gpu-state view-id]
+  (contains? (:view-part-command-runners gpu-state) view-id))
 
 (defn unload-view-part [gpu-state view-id]
   (dorun (map command/delete (get-in gpu-state [:view-part-command-runners view-id])))
@@ -86,7 +86,7 @@
 (defn load-view-part [gpu-state view-state view-id]
   (unload-view-part gpu-state view-id)
 
-  (debug/do-debug :view-update "loading " view-id)
+  (debug/do-debug :view-update "loading " view-id " is defined " (triple-dataflow/is-defined? view-state view-id :layout))
 
   (if (triple-dataflow/is-defined? view-state view-id :layout)
     (let [drawing-commands (if-let [layout (triple-dataflow/get-value view-state view-id :layout)]
@@ -123,7 +123,10 @@
                                                                  (:global-y state#)))
 
                                         :preferred-width (fn [state#]
-                                                           (layoutable/preferred-width (:view state#)))))))
+                                                           (layoutable/preferred-width (:view state#)))
+
+                                        :preferred-height (fn [state#]
+                                                            (layoutable/preferred-height (:view state#)))))))
 
 (defn defview [name parameters view-expression]
   '(def ~name (view parameters view-expression)))
@@ -174,6 +177,7 @@
 ;; RENDERING
 
 (defn draw-view-part [gpu-state view-id]
+  (println "drawing " view-id)
   (debug/do-debug :render "draw-view-part " view-id)
 
   (doseq [command-runner (get-in gpu-state [:view-part-command-runners view-id])]
@@ -204,11 +208,17 @@
 ;; EVENT HANDLING
 
 (defn call-event-handler [view-state event]
-  ((:event-handler view-state)
-   (triple-dataflow/create-entity view-state :root-view)
-   event))
+  (println "calling " event)
+  (-> view-state
+
+      (triple-dataflow/create-entity :root-view)
+
+      ((:event-handler view-state) event)
+
+      ::triple-dataflow/dataflow))
 
 (defn handle-event [view-state event]
+  (println "handling-event " event " type " (type view-state))
   (debug/debug :events "handle event " event)
   (let [view-state (-> view-state
                        (assoc :event-handled false)
@@ -243,10 +253,15 @@
   (let [changes-to-be-processed (dataflow/changes view-state)
         resized (some #{[:globals :width] [:globals :height]} changes-to-be-processed)
         changed-view-ids (filter #(view-part-is-loaded? @(:gpu-state view-state) %)
-                                 (map second changes-to-be-processed))]
+                                 (map first changes-to-be-processed))]
 
-    ;;(debug/do-debug :view-update "New view state:")
-    ;;(debug/debug-all :view-update (dataflow/describe-dataflow view-state))
+    
+    (debug/do-debug :view-update "loaded views " (keys (:view-part-command-runners @(:gpu-state view-state))))
+    (debug/do-debug :view-update "changed views " (vec changed-view-ids) (vec changes-to-be-processed))
+
+    (debug/do-debug :view-update "New view state:")
+    (base-dataflow/debug-dataflow view-state)
+
     (when resized
       (window/resize (triple-dataflow/get-value view-state :globals :width)
                      (triple-dataflow/get-value view-state :globals :height)))
@@ -266,6 +281,7 @@
 (defn update [view-atom events]
   (swap! view-atom
          (fn [view]
+           (println "type is " (type view))
            (-> view
                (handle-events events)
                (dataflow/propagate-changes)
@@ -284,16 +300,18 @@
              :mouse-x 0
              :mouse-y 0
              :fps 0)
-      (triple-dataflow/initialize-new-entity :root-view root-view)
-      :root-view
+      (triple-dataflow/switch-entity :root-view)
+      (root-view)
       (assoc :global-x 0
              :global-y 0
-             :requested-width (fn [dataflow] (triple-dataflow/get-value :globals :width))
-             :requested-height (fn [dataflow] (triple-dataflow/get-value :globals :height)))
-      :triple-dataflow/dataflow))
+             :requested-width (fn [dataflow] (triple-dataflow/get-value dataflow :globals :width))
+             :requested-height (fn [dataflow] (triple-dataflow/get-value dataflow :globals :height)))
+      ::triple-dataflow/dataflow))
 
-(fact (initialize-view-state 100 100 (view [state] (drawable/->Rectangle 100 100 [0 0 1 1])))
-      => nil)
+(fact initialize-view-state-test
+      (-> (initialize-view-state 100 100 (view [state] (drawable/->Rectangle 100 100 [0 0 1 1])))
+          (triple-dataflow/get-value :globals :width))
+      => 100)
 
 (defn create [width height event-handler root-view]
   (-> (initialize-view-state width

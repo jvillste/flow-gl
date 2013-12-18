@@ -12,8 +12,8 @@
 
 
 (extend Object
-  Layout {:layout (fn [layout requested-width requested-height] layout)
-          :children-in-coordinates (fn [layout view-state x y] [])})
+  Layout {:layout (fn [this requested-width requested-height global-x global-y] this)
+          :children (fn [this] [])})
 
 
 ;; UTILITIES

@@ -460,7 +460,6 @@
     0))
 
 (defn layout [layoutable requested-width global-x]
-  (println "layoutable " layoutable)
   (case (:type layoutable)
     :margin (-> layoutable
                 (assoc :global-x global-x)
