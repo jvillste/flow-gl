@@ -3,7 +3,7 @@
                          [application :as application])))
 
 (defn start []
-  (application/start (fn [] (drawable/->Rectangle 100 100 [0 0 1 1]))))
+  (application/start (fn [state] (drawable/->Rectangle 100 100 [0 0 1 1]))))
 
 (comment
 (start))

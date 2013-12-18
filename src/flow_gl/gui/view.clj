@@ -186,7 +186,6 @@
   (opengl/clear 0 0 0 0)
   (draw-view-part gpu-state :root-view))
 
-
 ;; TIME
 
 (defn update-time
