@@ -205,11 +205,17 @@
 ;; EVENT HANDLING
 
 (defn call-event-handler [view-state event]
-  ((:event-handler view-state)
-   (triple-dataflow/create-entity view-state :root-view)
-   event))
+  (println "calling " event)
+  (-> view-state
+
+      (triple-dataflow/create-entity :root-view)
+
+      ((:event-handler view-state) event)
+
+      ::triple-dataflow/dataflow))
 
 (defn handle-event [view-state event]
+  (println "handling-event " event " type " (type view-state))
   (debug/debug :events "handle event " event)
   (let [view-state (-> view-state
                        (assoc :event-handled false)
@@ -267,6 +273,7 @@
 (defn update [view-atom events]
   (swap! view-atom
          (fn [view]
+           (println "type is " (type view))
            (-> view
                (handle-events events)
                (dataflow/propagate-changes)
@@ -289,12 +296,14 @@
       :root-view
       (assoc :global-x 0
              :global-y 0
-             :requested-width (fn [dataflow] (triple-dataflow/get-value :globals :width))
-             :requested-height (fn [dataflow] (triple-dataflow/get-value :globals :height)))
-      :triple-dataflow/dataflow))
+             :requested-width (fn [dataflow] (triple-dataflow/get-value dataflow :globals :width))
+             :requested-height (fn [dataflow] (triple-dataflow/get-value dataflow :globals :height)))
+      ::triple-dataflow/dataflow))
 
-(fact (initialize-view-state 100 100 (view [state] (drawable/->Rectangle 100 100 [0 0 1 1])))
-      => nil)
+(fact initialize-view-state-test
+      (-> (initialize-view-state 100 100 (view [state] (drawable/->Rectangle 100 100 [0 0 1 1])))
+          (triple-dataflow/get-value :globals :width))
+      => 100)
 
 (defn create [width height event-handler root-view]
   (-> (initialize-view-state width

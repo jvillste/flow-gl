@@ -37,8 +37,8 @@
          (finally (debug/write-log)))))
 
 (defn event-loop [state-atom state-queue]
-  (debug/do-debug :events "starting event loop")
   (loop []
+    (println "state type " (type @state-atom))
     (if (view/is-time-dependant? @state-atom)
       (do (swap! state-atom view/update-time)
           (let [events (awt-input/dequeue-events)]
@@ -47,7 +47,7 @@
                   (view/update state-atom events)))))
       (let [events (awt-input/dequeue-events-or-wait)]
         (debug/do-debug :events "handling events " events)
-        (println "handling " events)
+        (println "handling in loop " events " type " (type @state-atom))
 
         (debug/write-log)
         (view/update state-atom events)))
