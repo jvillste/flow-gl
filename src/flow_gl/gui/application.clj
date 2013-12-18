@@ -34,7 +34,10 @@
 
            (swap! window-atom window/close)
            (throw e))
-         (finally (debug/write-log)))))
+         (finally (debug/write-log))))
+
+  (println "render-loop exit")
+  (debug/do-debug :render "render-loop exit"))
 
 (defn event-loop [state-atom state-queue]
   (loop []
@@ -47,7 +50,6 @@
                   (view/update state-atom events)))))
       (let [events (awt-input/dequeue-events-or-wait)]
         (debug/do-debug :events "handling events " events)
-        (println "handling in loop " events " type " (type @state-atom))
 
         (debug/write-log)
         (view/update state-atom events)))
@@ -55,6 +57,8 @@
     (swap! state-atom dataflow/reset-changes)
     (when (not (:closing @state-atom))
       (recur)))
+
+  (println "event loop exit")
   (debug/do-debug :events "event loop exit"))
 
 
@@ -64,6 +68,7 @@
                                 width 700
                                 height 500
                                 framerate 30}} ]
+  (debug/reset-log)
 
   (let [state-queue (java.util.concurrent.SynchronousQueue.)]
 
