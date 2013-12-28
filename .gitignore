@@ -13,3 +13,4 @@ pom.xml
 *~
 config_debug.clj
 debug-log.txt
+/.DS_store
