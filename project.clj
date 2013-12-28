@@ -11,7 +11,9 @@
                  [org.clojure/core.async "0.1.242.0-44b1e3-alpha"]
                  [org.clojure/tools.namespace "0.2.4"]
                  [midje "1.5.1"]
-                 [org.clojars.toxi/jogl "2.0.0-rc11"]]
+                 ;[org.clojars.toxi/jogl "2.0.0-rc11"]
+                 [org.clojars.jvillste/jogl-all "2.1.3-rc-20131212"]
+                 ]
 
   ;; :java-cmd "/usr/lib/jvm/java-6-sun/bin/java"
   :java-opts ["-Xmx60m"

@@ -147,7 +147,7 @@
                                                         parameters)
                                                  (triple-dataflow/switch-entity  parent-view)
                                                  (assoc key (triple-dataflow/create-entity-reference-for-id child-view-id))
-                                                 ::dataflow))))
+                                                 ::triple-dataflow/dataflow))))
         (->ChildViewCall child-view-id))))
 
 #_(defn init-and-call [parent-view identifiers view & parameters]
@@ -255,7 +255,6 @@
         changed-view-ids (filter #(view-part-is-loaded? @(:gpu-state view-state) %)
                                  (map first changes-to-be-processed))]
 
-    
     (debug/do-debug :view-update "loaded views " (keys (:view-part-command-runners @(:gpu-state view-state))))
     (debug/do-debug :view-update "changed views " (vec changed-view-ids) (vec changes-to-be-processed))
 
