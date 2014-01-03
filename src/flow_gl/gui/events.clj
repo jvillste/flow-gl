@@ -1,14 +1,19 @@
 (ns flow-gl.gui.events
-  (:require  [flow-gl.dataflow :as dataflow]
-             [flow-gl.gui.awt-input :as input]
-             [flow-gl.gui.application :as application]))
+  #_(:require  ;;[flow-gl.dataflow :as dataflow]
+             ;;[flow-gl.gui.application :as application]
+             ))
 
+(defn key-pressed? [keyboard-event key]
+  (and (= (:key-code keyboard-event)
+          key)
+       (= (:type keyboard-event)
+          :key-pressed)))
 
-(defn on-key-apply-one [state event key path function]
-  `((input/key-pressed? ~event ~key)
+#_(defn on-key-apply-one [state event key path function]
+  `((key-pressed? ~event ~key)
     (dataflow/apply-to-value ~state ~path ~function)))
 
-(defmacro on-key-apply [state event & specs]
+#_(defmacro on-key-apply [state event & specs]
   (let [specs (partition 3 specs)]
     `(cond ~@(mapcat (fn [[key path function]]
                        (on-key-apply-one state event key path function))
@@ -16,8 +21,25 @@
            :default ~state)))
 
 
-(defn close-on-esc [state event]
-  (if (input/key-pressed? event input/esc)
+#_(defn close-on-esc [state event]
+  (if (key-pressed? event input/esc)
     (do (application/request-close)
         state)
     state))
+
+
+
+(defn create-close-requested-event []
+  {:type :close-requested})
+
+(defn create-resize-requested-event [width height]
+  {:type :resize-requested
+   :width width
+   :height height})
+
+(defn create-keyboard-event [type key-code character time]
+  {:type type
+   :key-code key-code
+   :character character
+   :time time
+   :source :keyboard})

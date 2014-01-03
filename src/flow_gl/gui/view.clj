@@ -9,7 +9,6 @@
                           [input :as input]
                           [mouse :as mouse]
                           [drawable :as drawable])
-             (flow-gl.opengl [window :as window])
              (flow-gl [opengl :as opengl]
                       [debug :as debug])
              (flow-gl.dataflow [dataflow :as dataflow]
@@ -249,7 +248,7 @@
 
 ;; UPDATE
 
-(defn update-gpu [view-state]
+(defn update-gpu [view-state gl]
   (let [changes-to-be-processed (dataflow/changes view-state)
         resized (some #{[:globals :width] [:globals :height]} changes-to-be-processed)
         changed-view-ids (filter #(view-part-is-loaded? @(:gpu-state view-state) %)
@@ -262,7 +261,8 @@
     (base-dataflow/debug-dataflow view-state)
 
     (when resized
-      (window/resize (triple-dataflow/get-value view-state :globals :width)
+      (opengl/resize gl
+                     (triple-dataflow/get-value view-state :globals :width)
                      (triple-dataflow/get-value view-state :globals :height)))
     (when (not (empty? changed-view-ids))
       (-> (swap! (:gpu-state view-state)

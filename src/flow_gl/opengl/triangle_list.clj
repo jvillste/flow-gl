@@ -57,7 +57,7 @@ void main() {
 
 (defn create-shared-resources []
   (reset! shader-program-atom (shader/compile-program vertex-shader-source
-                                                 fragment-shader-source)))
+                                                      fragment-shader-source)))
 
 (defn delete-shared-resources []
   (shader/delete-program @shader-program-atom)

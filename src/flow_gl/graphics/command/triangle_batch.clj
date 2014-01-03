@@ -1,5 +1,5 @@
 (ns flow-gl.graphics.command.triangle-batch
-  (:require [flow-gl.opengl.triangle-list :as triangle-list]
+  (:require [flow-gl.opengl.jogl.triangle-list :as triangle-list]
             [flow-gl.graphics.command :as command]))
 
 (defrecord TriangleBatch [coordinates colors])
@@ -19,16 +19,17 @@
   (/ (count (:coordinates triangle-batch))
      6))
 
-(defn create-triangle-list [triangle-batch]
-  (triangle-list/create-for-coordinates :triangles
+(defn create-triangle-list [gl triangle-batch]
+  (triangle-list/create-for-coordinates gl
+                                        :triangles
                                         (:coordinates triangle-batch)
                                         (:colors triangle-batch)))
 
-(defn update-triangle-list-from-triangle-batch [triangle-list triangle-batch]
-  (triangle-list/update triangle-list (:coordinates triangle-batch) (:colors triangle-batch)))
+(defn update-triangle-list-from-triangle-batch [gl triangle-list triangle-batch]
+  (triangle-list/update gl triangle-list (:coordinates triangle-batch) (:colors triangle-batch)))
 
-(defn create-triangle-batch-runner [triangle-batch]
-  (->  (create-triangle-list triangle-batch)
+(defn create-triangle-batch-runner [triangle-batch gl]
+  (->  (create-triangle-list gl triangle-batch)
        (->TriangleBatchRunner)))
 
 (extend TriangleBatch
@@ -39,5 +40,5 @@
 
 (extend TriangleBatchRunner
   command/CommandRunner
-  {:delete (fn [triangle-batch-runner]  (triangle-list/delete (:triangle-list triangle-batch-runner)))
-   :run (fn [triangle-batch-runner] (triangle-list/render (:triangle-list triangle-batch-runner)))})
+  {:delete (fn [triangle-batch-runner gl]  (triangle-list/delete gl (:triangle-list triangle-batch-runner)))
+   :run (fn [triangle-batch-runner gl] (triangle-list/render gl (:triangle-list triangle-batch-runner)))})

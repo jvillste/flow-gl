@@ -1,6 +1,5 @@
-(ns flow-gl.opengl.buffered-image
-  (:import [org.lwjgl.opengl GL11]
-           [java.awt.image BufferedImage Raster DataBuffer ComponentColorModel]
+(ns flow-gl.graphics.buffered-image
+  (:import [java.awt.image BufferedImage Raster DataBuffer ComponentColorModel]
            [java.awt.color ColorSpace]
            [java.util Hashtable]
            [java.nio IntBuffer FloatBuffer ByteBuffer ByteOrder]

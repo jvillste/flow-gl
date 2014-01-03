@@ -9,9 +9,11 @@
 
 (defn refresh []
 
-  (repl/set-refresh-dirs "src"
+  (repl/set-refresh-dirs #_"src"
                          #_"src/flow_gl/dataflow"
-                         #_"src/flow_gl/gui")
+                         #_"src/flow_gl/gui"
+                         "src/flow_gl/opengl"
+                         "src/flow_gl/graphics")
 
                                         ;(disable-reload! flow-gl.dataflow.hierarchical-dataflow)
 

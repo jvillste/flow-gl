@@ -1,7 +1,7 @@
 (ns flow-gl.opengl.texture
   (:refer-clojure :exclude (load))
   (:import [org.lwjgl.opengl GL11 ARBMultitexture])
-  (:require [flow-gl.opengl.buffered-image :as buffered-image]))
+  (:require [flow-gl.graphics.buffered-image :as buffered-image]))
 
 (defn- texture-dimension [value] value)
 (defn- create-gl-texture [] (GL11/glGenTextures))

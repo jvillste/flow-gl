@@ -66,10 +66,10 @@
   (GL11/glBlendFunc GL11/GL_SRC_ALPHA GL11/GL_ONE_MINUS_SRC_ALPHA))
 
 (defn request-close []
-  (awt-input/add-event {:type :close-requested}))
+  #_(awt-input/add-event {:type :close-requested}))
 
 (defn request-redraw []
-  (awt-input/add-event {:type :redraw-requested}))
+  #_(awt-input/add-event {:type :redraw-requested}))
 
 (defn create [initial-width initial-height]
   (let [canvas (Canvas.)
@@ -86,7 +86,7 @@
     (.addComponentListener canvas
                            (proxy [ComponentAdapter] []
                              (componentResized [e]
-                               (awt-input/add-event {:type :resize-requested
+                               #_(awt-input/add-event {:type :resize-requested
                                                      :width (-> canvas .getSize .getWidth)
                                                      :height (-> canvas .getSize .getHeight)})
                                (swap! window-atom assoc

@@ -1,17 +1,43 @@
 (ns flow-gl.opengl
-  (:require (flow-gl.opengl [triangle-list :as triangle-list])
+  (:require (flow-gl.opengl.jogl [triangle-list :as triangle-list])
             (flow-gl.graphics [image :as image]))
-  (:import [org.lwjgl.opengl GL11]))
+  (:import [javax.media.opengl GL2]))
 
 
-(defn initialize []
-  (triangle-list/create-shared-resources)
-  (image/create-shared-resources))
+(defn initialize-gl [gl]
+  (doto gl
+    (.glEnable GL2/GL_BLEND)
+    (.glEnable GL2/GL_TEXTURE_2D)
+    (.glColorMask true, true, true, true)
+    (.glBlendFunc GL2/GL_SRC_ALPHA GL2/GL_ONE_MINUS_SRC_ALPHA)))
 
-(defn dispose []
-  (triangle-list/delete-shared-resources)
-  (image/delete-shared-resources))
+(defn initialize [gl]
+  (initialize-gl gl)
+  (triangle-list/create-shared-resources gl)
+  ;;(image/create-shared-resources)
+  )
 
-(defn clear [r g b a]
-  (GL11/glClearColor r g b a)
-  (GL11/glClear GL11/GL_COLOR_BUFFER_BIT))
+
+(defn dispose [gl]
+  (triangle-list/delete-shared-resources gl)
+  ;;(image/delete-shared-resources)
+  )
+
+(defn clear [gl r g b a]
+  (doto gl
+    (.glClearColor r g b a)
+    (.glClear GL2/GL_COLOR_BUFFER_BIT)))
+
+(defn resize [gl width height]
+  (doto gl
+    (.glViewport 0 0 width height)
+    (.glMatrixMode GL2/GL_PROJECTION)
+    (.glLoadIdentity)
+    (.glOrtho 0, width, 0, height, -1, 1)
+
+    (.glMatrixMode GL2/GL_MODELVIEW)
+    (.glLoadIdentity)
+    (.glScalef 1 -1 1)
+    (.glTranslatef 0 (- height) 0)))
+
+

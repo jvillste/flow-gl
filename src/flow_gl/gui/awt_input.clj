@@ -3,24 +3,6 @@
   (:import
    (java.awt.event KeyListener MouseAdapter KeyAdapter WindowAdapter)))
 
-(def event-queue (java.util.concurrent.LinkedBlockingQueue.))
-
-(defn dequeue-events []
-  (loop [events (list)]
-    (if (.peek event-queue)
-      (do (debug/do-debug :events "deque event " (.peek event-queue))
-          (recur (conj events (.take event-queue))))
-      events)))
-
-(defn dequeue-events-or-wait []
-  (if (not (.peek event-queue))
-    (list (.take event-queue))
-    (dequeue-events)))
-
-(defn add-event [event]
-  (debug/do-debug :events "add event " event)
-  (.put event-queue event))
-
 (defn create-keyboard-event [awt-event]
   {:type ({java.awt.event.KeyEvent/KEY_PRESSED :key-pressed
            java.awt.event.KeyEvent/KEY_RELEASED :key-released
@@ -40,8 +22,8 @@
           :key-pressed)))
 
 (defn set-key-listener [component]
-  (.setFocusTraversalKeysEnabled component false)
-  (.addKeyListener component
+  #_(.setFocusTraversalKeysEnabled component false)
+  #_(.addKeyListener component
                    (proxy [KeyAdapter] []
                      (keyPressed [e]
                        (add-event (create-keyboard-event e))))))
