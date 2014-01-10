@@ -29,6 +29,7 @@
   (triangle-list/update gl triangle-list (:coordinates triangle-batch) (:colors triangle-batch)))
 
 (defn create-triangle-batch-runner [triangle-batch gl]
+  (println "create-triangle-batch-runner")
   (->  (create-triangle-list gl triangle-batch)
        (->TriangleBatchRunner)))
 

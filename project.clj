@@ -2,6 +2,7 @@
   :description "FIXME: write description"
   :repositories {"sonatype-oss-public" "https://oss.sonatype.org/content/groups/public/"} ;; for priority-map
   :dependencies [[org.clojure/clojure "1.5.1"]
+                 [org.clojure/tools.trace "0.7.6"]
                  [org.lwjgl/lwjgl "2.7.1"]
                  [org.lwjgl/lwjgl-util "2.7.1"]
                  [org.lwjgl/lwjgl-native-platform "2.7.1"]

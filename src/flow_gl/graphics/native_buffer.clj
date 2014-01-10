@@ -2,9 +2,6 @@
   (:import [com.jogamp.common.nio Buffers]
            [java.nio FloatBuffer IntBuffer]))
 
-
-
-
 (def native-buffers (atom {}))
 
 (defn float-buffer-to-array [^FloatBuffer float-buffer]
@@ -23,6 +20,7 @@
 (defn create-native-buffer [type capacity]
   (case type
     :int (Buffers/newDirectIntBuffer capacity)
+    :byte (Buffers/newDirectByteBuffer capacity)
     :float (Buffers/newDirectFloatBuffer capacity)))
 
 (defn buffer-capacity [minimum-capacity]
@@ -51,6 +49,7 @@
 (defn coercion [type]
   (case type
     :int int
+    :byte byte
     :float float))
 
 (defn native-buffer-with-values [type values]

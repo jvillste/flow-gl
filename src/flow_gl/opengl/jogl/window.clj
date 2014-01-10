@@ -3,7 +3,7 @@
             [flow-gl.gui.events :as events])
   (:import [com.jogamp.newt.event WindowAdapter WindowEvent]
            [com.jogamp.newt.opengl GLWindow]
-           [javax.media.opengl GLCapabilities GLProfile GLContext GL GL2 DebugGL2 GLEventListener GLAutoDrawable]
+           [javax.media.opengl GLCapabilities GLProfile GLContext GL GL2 DebugGL2 GLEventListener GLAutoDrawable TraceGL2]
            [com.jogamp.newt.event KeyAdapter]))
 
 (defn create-keyboard-event [event type]
@@ -14,8 +14,10 @@
                                   nil)
                                 (.getWhen event)))
 
+
+
 (defn create [width height event-queue]
-  (let [gl-profile (GLProfile/getDefault)
+  (let [gl-profile (GLProfile/get GLProfile/GL2)
         gl-capabilities (GLCapabilities. gl-profile)
         window (GLWindow/create gl-capabilities)]
     (.addKeyListener window (proxy [KeyAdapter] []
@@ -42,7 +44,8 @@
 
 (defn start-rendering [window]
   (.makeCurrent (:context window))
-  (.setGL (:context window) (DebugGL2. (.getGL2 (.getGL (:context window))))))
+  (.setGL (:context window) (TraceGL2. (DebugGL2. (.getGL2 (.getGL (:context window))))
+                                       System/err)))
 
 (defn end-rendering [window]
   (.release (:context window))
