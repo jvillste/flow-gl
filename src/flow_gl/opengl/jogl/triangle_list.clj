@@ -42,7 +42,6 @@ void main() {
 ")
 
 (defn update [triangle-list gl coordinates colors]
-  (println "updating triangle list")
   (buffer/load-buffer gl
                       (:vertex-coordinate-buffer-id triangle-list)
                       :float
@@ -70,7 +69,6 @@ void main() {
   (reset! shader-program-atom nil))
 
 (defn create [gl mode]
-  (println "creating triangle list")
   (map->TriangleList {:mode mode
                       :vertex-coordinate-attribute-index (.glGetAttribLocation gl @shader-program-atom "vertex_coordinate_attribute")
                       :vertex-color-attribute-index (.glGetAttribLocation gl @shader-program-atom "vertex_color_attribute")
@@ -90,25 +88,7 @@ void main() {
 
 
 (defn render [gl triangle-list]
-  (println "rendering " triangle-list "shader program " @shader-program-atom)
   (shader/enable-program gl @shader-program-atom)
-
-  ;; gl2.glEnableClientState( GL2.GL_VERTEX_ARRAY );
-  ;; gl2.glEnableClientState( GL2.GL_COLOR_ARRAY );
-  ;; gl2.glVertexPointer( 3, GL.GL_FLOAT, 6 * Buffers.SIZEOF_FLOAT, 0 );
-  ;; gl2.glColorPointer( 3, GL.GL_FLOAT, 6 * Buffers.SIZEOF_FLOAT, 3 * Buffers.SIZEOF_FLOAT );
-  ;; gl2.glPolygonMode( GL.GL_FRONT, GL2.GL_FILL );
-  ;; gl2.glDrawArrays( GL2.GL_QUADS, 0, aiNumOfVertices[0] );
-
-  ;; // disable arrays once we're done
-  ;; gl2.glBindBuffer( GL.GL_ARRAY_BUFFER, 0 );
-  ;; gl2.glDisableClientState( GL2.GL_VERTEX_ARRAY );
-  ;; gl2.glDisableClientState( GL2.GL_COLOR_ARRAY );
-
-
-  ;;  (.glEnableClientState gl GL2/GL_VERTEX_ARRAY)
-  ;;  (.glEnableClientState gl GL2/GL_COLOR_ARRAY)
-  ;;  (.glVertexPointer gl (int 2) (int GL/GL_FLOAT) (int (* 2 Buffers/SIZEOF_FLOAT)) (long 0))
 
   (buffer/bind-buffer gl (:vertex-coordinate-buffer-id triangle-list))
   (.glVertexAttribPointer gl
@@ -137,8 +117,5 @@ void main() {
 
   (.glDisableVertexAttribArray gl (:vertex-coordinate-attribute-index triangle-list))
   (.glDisableVertexAttribArray gl (:vertex-color-attribute-index triangle-list))
-
-  ;;(.glDisableClientState gl GL2/GL_VERTEX_ARRAY)
-  ;;(.glDisableClientState gl GL2/GL_COLOR_ARRAY)
 
   triangle-list)

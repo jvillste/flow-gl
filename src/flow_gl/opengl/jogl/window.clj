@@ -26,7 +26,7 @@
                               (keyReleased [event]
                                 (event-queue/add-event event-queue (create-keyboard-event event :key-released)))))
 
-    (.setSize window 300 300)
+    (.setSize window width height)
     (.setVisible window true)
     (.addWindowListener window (proxy [WindowAdapter] []
                                  (windowDestroyNotify [event]
@@ -38,6 +38,12 @@
                                                                                                 (.getHeight window))))))
     {:gl-window  window
      :context (.createContext window nil)}))
+
+(defn width [window]
+  (.getWidth (:gl-window window)))
+
+(defn height [window]
+  (.getHeight (:gl-window window)))
 
 (defn close [window]
   (.destroy (:gl-window window)))

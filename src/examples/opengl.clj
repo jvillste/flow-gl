@@ -7,13 +7,12 @@
   (:import [javax.media.opengl GL2]
            [java.io PrintWriter StringWriter]))
 
-(let [width 200
-      height 200
+(let [width 300
+      height 300
       window (window/create width height (event-queue/create))
       gl (window/start-rendering window)]
 
   (try
-
     (opengl/initialize gl)
     (opengl/resize gl width height)
 
