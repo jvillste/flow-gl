@@ -3,7 +3,7 @@
             (flow-gl.graphics.command 
                                    [push-modelview :as push-modelview]
                                    [pop-modelview :as pop-modelview]))
-  (:import [org.lwjgl.opengl GL11]))
+  (:import [javax.media.opengl GL2]))
 
 (defrecord Translate [x y])
 
@@ -15,14 +15,14 @@
 
 (extend Translate
   command/Command
-  {:create-runner identity}
+  {:create-runner (fn [this gl] this)}
   command/CombinableCommand
   {:combine combine}
   command/CommandRunner
-  {:delete identity
-   :run (fn [{:keys [x y]}]
-          (GL11/glMatrixMode GL11/GL_MODELVIEW)
-          (GL11/glTranslatef x y 0))})
+  {:delete (fn [translate gl] translate)
+   :run (fn [{:keys [x y]} gl]
+          (.glMatrixMode gl GL2/GL_MODELVIEW)
+          (.glTranslatef gl x y 0))})
 
 (defn translate [x y & commands]
   (concat [(push-modelview/->PushModelview)

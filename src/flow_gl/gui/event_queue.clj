@@ -4,6 +4,7 @@
 (defn create [] (java.util.concurrent.LinkedBlockingQueue.))
 
 (defn dequeue-events [event-queue]
+  
   (loop [events (list)]
     (if (.peek event-queue)
       (do (debug/do-debug :events "deque event " (.peek event-queue))
@@ -13,7 +14,7 @@
 (defn dequeue-events-or-wait [event-queue]
   (if (not (.peek event-queue))
     (list (.take event-queue))
-    (dequeue-events)))
+    (dequeue-events event-queue)))
 
 (defn add-event [event-queue event]
   (debug/do-debug :events "add event " event)

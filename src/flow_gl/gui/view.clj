@@ -33,10 +33,10 @@
 
 (defrecord ChildViewCall [view-id]
   command/Command
-  (create-runner [view-part-call] view-part-call)
+  (create-runner [view-part-call gl] view-part-call)
   command/CommandRunner
-  (delete [view-part-call])
-  (run [view-part-call]))
+  (delete [view-part-call gl])
+  (run [view-part-call gl]))
 
 #_(defn element-path-to-layout-path [element-path]
     (vec (concat [:layout] (rest element-path))))
@@ -78,12 +78,13 @@
 (defn view-part-is-loaded? [gpu-state view-id]
   (contains? (:view-part-command-runners gpu-state) view-id))
 
-(defn unload-view-part [gpu-state view-id]
-  (dorun (map command/delete (get-in gpu-state [:view-part-command-runners view-id])))
+(defn unload-view-part [gpu-state view-id gl]
+  (dorun (map #(command/delete % gl) (get-in gpu-state [:view-part-command-runners view-id])))
   (update-in gpu-state [:view-part-command-runners] dissoc view-id))
 
-(defn load-view-part [gpu-state view-state view-id]
-  (unload-view-part gpu-state view-id)
+(defn load-view-part [gpu-state view-state view-id gl]
+  (println "loading " view-id)
+  (unload-view-part gpu-state view-id gl)
 
   (debug/do-debug :view-update "loading " view-id " is defined " (triple-dataflow/is-defined? view-state view-id :layout))
 
@@ -99,13 +100,13 @@
                                          drawing-commands)
                                  (map :view-id)))]
 
-      (assoc-in gpu-state [:view-part-command-runners view-id] (command/command-runners-for-commands drawing-commands)))
+      (assoc-in gpu-state [:view-part-command-runners view-id] (command/command-runners-for-commands drawing-commands gl)))
     gpu-state))
 
-(defn update-view-part [gpu-state view-state view-id]
+(defn update-view-part [gpu-state view-state view-id gl]
   (if (triple-dataflow/is-defined? view-state view-id :layout)
-    (load-view-part gpu-state view-state view-id)
-    (unload-view-part gpu-state view-id)))
+    (load-view-part gpu-state view-state view-id gl)
+    (unload-view-part gpu-state view-id gl)))
 
 (defmacro view [parameters view-expression]
   (let [state-symbol (first parameters)]
@@ -175,7 +176,7 @@
 
 ;; RENDERING
 
-(defn draw-view-part [gpu-state view-id]
+(defn draw-view-part [gpu-state view-id gl]
   (println "drawing " view-id)
   (debug/do-debug :render "draw-view-part " view-id)
 
@@ -183,11 +184,11 @@
     (if (instance? ChildViewCall command-runner)
       (draw-view-part gpu-state (:view-id command-runner))
       (debug/debug-drop-last :render "running" (type command-runner)
-                             (command/run command-runner)))))
+                             (command/run command-runner gl)))))
 
-(defn render [gpu-state]
-  (opengl/clear 0 0 0 0)
-  (draw-view-part gpu-state :root-view))
+(defn render [gpu-state gl]
+  (opengl/clear gl 0 0 0 0)
+  (draw-view-part gpu-state :root-view gl))
 
 ;; TIME
 
@@ -268,14 +269,14 @@
       (-> (swap! (:gpu-state view-state)
                  (fn [gpu-state]
                    (-> (reduce (fn [gpu-state view-id]
-                                 (update-view-part gpu-state view-state view-id))
+                                 (update-view-part gpu-state view-state view-id gl))
                                gpu-state
                                changed-view-ids)
                        ((fn [gpu-state]
                           (debug/do-debug :view-update "New gpu state:")
                           (debug/debug-all :view-update (describe-gpu-state gpu-state))
                           gpu-state)))))
-          (render)))))
+          (render gl)))))
 
 (defn update [view-atom events]
   (swap! view-atom
@@ -323,9 +324,11 @@
           :gpu-state (atom {:view-part-command-runners {}})
           :event-handler event-handler)))
 
-(defn initialize-gpu-state [view-state]
-  (swap! (:gpu-state view-state) load-view-part
-         view-state :root-view))
+(defn initialize-gpu-state [view-state gl]
+  (println "initializing " (:gpu-state view-state))
+  (swap! (:gpu-state view-state)
+         load-view-part
+         view-state :root-view gl))
 
 (defn set-view [view-state view]
   (-> view-state

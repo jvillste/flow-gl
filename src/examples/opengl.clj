@@ -1,6 +1,8 @@
 (ns examples.opengl
   (:require [flow-gl.opengl :as opengl]
             [flow-gl.gui.event-queue :as event-queue]
+            [flow-gl.gui.drawable :as drawable]
+            [flow-gl.graphics.command :as command]
             [flow-gl.opengl.jogl.window :as window]
             [flow-gl.opengl.jogl.triangle-list :as triangle-list])
 
@@ -20,13 +22,13 @@
                                                               :triangles
                                                               [0 0 width 0 (/ width 2) height]
                                                               (apply concat (repeat 3 [0 1 0 1])))]
-      (triangle-list/render gl triangle-list))
+      (triangle-list/render gl triangle-list)
+      (triangle-list/delete gl triangle-list))
 
 
-    #_(let [rectangle (drawable/->Rectangle 200 200 [0 1 0 1])
+    (let [rectangle (drawable/->Rectangle 200 200 [1 1 0 1])
           commands (drawable/drawing-commands rectangle)
           runner (command/create-runner (first commands) gl)]
-      (println "running")
       (command/run runner gl))
 
     (catch Exception e

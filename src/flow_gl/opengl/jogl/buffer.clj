@@ -11,7 +11,7 @@
   (.glBindBuffer gl GL2/GL_ARRAY_BUFFER id))
 
 (defn delete [gl id]
-  (.glDeleteBuffers gl id))
+  (.glDeleteBuffers gl 1 (int-array [id]) 0))
 
 (defn bind-element-buffer [gl id]
   (.glBindBuffer gl GL2/GL_ELEMENT_ARRAY_BUFFER id))

@@ -22,6 +22,7 @@
         window (GLWindow/create gl-capabilities)]
     (.addKeyListener window (proxy [KeyAdapter] []
                               (keyPressed [event]
+                                (println "key pressed")
                                 (event-queue/add-event event-queue (create-keyboard-event event :key-pressed)))
                               (keyReleased [event]
                                 (event-queue/add-event event-queue (create-keyboard-event event :key-released)))))
@@ -30,9 +31,11 @@
     (.setVisible window true)
     (.addWindowListener window (proxy [WindowAdapter] []
                                  (windowDestroyNotify [event]
+                                   (println "window closed")
                                    (event-queue/add-event event-queue
                                                           (events/create-close-requested-event)))
                                  (windowResized [event]
+                                   (println "window resized")
                                    (event-queue/add-event event-queue
                                                           (events/create-resize-requested-event (.getWidth window)
                                                                                                 (.getHeight window))))))
@@ -50,12 +53,11 @@
 
 (defn start-rendering [window]
   (.makeCurrent (:context window))
-  (.setGL (:context window) (TraceGL2. (DebugGL2. (.getGL2 (.getGL (:context window))))
-                                       System/err)))
+  (.setGL (:context window)
+          #_(TraceGL2. (DebugGL2. (.getGL2 (.getGL (:context window))))
+                     System/err)
+          (DebugGL2. (.getGL2 (.getGL (:context window))))))
 
 (defn end-rendering [window]
   (.release (:context window))
   (.swapBuffers (:gl-window window)))
-
-
-

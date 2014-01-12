@@ -1,6 +1,6 @@
 (ns flow-gl.graphics.command.scale
   (:require [flow-gl.graphics.command :as command])
-  (:import [org.lwjgl.opengl GL11]))
+  (:import [javax.media.opengl GL2]))
 
 (defrecord Scale [ratio])
 
@@ -10,11 +10,11 @@
 
 (extend Scale
   command/Command
-  {:create-runner identity}
+  {:create-runner (fn [this gl] this)}
   command/CombinableCommand
   {:combine combine}
   command/CommandRunner
-  {:delete identity
-   :run (fn [{:keys [ratio]}]
-          (GL11/glMatrixMode GL11/GL_MODELVIEW)
-          (GL11/glScalef ratio ratio 1))})
+  {:delete (fn [this gl] this)
+   :run (fn [{:keys [ratio]} gl]
+          (.glMatrixMode gl GL2/GL_MODELVIEW)
+          (.glScalef gl ratio ratio 1))})
