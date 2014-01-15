@@ -26,7 +26,8 @@
                     (Hashtable.))))
 
 (defn create [width height]
-  (create-from-raster (Raster/createInterleavedRaster DataBuffer/TYPE_BYTE
+  (BufferedImage. width height BufferedImage/TYPE_INT_ARGB)
+  #_(create-from-raster (Raster/createInterleavedRaster DataBuffer/TYPE_BYTE
                                                       width
                                                       height
                                                       4

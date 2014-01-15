@@ -17,6 +17,7 @@
                  ]
 
   ;; :java-cmd "/usr/lib/jvm/java-6-sun/bin/java"
+   ;;/Library/Internet\ Plug-Ins/JavaAppletPlugin.plugin/Contents/Home/bin/java
   :java-opts ["-Xmx60m"
               "-Xms40m"
               "-client"

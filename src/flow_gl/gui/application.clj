@@ -112,7 +112,7 @@
 
         (.put state-queue @state-atom)
 
-        (event-loop state-atom state-queue event-queue))
+        (.start (Thread. (fn [] (event-loop state-atom state-queue event-queue)))))
       (catch Exception e
         (println "Exception in event loop: " e)
         (let [string-writer (StringWriter.)]

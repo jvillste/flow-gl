@@ -1,6 +1,6 @@
 (ns flow-gl.opengl
   (:require (flow-gl.opengl.jogl [triangle-list :as triangle-list])
-            (flow-gl.graphics [image :as image]))
+            (flow-gl.opengl.jogl [image :as image]))
   (:import [javax.media.opengl GL2]))
 
 
@@ -14,14 +14,12 @@
 (defn initialize [gl]
   (initialize-gl gl)
   (triangle-list/create-shared-resources gl)
-  ;;(image/create-shared-resources)
-  )
+  (image/create-shared-resources gl))
 
 
 (defn dispose [gl]
   (triangle-list/delete-shared-resources gl)
-  ;;(image/delete-shared-resources)
-  )
+  (image/delete-shared-resources gl))
 
 (defn clear [gl r g b a]
   (doto gl

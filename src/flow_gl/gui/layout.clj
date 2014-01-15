@@ -103,7 +103,7 @@
   (toString [this] (layoutable/describe-layoutable this "Box" :margin :outer :inner)))
 
 
-(defrecord Margin [margin-left margin-top margin-right margin-bottom layoutable]
+(defrecord Margin [margin-top margin-right margin-bottom margin-left layoutable]
   Layout
   (layout [this requested-width requested-height global-x global-y]
     (update-in this [:layoutable] set-dimensions-and-layout
