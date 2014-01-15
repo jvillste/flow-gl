@@ -8,12 +8,11 @@
 
 (defn start []
   (application/start-window (view/view [state]
-                                       (let [globals (triple-dataflow/switch-entity state :globals)]
-                                         (layout/->VerticalStack [(layout/->Box  10
-                                                                                 (drawable/->FilledRoundedRectangle 0 0 15 [0 0 0.9 1])
-                                                                                 (drawable/->Text "Hello world"
-                                                                                                  (font/create "LiberationSans-Regular.ttf" 40)
-                                                                                                  [1 1 1 1]))])))))
+                                       (layout/->VerticalStack [(layout/->Box  10
+                                                                               (drawable/->FilledRoundedRectangle 0 0 15 [0 0 0.9 1])
+                                                                               (drawable/->Text "Hello world"
+                                                                                                (font/create "LiberationSans-Regular.ttf" 40)
+                                                                                                [1 1 1 1]))]))))
 
 (comment
   (start))
