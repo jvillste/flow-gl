@@ -41,5 +41,5 @@
 
 (extend TriangleBatchRunner
   command/CommandRunner
-  {:delete (fn [triangle-batch-runner gl]  (triangle-list/delete gl (:triangle-list triangle-batch-runner)))
-   :run (fn [triangle-batch-runner gl] (triangle-list/render gl (:triangle-list triangle-batch-runner)))})
+  {:delete (fn [triangle-batch-runner gl]  (triangle-list/delete (:triangle-list triangle-batch-runner) gl))
+   :run (fn [triangle-batch-runner gl] (triangle-list/render (:triangle-list triangle-batch-runner) gl))})

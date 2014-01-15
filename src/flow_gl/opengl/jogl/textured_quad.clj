@@ -1,9 +1,8 @@
-(ns flow-gl.opengl.jogl.image
+(ns flow-gl.opengl.jogl.textured-quad
   (:require (flow-gl.opengl.jogl [texture :as texture]
                                  [shader :as shader]
                                  [buffer :as buffer]))
-  (:import [javax.media.opengl GL2]
-           [java.awt Color Font  RenderingHints]))
+  (:import [javax.media.opengl GL2]))
 
 
 (def vertex-shader-source "
@@ -61,64 +60,44 @@ void main() {
   (buffer/delete gl (:texture-coordinate-buffer-id @shared-resources-atom))
   (reset! shared-resources-atom nil))
 
-(defn quad [x y width height]
-  [(+ x width) (+ y height)
-   (+ x width) y
-   x   y
-   x   (+ y height)])
+(defn quad [width height]
+  [width height
+   width 0
+   0   0
+   0   height])
 
-(defn width [image]
-  (:width (:texture image)))
+(defn width [textured-quad]
+  (:width (:texture textured-quad)))
 
-(defn height [image]
-  (:height (:texture image)))
+(defn height [textured-quad]
+  (:height (:texture textured-quad)))
 
-(defn update-vertexes [image gl]
+(defn update-vertexes [textured-quad gl]
   (buffer/load-buffer gl
-                      (:vertex-coordinate-buffer-id image)
+                      (:vertex-coordinate-buffer-id textured-quad)
                       :float
-                      (map float (quad (:x image)
-                                       (:y image)
-                                       (width image)
-                                       (height image))))
-  image)
+                      (map float (quad (width textured-quad)
+                                       (height textured-quad))))
+  textured-quad)
 
-(defn move [image x y gl]
-  (-> (assoc image
-        :x x
-        :y y)
+
+(defn create [texture gl]
+  (-> {:texture texture
+       :vertex-coordinate-buffer-id (buffer/create-gl-buffer gl)}
       (update-vertexes gl)))
 
-(defn set-texture [image texture gl]
-  (texture/delete (:texture image)
-                  gl)
-  (-> (assoc image
-        :texture texture)
-      (update-vertexes gl)))
+(defn delete [textured-quad gl]
+  (texture/delete (:texture textured-quad) gl)
+  (buffer/delete gl (:vertex-coordinate-buffer-id textured-quad)))
 
-(defn create [x y texture gl]
-  (let [image {:x x
-               :y y
-               :texture texture
-               :vertex-coordinate-buffer-id (buffer/create-gl-buffer gl)}]
-
-    (update-vertexes image gl)
-    image))
-
-(defn delete [image gl]
-  (texture/delete (:texture image) gl)
-  (buffer/delete gl (:vertex-coordinate-buffer-id image)))
-
-
-
-(defn render [image gl]
+(defn render [textured-quad gl]
   (shader/enable-program gl
                          (:shader-program @shared-resources-atom))
-  
-  (texture/bind (:texture image)
+
+  (texture/bind (:texture textured-quad)
                 gl)
 
-  (buffer/bind-buffer gl (:vertex-coordinate-buffer-id image))
+  (buffer/bind-buffer gl (:vertex-coordinate-buffer-id textured-quad))
   (.glEnableVertexAttribArray gl (:vertex-coordinate-attribute-index @shared-resources-atom))
   (.glVertexAttribPointer gl
                           (int (:vertex-coordinate-attribute-index @shared-resources-atom))
@@ -138,5 +117,5 @@ void main() {
                           (boolean GL2/GL_FALSE)
                           (int 0)
                           (long 0))
-  
+
   (.glDrawArrays gl GL2/GL_QUADS 0 4))

@@ -22,7 +22,6 @@
 
 (defn bind [texture gl]
   ;; (.glBindTexture gl GL2/GL_TEXTURE_2D (:id texture))
-  (.enable (:texture texture) gl)
   (.bind (:texture texture) gl))
 
 

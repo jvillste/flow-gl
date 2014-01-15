@@ -81,13 +81,13 @@ void main() {
               coordinates
               colors)))
 
-(defn delete [gl triangle-list]
+(defn delete [triangle-list gl]
   (buffer/delete gl (:vertex-coordinate-buffer-id triangle-list))
   (buffer/delete gl (:vertex-color-buffer-id triangle-list))
   triangle-list)
 
 
-(defn render [gl triangle-list]
+(defn render [triangle-list gl]
   (shader/enable-program gl @shader-program-atom)
 
   (buffer/bind-buffer gl (:vertex-coordinate-buffer-id triangle-list))

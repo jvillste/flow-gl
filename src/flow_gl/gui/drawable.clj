@@ -1,8 +1,8 @@
 (ns flow-gl.gui.drawable
-  (:require  (flow-gl.graphics.command [text :as text])
+  (:require  (flow-gl.graphics.command [text :as text]
+                                       [triangle-batch :as triangle-batch])
              (flow-gl.graphics [font :as font]
                                [vector :as vector])
-             (flow-gl.graphics.command [triangle-batch :as triangle-batch])
              (flow-gl.gui [layoutable :as layoutable])))
 
 (defprotocol Drawable
@@ -13,8 +13,7 @@
 (defrecord Text [contents font color]
   Drawable
   (drawing-commands [text]
-    [(text/create 0 0
-                  contents
+    [(text/create contents
                   font
                   color)])
 
