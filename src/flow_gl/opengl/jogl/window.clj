@@ -1,14 +1,23 @@
 (ns flow-gl.opengl.jogl.window
   (:require [flow-gl.gui.event-queue :as event-queue]
             [flow-gl.gui.events :as events])
-  (:import [com.jogamp.newt.event WindowAdapter WindowEvent]
+  (:import [com.jogamp.newt.event WindowAdapter WindowEvent KeyAdapter KeyEvent]
            [com.jogamp.newt.opengl GLWindow]
-           [javax.media.opengl GLCapabilities GLProfile GLContext GL GL2 DebugGL2 GLEventListener GLAutoDrawable TraceGL2]
-           [com.jogamp.newt.event KeyAdapter]))
+           [javax.media.opengl GLCapabilities GLProfile GLContext GL GL2 DebugGL2 GLEventListener GLAutoDrawable TraceGL2]))
+
+(def keys {KeyEvent/VK_ENTER :enter
+           KeyEvent/VK_ESCAPE :esc})
+
+(defn key-code-to-key [key-code]
+  (println "key code " key-code)
+  (let [key (keys key-code)]
+    (if key
+      key
+      :unknown)))
 
 (defn create-keyboard-event [event type]
   (events/create-keyboard-event type
-                                (.getKeyCode event)
+                                (key-code-to-key (.getKeyCode event))
                                 (if (.isPrintableKey event)
                                   (.getKeyChar event)
                                   nil)
@@ -31,7 +40,6 @@
     (.setVisible window true)
     (.addWindowListener window (proxy [WindowAdapter] []
                                  (windowDestroyNotify [event]
-                                   (println "window closed")
                                    (event-queue/add-event event-queue
                                                           (events/create-close-requested-event)))
                                  (windowResized [event]
@@ -52,12 +60,14 @@
   (.destroy (:gl-window window)))
 
 (defn start-rendering [window]
+  (println "start rendering")
   (.makeCurrent (:context window))
   (.setGL (:context window)
           #_(TraceGL2. (DebugGL2. (.getGL2 (.getGL (:context window))))
-                     System/err)
+                       System/err)
           (DebugGL2. (.getGL2 (.getGL (:context window))))))
 
 (defn end-rendering [window]
+  (println "end rendering")
   (.release (:context window))
   (.swapBuffers (:gl-window window)))

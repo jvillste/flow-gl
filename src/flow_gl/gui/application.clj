@@ -9,9 +9,6 @@
             [flow-gl.gui.events :as events])
   (:import [java.io PrintWriter StringWriter]))
 
-(defonce state-atom-atom (atom nil))
-(defonce event-queue-atom (atom nil))
-
 (defn wait-for-frame-end-time [frame-start-time framerate]
   (let [frame-length (/ 1E9
                         framerate)
@@ -34,8 +31,8 @@
                    (window/end-rendering window)
                    (window/close window)))
              (do (let [gl (window/start-rendering window)]
-                   (view/update-gpu state gl)
-                   (window/end-rendering window))
+                   (try (view/update-gpu state gl)
+                        (finally (window/end-rendering window))))
                  (wait-for-frame-end-time frame-start-time framerate)
                  (recur (System/nanoTime))))))
        (debug/do-debug :render "render loop exit")
@@ -72,7 +69,7 @@
   (println "event loop exit")
   (debug/do-debug :events "event loop exit"))
 
-(defn start-window [root-view & {:keys [handle-event initialize width height framerate]
+(defn create-window [root-view & {:keys [handle-event initialize width height framerate]
                                  :or {handle-event (fn [state event] state)
                                       initialize (fn [state state-atom] state)
                                       width 700
@@ -81,16 +78,15 @@
   (debug/reset-log)
   (let [state-queue (java.util.concurrent.SynchronousQueue.)]
     (try
-      (let [state-atom (-> (view/create width height handle-event root-view)
+      (let [event-queue (event-queue/create)
+            state-atom (-> (view/create width height handle-event root-view)
                            ;;(assoc :window-atom window-atom)
+                           (assoc :event-queue event-queue)
                            (atom))
-            event-queue (event-queue/create)
+            
             window (window/create width height event-queue)]
 
-        (reset! state-atom-atom state-atom)
-
-        (reset! event-queue-atom event-queue)
-
+        (println "calling initialize")
         (swap! state-atom
                (fn [state]
                  (-> state
@@ -98,7 +94,6 @@
                      (dataflow/propagate-changes)
                      (as-> view-state
                            (do
-                             (println "initializing 1 " (:gpu-state view-state))
                              (flow-gl.debug/debug :initialization "Initial view state:")
                              (base-dataflow/debug-dataflow view-state)
                              view-state)))))
@@ -107,6 +102,8 @@
           (opengl/initialize gl)
           (view/initialize-gpu-state @state-atom gl)
           (window/end-rendering window))
+        
+        (println "starting render-loop")
 
         (.start (Thread. (fn [] (render-loop window state-queue framerate))))
 
@@ -124,6 +121,7 @@
         (throw e))
       (finally (debug/write-log)))))
 
-(defn close []
-  (event-queue/add-event @event-queue-atom
-                         (events/create-close-requested-event)))
+(defn close [state]
+  (event-queue/add-event (:event-queue state) 
+                         (events/create-close-requested-event))
+  state)

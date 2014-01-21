@@ -123,7 +123,7 @@
             keys-and-functions))
 
   ([dataflow cell function]
-     #_(println "define to " cell function)
+     (println "define to " cell function)
      (let [function (if (fn? function)
                       function
                       (fn [dataflow] function))

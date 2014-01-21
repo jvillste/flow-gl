@@ -1,16 +1,15 @@
 (ns examples.hours
-  (:require (flow-gl.gui [awt-input :as input]
+  (:require (flow-gl.gui [events :as events]
                          [drawable :as drawable]
                          [layout :as layout]
                          [view :as view]
-                                        ;[animation :as animation]
+                         ;;[animation :as animation]
                          [events :as events]
                          [application :as application]
-
-                                        ;[focus :as focus]
+                         ;;[focus :as focus]
                          )
             (flow-gl.graphics [font :as font])
-            (flow-gl [dataflow :as dataflow]))
+            (flow-gl.dataflow [triple-dataflow :as triple-dataflow]))
 
   (:import [java.util GregorianCalendar Calendar] )
   (:use flow-gl.utils
@@ -134,7 +133,7 @@
                   time-to-str)))
 
 
-(defn day-view [style day]
+(view/defview day-view [style day]
   (layout/->Margin 0 10 0 0
                    (vs (text style (str (:day day)
                                         "."
@@ -154,43 +153,42 @@
                                              (session-view style session)))))))
 
 
-(defn view []
-  (layout/->Stack [(drawable/->Rectangle (dataflow/get-global-value :width)
-                                         (dataflow/get-global-value :height)
-                                         [1 1 1 1])
+(view/defview view [state]
+  (let [globals (triple-dataflow/switch-entity state :globals)]
+    (layout/->Stack [(drawable/->Rectangle (:width globals)
+                                           (:height globals)
+                                           [1 1 1 1])
 
+                     (layout/->Margin 10 0 0 0
+                                      (let [style {:font (font/create "LiberationSans-Regular.ttf" 15)
+                                                   :foreground [0 0 0 1]}]
 
-
-
-
-
-                   (layout/->Margin 10 0 0 0
-                                    (let [style {:font (font/create "LiberationSans-Regular.ttf" 15)
-                                                 :foreground [0 0 0 1]}]
-
-                                      (apply vs (forall [day (dataflow/get-global-value :log)]
-                                                        (day-view style day)))))]))
+                                        (apply vs (forall [day (:log state)]
+                                                          (view/call-child-view state [(:day day)
+                                                                                       (:month day)
+                                                                                       (:year day)]
+                                                                                )
+                                                          (day-view style day)))))])))
 
 
 (defn handle-event [state event]
-  (cond (input/key-pressed? event input/esc)
-        (do (application/request-close)
-            state)
+  (cond (events/key-pressed? event :esc)
+        (application/close state)
 
-        (input/key-pressed? event input/enter)
-        (dataflow/define-to-global state [:log] (conj (get state [:log])
-                                                          (-> (create-day)
-                                                              (assoc :sessions [(create-session)]))))
-
+        (events/key-pressed? event :enter)
+        (update-in state :log conj (-> (create-day)
+                                       (assoc :sessions [(create-session)])))
         :default state))
-
-
 
 (defonce sa (atom nil))
 
 (defn initialize [state state-atom]
+  (println "initializing")
   (reset! sa state-atom)
-  (dataflow/define-to state [:log] log))
+
+  (-> (triple-dataflow/create-entity state :root-view)
+      (assoc :log log)
+      ::triple-dataflow/dataflow))
 
 (defn refresh []
   (when @sa
@@ -198,15 +196,13 @@
 
 (refresh)
 
-
 (defn start []
-  (application/start view
-                     :initialize initialize
-                     :handle-event handle-event
-                     :framerate 60))
+  (application/create-window view
+                             :initialize initialize
+                             :handle-event handle-event
+                             :framerate 60))
 
 
 (comment
-(.start (Thread. start))
-  (start)
-  )
+
+  (start))

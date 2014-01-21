@@ -43,7 +43,7 @@
 
 (def ^:dynamic view-being-laid-out)
 
-(defrecord ViewPart [local-id view-id]
+(defrecord ViewPart [view-id]
   drawable/Drawable
   (drawing-commands [view-part]
     [(->ChildViewCall view-id)])
@@ -63,7 +63,7 @@
                                                   :global-x global-x
                                                   :global-y global-y)
 
-                                           :tripple-dataflow/dataflow)))
+                                           ::triple-dataflow/dataflow)))
     view-part)
 
   (children [this]
@@ -93,7 +93,7 @@
                              (drawable/drawing-commands layout)
                              [])
           gpu-state (reduce (fn [gpu-state view-id]
-                              (load-view-part gpu-state view-state view-id))
+                              (load-view-part gpu-state view-state view-id gl))
                             gpu-state
                             (->> (filter #(and (instance? ChildViewCall %)
                                                (not (view-part-is-loaded? gpu-state (:view-id %))))
@@ -128,8 +128,8 @@
                                         :preferred-height (fn [state#]
                                                             (layoutable/preferred-height (:view state#)))))))
 
-(defn defview [name parameters view-expression]
-  '(def ~name (view parameters view-expression)))
+(defmacro defview [name parameters view-expression]
+  `(def ~name (view ~parameters ~view-expression)))
 
 (defn child-view-key [& identifiers]
   (keyword (str "child-view-" identifiers)))
@@ -137,7 +137,7 @@
 (defn call-child-view [parent-view identifiers view & parameters]
   (let [key (apply child-view-key identifiers)
         child-view-id (if (contains? parent-view key)
-                        (::entity-id (key parent-view))
+                        (::triple-dataflow/entity-id (key parent-view))
                         (triple-dataflow/create-entity-id))]
 
     (do (when (not (contains? parent-view key))
@@ -148,12 +148,12 @@
                                                  (triple-dataflow/switch-entity  parent-view)
                                                  (assoc key (triple-dataflow/create-entity-reference-for-id child-view-id))
                                                  ::triple-dataflow/dataflow))))
-        (->ChildViewCall child-view-id))))
+        (->ViewPart child-view-id))))
 
 #_(defn init-and-call [parent-view identifiers view & parameters]
     (let [key (keyword (str "child-view-" identifiers))
           child-view-id (if (contains? parent-view key)
-                          (:triple-dataflow/entity-id (key parent-view))
+                          (::triple-dataflow/entity-id (key parent-view))
                           (triple-dataflow/create-entity-id))]
       (do (when (not (contains? parent-view key))
             (apply-delayed (fn [parent-view]
@@ -182,11 +182,12 @@
 
   (doseq [command-runner (get-in gpu-state [:view-part-command-runners view-id])]
     (if (instance? ChildViewCall command-runner)
-      (draw-view-part gpu-state (:view-id command-runner))
+      (draw-view-part gpu-state (:view-id command-runner) gl)
       (debug/debug-drop-last :render "running" (type command-runner)
                              (command/run command-runner gl)))))
 
 (defn render [gpu-state gl]
+  (println "rendering " gpu-state)
   (opengl/clear gl 0 0 0 0)
   (draw-view-part gpu-state :root-view gl))
 
@@ -325,7 +326,7 @@
           :event-handler event-handler)))
 
 (defn initialize-gpu-state [view-state gl]
-  (println "initializing " (:gpu-state view-state))
+  (println "initializing gpu state " (:gpu-state view-state))
   (swap! (:gpu-state view-state)
          load-view-part
          view-state :root-view gl))

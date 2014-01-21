@@ -4,7 +4,7 @@
              ))
 
 (defn key-pressed? [keyboard-event key]
-  (and (= (:key-code keyboard-event)
+  (and (= (:key keyboard-event)
           key)
        (= (:type keyboard-event)
           :key-pressed)))
@@ -37,9 +37,9 @@
    :width width
    :height height})
 
-(defn create-keyboard-event [type key-code character time]
+(defn create-keyboard-event [type key character time]
   {:type type
-   :key-code key-code
+   :key key
    :character character
    :time time
    :source :keyboard})
