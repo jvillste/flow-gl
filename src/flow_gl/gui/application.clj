@@ -94,6 +94,7 @@
                      (dataflow/propagate-changes)
                      (as-> view-state
                            (do
+                             (println "initial window state " view-state)
                              (flow-gl.debug/debug :initialization "Initial view state:")
                              (base-dataflow/debug-dataflow view-state)
                              view-state)))))

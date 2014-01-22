@@ -16,16 +16,16 @@
 (defn hello-box [state]
   (layout/->VerticalStack [(layout/->Box  10
                                           (drawable/->FilledRoundedRectangle 0 0 15 [0 0 0.9 1])
-                                          (view/call-child-view hello "Hello world" ))]))
+                                          (view/call-child-view hello "Hello world"))]))
+
+(defn initialize [state state-atom]
+  (assoc state :count 1))
 
 (defn handle-event [state event]
-  (println "got event " event)
-
   (cond (events/key-pressed? event :enter)
-        (do (println "got enter")
-            state)
+        (update-in state :count inc)
 
-        :default state))
+        :default (events/close-on-esc state event)))
 
 (defn start []
   (application/create-window hello-box
