@@ -128,24 +128,49 @@
                                         :preferred-height (fn [state#]
                                                             (layoutable/preferred-height (:view state#)))))))
 
+
+
+
+
 (defmacro defview [name parameters view-expression]
   `(def ~name (view ~parameters ~view-expression)))
+
+(defn apply-view-function [state view-function parameters]
+  (triple-dataflow/assoc-with-this state
+                                   :view (fn [state]
+                                           (apply view-function state parameters))
+
+                                   :layout (fn [state]
+                                             (layout/layout (:view state)
+                                                            (:requested-width state)
+                                                            (:requested-height state)
+                                                            (:global-x state)
+                                                            (:global-y state)))
+
+                                   :preferred-width (fn [state]
+                                                      (layoutable/preferred-width (:view state)))
+
+                                   :preferred-height (fn [state]
+                                                       (layoutable/preferred-height (:view state)))))
+
+
 
 (defn child-view-key [& identifiers]
   (keyword (str "child-view-" identifiers)))
 
-(defn call-child-view [parent-view identifiers view & parameters]
-  (let [key (apply child-view-key identifiers)
+(defn call-child-view [view & parameters]
+  (let [parent-view (triple-dataflow/create-entity base-dataflow/current-dataflow triple-dataflow/current-subject)
+        key (apply child-view-key parameters)
         child-view-id (if (contains? parent-view key)
                         (::triple-dataflow/entity-id (key parent-view))
                         (triple-dataflow/create-entity-id))]
 
     (do (when (not (contains? parent-view key))
           (base-dataflow/apply-to-dataflow (fn [dataflow]
-                                             (-> (apply view
-                                                        (triple-dataflow/create-entity dataflow child-view-id)
-                                                        parameters)
-                                                 (triple-dataflow/switch-entity  parent-view)
+                                             (-> (apply-view-function (triple-dataflow/create-entity dataflow child-view-id)
+                                                                      view
+                                                                      parameters)
+                                                 (triple-dataflow/switch-entity parent-view)
                                                  (assoc key (triple-dataflow/create-entity-reference-for-id child-view-id))
                                                  ::triple-dataflow/dataflow))))
         (->ViewPart child-view-id))))
@@ -302,7 +327,7 @@
              :mouse-y 0
              :fps 0)
       (triple-dataflow/switch-entity :root-view)
-      (root-view)
+      (apply-view-function root-view [])
       (assoc :global-x 0
              :global-y 0
              :requested-width (fn [dataflow] (triple-dataflow/get-value dataflow :globals :width))

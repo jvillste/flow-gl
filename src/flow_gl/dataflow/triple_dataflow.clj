@@ -52,8 +52,11 @@
   (and (vector? data)
        (every? entity-reference? data)))
 
+(def ^:dynamic current-subject)
+
 (defn set-value [dataflow subject predicate object]
-  (dataflow/define dataflow (cell-key subject predicate) object))
+  (binding [current-subject subject]
+    (dataflow/define dataflow (cell-key subject predicate) object)))
 
 (defn get-value [dataflow subject predicate]
   (dataflow/get-value dataflow (cell-key subject predicate)))

@@ -8,15 +8,15 @@
             (flow-gl.dataflow [triple-dataflow :as triple-dataflow])))
 
 
-(view/defview hello [state text]
+(defn hello [state text]
   (drawable/->Text text
                    (font/create "LiberationSans-Regular.ttf" 40)
                    [1 1 1 1]))
 
-(view/defview hello-box [state]
+(defn hello-box [state]
   (layout/->VerticalStack [(layout/->Box  10
                                           (drawable/->FilledRoundedRectangle 0 0 15 [0 0 0.9 1])
-                                          (view/call-child-view state [:hello] hello "Hello world" ))]))
+                                          (view/call-child-view hello "Hello world" ))]))
 
 (defn handle-event [state event]
   (println "got event " event)
@@ -24,7 +24,7 @@
   (cond (events/key-pressed? event :enter)
         (do (println "got enter")
             state)
-        
+
         :default state))
 
 (defn start []
