@@ -1,7 +1,7 @@
 (ns examples.opengl
-  (:require [flow-gl.opengl :as opengl]
-            [flow-gl.gui.event-queue :as event-queue]
-            (flow-gl.opengl.jogl [window :as window]
+  (:require [flow-gl.gui.event-queue :as event-queue]
+            (flow-gl.opengl.jogl [opengl :as opengl]
+                                 [window :as window]
                                  [triangle-list :as triangle-list]
                                  [textured-quad :as textured-quad]
                                  [texture :as texture])

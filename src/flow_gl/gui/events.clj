@@ -7,14 +7,14 @@
        (= (:type keyboard-event)
           :key-pressed)))
 
-#_(defn on-key-apply-one [state event key path function]
+(defn on-key-apply-one [state event key predicate function]
   `((key-pressed? ~event ~key)
-    (dataflow/apply-to-value ~state ~path ~function)))
+    (update-in ~state [~predicate] ~function)))
 
-#_(defmacro on-key-apply [state event & specs]
+(defmacro on-key-apply [state event & specs]
   (let [specs (partition 3 specs)]
-    `(cond ~@(mapcat (fn [[key path function]]
-                       (on-key-apply-one state event key path function))
+    `(cond ~@(mapcat (fn [[key predicate function]]
+                       (on-key-apply-one state event key predicate function))
                      specs )
            :default ~state)))
 

@@ -9,8 +9,8 @@
                           [input :as input]
                           [mouse :as mouse]
                           [drawable :as drawable])
-             (flow-gl [opengl :as opengl]
-                      [debug :as debug])
+             (flow-gl.opengl.jogl.opengl :as opengl)
+             (flow-gl [debug :as debug])
              (flow-gl.dataflow [dataflow :as dataflow]
                                [triple-dataflow :as triple-dataflow]
                                [base-dataflow :as base-dataflow])
@@ -293,7 +293,7 @@
 
 ;; INITIALIZATION
 
-(defn initialize-view-state [width height root-view]
+(defn initialize-view-state [width height root-view root-view-initializer]
   (-> (base-dataflow/create)
       (triple-dataflow/create-entity :globals)
       (assoc :width width
@@ -302,6 +302,7 @@
              :mouse-y 0
              :fps 0)
       (triple-dataflow/switch-entity :root-view)
+      (root-view-initializer)
       (apply-view-function root-view [])
       (assoc :global-x 0
              :global-y 0
@@ -310,10 +311,11 @@
       ::triple-dataflow/dataflow))
 
 
-(defn create [width height event-handler root-view]
+(defn create [width height event-handler root-view root-view-initializer]
   (-> (initialize-view-state width
                              height
-                             root-view)
+                             root-view
+                             root-view-initializer)
       (assoc
           :fpss []
           :last-update-time (System/nanoTime)

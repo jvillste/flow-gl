@@ -23,32 +23,34 @@
                                   nil)
                                 (.getWhen event)))
 
+(defn create
+  ([width height]
+     (create width height (event-queue/create)))
 
+  ([width height event-queue]
+     (let [gl-profile (GLProfile/get GLProfile/GL2)
+           gl-capabilities (GLCapabilities. gl-profile)
+           window (GLWindow/create gl-capabilities)]
+       (.addKeyListener window (proxy [KeyAdapter] []
+                                 (keyPressed [event]
+                                   (println "key pressed")
+                                   (event-queue/add-event event-queue (create-keyboard-event event :key-pressed)))
+                                 (keyReleased [event]
+                                   (event-queue/add-event event-queue (create-keyboard-event event :key-released)))))
 
-(defn create [width height event-queue]
-  (let [gl-profile (GLProfile/get GLProfile/GL2)
-        gl-capabilities (GLCapabilities. gl-profile)
-        window (GLWindow/create gl-capabilities)]
-    (.addKeyListener window (proxy [KeyAdapter] []
-                              (keyPressed [event]
-                                (println "key pressed")
-                                (event-queue/add-event event-queue (create-keyboard-event event :key-pressed)))
-                              (keyReleased [event]
-                                (event-queue/add-event event-queue (create-keyboard-event event :key-released)))))
-
-    (.setSize window width height)
-    (.setVisible window true)
-    (.addWindowListener window (proxy [WindowAdapter] []
-                                 (windowDestroyNotify [event]
-                                   (event-queue/add-event event-queue
-                                                          (events/create-close-requested-event)))
-                                 (windowResized [event]
-                                   (println "window resized")
-                                   (event-queue/add-event event-queue
-                                                          (events/create-resize-requested-event (.getWidth window)
-                                                                                                (.getHeight window))))))
-    {:gl-window  window
-     :context (.createContext window nil)}))
+       (.setSize window width height)
+       (.setVisible window true)
+       (.addWindowListener window (proxy [WindowAdapter] []
+                                    (windowDestroyNotify [event]
+                                      (event-queue/add-event event-queue
+                                                             (events/create-close-requested-event)))
+                                    (windowResized [event]
+                                      (println "window resized")
+                                      (event-queue/add-event event-queue
+                                                             (events/create-resize-requested-event (.getWidth window)
+                                                                                                   (.getHeight window))))))
+       {:gl-window  window
+        :context (.createContext window nil)})))
 
 (defn width [window]
   (.getWidth (:gl-window window)))

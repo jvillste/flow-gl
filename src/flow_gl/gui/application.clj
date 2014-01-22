@@ -1,11 +1,11 @@
 (ns flow-gl.gui.application
-  (:require (flow-gl.opengl.jogl [window :as window])
+  (:require (flow-gl.opengl.jogl [opengl :as opengl]
+                                 [window :as window])
             (flow-gl.gui [view :as view])
             [flow-gl.debug :as debug]
             [flow-gl.dataflow.dataflow :as dataflow]
             [flow-gl.dataflow.base-dataflow :as base-dataflow]
             [flow-gl.dataflow.triple-dataflow :as triple-dataflow]
-            [flow-gl.opengl :as opengl]
             [flow-gl.gui.event-queue :as event-queue])
   (:import [java.io PrintWriter StringWriter]))
 
@@ -22,9 +22,10 @@
   (try (debug/do-debug :render "starting render loop")
 
        (loop [frame-start-time (System/nanoTime)]
+         (println "waiting for new state to render")
          (let [state (.take state-queue)]
            (debug/do-debug :render "rendering new state")
-           (println "rendring ")
+           (println "rendering in render loop")
            (if (:closing state)
              (do (let [gl (window/start-rendering window)]
                    (opengl/dispose gl)
@@ -33,7 +34,7 @@
              (do (let [gl (window/start-rendering window)]
                    (try (view/update-gpu state gl)
                         (finally (window/end-rendering window))))
-                 (wait-for-frame-end-time frame-start-time framerate)
+                 ;;(wait-for-frame-end-time frame-start-time framerate)
                  (recur (System/nanoTime))))))
        (debug/do-debug :render "render loop exit")
        (catch Exception e
@@ -59,8 +60,10 @@
                   (view/update state-atom events)))))
       (let [events (event-queue/dequeue-events-or-wait event-queue)]
         (debug/do-debug :events "handling events " events)
+        (println "handling events " events)
         (debug/write-log)
         (view/update state-atom events)))
+    (println "sending new state to state queue")
     (.put state-queue @state-atom)
     (swap! state-atom dataflow/reset-changes)
     (when (not (:closing @state-atom))
@@ -69,9 +72,10 @@
   (println "event loop exit")
   (debug/do-debug :events "event loop exit"))
 
-(defn create-window [root-view & {:keys [handle-event initialize width height framerate]
+(defn create-window [root-view & {:keys [handle-event root-view-initializer initialize width height framerate]
                                   :or {handle-event (fn [state event] state)
                                        initialize (fn [state state-atom] state)
+                                       root-view-initializer identity
                                        width 700
                                        height 500
                                        framerate 30}} ]
@@ -79,7 +83,7 @@
   (let [state-queue (java.util.concurrent.SynchronousQueue.)]
     (try
       (let [event-queue (event-queue/create)
-            state-atom (-> (view/create width height handle-event root-view)
+            state-atom (-> (view/create width height handle-event root-view root-view-initializer)
                            ;;(assoc :window-atom window-atom)
                            (assoc :event-queue event-queue)
                            (atom))

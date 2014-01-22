@@ -1,4 +1,4 @@
-(ns flow-gl.opengl
+(ns flow-gl.opengl.jogl.opengl
   (:require (flow-gl.opengl.jogl [triangle-list :as triangle-list]
                                  [textured-quad :as textured-quad]))
   (:import [javax.media.opengl GL2]))
