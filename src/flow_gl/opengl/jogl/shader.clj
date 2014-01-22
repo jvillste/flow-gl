@@ -21,14 +21,15 @@
 ;;       gl.glUseProgram(shaderprogram);
 
 (defn compile-errors [gl shader-id]
-    (let [result-buffer (native-buffer/native-buffer :int 1)]
-      (.glGetShaderiv gl (int shader-id) (int GL2/GL_INFO_LOG_LENGTH) result-buffer)
-      (if (> (.get result-buffer 0)
-             0)
-        (let [byte-result-buffer (byte-array (.get result-buffer 0))]
-          (.glGetShaderInfoLog gl shader-id (.get result-buffer 0) nil  0 byte-result-buffer 0)
-          (String. byte-result-buffer))
-        "")))
+  (let [result-buffer (native-buffer/native-buffer :int 1)]
+    (.glGetShaderiv gl (int shader-id) (int GL2/GL_COMPILE_STATUS) result-buffer)
+    (if (not= (.get result-buffer 0)
+              1)
+      (do (.glGetShaderiv gl (int shader-id) (int GL2/GL_INFO_LOG_LENGTH) result-buffer)
+          (let [byte-result-buffer (byte-array (.get result-buffer 0))]
+            (.glGetShaderInfoLog gl shader-id (.get result-buffer 0) nil  0 byte-result-buffer 0)
+            (String. byte-result-buffer)))
+      "")))
 
 (defn compile-shader [gl shader-id source]
   (.glShaderSource gl shader-id 1 (into-array [source]) nil)
