@@ -132,7 +132,7 @@
 (defn child-view-key [& identifiers]
   (keyword (str "child-view-" identifiers)))
 
-(defn call-child-view [view & parameters]
+(defn call-child-view [view initializer & parameters]
   (let [parent-view (triple-dataflow/create-entity base-dataflow/current-dataflow triple-dataflow/current-subject)
         key (apply child-view-key (conj parameters view))
         child-view-id (if (contains? parent-view key)
@@ -141,8 +141,9 @@
 
     (do (when (not (contains? parent-view key))
           (base-dataflow/apply-to-dataflow (fn [dataflow]
-                                             (-> (apply-view-function (triple-dataflow/create-entity dataflow child-view-id)
-                                                                      view
+                                             (-> (triple-dataflow/create-entity dataflow child-view-id)
+                                                 (initializer)
+                                                 (apply-view-function view
                                                                       parameters)
                                                  (triple-dataflow/switch-entity parent-view)
                                                  (assoc key (triple-dataflow/create-entity-reference-for-id child-view-id))
@@ -308,10 +309,6 @@
              :requested-height (fn [dataflow] (triple-dataflow/get-value dataflow :globals :height)))
       ::triple-dataflow/dataflow))
 
-(fact initialize-view-state-test
-      (-> (initialize-view-state 100 100 (view [state] (drawable/->Rectangle 100 100 [0 0 1 1])))
-          (triple-dataflow/get-value :globals :width))
-      => 100)
 
 (defn create [width height event-handler root-view]
   (-> (initialize-view-state width

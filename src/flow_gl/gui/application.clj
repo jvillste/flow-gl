@@ -4,9 +4,9 @@
             [flow-gl.debug :as debug]
             [flow-gl.dataflow.dataflow :as dataflow]
             [flow-gl.dataflow.base-dataflow :as base-dataflow]
+            [flow-gl.dataflow.triple-dataflow :as triple-dataflow]
             [flow-gl.opengl :as opengl]
-            [flow-gl.gui.event-queue :as event-queue]
-            [flow-gl.gui.events :as events])
+            [flow-gl.gui.event-queue :as event-queue])
   (:import [java.io PrintWriter StringWriter]))
 
 (defn wait-for-frame-end-time [frame-start-time framerate]
@@ -70,11 +70,11 @@
   (debug/do-debug :events "event loop exit"))
 
 (defn create-window [root-view & {:keys [handle-event initialize width height framerate]
-                                 :or {handle-event (fn [state event] state)
-                                      initialize (fn [state state-atom] state)
-                                      width 700
-                                      height 500
-                                      framerate 30}} ]
+                                  :or {handle-event (fn [state event] state)
+                                       initialize (fn [state state-atom] state)
+                                       width 700
+                                       height 500
+                                       framerate 30}} ]
   (debug/reset-log)
   (let [state-queue (java.util.concurrent.SynchronousQueue.)]
     (try
@@ -83,7 +83,7 @@
                            ;;(assoc :window-atom window-atom)
                            (assoc :event-queue event-queue)
                            (atom))
-            
+
             window (window/create width height event-queue)]
 
         (println "calling initialize")
@@ -103,7 +103,7 @@
           (opengl/initialize gl)
           (view/initialize-gpu-state @state-atom gl)
           (window/end-rendering window))
-        
+
         (println "starting render-loop")
 
         (.start (Thread. (fn [] (render-loop window state-queue framerate))))
@@ -122,7 +122,7 @@
         (throw e))
       (finally (debug/write-log)))))
 
-(defn close [state]
-  (event-queue/add-event (:event-queue state) 
-                         (events/create-close-requested-event))
-  state)
+(defn event-queue-from-view-state [view-state]
+  (-> view-state
+      ::triple-dataflow/dataflow
+      :event-queue))

@@ -1,6 +1,5 @@
 (ns flow-gl.gui.events
-  (:require  [flow-gl.dataflow.triple-dataflow :as triple-dataflow]
-             [flow-gl.gui.application :as application]))
+  (:require  [flow-gl.dataflow.triple-dataflow :as triple-dataflow]))
 
 (defn key-pressed? [keyboard-event key]
   (and (= (:key keyboard-event)
@@ -18,13 +17,6 @@
                        (on-key-apply-one state event key path function))
                      specs )
            :default ~state)))
-
-(defn close-on-esc [view-state event]
-  (if (key-pressed? event :esc)
-    (do (application/close (::triple-dataflow/dataflow view-state) )
-        view-state)
-    view-state))
-
 
 
 (defn create-close-requested-event []
