@@ -14,5 +14,5 @@
   (apply str (interpose " " (map (partial describe-property layoutable)
                                  properties))))
 
-(defn describe-layoutable [layoutable name & properties]
-  (str "(" name " " (describe-properties layoutable (keys layoutable) #_(concat [:x :y :width :height] properties)) ")"))
+(defn describe-layoutable [layoutable name]
+  (str "(" name " " (describe-properties layoutable (keys layoutable)) ")"))

@@ -16,8 +16,8 @@
 
 (defn hello-box [state]
   (layout/->VerticalStack [(layout/->Box  10
-                                          (drawable/->FilledRoundedRectangle 0 0 15 [0 0 0.9 1])
-                                          (hello (:counter state)))]))
+                                          [(drawable/->FilledRoundedRectangle 0 0 15 [0 0 0.9 1])
+                                           (hello (:counter state))])]))
 
 (defn initialize-hello-box [state]
   (assoc state :counter 0))

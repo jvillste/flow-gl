@@ -53,21 +53,19 @@
   (preferred-height [view-part] (triple-dataflow/get-value base-dataflow/current-dataflow view-id :preferred-height))
 
   layout/Layout
-  (layout [view-part requested-width requested-height global-x global-y]
+  (layout [view-part requested-width requested-height]
     (base-dataflow/apply-to-dataflow (fn [dataflow]
                                        (-> (triple-dataflow/create-entity dataflow
                                                                           view-id)
 
                                            (assoc :requested-width requested-width
-                                                  :requested-height requested-height
-                                                  :global-x global-x
-                                                  :global-y global-y)
+                                                  :requested-height requested-height)
 
                                            ::triple-dataflow/dataflow)))
     view-part)
 
-  (children [this]
-    (layout/children (triple-dataflow/get-value base-dataflow/current-dataflow view-id :layout)))
+  #_(children [this]
+      (layout/children (triple-dataflow/get-value base-dataflow/current-dataflow view-id :layout)))
 
   Object
   (toString [_] (str "(->ViewPart " view-id)))
@@ -115,11 +113,11 @@
                                            (apply view-function state parameters))
 
                                    :layout (fn [state]
-                                             (layout/layout (:view state)
-                                                            (:requested-width state)
-                                                            (:requested-height state)
-                                                            (:global-x state)
-                                                            (:global-y state)))
+                                             (layout/add-global-coordinates (layout/layout (:view state)
+                                                                                           (:requested-width state)
+                                                                                           (:requested-height state))
+                                                                            (:global-x state)
+                                                                            (:global-y state)))
 
                                    :preferred-width (fn [state]
                                                       (layoutable/preferred-width (:view state)))

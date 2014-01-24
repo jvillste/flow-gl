@@ -21,18 +21,17 @@
                                        (font/create "LiberationSans-Regular.ttf" 40)
                                        [1 1 1 1])
 
-        layoutable (layout/->VerticalStack [text-drawable
-                                            text-drawable])
+        layoutable (layout/->Margin 20 20 20 20
+                                    [(layout/->VerticalStack [text-drawable
+                                                              text-drawable])])
 
         layout (layout/layout layoutable
                               width
-                              height
-                              0
-                              0)
+                              height)
 
         commands (drawable/drawing-commands layout)]
 
-    (println layout)
+    (println (add-global-coordinates layout 0 0))
 
     (window/render window gl
                    (let [runners (for [command commands]
