@@ -1,15 +1,15 @@
 (ns flow-gl.opengl.jogl.window
   (:require [flow-gl.gui.event-queue :as event-queue]
             [flow-gl.gui.events :as events])
-  (:import [com.jogamp.newt.event WindowAdapter WindowEvent KeyAdapter KeyEvent]
+  (:import [com.jogamp.newt.event WindowAdapter WindowEvent KeyAdapter KeyEvent ]
            [com.jogamp.newt.opengl GLWindow]
-           [javax.media.opengl GLCapabilities GLProfile GLContext GL GL2 DebugGL2 GLEventListener GLAutoDrawable TraceGL2]))
+           [javax.media.opengl GLCapabilities GLProfile GLContext GL GL2 DebugGL2 GLEventListener GLAutoDrawable TraceGL2]
+           [javax.media.nativewindow WindowClosingProtocol$WindowClosingMode]))
 
 (def keys {KeyEvent/VK_ENTER :enter
            KeyEvent/VK_ESCAPE :esc})
 
 (defn key-code-to-key [key-code]
-  (println "key code " key-code)
   (let [key (keys key-code)]
     (if key
       key
@@ -23,34 +23,71 @@
                                   nil)
                                 (.getWhen event)))
 
+(defn get-gl [^javax.media.opengl.GLAutoDrawable drawable]
+  (DebugGL2. (.getGL2 (.getGL drawable)))
+  #_(TraceGL2. (DebugGL2. (.getGL2 (.getGL drawable)))
+               System/err))
+
+(defn gl-event-listener [init reshape display-atom]
+  (proxy [GLEventListener] []
+    (display [^javax.media.opengl.GLAutoDrawable drawable]
+      (let [^GL2 gl (get-gl drawable)]
+        (@display-atom gl)))
+
+    (init [^javax.media.opengl.GLAutoDrawable drawable]
+      (let [gl (get-gl drawable)]
+        (init gl)))
+
+    (reshape [^javax.media.opengl.GLAutoDrawable drawable x y width height]
+      (let [gl (get-gl drawable)]
+        (reshape gl width height)))
+
+    (dispose [drawable])
+    (displayChanged [drawable mode-changed device-changed])))
+
 (defn create
   ([width height]
-     (create width height (event-queue/create)))
+     (create width height identity identity nil))
 
-  ([width height event-queue]
+  ([width height init reshape]
+     (create width height init reshape nil))
+
+  ([width height init reshape event-queue]
      (let [gl-profile (GLProfile/get GLProfile/GL2)
            gl-capabilities (GLCapabilities. gl-profile)
+           display-atom (atom (fn [gl]))
            window (GLWindow/create gl-capabilities)]
-       (.addKeyListener window (proxy [KeyAdapter] []
-                                 (keyPressed [event]
-                                   (println "key pressed")
-                                   (event-queue/add-event event-queue (create-keyboard-event event :key-pressed)))
-                                 (keyReleased [event]
-                                   (event-queue/add-event event-queue (create-keyboard-event event :key-released)))))
 
-       (.setSize window width height)
-       (.setVisible window true)
-       (.addWindowListener window (proxy [WindowAdapter] []
-                                    (windowDestroyNotify [event]
-                                      (event-queue/add-event event-queue
-                                                             (events/create-close-requested-event)))
-                                    (windowResized [event]
-                                      (println "window resized")
-                                      (event-queue/add-event event-queue
-                                                             (events/create-resize-requested-event (.getWidth window)
-                                                                                                   (.getHeight window))))))
+
+       (when event-queue
+         (doto window
+           (.addKeyListener (proxy [KeyAdapter] []
+                              (keyPressed [event]
+                                (event-queue/add-event event-queue (create-keyboard-event event :key-pressed)))
+                              (keyReleased [event]
+                                (event-queue/add-event event-queue (create-keyboard-event event :key-released)))))
+
+           (.addWindowListener (proxy [WindowAdapter] []
+                                 (windowDestroyNotify [event]
+                                   (event-queue/add-event event-queue
+                                                          (events/create-close-requested-event)))
+                                 (windowResized [event]
+                                   (event-queue/add-event event-queue
+                                                          (events/create-resize-requested-event (.getWidth window)
+                                                                                                (.getHeight window))))))
+
+           (.setDefaultCloseOperation WindowClosingProtocol$WindowClosingMode/DO_NOTHING_ON_CLOSE)))
+
+       (doto window
+         (.addGLEventListener  (gl-event-listener init reshape display-atom ))
+
+         (.setSize width height)
+
+         (.setVisible true))
+
+
        {:gl-window  window
-        :context (.createContext window nil)})))
+        :display-atom display-atom})))
 
 (defn width [window]
   (.getWidth (:gl-window window)))
@@ -61,15 +98,9 @@
 (defn close [window]
   (.destroy (:gl-window window)))
 
-(defn start-rendering [window]
-  (println "start rendering")
-  (.makeCurrent (:context window))
-  (.setGL (:context window)
-          #_(TraceGL2. (DebugGL2. (.getGL2 (.getGL (:context window))))
-                       System/err)
-          (DebugGL2. (.getGL2 (.getGL (:context window))))))
+(defn render* [window renderer]
+  (reset! (:display-atom window) renderer)
+  (.display (:gl-window window)))
 
-(defn end-rendering [window]
-  (println "end rendering")
-  (.release (:context window))
-  (.swapBuffers (:gl-window window)))
+(defmacro render [window gl & body]
+  `(render* ~window (fn [~gl] ~@body)))
