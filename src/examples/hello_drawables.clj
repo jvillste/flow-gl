@@ -1,4 +1,4 @@
-(ns examples.hello-drawable
+(ns examples.hello-drawables
   (:require (flow-gl.gui [drawable :as drawable])
             (flow-gl.graphics [command :as command]
                               [font :as font])
@@ -17,10 +17,10 @@
                               opengl/resize)
 
         text-drawable (drawable/->Text "Hello World "
-                                       (font/create "LiberationSans-Regular.ttf" 20)
+                                       (font/create "LiberationSans-Regular.ttf" 40)
                                        [1 1 1 1])
 
-        rectangle-drawable (drawable/->Rectangle 105 25 [0 0 0.7 1])
+        rectangle-drawable (drawable/->Rectangle 210 50 [0 0 1 1])
 
         commands (concat (drawable/drawing-commands rectangle-drawable)
                          (drawable/drawing-commands text-drawable))]

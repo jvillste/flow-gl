@@ -22,8 +22,8 @@
   (-> layout-instance
       (assoc :x x
              :y y
-             :global-x global-x
-             :global-y global-y
+             :global-x (+ x global-x)
+             :global-y (+ y global-y)
              :width width
              :height height)
       (layout width
@@ -174,7 +174,6 @@
                           (+ y height)
                           (rest layoutables)))
                  layouted-layoutables)))))
-
 
   (children [this] layoutables)
 
