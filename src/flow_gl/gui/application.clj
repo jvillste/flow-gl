@@ -27,14 +27,11 @@
            (debug/do-debug :render "rendering new state")
            (println "rendering in render loop")
            (if (:closing state)
-             (do (let [gl (window/start-rendering window)]
-                   (opengl/dispose gl)
-                   (window/end-rendering window)
-                   (window/close window)))
-             (do (let [gl (window/start-rendering window)]
-                   (try (view/update-gpu state gl)
-                        (finally (window/end-rendering window))))
-                 ;;(wait-for-frame-end-time frame-start-time framerate)
+             (window/close window)
+
+             (do (window/render window gl
+                                (view/update-gpu state gl))
+                 (wait-for-frame-end-time frame-start-time framerate)
                  (recur (System/nanoTime))))))
        (debug/do-debug :render "render loop exit")
        (catch Exception e
@@ -88,7 +85,7 @@
                            (assoc :event-queue event-queue)
                            (atom))
 
-            window (window/create width height event-queue)]
+            window (window/create width height opengl/initialize opengl/resize event-queue)]
 
         (println "calling initialize")
         (swap! state-atom
@@ -103,10 +100,8 @@
                              (base-dataflow/debug-dataflow view-state)
                              view-state)))))
 
-        (let [gl (window/start-rendering window)]
-          (opengl/initialize gl)
-          (view/initialize-gpu-state @state-atom gl)
-          (window/end-rendering window))
+        (window/render window gl
+                       (view/initialize-gpu-state @state-atom gl))
 
         (println "starting render-loop")
 

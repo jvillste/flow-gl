@@ -24,8 +24,11 @@
           (.glMatrixMode gl GL2/GL_MODELVIEW)
           (.glTranslatef gl x y 0))})
 
+(defn create [x y]
+  (->Translate x y))
+
 (defn translate [x y & commands]
   (concat [(push-modelview/->PushModelview)
-           (->Translate x y)]
+           (create x y)]
           commands
           [(pop-modelview/->PopModelview)]))

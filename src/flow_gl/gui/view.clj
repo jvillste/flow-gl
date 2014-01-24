@@ -9,7 +9,7 @@
                           [input :as input]
                           [mouse :as mouse]
                           [drawable :as drawable])
-             (flow-gl.opengl.jogl.opengl :as opengl)
+             (flow-gl.opengl.jogl [opengl :as opengl])
              (flow-gl [debug :as debug])
              (flow-gl.dataflow [dataflow :as dataflow]
                                [triple-dataflow :as triple-dataflow]
