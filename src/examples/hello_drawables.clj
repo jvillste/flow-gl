@@ -27,13 +27,9 @@
 
 
     (window/render window gl
-                   (let [runners (for [command commands]
-                                   (command/create-runner command gl))]
-
-                     (doseq [runner runners]
-                       (command/run runner gl))
-
-                     (doseq [runner runners]
-                       (command/delete runner gl))))))
+                   (doseq [command commands]
+                     (doto (command/create-runner command gl)
+                       (command/run gl)
+                       (command/delete gl))))))
 
 (comment (start))

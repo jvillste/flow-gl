@@ -31,6 +31,4 @@
                              :root-view-initializer initialize-hello-box
                              :handle-event handle-hello-box-event))
 
-(comment
-  (start)
-)
+;;(start)

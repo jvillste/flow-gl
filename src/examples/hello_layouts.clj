@@ -31,16 +31,12 @@
 
         commands (drawable/drawing-commands layout)]
 
-    (println (add-global-coordinates layout 0 0))
 
     (window/render window gl
-                   (let [runners (for [command commands]
-                                   (command/create-runner command gl))]
+                   (doseq [command commands]
+                     (doto (command/create-runner command gl)
+                       (command/run gl)
+                       (command/delete gl))))))
 
-                     (doseq [runner runners]
-                       (command/run runner gl))
+;;(start)
 
-                     (doseq [runner runners]
-                       (command/delete runner gl))))))
-
-(comment (start))

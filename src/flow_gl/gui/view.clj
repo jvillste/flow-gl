@@ -38,9 +38,6 @@
   (delete [view-part-call gl])
   (run [view-part-call gl]))
 
-#_(defn element-path-to-layout-path [element-path]
-    (vec (concat [:layout] (rest element-path))))
-
 (def ^:dynamic view-being-laid-out)
 
 (defrecord ViewPart [view-id]
@@ -106,7 +103,6 @@
     (load-view-part gpu-state view-state view-id gl)
     (unload-view-part gpu-state view-id gl)))
 
-
 (defn apply-view-function [state view-function parameters]
   (triple-dataflow/assoc-with-this state
                                    :view (fn [state]
@@ -124,8 +120,6 @@
 
                                    :preferred-height (fn [state]
                                                        (layoutable/preferred-height (:view state)))))
-
-
 
 (defn child-view-key [& identifiers]
   (keyword (str "child-view-" identifiers)))
@@ -147,30 +141,6 @@
                                                  (assoc key (triple-dataflow/create-entity-reference-for-id child-view-id))
                                                  ::triple-dataflow/dataflow))))
         (->ViewPart child-view-id))))
-
-#_(defn init-and-call [parent-view identifiers view & parameters]
-    (let [key (keyword (str "child-view-" identifiers))
-          child-view-id (if (contains? parent-view key)
-                          (::triple-dataflow/entity-id (key parent-view))
-                          (triple-dataflow/create-entity-id))]
-      (do (when (not (contains? parent-view key))
-            (apply-delayed (fn [parent-view]
-                             (let [child-view (-> (triple-dataflow/switch-entity parent-view child-view-id)
-                                                  (as-> child-view
-                                                        (apply view child-view parameters))
-                                                  (triple-dataflow/assoc-with-this :preferred-width #(layoutable/preferred-width (:view %))
-                                                                                   :preferred-height #(layoutable/preferred-height (:view %))
-                                                                                   :layout #(layout/set-dimensions-and-layout (:view %)
-                                                                                                                              0
-                                                                                                                              0
-                                                                                                                              (:global-x %)
-                                                                                                                              (:global-y %)
-                                                                                                                              requested-width
-                                                                                                                              requested-height)))]
-                               (-> (triple-dataflow/switch-entity child-view parent-view)
-                                   (assoc key child-view))))))
-
-          (->ViewPart key child-view-id))))
 
 ;; RENDERING
 
@@ -280,7 +250,6 @@
 (defn update [view-atom events]
   (swap! view-atom
          (fn [view]
-           (println "type is " (type view))
            (-> view
                (handle-events events)
                (dataflow/propagate-changes)

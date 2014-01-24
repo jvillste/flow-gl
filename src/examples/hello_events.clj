@@ -33,7 +33,6 @@
                          (textured-quad/render gl)))
 
       (let [event (event-queue/dequeue-event-or-wait event-queue)]
-        (println "event " event)
         (cond (events/key-pressed? event :enter)
               (recur (inc counter))
 
@@ -42,9 +41,10 @@
 
               (= (:type event)
                  :close-requested)
-              (do (window/close window))
+              (window/close window)
 
               :default (recur counter))))))
 
-(comment (start)
-         (.start (Thread. (start))))
+
+;(start)
+
