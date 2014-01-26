@@ -121,6 +121,8 @@
         (throw e))
       (finally (debug/write-log)))))
 
+
+
 (defn event-queue-from-view-state [view-state]
   (-> view-state
       ::triple-dataflow/dataflow

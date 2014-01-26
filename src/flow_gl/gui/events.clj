@@ -33,3 +33,10 @@
    :character character
    :time time
    :source :keyboard})
+
+(defn create-mouse-event [type x y key time]
+  {:x x
+   :y y
+   :type type
+   :source :mouse
+   :time time})
