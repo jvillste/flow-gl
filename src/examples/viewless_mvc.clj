@@ -31,7 +31,6 @@
     (try
       (loop [state (update-state-from-model nil model)
              model model]
-        (println model)
 
         (window/render window gl
                        (opengl/clear gl 0 0 0 1)
@@ -84,9 +83,8 @@
                                 (swap! current-model-atom (get (:model-updaters state) (:focus state)) old-state new-state)
                                 new-state)))))
 
-(defn update-focus-container [old-state & children]
-  (let [children (partition 4 children)
-        child-keys (map first children)
+(defn update-focus-container [old-state model & children]
+  (let [child-keys (map first children)
         focus-state {:focus (if old-state
                               (if (utils/in? (:focus old-state)
                                              child-keys)
@@ -106,8 +104,8 @@
                                              {}
                                              children)}]
 
-    (reduce (fn [focus-container-state [key child-state handler model-updater]]
-              (assoc focus-container-state key child-state))
+    (reduce (fn [focus-container-state [key child-state-initializer handler model-updater]]
+              (assoc focus-container-state key (child-state-initializer old-state model)))
             focus-state
             children)))
 
@@ -136,6 +134,21 @@
 (defn has-focus? [state child-key]
   (= child-key (:focus state)))
 
+(defn child [key initial-state event-handler bindings]
+  [key
+   (fn [state model]
+     (reduce (fn [state [model-key child-key]]
+               (assoc state child-key (model-key model)))
+             (or (key state)
+                 initial-state)
+             bindings))
+   event-handler
+   (fn [model old-state new-state]
+     (reduce (fn [model [model-key child-key]]
+               (assoc model model-key (child-key new-state)))
+             model
+             bindings))])
+
 ;; APPLICATION
 
 ;; local view state
@@ -143,12 +156,11 @@
 ;; given view state used for event handling
 ;; model state
 
-(defn initialize-counter []
+(def initial-counter-state
   {:amount-to-add 0
    :count 0})
 
 (defn handle-counter-event [state event]
-  (println "counter event " state event)
   (cond (events/key-pressed? event :enter)
         (update-in state [:count] #(+ % (:amount-to-add state)))
 
@@ -165,28 +177,28 @@
                      [0.5 0.5 0.5 1])))
 
 (defn update-state-from-model [state model]
-  (update-focus-container state
+  (update-focus-container state model
 
-                          :hello
-                          (assoc (or (:hello state)
-                                     (initialize-counter))
-                            :count (:hello model))
-                          handle-counter-event
-                          (fn [model old-counter new-counter]
-                            (println "updating hello " model " with " new-counter)
-                            (assoc model :hello (:count new-counter)))
+                          (child :foo
+                                 initial-counter-state
+                                 handle-counter-event
+                                 [[:foo :count]])
 
-                          :world
-                          (assoc (or (:world state)
-                                     (initialize-counter))
-                            :count (:world model))
-                          handle-counter-event
-                          (fn [model old-counter new-counter]
-                            (println "updating world " model " with " new-counter)
-                            (assoc model :world (:count new-counter)))))
+                          (child :hello
+                                 initial-counter-state
+                                 handle-counter-event
+                                 [[:hello :count]])
+
+                          (child :world
+                                 initial-counter-state
+                                 handle-counter-event
+                                 [[:world :count]])))
 
 (defn view [state model]
-  (layout/->VerticalStack [(counter-view (:hello state)
+  (layout/->VerticalStack [(counter-view (:foo state)
+                                         "Foo"
+                                         (has-focus? state :foo))
+                           (counter-view (:hello state)
                                          "Hello"
                                          (has-focus? state :hello))
 
@@ -197,6 +209,14 @@
 (defn handle-event [state event]
   (cond (events/key-pressed? event :esc)
         :exit
+
+        (events/key-pressed? event :space)
+        (do (swap! current-model-atom (fn [model]
+                                     (-> model
+                                         (update-in [:foo] inc)
+                                         (update-in [:hello] inc)
+                                         (update-in [:world] inc))))
+            state)
 
         (= (:type event)
            :close-requested)
@@ -209,7 +229,8 @@
 (defn start []
   (start-view view
               update-state-from-model
-              {:hello 10
+              {:foo 23
+               :hello 10
                :world 5}
               handle-event))
 

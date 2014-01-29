@@ -11,7 +11,8 @@
                     KeyEvent/VK_LEFT :left
                     KeyEvent/VK_RIGHT :right
                     KeyEvent/VK_DOWN :down
-                    KeyEvent/VK_UP :up})
+                    KeyEvent/VK_UP :up
+                    KeyEvent/VK_SPACE :space})
 
 (def mouse-keys {MouseEvent/BUTTON1 :left-button
                  MouseEvent/BUTTON2 :right-button
