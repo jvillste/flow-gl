@@ -12,8 +12,8 @@
   (repl/set-refresh-dirs #_"src"
                          #_"src/flow_gl/dataflow"
                          #_"src/flow_gl/gui"
-                         "src/flow_gl/opengl"
-                         "src/flow_gl/graphics")
+                         #_"src/flow_gl/opengl"
+                         #_"src/flow_gl/graphics")
 
                                         ;(disable-reload! flow-gl.dataflow.hierarchical-dataflow)
 

@@ -1,17 +1,24 @@
 (ns examples.viewless-mvc
-  (:require (flow-gl.gui [drawable :as drawable]
+  (:require [flow-gl.utils :as utils]
+
+            (flow-gl.gui [drawable :as drawable]
                          [layout :as layout]
                          [event-queue :as event-queue]
                          [events :as events])
+
             (flow-gl.graphics [command :as command]
                               [font :as font])
 
             (flow-gl.graphics.command [text :as text]
                                       [translate :as translate])
-            (flow-gl.opengl.jogl [opengl :as opengl]
-                                 [window :as window])))
 
-(defn start-view [view state event-handler]
+            (flow-gl.opengl.jogl [opengl :as opengl]
+                                 [window :as window]))
+  (:use midje.sweet))
+
+(def ^:dynamic current-model-atom)
+
+(defn start-view [view update-state-from-model model event-handler]
   (let [width 300
         height 300
         event-queue (event-queue/create)
@@ -22,25 +29,30 @@
                               event-queue)]
 
     (try
-      (loop [state state]
+      (loop [state (update-state-from-model nil model)
+             model model]
+        (println model)
 
         (window/render window gl
                        (opengl/clear gl 0 0 0 1)
-                       (doseq [command (drawable/drawing-commands (layout/layout (view state)
+                       (doseq [command (drawable/drawing-commands (layout/layout (view state model)
                                                                                  width
                                                                                  height))]
                          (doto (command/create-runner command gl)
                            (command/run gl)
                            (command/delete gl))))
 
-        (let [event (event-queue/dequeue-event-or-wait event-queue)]
+        (let [event (event-queue/dequeue-event-or-wait event-queue)
+              model-atom (atom model)]
           (if (= (:type event)
                  :close-requested)
             (window/close window)
-            (let [state (event-handler state event)]
+            (let [state (binding [current-model-atom model-atom]
+                          (event-handler state event))]
               (if (= state :exit)
                 (window/close window)
-                (recur state))))))
+                (recur (update-state-from-model state @model-atom)
+                       @model-atom))))))
 
       (catch Exception e
         (window/close window)
@@ -78,10 +90,53 @@
       (update-in [:focus] (fn [focus] (or focus
                                           child-key)))))
 
-(defn create-focus-container []
-  {:focus nil
-   :children []
-   :event-handlers {}})
+(defn update-focus-container [old-state & children]
+  (let [children (partition 3 children)
+        child-keys (map first children)
+        focus-state {:focus (if old-state
+                              (if (utils/in? (:focus old-state)
+                                             child-keys)
+                                (:focus old-state)
+                                (first child-keys))
+                              (first child-keys))
+
+                     :children (map first children)
+
+                     :event-handlers (reduce (fn [event-handlers [key state handler]]
+                                               (assoc event-handlers key handler))
+                                             {}
+                                             children)}]
+
+    (reduce (fn [focus-container-state [key child-state handler]]
+              (assoc focus-container-state key child-state))
+            focus-state
+            children)))
+
+(fact (update-focus-container nil
+                              :a :a-state :a-handler
+                              :b :b-state :b-handler)
+
+      => {:a :a-state
+          :b :b-state
+          :children '(:a :b)
+          :event-handlers {:a :a-handler
+                           :b :b-handler}
+          :focus :a})
+
+(fact (update-focus-container {:children '(:a :b)
+                               :event-handlers {:a :a-handler
+                                                :b :b-handler}
+                               :focus :a}
+
+                              :a :a-state :a-handler
+                              :b :b-state :b-handler)
+
+      => {:a :a-state
+          :b :b-state
+          :children '(:a :b)
+          :event-handlers {:a :a-handler
+                           :b :b-handler}
+          :focus :a})
 
 (defn has-focus? [state child-key]
   (= child-key (:focus state)))
@@ -89,40 +144,52 @@
 
 ;; APPLICATION
 
-(defn create-counter [name count]
-  {:count 0
-   :name name})
+;; local view state
+;; given view state used for rendering
+;; given view state used for event handling
+;; model state
 
-(defn handle-counter-event [state event]
+(defn initialize-counter [old-state]
+  {:amount-to-add (or (:amount-to-add old-state)
+                      0)})
+
+(defn handle-counter-event [model-path state event]
   (cond (events/key-pressed? event :enter)
-        (update-in state [:count] inc)
+        (do (swap! current-model-atom update-in model-path #(+ % (:amount-to-add state)))
+            state)
+
+        (events/key-pressed? event :right)
+        (update-in state [:amount-to-add] inc)
 
         :default state))
 
-(defn counter-view [state has-focus]
-  (drawable/->Text (str (:name state) " : " (:count state))
+(defn counter-view [state name count has-focus]
+  (drawable/->Text (str name " : " count " + " (:amount-to-add state))
                    (font/create "LiberationSans-Regular.ttf" 40)
                    (if has-focus
                      [1 1 1 1]
                      [0.5 0.5 0.5 1])))
 
-(def model-atom (atom {:hello 0
-                       :world 0}))
+(defn update-state-from-model [state model]
+  (update-focus-container state
 
-(defn model-to-view-state [model]
-  (-> (create-focus-container)
-      (add-child :hello
-                 (create-counter "Hello" (:hello model))
-                 handle-counter-event)
+                          :hello
+                          (initialize-counter (:hello state))
+                          (partial handle-counter-event [:hello])
 
-      (add-child :world
-                 (create-counter "World" (:world model))
-                 handle-counter-event)))
+                          :world
+                          (initialize-counter (:world state))
+                          (partial handle-counter-event [:world])))
 
-(defn view [state]
+(defn view [state model]
   (layout/->VerticalStack [(counter-view (:hello state)
+                                         "Hello"
+                                         (:hello model)
                                          (has-focus? state :hello))
+
                            (counter-view (:world state)
+                                         "World"
+                                         (:world model)
                                          (has-focus? state :world))]))
 
 (defn handle-event [state event]
@@ -139,7 +206,9 @@
 
 (defn start []
   (start-view view
-              (model-to-view-state model)
+              update-state-from-model
+              {:hello 0
+               :world 0}
               handle-event))
 
 ;;(start)

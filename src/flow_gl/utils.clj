@@ -21,6 +21,10 @@
 (defmacro forall [bindings body]
   `(doall (for ~bindings ~body)))
 
+(defn in?
+  "true if seq contains elm"
+  [elm seq] 
+  (some #(= elm %) seq))
 
 (def ^:dynamic delayed-applications {})
 
