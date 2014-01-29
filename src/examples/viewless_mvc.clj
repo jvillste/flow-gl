@@ -136,7 +136,6 @@
 (defn has-focus? [state child-key]
   (= child-key (:focus state)))
 
-
 ;; APPLICATION
 
 ;; local view state
@@ -144,11 +143,9 @@
 ;; given view state used for event handling
 ;; model state
 
-(defn initialize-counter [old-state]
-  {:amount-to-add (or (:amount-to-add old-state)
-                      0)
-   :count (or (:count old-state)
-              0)})
+(defn initialize-counter []
+  {:amount-to-add 0
+   :count 0})
 
 (defn handle-counter-event [state event]
   (println "counter event " state event)
@@ -171,7 +168,8 @@
   (update-focus-container state
 
                           :hello
-                          (assoc (initialize-counter (:hello state))
+                          (assoc (or (:hello state)
+                                     (initialize-counter))
                             :count (:hello model))
                           handle-counter-event
                           (fn [model old-counter new-counter]
@@ -179,9 +177,10 @@
                             (assoc model :hello (:count new-counter)))
 
                           :world
-                          (assoc (initialize-counter (:world state))
+                          (assoc (or (:world state)
+                                     (initialize-counter))
                             :count (:world model))
-                          (initialize-counter (:world state))
+                          handle-counter-event
                           (fn [model old-counter new-counter]
                             (println "updating world " model " with " new-counter)
                             (assoc model :world (:count new-counter)))))
