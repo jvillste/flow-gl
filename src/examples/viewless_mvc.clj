@@ -16,8 +16,6 @@
                                  [window :as window]))
   (:use midje.sweet))
 
-(def ^:dynamic current-model-atom)
-
 (defn start-view [view update-state-from-model model event-handler]
   (let [width 300
         height 300
@@ -41,17 +39,15 @@
                            (command/run gl)
                            (command/delete gl))))
 
-        (let [event (event-queue/dequeue-event-or-wait event-queue)
-              model-atom (atom model)]
+        (let [event (event-queue/dequeue-event-or-wait event-queue)]
           (if (= (:type event)
                  :close-requested)
             (window/close window)
-            (let [state (binding [current-model-atom model-atom]
-                          (event-handler state event))]
+            (let [[state model] (event-handler state model event)]
               (if (= state :exit)
                 (window/close window)
-                (recur (update-state-from-model state @model-atom)
-                       @model-atom))))))
+                (recur (update-state-from-model state model)
+                       model))))))
 
       (catch Exception e
         (window/close window)
@@ -67,21 +63,21 @@
         (recur (rest next-focusables)))
       nil)))
 
-(defn handle-focus [state event]
+(defn handle-focus [state model event]
   (cond (events/key-pressed? event :down)
-        (update-in state [:focus]
-                   #(next-in-focus % (:children state)))
+        [(update-in state [:focus]
+                    #(next-in-focus % (:children state)))
+         model]
 
         #_(events/key-pressed? event :up)
         #_(update-in state [:focus] (fn [focus]
                                       (max 0
                                            (dec focus))))
 
-        :default (update-in state [(:focus state)]
-                            (fn [old-state]
-                              (let [new-state ((get (:event-handlers state) (:focus state)) old-state event)]
-                                (swap! current-model-atom (get (:model-updaters state) (:focus state)) old-state new-state)
-                                new-state)))))
+        :default (let [old-state (get state (:focus state))
+                       new-state ((get (:event-handlers state) (:focus state)) old-state event)]
+                   [(assoc state (:focus state) new-state)
+                    ((get (:model-updaters state) (:focus state)) model old-state new-state)])))
 
 (defn update-focus-container [old-state model & children]
   (let [child-keys (map first children)
@@ -179,11 +175,6 @@
 (defn update-state-from-model [state model]
   (update-focus-container state model
 
-                          (child :foo
-                                 initial-counter-state
-                                 handle-counter-event
-                                 [[:foo :count]])
-
                           (child :hello
                                  initial-counter-state
                                  handle-counter-event
@@ -195,10 +186,7 @@
                                  [[:world :count]])))
 
 (defn view [state model]
-  (layout/->VerticalStack [(counter-view (:foo state)
-                                         "Foo"
-                                         (has-focus? state :foo))
-                           (counter-view (:hello state)
+  (layout/->VerticalStack [(counter-view (:hello state)
                                          "Hello"
                                          (has-focus? state :hello))
 
@@ -206,31 +194,28 @@
                                          "World"
                                          (has-focus? state :world))]))
 
-(defn handle-event [state event]
+(defn handle-event [state model event]
   (cond (events/key-pressed? event :esc)
-        :exit
+        [:exit model]
 
         (events/key-pressed? event :space)
-        (do (swap! current-model-atom (fn [model]
-                                     (-> model
-                                         (update-in [:foo] inc)
-                                         (update-in [:hello] inc)
-                                         (update-in [:world] inc))))
-            state)
+        [state
+         (-> model
+             (update-in [:hello] inc)
+             (update-in [:world] inc))]
 
         (= (:type event)
            :close-requested)
-        :exit
+        [:exit model]
 
-        :default (handle-focus state event)))
+        :default (handle-focus state model event)))
 
 
 
 (defn start []
   (start-view view
               update-state-from-model
-              {:foo 23
-               :hello 10
+              {:hello 10
                :world 5}
               handle-event))
 
