@@ -1,4 +1,4 @@
-(ns examples.viewless
+(ns examples.viewless-mvc
   (:require (flow-gl.gui [drawable :as drawable]
                          [layout :as layout]
                          [event-queue :as event-queue]
@@ -46,36 +46,50 @@
         (window/close window)
         (throw e)))))
 
+(defn next-in-focus [in-focus focusables]
+  (loop [next-focusables focusables]
+    (if (seq next-focusables)
+      (if (= in-focus
+             (first next-focusables))
+        (or (second next-focusables)
+            (first focusables))
+        (recur (rest next-focusables)))
+      nil)))
+
 (defn handle-focus [state event]
   (cond (events/key-pressed? event :down)
-        (update-in state [:focus] (fn [focus]
-                                    (min (- (count (:focusable-children state))
-                                            1)
-                                         (inc focus))))
+        (update-in state [:focus]
+                   #(next-in-focus % (:children state)))
 
-        (events/key-pressed? event :up)
-        (update-in state [:focus] (fn [focus]
-                                    (max 0
-                                         (dec focus))))
+        #_(events/key-pressed? event :up)
+        #_(update-in state [:focus] (fn [focus]
+                                      (max 0
+                                           (dec focus))))
 
-        :default (update-in state [:focusable-children] (fn [counters]
-                                                          (map-indexed (fn [index child]
-                                                                         (if (= index (:focus state))
-                                                                           ((get (:event-handlers state) index) child event)
-                                                                           child))
-                                                                       (:focusable-children state))))))
+        :default (update-in state [(:focus state)]
+                            (fn [child]
+                              ((get (:event-handlers state) (:focus state)) child event)))))
 
-(defn add-focusable-child [state child-state child-event-handler]
+(defn add-child [state child-key child-state child-event-handler]
   (-> state
-      (update-in [:focusable-children] conj child-state )
-      (update-in [:event-handlers] conj child-event-handler)))
+      (assoc child-key child-state)
+      (update-in [:children] conj child-key)
+      (update-in [:event-handlers] assoc child-key child-event-handler)
+      (update-in [:focus] (fn [focus] (or focus
+                                          child-key)))))
 
 (defn create-focus-container []
-  {:focus 0
-   :focusable-children []
-   :event-handlers []})
+  {:focus nil
+   :children []
+   :event-handlers {}})
 
-(defn create-counter [name]
+(defn has-focus? [state child-key]
+  (= child-key (:focus state)))
+
+
+;; APPLICATION
+
+(defn create-counter [name count]
   {:count 0
    :name name})
 
@@ -92,15 +106,26 @@
                      [1 1 1 1]
                      [0.5 0.5 0.5 1])))
 
+(def model-atom (atom {:hello 0
+                       :world 0}))
+
+(defn model-to-view-state [model]
+  (-> (create-focus-container)
+      (add-child :hello
+                 (create-counter "Hello" (:hello model))
+                 handle-counter-event)
+
+      (add-child :world
+                 (create-counter "World" (:world model))
+                 handle-counter-event)))
 
 (defn view [state]
-  (layout/->VerticalStack (map-indexed (fn [index counter]
-                                         (counter-view counter
-                                                       (= index (:focus state))))
-                                       (:focusable-children state))))
+  (layout/->VerticalStack [(counter-view (:hello state)
+                                         (has-focus? state :hello))
+                           (counter-view (:world state)
+                                         (has-focus? state :world))]))
 
 (defn handle-event [state event]
-  (println event)
   (cond (events/key-pressed? event :esc)
         :exit
 
@@ -110,14 +135,11 @@
 
         :default (handle-focus state event)))
 
+
+
 (defn start []
   (start-view view
-              (-> (create-focus-container)
-                  (add-focusable-child (create-counter "Hello")
-                                       handle-counter-event)
-
-                  (add-focusable-child (create-counter "World")
-                                       handle-counter-event))
+              (model-to-view-state model)
               handle-event))
 
 ;;(start)
