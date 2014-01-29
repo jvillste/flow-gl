@@ -79,19 +79,13 @@
                                            (dec focus))))
 
         :default (update-in state [(:focus state)]
-                            (fn [child]
-                              ((get (:event-handlers state) (:focus state)) child event)))))
-
-(defn add-child [state child-key child-state child-event-handler]
-  (-> state
-      (assoc child-key child-state)
-      (update-in [:children] conj child-key)
-      (update-in [:event-handlers] assoc child-key child-event-handler)
-      (update-in [:focus] (fn [focus] (or focus
-                                          child-key)))))
+                            (fn [old-state]
+                              (let [new-state ((get (:event-handlers state) (:focus state)) old-state event)]
+                                (swap! current-model-atom (get (:model-updaters state) (:focus state)) old-state new-state)
+                                new-state)))))
 
 (defn update-focus-container [old-state & children]
-  (let [children (partition 3 children)
+  (let [children (partition 4 children)
         child-keys (map first children)
         focus-state {:focus (if old-state
                               (if (utils/in? (:focus old-state)
@@ -102,41 +96,42 @@
 
                      :children (map first children)
 
-                     :event-handlers (reduce (fn [event-handlers [key state handler]]
+                     :event-handlers (reduce (fn [event-handlers [key state handler model-updater]]
                                                (assoc event-handlers key handler))
+                                             {}
+                                             children)
+
+                     :model-updaters (reduce (fn [model-updaters [key state handler model-updater]]
+                                               (assoc model-updaters key model-updater))
                                              {}
                                              children)}]
 
-    (reduce (fn [focus-container-state [key child-state handler]]
+    (reduce (fn [focus-container-state [key child-state handler model-updater]]
               (assoc focus-container-state key child-state))
             focus-state
             children)))
 
 (fact (update-focus-container nil
-                              :a :a-state :a-handler
-                              :b :b-state :b-handler)
+                              :a :a-state :a-handler :a-model-updater
+                              :b :b-state :b-handler :b-model-updater)
 
-      => {:a :a-state
-          :b :b-state
-          :children '(:a :b)
-          :event-handlers {:a :a-handler
-                           :b :b-handler}
-          :focus :a})
+      => {:a :a-state, :b :b-state, :children '(:a :b),
+          :event-handlers {:a :a-handler, :b :b-handler}
+          :focus :a
+          :model-updaters {:a :a-model-updater, :b :b-model-updater}})
 
-(fact (update-focus-container {:children '(:a :b)
-                               :event-handlers {:a :a-handler
-                                                :b :b-handler}
-                               :focus :a}
+(fact (update-focus-container {:a :a-state, :b :b-state, :children '(:a :b),
+                               :event-handlers {:a :a-handler, :b :b-handler}
+                               :focus :a
+                               :model-updaters {:a :a-model-updater, :b :b-model-updater}}
 
-                              :a :a-state :a-handler
-                              :b :b-state :b-handler)
+                              :a :a-state :a-handler :a-model-updater
+                              :b :b-state :b-handler :b-model-updater)
 
-      => {:a :a-state
-          :b :b-state
-          :children '(:a :b)
-          :event-handlers {:a :a-handler
-                           :b :b-handler}
-          :focus :a})
+      => {:a :a-state, :b :b-state, :children '(:a :b),
+          :event-handlers {:a :a-handler, :b :b-handler}
+          :focus :a
+          :model-updaters {:a :a-model-updater, :b :b-model-updater}})
 
 (defn has-focus? [state child-key]
   (= child-key (:focus state)))
@@ -151,20 +146,22 @@
 
 (defn initialize-counter [old-state]
   {:amount-to-add (or (:amount-to-add old-state)
-                      0)})
+                      0)
+   :count (or (:count old-state)
+              0)})
 
-(defn handle-counter-event [model-path state event]
+(defn handle-counter-event [state event]
+  (println "counter event " state event)
   (cond (events/key-pressed? event :enter)
-        (do (swap! current-model-atom update-in model-path #(+ % (:amount-to-add state)))
-            state)
+        (update-in state [:count] #(+ % (:amount-to-add state)))
 
         (events/key-pressed? event :right)
         (update-in state [:amount-to-add] inc)
 
         :default state))
 
-(defn counter-view [state name count has-focus]
-  (drawable/->Text (str name " : " count " + " (:amount-to-add state))
+(defn counter-view [state name has-focus]
+  (drawable/->Text (str name " : " (:count state) " + " (:amount-to-add state))
                    (font/create "LiberationSans-Regular.ttf" 40)
                    (if has-focus
                      [1 1 1 1]
@@ -174,22 +171,28 @@
   (update-focus-container state
 
                           :hello
-                          (initialize-counter (:hello state))
-                          (partial handle-counter-event [:hello])
+                          (assoc (initialize-counter (:hello state))
+                            :count (:hello model))
+                          handle-counter-event
+                          (fn [model old-counter new-counter]
+                            (println "updating hello " model " with " new-counter)
+                            (assoc model :hello (:count new-counter)))
 
                           :world
+                          (assoc (initialize-counter (:world state))
+                            :count (:world model))
                           (initialize-counter (:world state))
-                          (partial handle-counter-event [:world])))
+                          (fn [model old-counter new-counter]
+                            (println "updating world " model " with " new-counter)
+                            (assoc model :world (:count new-counter)))))
 
 (defn view [state model]
   (layout/->VerticalStack [(counter-view (:hello state)
                                          "Hello"
-                                         (:hello model)
                                          (has-focus? state :hello))
 
                            (counter-view (:world state)
                                          "World"
-                                         (:world model)
                                          (has-focus? state :world))]))
 
 (defn handle-event [state event]
@@ -207,8 +210,8 @@
 (defn start []
   (start-view view
               update-state-from-model
-              {:hello 0
-               :world 0}
+              {:hello 10
+               :world 5}
               handle-event))
 
 ;;(start)
