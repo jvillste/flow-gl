@@ -16,7 +16,7 @@
                                  [window :as window]))
   (:use midje.sweet))
 
-(defn start-view [view update-state-from-model model event-handler]
+(defn start-view [view model event-handler]
   (let [width 300
         height 300
         event-queue (event-queue/create)
@@ -27,27 +27,31 @@
                               event-queue)]
 
     (try
-      (loop [state (update-state-from-model nil model)
-             model model]
+      (let [[layoutable view-updater] (view nil model)]
 
-        (window/render window gl
-                       (opengl/clear gl 0 0 0 1)
-                       (doseq [command (drawable/drawing-commands (layout/layout (view state model)
-                                                                                 width
-                                                                                 height))]
-                         (doto (command/create-runner command gl)
-                           (command/run gl)
-                           (command/delete gl))))
+        (loop [state (view-updater nil model)
+               model model]
 
-        (let [event (event-queue/dequeue-event-or-wait event-queue)]
-          (if (= (:type event)
-                 :close-requested)
-            (window/close window)
-            (let [[state model] (event-handler state model event)]
-              (if (= state :exit)
+          (let [[layoutable view-updater] (view state model)]
+
+            (window/render window gl
+                           (opengl/clear gl 0 0 0 1)
+                           (doseq [command (drawable/drawing-commands (layout/layout layoutable
+                                                                                     width
+                                                                                     height))]
+                             (doto (command/create-runner command gl)
+                               (command/run gl)
+                               (command/delete gl))))
+
+            (let [event (event-queue/dequeue-event-or-wait event-queue)]
+              (if (= (:type event)
+                     :close-requested)
                 (window/close window)
-                (recur (update-state-from-model state model)
-                       model))))))
+                (let [[state model] (event-handler state model event)]
+                  (if (= state :exit)
+                    (window/close window)
+                    (recur (view-updater state model)
+                           model))))))))
 
       (catch Exception e
         (window/close window)
@@ -79,7 +83,7 @@
                    [(assoc state (:focus state) new-state)
                     ((get (:model-updaters state) (:focus state)) model old-state new-state)])))
 
-(defn update-focus-container [old-state model & children]
+(defn update-focus-container [old-state model children]
   (let [child-keys (map first children)
         focus-state {:focus (if old-state
                               (if (utils/in? (:focus old-state)
@@ -108,8 +112,8 @@
                 children))))
 
 (fact (update-focus-container nil {}
-                              [:a (fn [_ _] {:a-state :foo}) :a-handler :a-model-updater]
-                              [:b (fn [_ _] {:b-state :foo}) :b-handler :b-model-updater])
+                              [[:a (fn [_ _] {:a-state :foo}) :a-handler :a-model-updater]
+                               [:b (fn [_ _] {:b-state :foo}) :b-handler :b-model-updater]])
 
       => {:a {:a-state :foo
               :in-focus true}
@@ -164,24 +168,25 @@
                      [0.5 0.5 0.5 1])))
 
 (defn update-state-from-model [state model]
+  (println "state " state " model " model)
   (update-focus-container state model
+                          [(child :hello
+                                  initial-counter-state
+                                  handle-counter-event
+                                  [[:hello :count]])
 
-                          (child :hello
-                                 initial-counter-state
-                                 handle-counter-event
-                                 [[:hello :count]])
-
-                          (child :world
-                                 initial-counter-state
-                                 handle-counter-event
-                                 [[:world :count]])))
+                           (child :world
+                                  initial-counter-state
+                                  handle-counter-event
+                                  [[:world :count]])]))
 
 (defn view [state model]
-  (layout/->VerticalStack [(counter-view (:hello state)
-                                         "Hello")
+  [(layout/->VerticalStack [(counter-view (:hello state)
+                                          "Hello")
 
-                           (counter-view (:world state)
-                                         "World")]))
+                            (counter-view (:world state)
+                                          "World")])]
+  update-state-from-model)
 
 (defn handle-event [state model event]
   (cond (events/key-pressed? event :esc)
@@ -203,7 +208,6 @@
 
 (defn start []
   (start-view view
-              update-state-from-model
               {:hello 10
                :world 5}
               handle-event))
