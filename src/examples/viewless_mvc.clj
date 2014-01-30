@@ -27,6 +27,7 @@
                               event-queue)]
 
     (try
+      (println (view nil model))
       (let [[layoutable view-updater] (view nil model)]
 
         (loop [state (view-updater nil model)
@@ -140,6 +141,22 @@
              model
              bindings))])
 
+
+(def ^:dynamic view-children)
+
+(defn child-view [state key child-spec parameters bindings]
+  (do (swap! view-children conj (child key
+                                       (conj (:initial-state child-spec) parameters)
+                                       (:event-handler child-spec)
+                                       bindings))
+      ((:view child-spec) (key state))))
+
+(defmacro with-child-views [view]
+  `(binding [view-children (atom [])]
+    [~view
+     (let [view-children# @view-children]
+       (fn [state# model#] (update-focus-container state# model# view-children#)))]))
+
 ;; APPLICATION
 
 ;; local view state
@@ -149,7 +166,8 @@
 
 (def initial-counter-state
   {:amount-to-add 0
-   :count 0})
+   :count 0
+   :name ""})
 
 (defn handle-counter-event [state event]
   (cond (events/key-pressed? event :enter)
@@ -160,33 +178,31 @@
 
         :default state))
 
-(defn counter-view [state name]
-  (drawable/->Text (str name " : " (:count state) " + " (:amount-to-add state))
+(defn counter-view [state]
+  (drawable/->Text (str (:name state) " : " (:count state) " + " (:amount-to-add state))
                    (font/create "LiberationSans-Regular.ttf" 40)
                    (if (:in-focus state)
                      [1 1 1 1]
                      [0.5 0.5 0.5 1])))
 
-(defn update-state-from-model [state model]
-  (println "state " state " model " model)
-  (update-focus-container state model
-                          [(child :hello
-                                  initial-counter-state
-                                  handle-counter-event
-                                  [[:hello :count]])
+(def counter {:initial-state initial-counter-state
+              :event-handler handle-counter-event
+              :view counter-view})
 
-                           (child :world
-                                  initial-counter-state
-                                  handle-counter-event
-                                  [[:world :count]])]))
 
 (defn view [state model]
-  [(layout/->VerticalStack [(counter-view (:hello state)
-                                          "Hello")
+  (with-child-views
+    (layout/->VerticalStack [(child-view state
+                                          :hello
+                                          counter
+                                          {:name "Hello"}
+                                          [[:hello :count]])
 
-                            (counter-view (:world state)
-                                          "World")])]
-  update-state-from-model)
+                              (child-view state
+                                          :world
+                                          counter
+                                          {:name "World"}
+                                          [[:world :count]])])))
 
 (defn handle-event [state model event]
   (cond (events/key-pressed? event :esc)
