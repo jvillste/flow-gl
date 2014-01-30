@@ -27,7 +27,7 @@
                               event-queue)]
 
     (try
-      (println (view nil model))
+
       (let [[layoutable view-updater] (view nil model)]
 
         (loop [state (view-updater nil model)
@@ -153,9 +153,9 @@
 
 (defmacro with-child-views [view]
   `(binding [view-children (atom [])]
-    [~view
-     (let [view-children# @view-children]
-       (fn [state# model#] (update-focus-container state# model# view-children#)))]))
+     [~view
+      (let [view-children# @view-children]
+        (fn [state# model#] (update-focus-container state# model# view-children#)))]))
 
 ;; APPLICATION
 
@@ -193,16 +193,20 @@
 (defn view [state model]
   (with-child-views
     (layout/->VerticalStack [(child-view state
-                                          :hello
-                                          counter
-                                          {:name "Hello"}
-                                          [[:hello :count]])
+                                         :hello
+                                         counter
+                                         {:name "Hello"}
+                                         [[:hello :count]])
 
-                              (child-view state
-                                          :world
-                                          counter
-                                          {:name "World"}
-                                          [[:world :count]])])))
+                             (child-view state
+                                         :world
+                                         counter
+                                         {:name "World"}
+                                         [[:world :count]])
+
+                             (drawable/->Text (str "Total: " (+ (:hello model) (:world model)))
+                                              (font/create "LiberationSans-Regular.ttf" 40)
+                                              [1 1 1 1])])))
 
 (defn handle-event [state model event]
   (cond (events/key-pressed? event :esc)
