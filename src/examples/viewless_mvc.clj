@@ -90,45 +90,36 @@
 
                      :children (map first children)
 
-                     :event-handlers (reduce (fn [event-handlers [key state handler model-updater]]
+                     :event-handlers (reduce (fn [event-handlers [key state-initializer handler model-updater]]
                                                (assoc event-handlers key handler))
                                              {}
                                              children)
 
-                     :model-updaters (reduce (fn [model-updaters [key state handler model-updater]]
+                     :model-updaters (reduce (fn [model-updaters [key state-initializer handler model-updater]]
                                                (assoc model-updaters key model-updater))
                                              {}
                                              children)}]
 
-    (reduce (fn [focus-container-state [key child-state-initializer handler model-updater]]
-              (assoc focus-container-state key (child-state-initializer old-state model)))
-            focus-state
-            children)))
+    (-> (reduce (fn [focus-container-state [key child-state-initializer handler model-updater]]
+                  (-> focus-container-state
+                      (assoc  key (child-state-initializer old-state model))
+                      (assoc-in [key :in-focus] (= (:focus focus-container-state) key))))
+                focus-state
+                children))))
 
-(fact (update-focus-container nil
-                              :a :a-state :a-handler :a-model-updater
-                              :b :b-state :b-handler :b-model-updater)
+(fact (update-focus-container nil {}
+                              [:a (fn [_ _] {:a-state :foo}) :a-handler :a-model-updater]
+                              [:b (fn [_ _] {:b-state :foo}) :b-handler :b-model-updater])
 
-      => {:a :a-state, :b :b-state, :children '(:a :b),
+      => {:a {:a-state :foo
+              :in-focus true}
+          :b {:b-state :foo
+              :in-focus false}
+          :children '(:a :b)
           :event-handlers {:a :a-handler, :b :b-handler}
           :focus :a
           :model-updaters {:a :a-model-updater, :b :b-model-updater}})
 
-(fact (update-focus-container {:a :a-state, :b :b-state, :children '(:a :b),
-                               :event-handlers {:a :a-handler, :b :b-handler}
-                               :focus :a
-                               :model-updaters {:a :a-model-updater, :b :b-model-updater}}
-
-                              :a :a-state :a-handler :a-model-updater
-                              :b :b-state :b-handler :b-model-updater)
-
-      => {:a :a-state, :b :b-state, :children '(:a :b),
-          :event-handlers {:a :a-handler, :b :b-handler}
-          :focus :a
-          :model-updaters {:a :a-model-updater, :b :b-model-updater}})
-
-(defn has-focus? [state child-key]
-  (= child-key (:focus state)))
 
 (defn child [key initial-state event-handler bindings]
   [key
@@ -165,10 +156,10 @@
 
         :default state))
 
-(defn counter-view [state name has-focus]
+(defn counter-view [state name]
   (drawable/->Text (str name " : " (:count state) " + " (:amount-to-add state))
                    (font/create "LiberationSans-Regular.ttf" 40)
-                   (if has-focus
+                   (if (:in-focus state)
                      [1 1 1 1]
                      [0.5 0.5 0.5 1])))
 
@@ -187,12 +178,10 @@
 
 (defn view [state model]
   (layout/->VerticalStack [(counter-view (:hello state)
-                                         "Hello"
-                                         (has-focus? state :hello))
+                                         "Hello")
 
                            (counter-view (:world state)
-                                         "World"
-                                         (has-focus? state :world))]))
+                                         "World")]))
 
 (defn handle-event [state model event]
   (cond (events/key-pressed? event :esc)
