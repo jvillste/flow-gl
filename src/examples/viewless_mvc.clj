@@ -113,21 +113,21 @@
                 children))))
 
 #_(fact (update-focus-container nil {}
-                              [[:a (fn [_ _] {:a-state :foo}) :a-handler :a-model-updater]
-                               [:b (fn [_ _] {:b-state :foo}) :b-handler :b-model-updater]])
+                                [[:a (fn [_ _] {:a-state :foo}) :a-handler :a-model-updater]
+                                 [:b (fn [_ _] {:b-state :foo}) :b-handler :b-model-updater]])
 
-      => {:a {:a-state :foo
-              :in-focus true}
-          :b {:b-state :foo
-              :in-focus false}
-          :children '(:a :b)
-          :event-handlers {:a :a-handler, :b :b-handler}
-          :focus :a
-          :model-updaters {:a :a-model-updater, :b :b-model-updater}})
+        => {:a {:a-state :foo
+                :in-focus true}
+            :b {:b-state :foo
+                :in-focus false}
+            :children '(:a :b)
+            :event-handlers {:a :a-handler, :b :b-handler}
+            :focus :a
+            :model-updaters {:a :a-model-updater, :b :b-model-updater}})
 
 (def ^:dynamic view-children)
 
-(defn child-view-with-custom-binding [state key child-spec parameters state-updater model-updater]
+(defn child-view [state key child-spec parameters state-updater model-updater]
   (do (swap! view-children conj [key
                                  (:event-handler child-spec)
                                  (fn [state model]
@@ -137,27 +137,14 @@
                                  model-updater])
       ((:view child-spec) (key state))))
 
-(defn child [key initial-state event-handler bindings]
-  [key
-   event-handler
-   (fn [state model]
-     (reduce (fn [state [child-key model-key]]
-               (assoc state child-key (model-key model)))
-             (or (key state)
-                 initial-state)
-             bindings))
-   (fn [model old-state new-state]
-     (reduce (fn [model [child-key model-key]]
-               (assoc model model-key (child-key new-state)))
-             model
-             bindings))])
+(defn bind-from-model-to-state [model-path state-path]
+  (fn [state model]
+    (assoc-in state state-path (get-in model model-path))))
 
-(defn child-view [state key child-spec parameters bindings]
-  (do (swap! view-children conj (child key
-                                       (conj (:initial-state child-spec) parameters)
-                                       (:event-handler child-spec)
-                                       bindings))
-      ((:view child-spec) (key state))))
+(defn bind-from-state-to-model [state-path model-path]
+  (fn [model old-state new-state]
+    (assoc-in model model-path  (get-in new-state state-path))))
+
 
 (defmacro with-child-views [view]
   `(binding [view-children (atom [])]
@@ -199,25 +186,18 @@
 
 (defn view [state model]
   (with-child-views
-    (layout/->VerticalStack (conj (map-indexed (fn [index model-counter]
-                                                 (child-view-with-custom-binding state
-                                                                                 (keyword (str "child-" index))
-                                                                                 counter
-                                                                                 {:name (:name model-counter)}
-                                                                                 (fn [state model]
-                                                                                   (assoc-in state [:count] (get-in model [index :count])))
-                                                                                 (fn [model old-state new-state]
-                                                                                   (assoc-in model [index :count] (get-in new-state [:count])))))
-                                               model)
+    (layout/->VerticalStack (doall (concat (map-indexed (fn [index model-counter]
+                                                          (child-view state
+                                                                      (keyword (str "child-" index))
+                                                                      counter
+                                                                      {:name (:name model-counter)}
+                                                                      (bind-from-model-to-state [index :count] [:count])
+                                                                      (bind-from-state-to-model [:count] [index :count])))
+                                                        model)
 
-                                  #_(child-view state
-                                                :hello
-                                                counter
-                                                {:name "Hello"}
-                                                [[:count :hello]])
-                                  (drawable/->Text (str "Total: " (reduce + (map :count model)))
-                                                   (font/create "LiberationSans-Regular.ttf" 40)
-                                                   [1 1 1 1])))))
+                                           [(drawable/->Text (str "Total: " (reduce + (map :count model)))
+                                                             (font/create "LiberationSans-Regular.ttf" 40)
+                                                             [1 1 1 1])])))))
 
 (defn handle-event [state model event]
   (cond (events/key-pressed? event :esc)
