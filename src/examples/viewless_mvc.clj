@@ -95,24 +95,24 @@
 
                      :children (map first children)
 
-                     :event-handlers (reduce (fn [event-handlers [key state-initializer handler model-updater]]
+                     :event-handlers (reduce (fn [event-handlers [key handler state-initializer model-updater]]
                                                (assoc event-handlers key handler))
                                              {}
                                              children)
 
-                     :model-updaters (reduce (fn [model-updaters [key state-initializer handler model-updater]]
+                     :model-updaters (reduce (fn [model-updaters [key handler state-initializer model-updater]]
                                                (assoc model-updaters key model-updater))
                                              {}
                                              children)}]
 
-    (-> (reduce (fn [focus-container-state [key child-state-initializer handler model-updater]]
+    (-> (reduce (fn [focus-container-state [key handler child-state-initializer model-updater]]
                   (-> focus-container-state
                       (assoc  key (child-state-initializer old-state model))
                       (assoc-in [key :in-focus] (= (:focus focus-container-state) key))))
                 focus-state
                 children))))
 
-(fact (update-focus-container nil {}
+#_(fact (update-focus-container nil {}
                               [[:a (fn [_ _] {:a-state :foo}) :a-handler :a-model-updater]
                                [:b (fn [_ _] {:b-state :foo}) :b-handler :b-model-updater]])
 
@@ -125,24 +125,32 @@
           :focus :a
           :model-updaters {:a :a-model-updater, :b :b-model-updater}})
 
+(def ^:dynamic view-children)
+
+(defn child-view-with-custom-binding [state key child-spec parameters state-updater model-updater]
+  (do (swap! view-children conj [key
+                                 (:event-handler child-spec)
+                                 (fn [state model]
+                                   (state-updater (or (key state)
+                                                      (conj (:initial-state child-spec) parameters))
+                                                  model))
+                                 model-updater])
+      ((:view child-spec) (key state))))
 
 (defn child [key initial-state event-handler bindings]
   [key
+   event-handler
    (fn [state model]
-     (reduce (fn [state [model-key child-key]]
+     (reduce (fn [state [child-key model-key]]
                (assoc state child-key (model-key model)))
              (or (key state)
                  initial-state)
              bindings))
-   event-handler
    (fn [model old-state new-state]
-     (reduce (fn [model [model-key child-key]]
+     (reduce (fn [model [child-key model-key]]
                (assoc model model-key (child-key new-state)))
              model
              bindings))])
-
-
-(def ^:dynamic view-children)
 
 (defn child-view [state key child-spec parameters bindings]
   (do (swap! view-children conj (child key
@@ -189,24 +197,27 @@
               :event-handler handle-counter-event
               :view counter-view})
 
-
 (defn view [state model]
   (with-child-views
-    (layout/->VerticalStack [(child-view state
-                                         :hello
-                                         counter
-                                         {:name "Hello"}
-                                         [[:hello :count]])
+    (layout/->VerticalStack (conj (map-indexed (fn [index model-counter]
+                                                 (child-view-with-custom-binding state
+                                                                                 (keyword (str "child-" index))
+                                                                                 counter
+                                                                                 {:name (:name model-counter)}
+                                                                                 (fn [state model]
+                                                                                   (assoc-in state [:count] (get-in model [index :count])))
+                                                                                 (fn [model old-state new-state]
+                                                                                   (assoc-in model [index :count] (get-in new-state [:count])))))
+                                               model)
 
-                             (child-view state
-                                         :world
-                                         counter
-                                         {:name "World"}
-                                         [[:world :count]])
-
-                             (drawable/->Text (str "Total: " (+ (:hello model) (:world model)))
-                                              (font/create "LiberationSans-Regular.ttf" 40)
-                                              [1 1 1 1])])))
+                                  #_(child-view state
+                                                :hello
+                                                counter
+                                                {:name "Hello"}
+                                                [[:count :hello]])
+                                  (drawable/->Text (str "Total: " (reduce + (map :count model)))
+                                                   (font/create "LiberationSans-Regular.ttf" 40)
+                                                   [1 1 1 1])))))
 
 (defn handle-event [state model event]
   (cond (events/key-pressed? event :esc)
@@ -214,9 +225,7 @@
 
         (events/key-pressed? event :space)
         [state
-         (-> model
-             (update-in [:hello] inc)
-             (update-in [:world] inc))]
+         (conj model {:count 0 :name "New Counter"})]
 
         (= (:type event)
            :close-requested)
@@ -224,12 +233,12 @@
 
         :default (handle-focus state model event)))
 
-
-
 (defn start []
   (start-view view
-              {:hello 10
-               :world 5}
+              [{:name "Hello"
+                :count 10}
+               {:name "World"
+                :count 5}]
               handle-event))
 
 ;;(start)
