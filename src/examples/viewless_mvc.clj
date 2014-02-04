@@ -74,11 +74,6 @@
                     #(next-in-focus % (:children state)))
          model]
 
-        #_(events/key-pressed? event :up)
-        #_(update-in state [:focus] (fn [focus]
-                                      (max 0
-                                           (dec focus))))
-
         :default (let [old-state (get state (:focus state))
                        new-state ((get (:event-handlers state) (:focus state)) old-state event)]
                    [(assoc state (:focus state) new-state)

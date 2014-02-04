@@ -40,7 +40,7 @@
 
   (defn view []
     (let [size-group (layout/create-size-group)]
-      (apply vs (forall [row-data data]
+      (apply vs (for-all [row-data data]
                         (row size-group row-data)))))
 
 

@@ -144,12 +144,12 @@
                                           (:year day)))
 
                          (hs (layout/->Margin 0 0 20 0
-                                              (layout/grid (forall [session (:sessions day)]
+                                              (layout/grid (for-all [session (:sessions day)]
                                                                    [(layout/->Margin 0 0 10 0
                                                                                      (text style (:task session)))
                                                                     (time-editor-view {} style session :start-time)])))
 
-                             (apply vs (forall [session (->> (:sessions day)
+                             (apply vs (for-all [session (->> (:sessions day)
                                                              calculate-durations
                                                              sum-up-sessions)]
                                                (session-view style session)))))))
@@ -165,7 +165,7 @@
                                         (let [style {:font (font/create "LiberationSans-Regular.ttf" 15)
                                                      :foreground [0 0 0 1]}]
 
-                                          (apply vs (forall [day (:log state)]
+                                          (apply vs (for-all [day (:log state)]
                                                             (view/call-child-view state [(:day day)
                                                                                          (:month day)
                                                                                          (:year day)]

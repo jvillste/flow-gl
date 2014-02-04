@@ -18,8 +18,13 @@
       =>
       {::foo-now 4, ::foo 0})
 
-(defmacro forall [bindings body]
+(defmacro for-all [bindings body]
   `(doall (for ~bindings ~body)))
+
+(defn map-all-indexed [function coll]
+  (doall (map-indexed function coll)))
+
+
 
 (defn in?
   "true if seq contains elm"

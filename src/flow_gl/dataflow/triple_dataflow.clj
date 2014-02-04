@@ -606,7 +606,7 @@
                                  :text (get-property (::dataflow state) property)})
 
                root-view (view [state]
-                               (forall [todo (:todos (switch-entity state :application-state))]
+                               (for-all [todo (:todos (switch-entity state :application-state))]
                                        (call-child-view state
                                                         [(::entity-id todo)]
                                                         child-view
