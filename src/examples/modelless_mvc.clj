@@ -1,4 +1,4 @@
-(ns examples.viewless-mvc
+(ns examples.modelless-mvc
   (:require [flow-gl.utils :as utils]
 
             (flow-gl.gui [drawable :as drawable]
@@ -162,7 +162,8 @@
 (def initial-counter-state
   {:amount-to-add 0
    :count 0
-   :name ""})
+   :name ""
+   :in-focus false})
 
 (defn handle-counter-event [state event]
   (cond (events/key-pressed? event :enter)
@@ -183,6 +184,15 @@
 (def counter {:initial-state initial-counter-state
               :event-handler handle-counter-event
               :view counter-view})
+
+(defn counter-view-to-counter-model [view]
+  )
+
+(defn model-to-view [model initial-view]
+  )
+
+(defn view-to-drawable [view]
+  )
 
 (defn view [state model]
   (with-child-views

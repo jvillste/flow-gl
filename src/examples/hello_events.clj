@@ -30,7 +30,8 @@
                                                      (str "Hello World " counter))
                          (texture/create-for-buffered-image gl)
                          (textured-quad/create gl)
-                         (textured-quad/render gl)))
+                         (textured-quad/render gl)
+                         (textured-quad/delete gl)))
 
       (let [event (event-queue/dequeue-event-or-wait event-queue)]
         (cond (events/key-pressed? event :enter)

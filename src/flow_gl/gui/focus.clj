@@ -1,6 +1,6 @@
 (ns flow-gl.gui.focus
   (:require  [flow-gl.dataflow :as dataflow]
-             [flow-gl.gui.awt-input :as input])
+             [flow-gl.gui.input :as input])
   (:use clojure.test))
 
 (defn get-child-event-handler [state child]

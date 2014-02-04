@@ -118,4 +118,6 @@ void main() {
                           (int 0)
                           (long 0))
 
-  (.glDrawArrays gl GL2/GL_QUADS 0 4))
+  (.glDrawArrays gl GL2/GL_QUADS 0 4)
+
+  textured-quad)

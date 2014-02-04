@@ -15,194 +15,197 @@
   (:use flow-gl.utils
         flow-gl.gui.layout-dsl))
 
-(def log [{:year 2013
-           :month 10
-           :day 10
-           :sessions [{:start-time {:hour 8 :minute 0}
-                       :task "koodausta"}
-                      {:start-time {:hour 14 :minute 0}
-                       :task "kahvi"}
-                      {:start-time {:hour 14 :minute 30}
-                       :task "koodausta"}
-                      {:start-time {:hour 16 :minute 0}
-                       :task "kotiin"}]}
-          {:year 2013
-           :month 10
-           :day 11
-           :sessions [{:start-time {:hour 8 :minute 0}
-                       :task "koodausta"}
-                      {:start-time {:hour 14 :minute 0}
-                       :task "kahvi"}
-                      {:start-time {:hour 15 :minute 0}
-                       :task "koodausta"}
-                      {:start-time {:hour 16 :minute 0}
-                       :task "kotiin"}]}])
+(comment 
+
+  (def log [{:year 2013
+             :month 10
+             :day 10
+             :sessions [{:start-time {:hour 8 :minute 0}
+                         :task "koodausta"}
+                        {:start-time {:hour 14 :minute 0}
+                         :task "kahvi"}
+                        {:start-time {:hour 14 :minute 30}
+                         :task "koodausta"}
+                        {:start-time {:hour 16 :minute 0}
+                         :task "kotiin"}]}
+            {:year 2013
+             :month 10
+             :day 11
+             :sessions [{:start-time {:hour 8 :minute 0}
+                         :task "koodausta"}
+                        {:start-time {:hour 14 :minute 0}
+                         :task "kahvi"}
+                        {:start-time {:hour 15 :minute 0}
+                         :task "koodausta"}
+                        {:start-time {:hour 16 :minute 0}
+                         :task "kotiin"}]}])
 
 
-;; TIME
+  ;; TIME
 
-(defn current-date []
-  (let [calendar (java.util.GregorianCalendar.)]
-    {:year (.get calendar java.util.Calendar/YEAR)
-     :month  (+ 1 (.get calendar java.util.Calendar/MONTH))
-     :day (.get calendar java.util.Calendar/DAY_OF_MONTH)}))
+  (defn current-date []
+    (let [calendar (java.util.GregorianCalendar.)]
+      {:year (.get calendar java.util.Calendar/YEAR)
+       :month  (+ 1 (.get calendar java.util.Calendar/MONTH))
+       :day (.get calendar java.util.Calendar/DAY_OF_MONTH)}))
 
-(defn current-time []
-  (let [calendar (java.util.GregorianCalendar.)]
-    {:hour (.get calendar java.util.Calendar/HOUR)
-     :minute  (.get calendar java.util.Calendar/MINUTE)}))
+  (defn current-time []
+    (let [calendar (java.util.GregorianCalendar.)]
+      {:hour (.get calendar java.util.Calendar/HOUR)
+       :minute  (.get calendar java.util.Calendar/MINUTE)}))
 
-(defn time-to-minutes [time]
-  (+ (* (:hour time)
-        60)
-     (:minute time)))
+  (defn time-to-minutes [time]
+    (+ (* (:hour time)
+          60)
+       (:minute time)))
 
-(defn minutes-to-time [minutes]
-  {:hour (int (Math/floor (/ minutes
-                             60)))
-   :minute (mod minutes 60)})
+  (defn minutes-to-time [minutes]
+    {:hour (int (Math/floor (/ minutes
+                               60)))
+     :minute (mod minutes 60)})
 
-(defn time-difference-in-minutes [a b]
-  (- (time-to-minutes b)
-     (time-to-minutes a)))
-
-
-(defn time-to-str [time]
-  (str (:hour time) ":" (:minute time)))
-
-;; MODEL
-
-(defn create-day []
-  (assoc (current-date)
-    :sessions []))
-
-(defn create-session []
-  {:task "work"
-   :start-time (current-time)})
-
-(defn calculate-durations [log]
-  (for [[a b] (partition 2 1 log)]
-    (assoc a
-      :duration-in-minutes (time-difference-in-minutes (:start-time a)
-                                                       (:start-time b)))))
-(defn sum-up-sessions [day-log]
-  (for [task-sessions (vals (group-by :task day-log))]
-    {:task (:task (first task-sessions))
-     :duration-in-minutes (reduce + (map :duration-in-minutes task-sessions))}))
-
-(defn tasks [log]
-  (->> log
-       (mapcat :sessions)
-       (map :task)
-       (apply hash-set)))
-
-(defn suggestions [input alternatives]
-  (take 5 (filter #(.startsWith % input)
-                  alternatives)))
+  (defn time-difference-in-minutes [a b]
+    (- (time-to-minutes b)
+       (time-to-minutes a)))
 
 
-;;  GUI
+  (defn time-to-str [time]
+    (str (:hour time) ":" (:minute time)))
 
-(defn text [style string]
-  (drawable/->Text string
-                   (:font style)
-                   (:foreground style)))
+  ;; MODEL
 
-(defn session-view [style session]
-  (text style (str (:task session)
-                   " "
-                   (-> session
-                       :duration-in-minutes
-                       minutes-to-time
-                       time-to-str))))
+  (defn create-day []
+    (assoc (current-date)
+      :sessions []))
 
-(defn session-edit-view [font session]
-  (hs (drawable/->Text (:task session)
-                       font
-                       [0 0 0 1])
-      (drawable/->Text (-> session
-                           :start-time
-                           time-to-str)
-                       font
-                       [0 0 0 1])))
+  (defn create-session []
+    {:task "work"
+     :start-time (current-time)})
 
+  (defn calculate-durations [log]
+    (for [[a b] (partition 2 1 log)]
+      (assoc a
+        :duration-in-minutes (time-difference-in-minutes (:start-time a)
+                                                         (:start-time b)))))
+  (defn sum-up-sessions [day-log]
+    (for [task-sessions (vals (group-by :task day-log))]
+      {:task (:task (first task-sessions))
+       :duration-in-minutes (reduce + (map :duration-in-minutes task-sessions))}))
 
-(defn time-editor-view [time-editor style subject predicate]
-  (text style (-> subject
-                  predicate
-                  time-to-str)))
+  (defn tasks [log]
+    (->> log
+         (mapcat :sessions)
+         (map :task)
+         (apply hash-set)))
 
-
-(view/defview day-view [style day]
-  (layout/->Margin 0 10 0 0
-                   (vs (text style (str (:day day)
-                                        "."
-                                        (:month day)
-                                        "."
-                                        (:year day)))
-
-                       (hs (layout/->Margin 0 0 20 0
-                                            (layout/grid (forall [session (:sessions day)]
-                                                                 [(layout/->Margin 0 0 10 0
-                                                                                   (text style (:task session)))
-                                                                  (time-editor-view {} style session :start-time)])))
-
-                           (apply vs (forall [session (->> (:sessions day)
-                                                           calculate-durations
-                                                           sum-up-sessions)]
-                                             (session-view style session)))))))
+  (defn suggestions [input alternatives]
+    (take 5 (filter #(.startsWith % input)
+                    alternatives)))
 
 
-(view/defview view [state]
-  (let [globals (triple-dataflow/switch-entity state :globals)]
-    (layout/->Stack [(drawable/->Rectangle (:width globals)
-                                           (:height globals)
-                                           [1 1 1 1])
+  ;;  GUI
 
-                     (layout/->Margin 10 0 0 0
-                                      (let [style {:font (font/create "LiberationSans-Regular.ttf" 15)
-                                                   :foreground [0 0 0 1]}]
+  (defn text [style string]
+    (drawable/->Text string
+                     (:font style)
+                     (:foreground style)))
 
-                                        (apply vs (forall [day (:log state)]
-                                                          (view/call-child-view state [(:day day)
-                                                                                       (:month day)
-                                                                                       (:year day)]
-                                                                                )
-                                                          (day-view style day)))))])))
+  (defn session-view [style session]
+    (text style (str (:task session)
+                     " "
+                     (-> session
+                         :duration-in-minutes
+                         minutes-to-time
+                         time-to-str))))
 
-
-(defn handle-event [state event]
-  (cond (events/key-pressed? event :esc)
-        (application/close state)
-
-        (events/key-pressed? event :enter)
-        (update-in state :log conj (-> (create-day)
-                                       (assoc :sessions [(create-session)])))
-        :default state))
-
-(defonce sa (atom nil))
-
-(defn initialize [state state-atom]
-  (println "initializing")
-  (reset! sa state-atom)
-
-  (-> (triple-dataflow/create-entity state :root-view)
-      (assoc :log log)
-      ::triple-dataflow/dataflow))
-
-(defn refresh []
-  (when @sa
-    (swap! @sa view/set-view view)))
-
-(refresh)
-
-(defn start []
-  (application/create-window view
-                             :initialize initialize
-                             :handle-event handle-event
-                             :framerate 60))
+  (defn session-edit-view [font session]
+    (hs (drawable/->Text (:task session)
+                         font
+                         [0 0 0 1])
+        (drawable/->Text (-> session
+                             :start-time
+                             time-to-str)
+                         font
+                         [0 0 0 1])))
 
 
-(comment
+  (defn time-editor-view [time-editor style subject predicate]
+    (text style (-> subject
+                    predicate
+                    time-to-str)))
 
-  (start))
+
+  (view/defview day-view [style day]
+    (layout/->Margin 0 10 0 0
+                     (vs (text style (str (:day day)
+                                          "."
+                                          (:month day)
+                                          "."
+                                          (:year day)))
+
+                         (hs (layout/->Margin 0 0 20 0
+                                              (layout/grid (forall [session (:sessions day)]
+                                                                   [(layout/->Margin 0 0 10 0
+                                                                                     (text style (:task session)))
+                                                                    (time-editor-view {} style session :start-time)])))
+
+                             (apply vs (forall [session (->> (:sessions day)
+                                                             calculate-durations
+                                                             sum-up-sessions)]
+                                               (session-view style session)))))))
+
+
+  (view/defview view [state]
+    (let [globals (triple-dataflow/switch-entity state :globals)]
+      (layout/->Stack [(drawable/->Rectangle (:width globals)
+                                             (:height globals)
+                                             [1 1 1 1])
+
+                       (layout/->Margin 10 0 0 0
+                                        (let [style {:font (font/create "LiberationSans-Regular.ttf" 15)
+                                                     :foreground [0 0 0 1]}]
+
+                                          (apply vs (forall [day (:log state)]
+                                                            (view/call-child-view state [(:day day)
+                                                                                         (:month day)
+                                                                                         (:year day)]
+                                                                                  )
+                                                            (day-view style day)))))])))
+
+
+  (defn handle-event [state event]
+    (cond (events/key-pressed? event :esc)
+          (application/close state)
+
+          (events/key-pressed? event :enter)
+          (update-in state :log conj (-> (create-day)
+                                         (assoc :sessions [(create-session)])))
+          :default state))
+
+  (defonce sa (atom nil))
+
+  (defn initialize [state state-atom]
+    (println "initializing")
+    (reset! sa state-atom)
+
+    (-> (triple-dataflow/create-entity state :root-view)
+        (assoc :log log)
+        ::triple-dataflow/dataflow))
+
+  (defn refresh []
+    (when @sa
+      (swap! @sa view/set-view view)))
+
+  (refresh)
+
+  (defn start []
+    (application/create-window view
+                               :initialize initialize
+                               :handle-event handle-event
+                               :framerate 60))
+
+
+  (comment
+
+    (start))
+  )

@@ -64,7 +64,7 @@
 
 (defn create
   ([width height]
-     (create width height identity identity nil))
+     (create width height identity (fn [gl width height]) nil))
 
   ([width height init reshape]
      (create width height init reshape nil))
