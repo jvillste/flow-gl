@@ -1,4 +1,4 @@
-(ns examples.hello-child-view
+(ns examples.hello-view-model
   (:require [flow-gl.utils :as utils]
             (flow-gl.gui [drawable :as drawable]
                          [layout :as layout]
@@ -13,7 +13,8 @@
 
             (flow-gl.opengl.jogl [opengl :as opengl]
                                  [window :as window]))
-  (:use [flow-gl.utils]))
+  (:use flow-gl.utils
+        midje.sweet))
 
 (defn start-view [view event-handler initial-state]
   (let [event-queue (event-queue/create)
@@ -54,6 +55,9 @@
 
         :default state))
 
+(def initial-hello-view-state {:count 0
+                               :in-focus false})
+
 (defn hello-view [state]
   (drawable/->Text (str "Hello " (:count state))
                    (font/create "LiberationSans-Regular.ttf" 40)
@@ -61,26 +65,48 @@
                      [1 1 1 1]
                      [0.7 0.7 0.7 1])))
 
+(defn hello-view-state-to-view-model [state]
+  (:count state))
+
+(defn hello-view-model-to-view-state [model state]
+  (assoc state :count model))
+
+(def initial-view-state {:focus 0})
+
+(defn view-state-to-view-model [state]
+  (map :count (:children state)))
+
+(defn view-model-to-view-state [model state]
+  (assoc state :children (vec (map (fn [[hello-view-model hello-view-state]]
+                                     (hello-view-model-to-view-state hello-view-model hello-view-state))
+                                   (partition 2 (interleave model
+                                                            (or (:children state)
+                                                                (repeat (count model) initial-hello-view-state))))))))
+
+(fact (view-model-to-view-state [0 0] {:focus 0})
+      => {:children [{:count 0, :in-focus false} {:count 0, :in-focus false}], :focus 0})
+
 
 (defn view [state]
-  (layout/->VerticalStack (concat (map-indexed (fn [index child-state]
-                                                     (hello-view (conj child-state
-                                                                       {:in-focus (= index
-                                                                                     (:focus state))})))
-                                                   (:children state))
+  (layout/->VerticalStack (concat (map hello-view
+                                       (:children state))
 
-                                  [(drawable/->Text (str "Sum " (reduce + (map :count (:children state))))
+                                  [(drawable/->Text (str "Sum " (reduce + (view-state-to-view-model state)))
                                                     (font/create "LiberationSans-Regular.ttf" 40)
                                                     [1 1 1 1])])))
 
 (defn handle-event [state event]
   (cond  (events/key-pressed? event :down)
-         (update-in state [:focus] (fn [focus]
-                                     (if (= focus
-                                            (dec (count (:children state))))
-                                       0
-                                       (inc focus))))
-
+         (let [old-focus (:focus state)
+               new-focus (if (= old-focus
+                                (dec (count (:children state))))
+                           0
+                           (inc old-focus))]
+           (-> (assoc-in state [:focus] new-focus)
+               (assoc-in [:children] (vec (map-indexed (fn [index child-state]
+                                                         (assoc child-state
+                                                           :in-focus (= index  new-focus)))
+                                                       (:children state))))))
 
          :default
          (update-in state
@@ -91,8 +117,6 @@
 (defn start []
   (start-view view
               handle-event
-              {:focus 0
-               :children [{:count 0}
-                          {:count 0}]}))
+              (view-model-to-view-state [1 2] initial-view-state)))
 
 ;;(start)

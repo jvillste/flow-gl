@@ -175,9 +175,10 @@
                      [1 1 1 1]
                      [0.5 0.5 0.5 1])))
 
-(def counter {:initial-state initial-counter-state
-              :event-handler handle-counter-event
-              :view counter-view})
+(def counter
+  {:initial-state initial-counter-state
+   :event-handler handle-counter-event
+   :view counter-view})
 
 (defn view [state model]
   (with-child-views

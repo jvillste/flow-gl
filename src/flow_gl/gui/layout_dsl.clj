@@ -1,8 +1,13 @@
 (ns flow-gl.gui.layout-dsl
   (:require (flow-gl.gui [layout :as layout])))
 
-(defn vs [& contents]
+(defn vertically [& contents]
   (layout/->VerticalStack contents))
 
-(defn hs [& contents]
+(defn horizontally [& contents]
   (layout/->HorizontalStack contents))
+
+(defn margin [top right bottom left content]
+  (layout/->Margin top right bottom left [content]))
+
+
