@@ -136,6 +136,21 @@
 
 ;;  GUI
 
+(defn set-children-focus-state [parent-state]
+  (assoc-in parent-state [:child-views] (vec (map-indexed (fn [index child-state]
+                                                            (assoc child-state
+                                                              :in-focus (= index (:focus parent-state))))
+                                                          (:child-views parent-state)))))
+
+(defn move-focus-forward [state]
+  (-> (assoc-in state [:focus] (if (= (:focus state)
+                                      (dec (count (:child-views state))))
+                                 0
+                                 (inc (:focus state))))
+      (set-children-focus-state)))
+
+
+
 
 
 
@@ -204,18 +219,35 @@
                                                 (:font style)
                                                 (:foreground style))]))))
 
-(defn day-view [style day]
-  (margin 10 0 0 0
-          (vertically (text style (str (:day day) "." (:month day) "." (:year day)))
-                      (horizontally (margin 0 0 20 0
-                                            (layout/grid (for-all [session (:sessions day)]
-                                                                  [(magrgin 0 0 0 10
-                                                                           (text style (:task session)))
-                                                                   (margin 0 0 0 10
-                                                                           (time-editor-view {} style session :start-time))])))
+(defn session-list-view [sessions style]
+  (layout/grid (for-all [session sessions]
+                        [(margin 0 0 0 10
+                                 (text style (:task session)))
+                         (margin 0 0 0 10
+                                 (time-editor-view {} style session :start-time))])))
 
-                                    (margin 0 0 0 10
-                                            (day-summary-view day style))))))
+(defn day-view [day style]
+  (let [style (update-in style [:foreground]
+                         (fn [[r g b a]]
+                           (if (:in-focus day)
+                             [r g b a]
+                             [r g b (* 0.5 a)])))]
+    (margin 10 0 0 0
+            (vertically (text style
+                              (str (:day day) "." (:month day) "." (:year day)))
+                        (horizontally (margin 0 0 20 0
+                                              (session-list-view (:sessions day) style))
+
+                                      (margin 0 0 0 10
+                                              (day-summary-view day style)))))))
+
+(def initial-view-state
+  {:focus 0})
+
+(defn model-to-view-state [model view-state]
+  (-> view-state
+      (assoc :child-views model)
+      (set-children-focus-state)))
 
 (defn view [state]
   (layout/->Stack [(drawable/->Rectangle 0
@@ -224,11 +256,15 @@
                    (margin 10 0 0 0
                            (let [style {:font (font/create "LiberationSans-Regular.ttf" 15)
                                         :foreground [0 0 0 1]}]
-                             (apply vertically (for-all [day state]
-                                                        (day-view style day)))))]))
+                             (apply vertically (for-all [day-view-state (:child-views state)]
+                                                        (day-view day-view-state style)))))]))
+
 
 (defn handle-event [state event]
-  (cond (events/key-pressed? event :enter)
+  (cond (events/key-pressed? event :down)
+        (move-focus-forward state)
+
+        (events/key-pressed? event :enter)
         (conj state (-> (create-day)
                         (assoc :sessions [(create-session)])))
 
@@ -238,7 +274,7 @@
 (defn start []
   (start-view view
               handle-event
-              log))
+              (model-to-view-state log initial-view-state)))
 
 
 ;;(start)
