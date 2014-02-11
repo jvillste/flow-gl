@@ -17,9 +17,8 @@
         midje.sweet
         flow-gl.gui.layout-dsl))
 
-(defn start-view [view event-handler initial-state]
-  (let [event-queue (event-queue/create)
-        window (window/create 300
+(defn start-view [view event-queue event-handler initial-state]
+  (let [window (window/create 300
                               300
                               opengl/initialize
                               opengl/resize
@@ -27,7 +26,7 @@
 
     (try
       (loop [state initial-state]
-        (let [layoutable (view state)]
+        (let [layoutable (@view state)]
           (window/render window gl
                          (opengl/clear gl 0 0 0 1)
                          (doseq [command (drawable/drawing-commands (layout/layout layoutable
@@ -38,6 +37,7 @@
                              (command/delete gl)))))
 
         (let [event (event-queue/dequeue-event-or-wait event-queue)]
+          (println "event " event)
           (if (= (:type event)
                  :close-requested)
             (window/close window)
@@ -46,6 +46,7 @@
 
       (catch Exception e
         (window/close window)
+        (println "exception " e)
         (throw e)))))
 
 (def log [{:year 2013
@@ -98,7 +99,6 @@
 (defn time-difference-in-minutes [a b]
   (- (time-to-minutes b)
      (time-to-minutes a)))
-
 
 (defn time-to-string [time]
   (str (:hour time) ":" (:minute time)))
@@ -222,31 +222,72 @@
 (defn session-list-view [sessions style]
   (layout/grid (for-all [session sessions]
                         [(margin 0 0 0 10
-                                 (text style (:task session)))
+                                 (text (assoc style :foreground
+                                              (if (:in-focus session)
+                                                [1 0 0 1]
+                                                [1 1 0 1]))
+                                       (:task session)))
                          (margin 0 0 0 10
                                  (time-editor-view {} style session :start-time))])))
 
-(defn day-view [day style]
-  (let [style (update-in style [:foreground]
-                         (fn [[r g b a]]
-                           (if (:in-focus day)
-                             [r g b a]
-                             [r g b (* 0.5 a)])))]
-    (margin 10 0 0 0
-            (vertically (text style
-                              (str (:day day) "." (:month day) "." (:year day)))
-                        (horizontally (margin 0 0 20 0
-                                              (session-list-view (:sessions day) style))
 
-                                      (margin 0 0 0 10
-                                              (day-summary-view day style)))))))
+(def initial-day-view-state
+  {:focus 0})
+
+(defn day-view-model-to-day-view-state [model view-state]
+  (-> view-state
+      (assoc :child-views (:sessions model)
+             :day (:day model)
+             :year (:year model)
+             :month (:month model))
+      (set-children-focus-state)))
+
+(defn day-view-state-to-day-view-model [view-state]
+  (-> view-state
+      (assoc :sessions (:child-views view-state)
+             :day (:day view-state)
+             :year (:year view-state)
+             :month (:month view-state))))
+
+(defn day-view [day style]
+  (layout/->Box 10 [(drawable/->FilledRoundedRectangle 0
+                                                       0
+                                                       10
+                                                       [0.5 0.5 1 1])
+                    (let [style (update-in style [:foreground]
+                                           (fn [[r g b a]]
+                                             (if (:in-focus day)
+                                               [r g b a]
+                                               [r g b (* 0.5 a)])))]
+                      (margin 10 0 0 0
+                              (vertically (text style
+                                                (str (:day day) "." (:month day) "." (:year day)))
+                                          (horizontally (margin 0 0 20 0
+                                                                (session-list-view (:child-views day) style))
+
+                                                        (margin 0 0 0 10
+                                                                (day-summary-view (day-view-state-to-day-view-model day) style))))))]))
+
+
+
+
+(defn handle-day-view-event [day-view event]
+  (cond
+   (events/key-pressed? event :down)
+   (move-focus-forward day-view)
+
+   :default day-view))
 
 (def initial-view-state
   {:focus 0})
 
 (defn model-to-view-state [model view-state]
   (-> view-state
-      (assoc :child-views model)
+      (assoc :child-views (vec (map (fn [[child-view-model child-view-state]]
+                                      (day-view-model-to-day-view-state child-view-model child-view-state))
+                                    (partition 2 (interleave model
+                                                             (or (:child-views view-state)
+                                                                 (repeat (count model) initial-day-view-state)))))))
       (set-children-focus-state)))
 
 (defn view [state]
@@ -256,25 +297,30 @@
                    (margin 10 0 0 0
                            (let [style {:font (font/create "LiberationSans-Regular.ttf" 15)
                                         :foreground [0 0 0 1]}]
-                             (apply vertically (for-all [day-view-state (:child-views state)]
-                                                        (day-view day-view-state style)))))]))
-
+                             (apply vertically (->> (for-all [day-view-state (:child-views state)]
+                                                             (day-view day-view-state style))
+                                                    (interpose (drawable/->Empty 10 10))))))]))
 
 (defn handle-event [state event]
-  (cond (events/key-pressed? event :down)
-        (move-focus-forward state)
+  (cond #_(events/key-pressed? event :down)
+        #_(move-focus-forward state)
 
-        (events/key-pressed? event :enter)
-        (conj state (-> (create-day)
-                        (assoc :sessions [(create-session)])))
+        :default
+        (update-in state [:child-views (:focus state)]
+                   (fn [child-view-state]
+                     (handle-day-view-event child-view-state event)))))
 
-        :default state))
-
+(defonce event-queue (event-queue/create))
 
 (defn start []
-  (start-view view
-              handle-event
-              (model-to-view-state log initial-view-state)))
+  (.start (Thread. (start-view #'view
+                               event-queue
+                               handle-event
+                               (model-to-view-state log initial-view-state)))))
+
+(event-queue/add-event event-queue {})
 
 
 ;;(start)
+
+;;

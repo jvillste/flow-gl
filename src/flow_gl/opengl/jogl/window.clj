@@ -100,6 +100,7 @@
 
            (.addWindowListener (proxy [WindowAdapter] []
                                  (windowDestroyNotify [event]
+                                   (println "destroy notify")
                                    (event-queue/add-event event-queue
                                                           (events/create-close-requested-event)))
                                  (windowResized [event]
