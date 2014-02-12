@@ -19,14 +19,14 @@
 
 (defn start-view [view event-queue event-handler initial-state]
   (let [window (window/create 300
-                              300
+                              400
                               opengl/initialize
                               opengl/resize
                               event-queue)]
 
     (try
       (loop [state initial-state]
-        (let [layoutable (@view state)]
+        (let [layoutable (view state)]
           (window/render window gl
                          (opengl/clear gl 0 0 0 1)
                          (doseq [command (drawable/drawing-commands (layout/layout layoutable
@@ -38,6 +38,7 @@
 
         (let [event (event-queue/dequeue-event-or-wait event-queue)]
           (println "event " event)
+
           (if (= (:type event)
                  :close-requested)
             (window/close window)
@@ -162,7 +163,7 @@
   (cond (:character event)
         (update-in state [:text] conj (:character event))
 
-        (events/key-pressed? :back-space)
+        (events/key-pressed? event :back-space)
         (update-in state [:text] (fn [text] (apply str (drop-last text))))
 
         :default
@@ -190,16 +191,6 @@
                        minutes-to-time
                        time-to-string))))
 
-(defn session-edit-view [font session]
-  (horizontally (drawable/->Text (:task session)
-                                 font
-                                 [0 0 0 1])
-                (drawable/->Text (-> session
-                                     :start-time
-                                     time-to-string)
-                                 font
-                                 [0 0 0 1])))
-
 
 (defn time-editor-view [time-editor style subject predicate]
   (text style (-> subject
@@ -222,79 +213,99 @@
 (defn session-list-view [sessions style]
   (layout/grid (for-all [session sessions]
                         [(margin 0 0 0 10
-                                 (text (assoc style :foreground
-                                              (if (:in-focus session)
-                                                [1 0 0 1]
-                                                [1 1 0 1]))
-                                       (:task session)))
+                                 (text-editor-view (:task session)))
                          (margin 0 0 0 10
-                                 (time-editor-view {} style session :start-time))])))
+                                 (horizontally (text-editor-view (:start-time-hour session))
+                                               (text style ":")
+                                               (text-editor-view (:start-time-minute session))))])))
 
 
 (def initial-day-view-state
   {:focus 0})
 
-(defn day-view-model-to-day-view-state [model view-state]
-  (-> view-state
-      (assoc :child-views (:sessions model)
+(defn day-view-model-to-day-view-state [model day-view-state]
+  (-> (or day-view-state
+          initial-day-view-state)
+      (assoc :sessions (vec (for [[session session-view] (partition 2 (interleave (:sessions model)
+                                                                                  (or (:sessions day-view-state)
+                                                                                      (repeat {:task initial-text-editor-state
+                                                                                               :start-time-hour initial-text-editor-state
+                                                                                               :start-time-minute initial-text-editor-state}))))]
+                              (do (println "session")
+
+                                  {:task (assoc (:task session-view)
+                                           :text (:task session))
+                                   :start-time-hour (assoc (:start-time-hour session-view)
+                                                      :text (-> session :start-time :hour str))
+                                   :start-time-minute (assoc (:start-time-minute session-view)
+                                                        :text (-> session :start-time :minute str))})))
              :day (:day model)
              :year (:year model)
-             :month (:month model))
-      (set-children-focus-state)))
+             :month (:month model))))
 
 (defn day-view-state-to-day-view-model [view-state]
-  (-> view-state
-      (assoc :sessions (:child-views view-state)
-             :day (:day view-state)
-             :year (:year view-state)
-             :month (:month view-state))))
+  {:sessions (for [session (:sessions view-state)]
+               {:task (-> session :task :text)
+                :start-time {:hour (-> session :start-time-hour :text read-string)
+                             :minute  (-> session :start-time-minute :text read-string)}})
+   :day (:day view-state)
+   :year (:year view-state)
+   :month (:month view-state)})
 
 (defn day-view [day style]
   (layout/->Box 10 [(drawable/->FilledRoundedRectangle 0
                                                        0
                                                        10
                                                        [0.5 0.5 1 1])
-                    (let [style (update-in style [:foreground]
-                                           (fn [[r g b a]]
-                                             (if (:in-focus day)
-                                               [r g b a]
-                                               [r g b (* 0.5 a)])))]
-                      (margin 10 0 0 0
-                              (vertically (text style
-                                                (str (:day day) "." (:month day) "." (:year day)))
-                                          (horizontally (margin 0 0 20 0
-                                                                (session-list-view (:child-views day) style))
+                    (margin 10 0 0 0
+                            (vertically (text style
+                                              (str (:day day) "." (:month day) "." (:year day)))
+                                        (horizontally (margin 0 0 20 0
+                                                              (session-list-view (:sessions day) style))
 
-                                                        (margin 0 0 0 10
-                                                                (day-summary-view (day-view-state-to-day-view-model day) style))))))]))
+                                                      (margin 0 0 0 10
+                                                              (day-summary-view (day-view-state-to-day-view-model day) style)))))]))
 
 
+#_(defn handle-day-view-event [day-view event]
+    (cond (events/key-pressed? event :down)
+          (if (= (:focus state)
+                 (dec (count (:child-views state))))
+            (if (= (:can-owerflow-focus event)
+                   true)
+              [(assoc day-view :focus nil)
+               :move-focus-forward]
+              [day-view
+               nil])
+            [(update-in day-view [:focus] inc)
+             nil])
 
-
-(defn handle-day-view-event [day-view event]
-  (cond
-   (events/key-pressed? event :down)
-   (move-focus-forward day-view)
-
-   :default day-view))
+          :default [day-view nil]))
 
 (def initial-view-state
-  {:focus 0})
+  {:day-in-focus 0
+   :session-in-focus 0
+   :session-column-in-focus 0})
 
 (defn model-to-view-state [model view-state]
   (-> view-state
       (assoc :child-views (vec (map (fn [[child-view-model child-view-state]]
+                                      (println child-view-state)
                                       (day-view-model-to-day-view-state child-view-model child-view-state))
                                     (partition 2 (interleave model
                                                              (or (:child-views view-state)
-                                                                 (repeat (count model) initial-day-view-state)))))))
-      (set-children-focus-state)))
+                                                                 (repeat initial-day-view-state)))))))
+      (assoc-in [:child-views 0 :sessions 0 :task :has-focus] true)
+      #_(set-children-focus-state)))
+
+(fact (model-to-view-state log initial-view-state)
+      => nil)
 
 (defn view [state]
   (layout/->Stack [(drawable/->Rectangle 0
                                          0
                                          [1 1 1 1])
-                   (margin 10 0 0 0
+                   (margin 10 0 0 10
                            (let [style {:font (font/create "LiberationSans-Regular.ttf" 15)
                                         :foreground [0 0 0 1]}]
                              (apply vertically (->> (for-all [day-view-state (:child-views state)]
@@ -306,19 +317,31 @@
         #_(move-focus-forward state)
 
         :default
-        (update-in state [:child-views (:focus state)]
-                   (fn [child-view-state]
-                     (handle-day-view-event child-view-state event)))))
+        (update-in state [:child-views (:day-in-focus state) :sessions (:session-in-focus state) :task]
+                   #(handle-text-editor-event % event))
+        #_state
+        #_(let [[new-state focus-command] (handle-day-view-event child-view-state
+                                                                 (assoc event :can-owerflow-focus
+                                                                        (< (:focus state)
+                                                                           (dec (count (:child-views state))))))]
+
+            (update-in state [:child-views (:focus state)]
+                       (fn [child-view-state]
+                         )))))
 
 (defonce event-queue (event-queue/create))
 
 (defn start []
-  (.start (Thread. (start-view #'view
-                               event-queue
-                               handle-event
-                               (model-to-view-state log initial-view-state)))))
+  #_(.start (Thread. (fn [] (start-view #'view
+                                        event-queue
+                                        #'handle-event
+                                        (model-to-view-state log initial-view-state)))))
+  (start-view view
+              event-queue
+              handle-event
+              (model-to-view-state log initial-view-state)))
 
-(event-queue/add-event event-queue {})
+#_(event-queue/add-event event-queue {})
 
 
 ;;(start)
