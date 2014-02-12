@@ -231,14 +231,12 @@
                                                                                       (repeat {:task initial-text-editor-state
                                                                                                :start-time-hour initial-text-editor-state
                                                                                                :start-time-minute initial-text-editor-state}))))]
-                              (do (println "session")
-
-                                  {:task (assoc (:task session-view)
-                                           :text (:task session))
-                                   :start-time-hour (assoc (:start-time-hour session-view)
-                                                      :text (-> session :start-time :hour str))
-                                   :start-time-minute (assoc (:start-time-minute session-view)
-                                                        :text (-> session :start-time :minute str))})))
+                              {:task (assoc (:task session-view)
+                                       :text (:task session))
+                               :start-time-hour (assoc (:start-time-hour session-view)
+                                                  :text (-> session :start-time :hour str))
+                               :start-time-minute (assoc (:start-time-minute session-view)
+                                                    :text (-> session :start-time :minute str))}))
              :day (:day model)
              :year (:year model)
              :month (:month model))))
@@ -290,7 +288,6 @@
 (defn model-to-view-state [model view-state]
   (-> view-state
       (assoc :child-views (vec (map (fn [[child-view-model child-view-state]]
-                                      (println child-view-state)
                                       (day-view-model-to-day-view-state child-view-model child-view-state))
                                     (partition 2 (interleave model
                                                              (or (:child-views view-state)
@@ -329,19 +326,21 @@
                        (fn [child-view-state]
                          )))))
 
-(defonce event-queue (event-queue/create))
+(defonce event-queue (atom (event-queue/create)))
 
 (defn start []
-  #_(.start (Thread. (fn [] (start-view #'view
-                                        event-queue
-                                        #'handle-event
-                                        (model-to-view-state log initial-view-state)))))
-  (start-view view
-              event-queue
-              handle-event
-              (model-to-view-state log initial-view-state)))
+  (reset! event-queue (event-queue/create))
+  (.start (Thread. (fn [] (start-view #'view
+                                      @event-queue
+                                      #'handle-event
+                                      (model-to-view-state log initial-view-state)))))
 
-#_(event-queue/add-event event-queue {})
+  #_(start-view view
+                @event-queue
+                handle-event
+                (model-to-view-state log initial-view-state)))
+
+(event-queue/add-event @event-queue {})
 
 
 ;;(start)
