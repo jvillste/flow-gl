@@ -159,12 +159,22 @@
   {:text ""
    :has-focus false})
 
-(defn handle-text-editor-event [state event]
-  (cond (:character event)
-        (update-in state [:text] conj (:character event))
+(defn append-character [string character]
+  (apply str (vec (concat string
+                          (str character)))))
 
-        (events/key-pressed? event :back-space)
+(fact (append-character "Foo" \a)
+      => nil)
+
+(defn handle-text-editor-event [state event]
+  (cond (events/key-pressed? event :back-space)
         (update-in state [:text] (fn [text] (apply str (drop-last text))))
+
+        (and (:character event)
+             (= (:type event)
+                :key-pressed))
+        (update-in state [:text] append-character (:character event) )
+
 
         :default
         state))
@@ -285,15 +295,20 @@
    :session-in-focus 0
    :session-column-in-focus 0})
 
+(defn focus-path [view-state]
+  [:days (:day-in-focus view-state)
+   :sessions (:session-in-focus view-state)
+   (get [:task :start-hour :start-minute] (:session-column-in-focus view-state)) :has-focus])
+
 (defn model-to-view-state [model view-state]
   (-> view-state
-      (assoc :child-views (vec (map (fn [[child-view-model child-view-state]]
-                                      (day-view-model-to-day-view-state child-view-model child-view-state))
-                                    (partition 2 (interleave model
-                                                             (or (:child-views view-state)
-                                                                 (repeat initial-day-view-state)))))))
-      (assoc-in [:child-views 0 :sessions 0 :task :has-focus] true)
-      #_(set-children-focus-state)))
+      (assoc :days (vec (map (fn [[child-view-model child-view-state]]
+                               (day-view-model-to-day-view-state child-view-model child-view-state))
+                             (partition 2 (interleave model
+                                                      (or (:days view-state)
+                                                          (repeat initial-day-view-state)))))))
+      (as-> view-state
+            (assoc-in view-state (focus-path view-state) true))))
 
 (fact (model-to-view-state log initial-view-state)
       => nil)
@@ -305,26 +320,45 @@
                    (margin 10 0 0 10
                            (let [style {:font (font/create "LiberationSans-Regular.ttf" 15)
                                         :foreground [0 0 0 1]}]
-                             (apply vertically (->> (for-all [day-view-state (:child-views state)]
+                             (apply vertically (->> (for-all [day-view-state (:days state)]
                                                              (day-view day-view-state style))
                                                     (interpose (drawable/->Empty 10 10))))))]))
 
+
 (defn handle-event [state event]
-  (cond #_(events/key-pressed? event :down)
-        #_(move-focus-forward state)
+  (cond (events/key-pressed? event :down)
+        (let [new-state (if (< (:session-in-focus state)
+                               (dec (count (-> state :days (:day-in-focus state)))))
+                          (update-in state [:session-in-focus] inc)
+                          (if (< (:day-in-focus state)
+                                 (dec (count (:days state))))
+                            (-> state
+                                (assoc-in [:session-in-focus] 0)
+                                (update-in [:day-in-focus] inc))
+                            state))]
+          (-> new-state
+              (assoc-in (focus-path state) false)
+              (assoc-in (focus-path new-state) true)))
+
+        (events/key-pressed? event :up)
+        (let [new-state (if (> (:session-in-focus state)
+                               0)
+                          (update-in state [:session-in-focus] dec)
+                          (if (> (:day-in-focus state)
+                                 0)
+                            (do (println (dec (count (get (:days state) (dec (:day-in-focus state))))))
+                                (-> state
+                                    (assoc-in [:session-in-focus] (dec (dec (count (get (:days state) (dec (:day-in-focus state)))))))
+                                    (update-in [:day-in-focus] dec)))
+                            state))]
+          (-> new-state
+              (assoc-in (focus-path state) false)
+              (assoc-in (focus-path new-state) true)))
+
 
         :default
-        (update-in state [:child-views (:day-in-focus state) :sessions (:session-in-focus state) :task]
-                   #(handle-text-editor-event % event))
-        #_state
-        #_(let [[new-state focus-command] (handle-day-view-event child-view-state
-                                                                 (assoc event :can-owerflow-focus
-                                                                        (< (:focus state)
-                                                                           (dec (count (:child-views state))))))]
-
-            (update-in state [:child-views (:focus state)]
-                       (fn [child-view-state]
-                         )))))
+        (update-in state [:days (:day-in-focus state) :sessions (:session-in-focus state) :task]
+                   #(handle-text-editor-event % event))))
 
 (defonce event-queue (atom (event-queue/create)))
 
