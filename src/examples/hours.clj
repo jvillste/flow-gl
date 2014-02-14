@@ -59,6 +59,8 @@
                        :task "kahvi"}
                       {:start-time {:hour 14 :minute 30}
                        :task "koodausta"}
+                      {:start-time {:hour 15 :minute 0}
+                       :task "hommia"}
                       {:start-time {:hour 16 :minute 0}
                        :task "kotiin"}]}
           {:year 2013
@@ -84,13 +86,30 @@
 
 (defn current-time []
   (let [calendar (java.util.GregorianCalendar.)]
-    {:hour (.get calendar java.util.Calendar/HOUR)
+    {:hour (.get calendar java.util.Calendar/HOUR_OF_DAY)
      :minute  (.get calendar java.util.Calendar/MINUTE)}))
 
 (defn time-to-minutes [time]
   (+ (* (:hour time)
         60)
      (:minute time)))
+
+(defn time-greater-than? [a b]
+  (or (> (:hour a)
+         (:hour b))
+      (and (= (:hour a)
+              (:hour b))
+           (> (:minute a)
+              (:minute b)))))
+
+(tabular
+ (fact (time-greater-than? ?a ?b) => ?expected)
+ ?a                  ?b                  ?expected
+ {:hour 1 :minute 1} {:hour 1 :minute 1} false
+ {:hour 2 :minute 1} {:hour 1 :minute 1} true
+ {:hour 1 :minute 2} {:hour 1 :minute 1} true
+ {:hour 1 :minute 2} {:hour 2 :minute 1} false)
+
 
 (defn minutes-to-time [minutes]
   {:hour (int (Math/floor (/ minutes
@@ -157,6 +176,8 @@
 
 (def initial-text-editor-state
   {:text ""
+   :edited-text ""
+   :editing? false
    :has-focus false})
 
 (defn append-character [string character]
@@ -164,10 +185,12 @@
                           (str character)))))
 
 (fact (append-character "Foo" \a)
-      => nil)
+      => "Fooa")
 
 (defn handle-text-editor-event [state event]
-  (cond (events/key-pressed? event :back-space)
+  (cond 
+
+        (events/key-pressed? event :back-space)
         (update-in state [:text] (fn [text] (apply str (drop-last text))))
 
         (and (:character event)
@@ -237,10 +260,13 @@
   (-> (or day-view-state
           initial-day-view-state)
       (assoc :sessions (vec (for [[session session-view] (partition 2 (interleave (:sessions model)
-                                                                                  (or (:sessions day-view-state)
-                                                                                      (repeat {:task initial-text-editor-state
-                                                                                               :start-time-hour initial-text-editor-state
-                                                                                               :start-time-minute initial-text-editor-state}))))]
+                                                                                  (repeat {:task initial-text-editor-state
+                                                                                           :start-time-hour initial-text-editor-state
+                                                                                           :start-time-minute initial-text-editor-state})
+                                                                                  #_(or (:sessions day-view-state)
+                                                                                        (repeat {:task initial-text-editor-state
+                                                                                                 :start-time-hour initial-text-editor-state
+                                                                                                 :start-time-minute initial-text-editor-state}))))]
                               {:task (assoc (:task session-view)
                                        :text (:task session))
                                :start-time-hour (assoc (:start-time-hour session-view)
@@ -295,10 +321,11 @@
    :session-in-focus 0
    :session-column-in-focus 0})
 
+
 (defn focus-path [view-state]
   [:days (:day-in-focus view-state)
    :sessions (:session-in-focus view-state)
-   (get [:task :start-hour :start-minute] (:session-column-in-focus view-state)) :has-focus])
+   (get [:task :start-time-hour :start-time-minute] (:session-column-in-focus view-state))])
 
 (defn model-to-view-state [model view-state]
   (-> view-state
@@ -308,10 +335,8 @@
                                                       (or (:days view-state)
                                                           (repeat initial-day-view-state)))))))
       (as-> view-state
-            (assoc-in view-state (focus-path view-state) true))))
+            (assoc-in view-state (concat (focus-path view-state) [:has-focus]) true))))
 
-(fact (model-to-view-state log initial-view-state)
-      => nil)
 
 (defn view [state]
   (layout/->Stack [(drawable/->Rectangle 0
@@ -324,40 +349,55 @@
                                                              (day-view day-view-state style))
                                                     (interpose (drawable/->Empty 10 10))))))]))
 
+(defn update-focus-state [new-state old-state]
+  (-> new-state
+      (assoc-in (concat (focus-path old-state) [:has-focus]) false)
+      (assoc-in (concat (focus-path new-state) [:has-focus]) true)))
 
 (defn handle-event [state event]
   (cond (events/key-pressed? event :down)
-        (let [new-state (if (< (:session-in-focus state)
-                               (dec (count (-> state :days (:day-in-focus state)))))
-                          (update-in state [:session-in-focus] inc)
-                          (if (< (:day-in-focus state)
-                                 (dec (count (:days state))))
-                            (-> state
-                                (assoc-in [:session-in-focus] 0)
-                                (update-in [:day-in-focus] inc))
-                            state))]
-          (-> new-state
-              (assoc-in (focus-path state) false)
-              (assoc-in (focus-path new-state) true)))
+        (-> (if (< (:session-in-focus state)
+                   (dec (count (-> state :days (get (:day-in-focus state)) :sessions))))
+              (update-in state [:session-in-focus] inc)
+              (if (< (:day-in-focus state)
+                     (dec (count (:days state))))
+                (-> state
+                    (assoc-in [:session-in-focus] 0)
+                    (update-in [:day-in-focus] inc))
+                state))
+            (update-focus-state state))
 
         (events/key-pressed? event :up)
-        (let [new-state (if (> (:session-in-focus state)
-                               0)
-                          (update-in state [:session-in-focus] dec)
-                          (if (> (:day-in-focus state)
-                                 0)
-                            (do (println (dec (count (get (:days state) (dec (:day-in-focus state))))))
-                                (-> state
-                                    (assoc-in [:session-in-focus] (dec (dec (count (get (:days state) (dec (:day-in-focus state)))))))
-                                    (update-in [:day-in-focus] dec)))
-                            state))]
-          (-> new-state
-              (assoc-in (focus-path state) false)
-              (assoc-in (focus-path new-state) true)))
+        (-> (if (> (:session-in-focus state)
+                   0)
+              (update-in state [:session-in-focus] dec)
+              (if (> (:day-in-focus state)
+                     0)
+                (do (println (dec (count (get (:days state) (dec (:day-in-focus state))))))
+                    (-> state
+                        (assoc-in [:session-in-focus] (dec (count (:sessions (get (:days state) (dec (:day-in-focus state)))))))
+                        (update-in [:day-in-focus] dec)))
+                state))
+            (update-focus-state state))
 
+
+        (events/key-pressed? event :right)
+        (-> (update-in state [:session-column-in-focus] inc)
+            (update-focus-state state))
+
+        (events/key-pressed? event :left)
+        (-> (update-in state [:session-column-in-focus] dec)
+            (update-focus-state state))
+
+        (events/key-pressed? event :enter)
+        (update-in state [:days (:day-in-focus state)]
+                   (fn [day]
+                     (-> (day-view-state-to-day-view-model day)
+                         (update-in [:sessions] concat [(create-session)])
+                         (day-view-model-to-day-view-state day))))
 
         :default
-        (update-in state [:days (:day-in-focus state) :sessions (:session-in-focus state) :task]
+        (update-in state (focus-path state)
                    #(handle-text-editor-event % event))))
 
 (defonce event-queue (atom (event-queue/create)))
