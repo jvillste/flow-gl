@@ -170,10 +170,6 @@
       (set-children-focus-state)))
 
 
-
-
-
-
 (def initial-text-editor-state
   {:text ""
    :edited-text ""
@@ -188,25 +184,46 @@
       => "Fooa")
 
 (defn handle-text-editor-event [state event]
-  (cond 
+  (if (:editing? state)
+    (cond
 
-        (events/key-pressed? event :back-space)
-        (update-in state [:text] (fn [text] (apply str (drop-last text))))
+     (events/key-pressed? event :enter)
+     (-> state
+         (assoc :text (:edited-text state))
+         (assoc :editing? false))
 
-        (and (:character event)
-             (= (:type event)
-                :key-pressed))
-        (update-in state [:text] append-character (:character event) )
+     (events/key-pressed? event :back-space)
+     (update-in state [:edited-text] (fn [text] (apply str (drop-last text))))
+
+     (and (:character event)
+          (= (:type event)
+             :key-pressed))
+     (update-in state [:edited-text] append-character (:character event))
 
 
-        :default
-        state))
+     :default
+     state)
+
+    (cond
+
+     (events/key-pressed? event :enter)
+     (-> state
+         (assoc :edited-text (:text state))
+         (assoc :editing? true))
+
+
+     :default
+     state)))
 
 (defn text-editor-view [state]
-  (drawable/->Text (:text state)
+  (drawable/->Text (if (:editing? state)
+                     (:edited-text state)
+                     (:text state))
                    (font/create "LiberationSans-Regular.ttf" 15)
                    (if (:has-focus state)
-                     [0 0 0 1]
+                     (if (:editing? state)
+                       [0 0 1 1]
+                       [0 0 0 1])
                      [0.3 0.3 0.3 1])))
 
 
@@ -354,6 +371,13 @@
       (assoc-in (concat (focus-path old-state) [:has-focus]) false)
       (assoc-in (concat (focus-path new-state) [:has-focus]) true)))
 
+(defn insert [vector pos item]
+  (apply conj (subvec vector 0 pos) item (subvec vector pos)))
+
+(defn remove
+  [vector position]
+  (vec (concat (subvec vector 0 position) (subvec vector (inc position)))))
+
 (defn handle-event [state event]
   (cond (events/key-pressed? event :down)
         (-> (if (< (:session-in-focus state)
@@ -373,10 +397,9 @@
               (update-in state [:session-in-focus] dec)
               (if (> (:day-in-focus state)
                      0)
-                (do (println (dec (count (get (:days state) (dec (:day-in-focus state))))))
-                    (-> state
-                        (assoc-in [:session-in-focus] (dec (count (:sessions (get (:days state) (dec (:day-in-focus state)))))))
-                        (update-in [:day-in-focus] dec)))
+                (-> state
+                    (assoc-in [:session-in-focus] (dec (count (:sessions (get (:days state) (dec (:day-in-focus state)))))))
+                    (update-in [:day-in-focus] dec))
                 state))
             (update-focus-state state))
 
@@ -389,11 +412,20 @@
         (-> (update-in state [:session-column-in-focus] dec)
             (update-focus-state state))
 
-        (events/key-pressed? event :enter)
+        (events/key-pressed? event :f1)
         (update-in state [:days (:day-in-focus state)]
                    (fn [day]
                      (-> (day-view-state-to-day-view-model day)
-                         (update-in [:sessions] concat [(create-session)])
+                         (update-in [:sessions] (fn [sessions]
+                                                  (insert (vec sessions) (inc (:session-in-focus state)) (create-session))) )
+                         (day-view-model-to-day-view-state day))))
+
+        (events/key-pressed? event :f2)
+        (update-in state [:days (:day-in-focus state)]
+                   (fn [day]
+                     (-> (day-view-state-to-day-view-model day)
+                         (update-in [:sessions] (fn [sessions]
+                                                  (remove (vec sessions) (:session-in-focus state))))
                          (day-view-model-to-day-view-state day))))
 
         :default
