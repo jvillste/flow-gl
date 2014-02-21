@@ -37,7 +37,10 @@
      (:height texture)))
 
 (defn create-jogl-texture [buffered-image gl]
-  (AWTTextureIO/newTexture (.getGLProfile gl) buffered-image false))
+  ;;(println "creating texture")
+  (let [texture (time (AWTTextureIO/newTexture (.getGLProfile gl) buffered-image false))]
+    ;;(println (.getWidth texture) " X " (.getHeight texture) " = " (.getEstimatedMemorySize texture))
+    texture))
 
 (defn create-for-buffered-image [buffered-image gl]
   (Texture. (create-jogl-texture buffered-image gl)

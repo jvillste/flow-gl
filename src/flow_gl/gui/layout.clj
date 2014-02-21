@@ -97,7 +97,7 @@
      (drawing-commands [this#] (layout-drawing-commands this#))
 
      Object
-     (toString [this#] (layoutable/describe-layoutable this# (str ~name)))))
+     (toString [this#] (layoutable/describe-layoutable this#))))
 
 ;; LAYOUTS
 

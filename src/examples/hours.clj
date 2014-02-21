@@ -25,29 +25,56 @@
                               event-queue)]
 
     (try
-      (loop [state initial-state]
-        (let [layoutable (view state)]
-          (window/render window gl
-                         (opengl/clear gl 0 0 0 1)
-                         (doseq [command (drawable/drawing-commands (layout/layout layoutable
-                                                                                   (window/width window)
-                                                                                   (window/height window)))]
-                           (doto (command/create-runner command gl)
-                             (command/run gl)
-                             (command/delete gl)))))
+      (loop [state initial-state
+             previous-state {}
+             cached-runnables {}]
 
-        (let [event (event-queue/dequeue-event-or-wait event-queue)]
-          (println "event " event)
+        (println "rendering")
+        (let [live-runnables (let [layoutable (time (view state))
+                                   layout (time (layout/layout layoutable
+                                                               (window/width window)
+                                                               (window/height window)))
+                                   drawing-commands (time (doall (drawable/drawing-commands layout)))
+                                   cached-runnables-atom (atom cached-runnables)
+                                   unused-commands-atom (atom nil)]
+                               ;;                               (clojure.pprint/pprint (read-string (str layout)))
+                               (when (not= state previous-state)
+                                 (window/render window gl
+                                                (opengl/clear gl 0 0 0 1)
+                                                (time (doseq [runnable (time (doall (reduce (fn [runnables command]
+                                                                                              (if (contains? @cached-runnables-atom command)
+                                                                                                (conj runnables (get @cached-runnables-atom command))
+                                                                                                (let [runnable (command/create-runner command gl)]
+                                                                                                  (swap! cached-runnables-atom assoc command runnable)
+                                                                                                  (conj runnables runnable))))
+                                                                                            []
+                                                                                            drawing-commands)))]
 
-          (if (= (:type event)
-                 :close-requested)
-            (window/close window)
+                                                        ;;(println (type runnable))
+                                                        (command/run runnable gl)))
 
-            (recur (event-handler state event)))))
+                                                (let [unused-commands (filter (complement (apply hash-set drawing-commands))
+                                                                               (keys @cached-runnables-atom))]
+                                                  (doseq [unused-command unused-commands]
+                                                    (println "deleting " (type unused-command))
+                                                    (if-let [unused-runnable (get unused-command @cached-runnables-atom)]
+                                                      (command/delete unused-runnable gl)))
+
+                                                  (reset! unused-commands-atom unused-commands))))
+
+                               (apply dissoc @cached-runnables-atom @unused-commands-atom))]
+
+          (println "handling events")
+          (let [event (event-queue/dequeue-event-or-wait event-queue)]
+            (if (= (:type event)
+                   :close-requested)
+              (window/close window)
+              (recur (time (event-handler state event))
+                     state
+                     live-runnables)))))
 
       (catch Exception e
         (window/close window)
-        (println "exception " e)
         (throw e)))))
 
 (def log [{:year 2013

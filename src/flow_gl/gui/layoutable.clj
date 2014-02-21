@@ -1,4 +1,6 @@
-(ns flow-gl.gui.layoutable)
+(ns flow-gl.gui.layoutable
+  (:require clojure.reflect
+            clojure.string))
 
 (defprotocol Layoutable
   (preferred-width [element])
@@ -14,5 +16,10 @@
   (apply str (interpose " " (map (partial describe-property layoutable)
                                  properties))))
 
-(defn describe-layoutable [layoutable name]
-  (str "(" name " " (describe-properties layoutable (keys layoutable)) ")"))
+(defn describe-layoutable [layoutable]
+  (let [name (-> (clojure.reflect/typename (type layoutable))
+                 (clojure.string/replace  "flow_gl.gui.layout." "")
+                 (clojure.string/replace  "flow_gl.gui.drawable." ""))]
+    (if (:children layoutable)
+      (str "(" name " " (apply str (interpose " " (map describe-layoutable (:children layoutable)))) ")")
+      name)))
