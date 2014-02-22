@@ -13,7 +13,8 @@
                                       [translate :as translate])
 
             (flow-gl.opengl.jogl [opengl :as opengl]
-                                 [window :as window]))
+                                 [window :as window])
+            clojure.data)
   (:use flow-gl.utils))
 
 (defn start-view [view event-handler initial-state]
@@ -25,29 +26,52 @@
                               event-queue)]
 
     (try
-      (loop [state initial-state]
-        (let [layoutable (view state)]
-          (println "layoutable " (str layoutable))
+      (loop [state initial-state
+             previous-layout nil]
+        (println) (println)
+        (let [layoutable (named-time "view" (view state))
+              layout (named-time "layout" (layout/layout layoutable
+                                                         (window/width window)
+                                                         (window/height window)))]
+          (println "layout " (str layout))
+          (let [difference (vec (time (clojure.data/diff layout previous-layout)))]
+            (println "layout difference " (str (first difference)))
+            (println "layout difference " (str (second difference))))
+
           (window/render window gl
                          (opengl/clear gl 0 0 0 1)
-                         (doseq [command (drawable/drawing-commands (layout/layout layoutable
-                                                                                   (window/width window)
-                                                                                   (window/height window)))]
-                           (doto (command/create-runner command gl)
-                             (command/run gl)
-                             (command/delete gl)))))
+                         (let [commands (named-time "get commands" (drawable/drawing-commands layout))
+                               runners (named-time "create runners" (for-all [command commands]
+                                                                            (command/create-runner command gl)))]
 
-        (let [event (event-queue/dequeue-event-or-wait event-queue)]
-          (if (= (:type event)
-                 :close-requested)
-            (window/close window)
+                           (named-time "running" (doseq [runner runners]
+                                                   (command/run runner gl)))
 
-            (recur (event-handler state event)))))
+                           (named-time "deleting" (doseq [runner runners]
+                                                    (command/delete runner gl)))))
+
+          (let [event (event-queue/dequeue-event-or-wait event-queue)]
+            (if (= (:type event)
+                   :close-requested)
+              (window/close window)
+
+              (recur (event-handler state event)
+                     layout)))))
 
       (catch Exception e
         (window/close window)
         (throw e)))))
 
+
+(defn memoize
+  [f]
+  (let [mem (atom {})]
+    (fn [& args]
+      (if-let [e (find @mem args)]
+        (val e)
+        (let [ret (apply f args)]
+          (swap! mem assoc args ret)
+          ret)))))
 
 (defn text-view [text]
   (drawable/->Text text
@@ -71,11 +95,13 @@
                        {:task "3.2"}]}])
 
 (defn view [state]
-  (println "view for " state)
   (layout/->VerticalStack (map task-view state)))
 
 (defn handle-event [state event]
   (cond
+   (events/key-pressed? event :enter)
+   (update-in state [0 :children 1 :task] str "X")
+
    :default state))
 
 (defn start []

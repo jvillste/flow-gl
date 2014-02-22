@@ -4,6 +4,9 @@
 (defn map-vals [m f]
   (zipmap (keys m) (map f (vals m))))
 
+(defmacro named-time [name expression]
+  `(do (println ~name)
+       (time ~expression)))
 
 (defn get-and-reset [atom key new-value]
   (let [now-key (keyword (namespace key) (str (name key) "-now"))]
