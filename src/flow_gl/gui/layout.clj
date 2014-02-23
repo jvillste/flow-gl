@@ -62,6 +62,28 @@
                      commands))
                  [(pop-modelview/->PopModelview)]))))
 
+
+(defn draw-layout [layout graphics]
+  (if-let [drawables (:children layout)]
+    (let [old-transform (.getTransform graphics)]
+      (loop [x 0
+             y 0
+             drawables drawables]
+        (when (seq drawables)
+          (let [drawable (first drawables)]
+            (when (or (not (= (:x drawable) x))
+                      (not (= (:y drawable) y)))
+              (.translate graphics
+                          (double (- (:x drawable)
+                                     x))
+                          (double (- (:y drawable)
+                                     y))))
+            (drawable/draw drawable graphics)
+            (recur (:x drawable)
+                   (:y drawable)
+                   (rest drawables)))))
+      (.setTransform old-transform))))
+
 (defn in-coordinates [x y layoutable]
   (and (>= x
            (:x layoutable))
@@ -96,13 +118,28 @@
      drawable/Drawable
      (drawing-commands [this#] (layout-drawing-commands this#))
 
+     drawable/Java2DDrawable
+     (draw [this graphics]
+       )
+
+
      Object
      (toString [this#] (layoutable/describe-layoutable this#))))
 
 ;; LAYOUTS
 
+(deflayout FixedSize [width height children]
+  (layout [this requested-width requested-height]
+          (update-in this
+                     [:children 0]
+                     #(set-dimensions-and-layout % 0 0 width height)))
+
+  (layoutable/preferred-width [this] width)
+
+  (layoutable/preferred-height [this] height))
+
 (deflayout Box [margin children]
-  (layout [box requested-width requested-height  ]
+  (layout [box requested-width requested-height]
           (-> box
               (update-in [:children]
                          (fn [[outer inner]]

@@ -1,6 +1,7 @@
 (ns flow-gl.graphics.buffered-image
   (:import [java.awt.image BufferedImage Raster DataBuffer ComponentColorModel]
            [java.awt.color ColorSpace]
+           [java.awt Color]
            [java.util Hashtable]
            [java.nio IntBuffer FloatBuffer ByteBuffer ByteOrder]
            [javax.imageio ImageIO]
@@ -35,6 +36,11 @@
 
 (defn get-graphics [buffered-image]
   (.createGraphics buffered-image))
+
+(defn clear [buffered-image]
+  (let [graphics (get-graphics buffered-image)]
+    (.setBackground graphics (Color. 255 255 255 0))
+    (.clearRect graphics 0 0 (.getWidth buffered-image) (.getHeight buffered-image))))
 
 (defn create-from-file [file-name]
   (let [original-image (ImageIO/read (File. file-name))

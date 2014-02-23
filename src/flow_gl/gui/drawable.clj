@@ -2,11 +2,15 @@
   (:require  (flow-gl.graphics.command [text :as text]
                                        [triangle-batch :as triangle-batch])
              (flow-gl.graphics [font :as font]
-                               [vector :as vector])
+                               [vector :as vector]
+                               [text :as graphics-text])
              (flow-gl.gui [layoutable :as layoutable])))
 
 (defprotocol Drawable
   (drawing-commands [drawable]))
+
+(defprotocol Java2DDrawable
+  (draw [this graphics]))
 
 ;; DRAWABLES
 
@@ -16,6 +20,10 @@
     [(text/create contents
                   font
                   color)])
+
+  Java2DDrawable
+  (draw [this graphics]
+    (graphics-text/draw contents font color))
 
   layoutable/Layoutable
   (preferred-width [text] (font/width font contents))

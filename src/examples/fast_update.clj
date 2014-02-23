@@ -7,13 +7,16 @@
                          [events :as events])
 
             (flow-gl.graphics [command :as command]
-                              [font :as font])
+                              [font :as font]
+                              [buffered-image :as buffered-image])
 
             (flow-gl.graphics.command [text :as text]
                                       [translate :as translate])
 
             (flow-gl.opengl.jogl [opengl :as opengl]
-                                 [window :as window])
+                                 [window :as window]
+                                 [texture :as texture]
+                                 [textured-quad :as textured-quad])
             clojure.data)
   (:use flow-gl.utils))
 
@@ -23,32 +26,42 @@
                               300
                               opengl/initialize
                               opengl/resize
-                              event-queue)]
+                              event-queue)
+        tile (buffered-image/create 500 500)]
 
     (try
       (loop [state initial-state
              previous-layout nil]
         (println) (println)
         (let [layoutable (named-time "view" (view state))
-              layout (named-time "layout" (layout/layout layoutable
-                                                         (window/width window)
-                                                         (window/height window)))]
+              layout (named-time "layout" (-> (layout/layout layoutable
+                                                             (window/width window)
+                                                             (window/height window))
+                                              (layout/add-global-coordinates 0 0)))]
           (println "layout " (str layout))
           (let [difference (vec (time (clojure.data/diff layout previous-layout)))]
             (println "layout difference " (str (first difference)))
             (println "layout difference " (str (second difference))))
+          
+          (buffered-image/clear tile)
+          (drawable/draw layout (buffered-image/get-graphics tile))
 
           (window/render window gl
                          (opengl/clear gl 0 0 0 1)
-                         (let [commands (named-time "get commands" (drawable/drawing-commands layout))
-                               runners (named-time "create runners" (for-all [command commands]
-                                                                            (command/create-runner command gl)))]
+                         (let [texture (texture/create-for-buffered-image tile gl)
+                               textured-quad (textured-quad/create texture gl)]
+                           (textured-quad/render textured-quad gl)
+                           (textured-quad/delete textured-quad gl))
 
-                           (named-time "running" (doseq [runner runners]
-                                                   (command/run runner gl)))
+                         #_(let [commands (named-time "get commands" (drawable/drawing-commands layout))
+                                 runners (named-time "create runners" (for-all [command commands]
+                                                                               (command/create-runner command gl)))]
 
-                           (named-time "deleting" (doseq [runner runners]
-                                                    (command/delete runner gl)))))
+                             (named-time "running" (doseq [runner runners]
+                                                     (command/run runner gl)))
+
+                             (named-time "deleting" (doseq [runner runners]
+                                                      (command/delete runner gl)))))
 
           (let [event (event-queue/dequeue-event-or-wait event-queue)]
             (if (= (:type event)
