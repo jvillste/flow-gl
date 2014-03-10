@@ -38,3 +38,22 @@ Dataflow visualizer
 (clojure.tools.namespace.repl/refresh)
 
 
+http://www.cs.uta.fi/~rr/
+https://wiki.aalto.fi/display/Designresearch/Design+Research
+http://www.soberit.hut.fi/~mhtn/
+Martti mäntylä https://www.hiit.fi/node/75
+
+Pitäisi pystyä tekemään jotain muuta kuin mitä nykyisillä tekniikoilla voi helposti tehdä
+kuvan linkittäminen koodiin, mikä funktio tuotti tämän osan kuvasta
+
+google scholarilla löytyy paperit
+missä papereita voi julkaista
+
+tieteellinen julkaisualusta
+timo honkela / gerben van den broeke
+
+Argumentation visualization
+Kimmo Lapintie
+dialog mapping, jeff conclin
+http://www.amazon.com/Dialogue-Mapping-Building-Understanding-Problems/dp/0470017686
+markku markkula

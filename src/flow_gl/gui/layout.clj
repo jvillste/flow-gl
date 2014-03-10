@@ -4,7 +4,8 @@
                                        [push-modelview :as push-modelview]
                                        [pop-modelview :as pop-modelview])
              (flow-gl.gui [layoutable :as layoutable]
-                          [drawable :as drawable])))
+                          [drawable :as drawable]))
+  (:use midje.sweet))
 
 (defprotocol Layout
   (layout [layout requested-width requested-height]))
@@ -82,7 +83,7 @@
             (recur (:x drawable)
                    (:y drawable)
                    (rest drawables)))))
-      (.setTransform old-transform))))
+      (.setTransform graphics old-transform))))
 
 (defn in-coordinates [x y layoutable]
   (and (>= x
@@ -97,13 +98,63 @@
 (defn filter-by-coordinates [x y layoutables]
   (filter (partial in-coordinates x y) layoutables))
 
-(defn children-in-coordinates [layout view-state x y]
-  (let [children (filter-by-coordinates x y (:children layout))]
-    (concat children (mapcat (fn [child] (children-in-coordinates child
-                                                                  view-state
-                                                                  (+ x (:x child))
-                                                                  (+ y (:y child))))
-                             children))))
+(defn indexed
+  "Returns a lazy sequence of [index, item] pairs, where items come
+  from 's' and indexes count up from zero.
+
+  (indexed '(a b c d))  =>  ([0 a] [1 b] [2 c] [3 d])"
+  [s]
+  (map vector (iterate inc 0) s))
+
+(defn positions
+  "Returns a lazy sequence containing the positions at which pred
+   is true for items in coll."
+  [pred coll]
+  (for [[idx elt] (indexed coll) :when (pred elt)] idx))
+
+(defn children-in-coordinates [layout x y]
+  (for [child-index (positions (partial in-coordinates x y) (:children layout))]
+    (let [child (get-in layout [:children child-index])]
+      (cons child-index (children-in-coordinates child
+                                                 (-  x (:x child))
+                                                 (-  y (:y child)))))))
+
+
+
+(fact (children-in-coordinates {:x 0 :y 0 :width 100 :height 100
+                                :children [{:x 0 :y 0 :width 20 :height 30}
+                                           {:x 10 :y 10 :width 10 :height 30
+                                            :children [{:x 0 :y 0 :width 10 :height 10}
+                                                       {:x 0 :y 10 :width 10 :height 10}]}]}
+                               15
+                               25)
+      => nil)
+
+(defn children-in-coordinates-list [layout parent-path x y]
+  (let [child-indexes (positions (partial in-coordinates x y) (:children layout))]
+    (concat (map #(vec (concat parent-path [:children %]))
+                 child-indexes)
+
+            (mapcat (fn [child-index]
+                      (let [child (get-in layout [:children child-index])]
+                        (children-in-coordinates-list child
+                                                      (vec (concat parent-path [:children child-index]))
+                                                      (-  x (:x child))
+                                                      (-  y (:y child)))))
+                    child-indexes))))
+
+
+(fact (children-in-coordinates-list {:children [{:x 0 :y 0 :width 20 :height 40
+                                                 :children [{:x 0 :y 0 :width 40 :height 40}
+                                                            {:x 0 :y 10 :width 40 :height 40}]}
+
+                                                {:x 10 :y 10 :width 10 :height 30
+                                                 :children [{:x 0 :y 0 :width 10 :height 10}
+                                                            {:x 0 :y 10 :width 10 :height 10}]}]}
+                                    []
+                                    15
+                                    25)
+      => nil)
 
 (defmacro deflayout [name parameters layout-implementation preferred-width-implementation preferred-height-implementation]
   `(defrecord ~name ~parameters
@@ -119,9 +170,7 @@
      (drawing-commands [this#] (layout-drawing-commands this#))
 
      drawable/Java2DDrawable
-     (draw [this graphics]
-       )
-
+     (draw [this# graphics#] (draw-layout this# graphics#))
 
      Object
      (toString [this#] (layoutable/describe-layoutable this#))))
@@ -144,7 +193,7 @@
               (update-in [:children]
                          (fn [[outer inner]]
                            [(set-dimensions-and-layout outer 0 0 requested-width requested-height)
-                            (set-dimensions-and-layout inner margin margin    (layoutable/preferred-width inner) (layoutable/preferred-height inner))]))))
+                            (set-dimensions-and-layout inner margin margin (layoutable/preferred-width inner) (layoutable/preferred-height inner))]))))
 
   (layoutable/preferred-width [box] (+ (* 2 margin)
                                        (layoutable/preferred-width (second children))))

@@ -18,6 +18,7 @@
 
   ;; :java-cmd "/usr/lib/jvm/java-6-sun/bin/java"
    ;;/Library/Internet\ Plug-Ins/JavaAppletPlugin.plugin/Contents/Home/bin/java
+  :javac-target "1.7"
   :java-opts ["-Xmx60m"
               "-Xms40m"
               "-client"

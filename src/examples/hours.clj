@@ -17,6 +17,19 @@
         midje.sweet
         flow-gl.gui.layout-dsl))
 
+
+(defn apply-mouse-event-handlers [root-layout child-paths event]
+  (reduce (fn [root-layout child-path]
+            (println "applying mouse handler " child-path)
+            (update-in root-layout
+                       child-path
+                       (get-in root-layout (conj child-path :handle-mouse-event))
+                       event))
+          root-layout
+          (filter (fn [child-path]
+                    (:handle-mouse-event (get-in root-layout child-path)))
+                  child-paths)))
+
 (defn start-view [view event-queue event-handler initial-state]
   (let [window (window/create 300
                               400
@@ -24,54 +37,70 @@
                               opengl/resize
                               event-queue)]
 
+    (println "initial " initial-state)
     (try
       (loop [state initial-state
              previous-state {}
              cached-runnables {}]
 
         (println "rendering")
-        (let [live-runnables (let [layoutable (time (view state))
-                                   layout (time (layout/layout layoutable
-                                                               (window/width window)
-                                                               (window/height window)))
-                                   drawing-commands (time (doall (drawable/drawing-commands layout)))
-                                   cached-runnables-atom (atom cached-runnables)
-                                   unused-commands-atom (atom nil)]
-                               ;;                               (clojure.pprint/pprint (read-string (str layout)))
-                               (when (not= state previous-state)
-                                 (window/render window gl
-                                                (opengl/clear gl 0 0 0 1)
-                                                (time (doseq [runnable (time (doall (reduce (fn [runnables command]
-                                                                                              (if (contains? @cached-runnables-atom command)
-                                                                                                (conj runnables (get @cached-runnables-atom command))
-                                                                                                (let [runnable (command/create-runner command gl)]
-                                                                                                  (swap! cached-runnables-atom assoc command runnable)
-                                                                                                  (conj runnables runnable))))
-                                                                                            []
-                                                                                            drawing-commands)))]
+        (let [layoutable (view state)
+              layout (layout/layout layoutable
+                                    (window/width window)
+                                    (window/height window))
+              drawing-commands (doall (drawable/drawing-commands layout))
+              cached-runnables-atom (atom cached-runnables)
+              unused-commands-atom (atom nil)]
 
-                                                        ;;(println (type runnable))
-                                                        (command/run runnable gl)))
+          (when (not= state previous-state)
+            (window/render window gl
+                           (opengl/clear gl 0 0 0 1)
+                           (doseq [runnable (doall (reduce (fn [runnables command]
+                                                             (if (contains? @cached-runnables-atom command)
+                                                               (conj runnables (get @cached-runnables-atom command))
+                                                               (let [runnable (command/create-runner command gl)]
+                                                                 (swap! cached-runnables-atom assoc command runnable)
+                                                                 (conj runnables runnable))))
+                                                           []
+                                                           drawing-commands))]
 
-                                                (let [unused-commands (filter (complement (apply hash-set drawing-commands))
-                                                                               (keys @cached-runnables-atom))]
-                                                  (doseq [unused-command unused-commands]
-                                                    (println "deleting " (type unused-command))
-                                                    (if-let [unused-runnable (get unused-command @cached-runnables-atom)]
-                                                      (command/delete unused-runnable gl)))
+                             ;;(println (type runnable))
+                             (command/run runnable gl))
 
-                                                  (reset! unused-commands-atom unused-commands))))
+                           (let [unused-commands (filter (complement (apply hash-set drawing-commands))
+                                                         (keys @cached-runnables-atom))]
+                             (doseq [unused-command unused-commands]
+                               (if-let [unused-runnable (get unused-command @cached-runnables-atom)]
+                                 (command/delete unused-runnable gl)))
 
-                               (apply dissoc @cached-runnables-atom @unused-commands-atom))]
+                             (reset! unused-commands-atom unused-commands))))
 
-          (println "handling events")
-          (let [event (event-queue/dequeue-event-or-wait event-queue)]
-            (if (= (:type event)
-                   :close-requested)
-              (window/close window)
-              (recur (time (event-handler state event))
-                     state
-                     live-runnables)))))
+          (let [event (event-queue/dequeue-event-or-wait event-queue)
+                live-commands (apply dissoc @cached-runnables-atom @unused-commands-atom)]
+            (println "event loop " event)
+            (cond
+             (= (:source event)
+                :mouse)
+             (do (println "children in coordinates" )
+                 (let [child-paths-under-mouse (layout/children-in-coordinates-list layout [] (:x event) (:y event))]
+                   (doseq [child-path child-paths-under-mouse]
+                     (println "type under mouse " (type (get-in layout child-path))))
+
+                   (recur (apply-mouse-event-handlers layout
+                                                      child-paths-under-mouse
+                                                      event)
+                          state
+                          live-commands)))
+
+             (= (:type event)
+                :close-requested)
+             (do (println "closing")
+                 (window/close window))
+
+             :default
+             (recur (event-handler state event)
+                    state
+                    live-commands)))))
 
       (catch Exception e
         (window/close window)
@@ -243,15 +272,18 @@
      state)))
 
 (defn text-editor-view [state]
-  (drawable/->Text (if (:editing? state)
-                     (:edited-text state)
-                     (:text state))
-                   (font/create "LiberationSans-Regular.ttf" 15)
-                   (if (:has-focus state)
-                     (if (:editing? state)
-                       [0 0 1 1]
-                       [0 0 0 1])
-                     [0.3 0.3 0.3 1])))
+  (assoc (drawable/->Text (if (:editing? state)
+                            (:edited-text state)
+                            (:text state))
+                          (font/create "LiberationSans-Regular.ttf" 15)
+                          (if (:has-focus state)
+                            (if (:editing? state)
+                              [0 0 1 1]
+                              [0 0 0 1])
+                            [0.3 0.3 0.3 1]))
+    :handle-mouse-event (fn [state event]
+                          (println "got mouse event " (:text state))
+                          state)))
 
 
 
@@ -345,21 +377,6 @@
                                                               (day-summary-view (day-view-state-to-day-view-model day) style)))))]))
 
 
-#_(defn handle-day-view-event [day-view event]
-    (cond (events/key-pressed? event :down)
-          (if (= (:focus state)
-                 (dec (count (:child-views state))))
-            (if (= (:can-owerflow-focus event)
-                   true)
-              [(assoc day-view :focus nil)
-               :move-focus-forward]
-              [day-view
-               nil])
-            [(update-in day-view [:focus] inc)
-             nil])
-
-          :default [day-view nil]))
-
 (def initial-view-state
   {:day-in-focus 0
    :session-in-focus 0
@@ -406,6 +423,7 @@
   (vec (concat (subvec vector 0 position) (subvec vector (inc position)))))
 
 (defn handle-event [state event]
+  (println "handling " event)
   (cond (events/key-pressed? event :down)
         (-> (if (< (:session-in-focus state)
                    (dec (count (-> state :days (get (:day-in-focus state)) :sessions))))
@@ -455,6 +473,7 @@
                                                   (remove (vec sessions) (:session-in-focus state))))
                          (day-view-model-to-day-view-state day))))
 
+
         :default
         (update-in state (focus-path state)
                    #(handle-text-editor-event % event))))
@@ -476,6 +495,6 @@
 (event-queue/add-event @event-queue {})
 
 
-;;(start)
+;;(Start)
 
 ;;

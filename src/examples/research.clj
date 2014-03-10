@@ -1,4 +1,4 @@
-(ns examples.beats
+(ns examples.research
   (:require [flow-gl.utils :as utils]
             (flow-gl.gui [drawable :as drawable]
                          [layout :as layout]
@@ -12,7 +12,9 @@
                                       [translate :as translate])
 
             (flow-gl.opengl.jogl [opengl :as opengl]
-                                 [window :as window]))
+                                 [window :as window])
+            ;;clojure.core.logic
+            )
   (:use flow-gl.utils
         midje.sweet
         flow-gl.gui.layout-dsl))
@@ -65,7 +67,7 @@
 
           (let [event (event-queue/dequeue-event-or-wait event-queue)]
             (if (= (:type event)
-                   :close-requested)
+                   "close-requested")
               (window/close window)
               (recur live-runnables)))))
 
@@ -73,42 +75,40 @@
         (window/close window)
         (throw e)))))
 
+(defn author [id name]
+  {:type :author
+   :id id
+   :name name})
+
+(defn system [id name]
+  {:type :system
+   :id id
+   :name name})
+
+(defn article [id name]
+  {:type :article
+   :id id
+   :name name})
+
+(def data [(author :spj "Simon Peyton Jones")
+           (system :haggis "Haggis")
+           ])
+
 
 (defn handle-event [state event]
   (cond
    :default state))
 
 
-(def beats (let [beats (->> (cycle [1 2 3 4])
-                            (take (* 4 4)))]
-             [beats
-              (concat (repeat 3 "X" )  (take (* 3 4) (drop 3 beats)))
-              (concat (repeat 2 "X" )  (take (* 3 4) (drop 2 beats)))
-              (concat (repeat 1 "X" )  (take (* 3 4) (drop 1 beats)))]))
-
 (defn text [text color]
   (drawable/->Text (str text)
                    (font/create "LiberationSans-Regular.ttf" 25)
                    color))
 
-(defn beat-row [name-size-group beats name row-number drop-colors]
-  (let [colors (drop drop-colors (cycle (concat (repeat 4 [1 1 1 1])
-                                                (repeat 4 [1 1 1 0.8]))))]
-    (layout/->HorizontalStack (concat [(layout/->Margin 0 10 0 0
-                                                        [(layout/size-group-member name-size-group
-                                                                                   :width
-                                                                                   (text name [1 1 1 1]))])]
-                                      (map (fn [beat color]
-                                             (layout/->FixedSize 18 22
-                                                                 [(text beat color)]))
-                                           (nth beats row-number) colors)))))
+
 
 (defn view [beats]
-  (let [name-size-group (layout/create-size-group)]
-    (layout/->VerticalStack [(beat-row name-size-group beats "Jukka" 0 0)
-                             (beat-row name-size-group beats "Risto" 1 1)
-                             (beat-row name-size-group beats "Arttu" 2 2)
-                             (beat-row name-size-group beats "Foobar" 3 3)])))
+  (layout/->VerticalStack []))
 
 (defonce event-queue (atom (event-queue/create)))
 
@@ -117,7 +117,7 @@
   (.start (Thread. (fn [] (start-view #'view
                                       @event-queue
                                       #'handle-event
-                                      #'beats)))))
+                                      #'data)))))
 
 (event-queue/add-event @event-queue {})
 

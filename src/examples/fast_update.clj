@@ -8,7 +8,8 @@
 
             (flow-gl.graphics [command :as command]
                               [font :as font]
-                              [buffered-image :as buffered-image])
+                              [buffered-image :as buffered-image]
+                              [text :as graphics-text])
 
             (flow-gl.graphics.command [text :as text]
                                       [translate :as translate])
@@ -18,7 +19,33 @@
                                  [texture :as texture]
                                  [textured-quad :as textured-quad])
             clojure.data)
-  (:use flow-gl.utils))
+  (:import [com.jogamp.opengl.util.texture.awt AWTTextureIO]
+           [javax.media.opengl GLProfile])
+  (:use flow-gl.utils
+        midje.sweet))
+
+
+[[0 [1 2]]]
+
+(defn differences [old new]
+  (if (identical? old new)
+    nil
+    (map differences
+         (:children old)
+         (:children new))))
+
+(facts (let [old {:children [{:text "1"}
+                             {:text "2"
+                              :children [{:text "2.1"}
+                                         {:text "2.2"}]}
+                             {:text "3"}]}]
+         (fact (differences old
+                            (update-in old [:children 1 :children 1 :text] str "X"))
+               => nil)
+
+         (fact (differences old
+                            (update-in old [:children 1 :children] conj {:text "2.3"}))
+               => nil)))
 
 (defn start-view [view event-handler initial-state]
   (let [event-queue (event-queue/create)
@@ -27,7 +54,13 @@
                               opengl/initialize
                               opengl/resize
                               event-queue)
-        tile (buffered-image/create 500 500)]
+        tile (buffered-image/create 300 300)
+        textured-quad-atom (atom nil)]
+
+    (window/render window gl
+                   (named-time "creating quad" (let [texture (texture/create-for-buffered-image tile gl)
+                                                     textured-quad (textured-quad/create texture gl)]
+                                                 (reset! textured-quad-atom textured-quad))))
 
     (try
       (loop [state initial-state
@@ -38,30 +71,38 @@
                                                              (window/width window)
                                                              (window/height window))
                                               (layout/add-global-coordinates 0 0)))]
-          (println "layout " (str layout))
-          (let [difference (vec (time (clojure.data/diff layout previous-layout)))]
-            (println "layout difference " (str (first difference)))
-            (println "layout difference " (str (second difference))))
-          
-          (buffered-image/clear tile)
-          (drawable/draw layout (buffered-image/get-graphics tile))
+          ;; (println "layout " (str layout))
+          (named-time "difference" (let [difference (vec (time (clojure.data/diff layout previous-layout)))]
+                                     (println "layout difference " (str (first difference)))
+                                     (println "layout difference " (str (second difference)))))
+
+          (named-time "clear tile" (buffered-image/clear tile))
+          (named-time "draw layout " (drawable/draw layout (buffered-image/get-graphics tile)))
 
           (window/render window gl
                          (opengl/clear gl 0 0 0 1)
-                         (let [texture (texture/create-for-buffered-image tile gl)
-                               textured-quad (textured-quad/create texture gl)]
-                           (textured-quad/render textured-quad gl)
-                           (textured-quad/delete textured-quad gl))
+                         #_(.updateSubImage (:texture (:texture @textured-quad-atom))
+                                            gl
+                                            (AWTTextureIO/newTextureData (.getGLProfile gl) tile false)
+                                            (int 0)  ;mipmap level
+                                            (int 0)(int 0)(int 0)(int 0) (int 300) (int 300)
+                                            ;; int dstx, int dsty, int srcx, int srcy, int width, int height
+                                            )
+                         #_(println "type " (.getGL gl) )
+                         #_(println (:members (clojure.reflect/reflect (:texture (:texture @textured-quad-atom)) )))
 
-                         #_(let [commands (named-time "get commands" (drawable/drawing-commands layout))
-                                 runners (named-time "create runners" (for-all [command commands]
-                                                                               (command/create-runner command gl)))]
+                         #_(.updateSubImage (:texture (:texture @textured-quad-atom))
+                                            gl
+                                            (AWTTextureIO/newTextureData (.getGLProfile gl) tile false)
+                                            (int 0)  ;mipmap level
+                                            (int 0))
 
-                             (named-time "running" (doseq [runner runners]
-                                                     (command/run runner gl)))
+                         (named-time "updating texture data" (.updateImage (:texture (:texture @textured-quad-atom))
+                                                                           gl
+                                                                           (AWTTextureIO/newTextureData (.getGLProfile gl) tile false)))
 
-                             (named-time "deleting" (doseq [runner runners]
-                                                      (command/delete runner gl)))))
+                         (named-time "blitting tile" (textured-quad/render @textured-quad-atom gl))
+                         #_(textured-quad/delete textured-quad gl))
 
           (let [event (event-queue/dequeue-event-or-wait event-queue)]
             (if (= (:type event)

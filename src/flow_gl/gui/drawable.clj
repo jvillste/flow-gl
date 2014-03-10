@@ -23,7 +23,7 @@
 
   Java2DDrawable
   (draw [this graphics]
-    (graphics-text/draw contents font color))
+    (graphics-text/draw graphics color font contents))
 
   layoutable/Layoutable
   (preferred-width [text] (font/width font contents))

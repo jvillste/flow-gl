@@ -38,7 +38,7 @@
                      (let [buffered-image (buffered-image/create 200 200)
                            graphics (buffered-image/get-graphics buffered-image)]
                        (.translate graphics (double 50) (double 50))
-                       (text/draw graphics [0 0 1 1]
+                       (text/draw graphics [1 0 1 1]
                                   (font/create "LiberationSans-Regular.ttf" 20)
                                   "Hello World!")
                        (-> buffered-image
@@ -47,7 +47,7 @@
                            (textured-quad/render gl)))
 
 
-                     #_(-> (text/create-buffered-image [0 0 1 1]
+                     (-> (text/create-buffered-image [0 0 1 1]
                                                        (font/create "LiberationSans-Regular.ttf" 20)
                                                        "Hello World!")
                            (texture/create-for-buffered-image gl)
