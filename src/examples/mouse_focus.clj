@@ -17,8 +17,21 @@
         midje.sweet
         flow-gl.gui.layout-dsl))
 
+(defn path-prefixes [path]
+  (loop [prefixes []
+         prefix []
+         xs path]
+    (if-let [x (first xs)]
+      (let [prefix (conj prefix x)]
+        (recur (conj prefixes prefix)
+               prefix
+               (rest xs)))
+      prefixes)))
 
-(defn child-path-to-state-path [root-layout child-path]
+(fact (path-prefixes [[1 2] [3] [4]])
+      => [[1] [1 2] [1 2 3] [1 2 3 4]])
+
+(defn layout-path-to-state-path [root-layout child-path]
   (loop [state-path []
          rest-of-child-path child-path
          child-path []]
@@ -33,19 +46,69 @@
                  child-path)))
       state-path)))
 
-(fact (child-path-to-state-path {:children [{:state-path [:foo 1]
-                                             :child {:child {:state-path [:bar]
-                                                             :child {}}}}]}
-                                [:children 0 :child :child :child])
-      => nil)
+(fact (layout-path-to-state-path {:children [{:state-path [:foo 1]
+                                              :child {:child {:state-path [:bar]
+                                                              :child {}}}}]}
+                                 [:children 0 :child :child :child])
+      => '(:foo 1 :bar))
 
-(defn apply-mouse-event-handlers [state root-layout child-paths event]
-  (reduce (fn [state child-path]
-            (update-in state (child-path-to-state-path root-layout child-path) (get-in root-layout (conj child-path :handle-mouse-event)) event))
+(defn layout-path-to-state-paths [root-layout child-path]
+  (loop [state-path []
+         state-paths []
+         rest-of-child-path child-path
+         child-path []]
+    (if-let [child-path-part (first rest-of-child-path)]
+      (let [child-path (conj child-path child-path-part)]
+        (if-let [state-path-part (get-in root-layout (conj child-path :state-path))]
+          (let [state-path (concat state-path state-path-part)]
+            (recur state-path
+                   (conj state-paths state-path)
+                   (rest rest-of-child-path)
+                   child-path))
+          (recur state-path
+                 state-paths
+                 (rest rest-of-child-path)
+                 child-path)))
+      state-paths)))
+
+(fact (layout-path-to-state-paths {:children [{:state-path [:foo 1]
+                                               :child {:child {:state-path [:bar]
+                                                               :child {}}}}]}
+                                  [:children 0 :child :child :child])
+      => ['(:foo 1) '(:foo 1 :bar)])
+
+(defn apply-mouse-event-handlers [state layout layout-paths-under-mouse event]
+  (reduce (fn [state layout-path]
+            (update-in state (layout-path-to-state-path layout layout-path) (get-in layout (conj layout-path :handle-mouse-event)) event))
           state
-          (filter (fn [child-path]
-                    (:handle-mouse-event (get-in root-layout child-path)))
-                  child-paths)))
+          (filter (fn [layout-path]
+                    (:handle-mouse-event (get-in layout layout-path)))
+                  layout-paths-under-mouse)))
+
+(defn set-focus-state [state focus-path-parts has-focus]
+  (loop [focus-path (first focus-path-parts)
+         focus-path-parts (rest focus-path-parts)
+         state state]
+    (println focus-path)
+    (println state)
+    (println focus-path-parts)
+    (println)
+    (if (seq focus-path-parts)
+      (recur (concat focus-path (first focus-path-parts))
+             (rest focus-path-parts)
+             (update-in state focus-path assoc :child-has-focus has-focus))
+      (update-in state focus-path assoc :has-focus has-focus))))
+
+(fact (set-focus-state {:foo [{:bar {:baz :foobar}}
+                              {:bar {:baz {:foo :bar}}}]}
+                       [[:foo 1] [:bar] [:baz]]
+                       true)
+      => {:foo
+          [{:bar {:baz :foobar}}
+           {:child-has-focus true
+            :bar {:child-has-focus true
+                  :baz {:has-focus true
+                        :foo :bar}}}]})
 
 (defn start-view [view event-queue event-handler initial-state]
   (let [window (window/create 300
@@ -148,8 +211,15 @@
                    :state-path [key index]))
                (key parent-state)))
 
+(defn counter-row-view [state]
+  (layout/->Margin 5 0 5 0
+                   [(layout/->Box 10 [(drawable/->FilledRoundedRectangle 0 0 10 (if (:child-has-focus state)
+                                                                                  [0.8 0.8 0.8 1]
+                                                                                  [0.5 0.5 0.5 1]))
+                                      (layout/->HorizontalStack (call-view-for-sequence state click-counter-view :counters))])]))
+
 (defn view [state]
-  (layout/->VerticalStack (call-view-for-sequence state click-counter-view :counters)))
+  (layout/->VerticalStack (call-view-for-sequence state counter-row-view :counters)))
 
 
 (defn handle-event [state event]
@@ -164,6 +234,7 @@
   (.start (Thread. (fn [] (start-view #'view
                                       @event-queue
                                       #'handle-event
-                                      {:counters [{:count 0}{:count 0}{:count 0}]})))))
+                                      {:counters [{:counters [{:count 0}{:count 0}]}
+                                                  {:counters [{:count 0}{:count 0}]}]})))))
 
 (event-queue/add-event @event-queue {})
