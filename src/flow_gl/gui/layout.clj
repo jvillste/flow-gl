@@ -128,33 +128,40 @@
                                                        {:x 0 :y 10 :width 10 :height 10}]}]}
                                15
                                25)
-      => nil)
+      => '((0) (1 (1))))
 
-(defn children-in-coordinates-list [layout parent-path x y]
-  (let [child-indexes (positions (partial in-coordinates x y) (:children layout))]
-    (concat (map #(vec (concat parent-path [:children %]))
-                 child-indexes)
+(defn layout-index-paths-in-coordinates [layout parent-path x y]
+  (if-let [child-indexes (seq (positions (partial in-coordinates x y) (:children layout)))]
+    (mapcat (fn [child-index]
+              (let [child (get-in layout [:children child-index])]
+                (layout-index-paths-in-coordinates child
+                                                   (vec (conj parent-path child-index))
+                                                   (-  x (:x child))
+                                                   (-  y (:y child)))))
+            child-indexes)
+    [parent-path]))
 
-            (mapcat (fn [child-index]
-                      (let [child (get-in layout [:children child-index])]
-                        (children-in-coordinates-list child
-                                                      (vec (concat parent-path [:children child-index]))
-                                                      (-  x (:x child))
-                                                      (-  y (:y child)))))
-                    child-indexes))))
+(fact (layout-index-paths-in-coordinates {:children [{:x 0 :y 0 :width 20 :height 40
+                                                      :children [{:x 0 :y 0 :width 40 :height 40}
+                                                                 {:x 0 :y 10 :width 40 :height 40}]}
 
+                                                     {:x 10 :y 10 :width 10 :height 30
+                                                      :children [{:x 0 :y 0 :width 10 :height 10}
+                                                                 {:x 0 :y 10 :width 10 :height 10}]}]}
+                                         []
+                                         15
+                                         25)
+      => '([0 0] [0 1] [1 1]))
 
-(fact (children-in-coordinates-list {:children [{:x 0 :y 0 :width 20 :height 40
-                                                 :children [{:x 0 :y 0 :width 40 :height 40}
-                                                            {:x 0 :y 10 :width 40 :height 40}]}
+(defn layout-index-path-to-layout-path [layout-index-path]
+  (conj (interpose  :children layout-index-path) :children ))
 
-                                                {:x 10 :y 10 :width 10 :height 30
-                                                 :children [{:x 0 :y 0 :width 10 :height 10}
-                                                            {:x 0 :y 10 :width 10 :height 10}]}]}
-                                    []
-                                    15
-                                    25)
-      => nil)
+(fact (layout-index-path-to-layout-path [0 0])
+      => '(:children 0 :children 0))
+
+(defn layout-paths-in-coordinates [layout parent-path x y]
+  (map layout-index-path-to-layout-path
+       (layout-index-paths-in-coordinates layout parent-path x y)))
 
 (defmacro deflayout [name parameters layout-implementation preferred-width-implementation preferred-height-implementation]
   `(defrecord ~name ~parameters

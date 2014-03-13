@@ -21,5 +21,5 @@
                  (clojure.string/replace  "flow_gl.gui.layout." "")
                  (clojure.string/replace  "flow_gl.gui.drawable." ""))]
     (if (:children layoutable)
-      (str "(" name " " (apply str (interpose " " (map describe-layoutable (:children layoutable)))) ")")
+      (str "(" name " (" (:state-path-part layoutable) ") " (apply str (interpose " " (map describe-layoutable (:children layoutable)))) ")")
       name)))

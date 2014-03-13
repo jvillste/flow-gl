@@ -79,9 +79,9 @@
                 live-commands (apply dissoc @cached-runnables-atom @unused-commands-atom)]
             (println "event loop " event)
             (cond
-             (= (:source event)
+             #_(= (:source event)
                 :mouse)
-             (do (println "children in coordinates" )
+             #_(do (println "children in coordinates" )
                  (let [child-paths-under-mouse (layout/children-in-coordinates-list layout [] (:x event) (:y event))]
                    (doseq [child-path child-paths-under-mouse]
                      (println "type under mouse " (type (get-in layout child-path))))

@@ -29,7 +29,7 @@
       prefixes)))
 
 (fact (path-prefixes [[1 2] [3] [4]])
-      => [[1] [1 2] [1 2 3] [1 2 3 4]])
+      => [[[1 2]] [[1 2] [3]] [[1 2] [3] [4]]])
 
 (defn layout-path-to-state-path [root-layout child-path]
   (loop [state-path []
@@ -37,7 +37,7 @@
          child-path []]
     (if-let [child-path-part (first rest-of-child-path)]
       (let [child-path (conj child-path child-path-part)]
-        (if-let [state-path-part (get-in root-layout (conj child-path :state-path))]
+        (if-let [state-path-part (get-in root-layout (conj child-path :state-path-part))]
           (recur (concat state-path state-path-part)
                  (rest rest-of-child-path)
                  child-path)
@@ -46,58 +46,53 @@
                  child-path)))
       state-path)))
 
-(fact (layout-path-to-state-path {:children [{:state-path [:foo 1]
-                                              :child {:child {:state-path [:bar]
+(fact (layout-path-to-state-path {:children [{:state-path-part [:foo 1]
+                                              :child {:child {:state-path-part [:bar]
                                                               :child {}}}}]}
                                  [:children 0 :child :child :child])
       => '(:foo 1 :bar))
 
-(defn layout-path-to-state-paths [root-layout child-path]
-  (loop [state-path []
-         state-paths []
-         rest-of-child-path child-path
-         child-path []]
-    (if-let [child-path-part (first rest-of-child-path)]
-      (let [child-path (conj child-path child-path-part)]
-        (if-let [state-path-part (get-in root-layout (conj child-path :state-path))]
-          (let [state-path (concat state-path state-path-part)]
-            (recur state-path
-                   (conj state-paths state-path)
-                   (rest rest-of-child-path)
-                   child-path))
-          (recur state-path
-                 state-paths
-                 (rest rest-of-child-path)
-                 child-path)))
-      state-paths)))
+(defn layout-path-to-state-path-parts [root-layout whole-layout-path]
+  (loop [state-path-parts []
+         remaining-layout-path whole-layout-path
+         layout-path []]
+    (if-let [layout-path-part (first remaining-layout-path)]
+      (let [new-layout-path (conj layout-path layout-path-part)]
+        (if-let [state-path-part (get-in root-layout (conj new-layout-path :state-path-part))]
+          (recur (conj state-path-parts state-path-part)
+                 (rest remaining-layout-path)
+                 new-layout-path)
+          (recur state-path-parts
+                 (rest remaining-layout-path)
+                 new-layout-path)))
+      state-path-parts)))
 
-(fact (layout-path-to-state-paths {:children [{:state-path [:foo 1]
-                                               :child {:child {:state-path [:bar]
-                                                               :child {}}}}]}
-                                  [:children 0 :child :child :child])
-      => ['(:foo 1) '(:foo 1 :bar)])
+(fact (layout-path-to-state-path-parts {:children [{:state-path-part [:foo 1]
+                                                    :child {:child {:state-path-part [:bar]
+                                                                    :child {}}}}]}
+                                       [:children 0 :child :child :child])
+      => [[:foo 1] [:bar]])
 
-(defn apply-mouse-event-handlers [state layout layout-paths-under-mouse event]
+(defn apply-mouse-event-handlers [state layout layout-path-under-mouse event]
   (reduce (fn [state layout-path]
             (update-in state (layout-path-to-state-path layout layout-path) (get-in layout (conj layout-path :handle-mouse-event)) event))
           state
           (filter (fn [layout-path]
                     (:handle-mouse-event (get-in layout layout-path)))
-                  layout-paths-under-mouse)))
+                  (path-prefixes layout-path-under-mouse))))
 
 (defn set-focus-state [state focus-path-parts has-focus]
-  (loop [focus-path (first focus-path-parts)
-         focus-path-parts (rest focus-path-parts)
-         state state]
-    (println focus-path)
-    (println state)
-    (println focus-path-parts)
-    (println)
-    (if (seq focus-path-parts)
-      (recur (concat focus-path (first focus-path-parts))
-             (rest focus-path-parts)
-             (update-in state focus-path assoc :child-has-focus has-focus))
-      (update-in state focus-path assoc :has-focus has-focus))))
+  (println "set-focus-state" focus-path-parts)
+  (if (seq focus-path-parts)
+    (loop [focus-path (first focus-path-parts)
+           focus-path-parts (rest focus-path-parts)
+           state state]
+      (if (seq focus-path-parts)
+        (recur (concat focus-path (first focus-path-parts))
+               (rest focus-path-parts)
+               (update-in state focus-path assoc :child-has-focus has-focus))
+        (update-in state focus-path assoc :has-focus has-focus)))
+    state))
 
 (fact (set-focus-state {:foo [{:bar {:baz :foobar}}
                               {:bar {:baz {:foo :bar}}}]}
@@ -117,13 +112,14 @@
                               opengl/resize
                               event-queue)]
 
-    (println "initial " initial-state)
+
     (try
       (loop [state initial-state
              previous-state {}
+             previous-focus-path-parts []
              cached-runnables {}]
+        (println "state " state)
 
-        (println "rendering")
         (let [layoutable (view state)
               layout (layout/layout layoutable
                                     (window/width window)
@@ -160,17 +156,30 @@
             (cond
              (= (:source event)
                 :mouse)
-             (let [child-paths-under-mouse (layout/children-in-coordinates-list layout [] (:x event) (:y event))]
+             (let [layout-paths-under-mouse (layout/layout-paths-in-coordinates layout [] (:x event) (:y event))
+                   layout-path-under-mouse (last layout-paths-under-mouse)
+                   ]
 
-               (doseq [child-path child-paths-under-mouse]
-                 (println "type under mouse " (type (get-in layout child-path))))
+               (if (= (:type event)
+                      :mouse-clicked)
+                 (let [focus-path-parts (layout-path-to-state-path-parts layout layout-path-under-mouse)]
+                   (recur (-> state
+                              (set-focus-state previous-focus-path-parts false)
+                              (set-focus-state focus-path-parts true)
+                              (apply-mouse-event-handlers layout
+                                                          layout-path-under-mouse
+                                                          event))
+                          state
+                          focus-path-parts
+                          live-commands))
 
-               (recur (apply-mouse-event-handlers state
-                                                  layout
-                                                  child-paths-under-mouse
-                                                  event)
-                      state
-                      live-commands))
+                 (recur (apply-mouse-event-handlers state
+                                                    layout
+                                                    layout-path-under-mouse
+                                                    event)
+                        state
+                        previous-focus-path-parts
+                        live-commands)))
 
              (= (:type event)
                 :close-requested)
@@ -180,6 +189,7 @@
              :default
              (recur (event-handler state event)
                     state
+                    previous-focus-path-parts
                     live-commands)))))
 
       (catch Exception e
@@ -196,19 +206,19 @@
 (defn click-counter-view [state]
   (-> (layout/->Box 10 [(drawable/->Rectangle 0
                                               0
-                                              [0 0.5 0.5 1])
-                        (-> (drawable/->Text (str (:count state))
-                                             (font/create "LiberationSans-Regular.ttf" 15)
-                                             [0 0 0 1])
-
-                            (on-mouse-clicked #(update-in % [:count] (partial + 2))))])
+                                              (if (:has-focus state)
+                                                [0 0.8 0.8 1]
+                                                [0 0.5 0.5 1]))
+                        (drawable/->Text (str (:count state))
+                                         (font/create "LiberationSans-Regular.ttf" 15)
+                                         [0 0 0 1])])
 
       (on-mouse-clicked #(update-in % [:count] inc))))
 
 (defn call-view-for-sequence [parent-state view-function key]
   (map-indexed (fn [index child-state]
                  (assoc (view-function child-state)
-                   :state-path [key index]))
+                   :state-path-part [key index]))
                (key parent-state)))
 
 (defn counter-row-view [state]
@@ -219,7 +229,7 @@
                                       (layout/->HorizontalStack (call-view-for-sequence state click-counter-view :counters))])]))
 
 (defn view [state]
-  (layout/->VerticalStack (call-view-for-sequence state counter-row-view :counters)))
+  (layout/->VerticalStack (call-view-for-sequence state counter-row-view :counter-rows)))
 
 
 (defn handle-event [state event]
@@ -234,7 +244,7 @@
   (.start (Thread. (fn [] (start-view #'view
                                       @event-queue
                                       #'handle-event
-                                      {:counters [{:counters [{:count 0}{:count 0}]}
-                                                  {:counters [{:count 0}{:count 0}]}]})))))
+                                      {:counter-rows [{:counters [{:count 0}{:count 0}]}
+                                                      {:counters [{:count 0}{:count 0}]}]})))))
 
 (event-queue/add-event @event-queue {})
