@@ -75,11 +75,29 @@
 
 (defn apply-mouse-event-handlers [state layout layout-path-under-mouse event]
   (reduce (fn [state layout-path]
-            (update-in state (layout-path-to-state-path layout layout-path) (get-in layout (conj layout-path :handle-mouse-event)) event))
+            (update-in state
+                       (layout-path-to-state-path layout layout-path)
+                       (get-in layout (conj layout-path :handle-mouse-event))
+                       event))
           state
           (filter (fn [layout-path]
                     (:handle-mouse-event (get-in layout layout-path)))
                   (path-prefixes layout-path-under-mouse))))
+
+(defn apply-keyboard-event-handlers [state focus-path-parts event]
+  (println "apply-keyboard-event-handlers" focus-path-parts)
+  (reduce (fn [state focus-path-parts]
+            (let [focus-path (apply concat focus-path-parts)]
+              (println "focus-path " focus-path "handler " (get-in state (conj (vec focus-path) :handle-keyboard-event)))
+              (println "state" state)
+              (if-let [keyboard-event-handler (get-in state (conj (vec focus-path) :handle-keyboard-event))]
+                (update-in state
+                           focus-path
+                           keyboard-event-handler
+                           event)
+                state)))
+          state
+          (path-prefixes focus-path-parts)))
 
 (defn set-focus-state [state focus-path-parts has-focus]
   (println "set-focus-state" focus-path-parts)
@@ -157,8 +175,7 @@
              (= (:source event)
                 :mouse)
              (let [layout-paths-under-mouse (layout/layout-paths-in-coordinates layout [] (:x event) (:y event))
-                   layout-path-under-mouse (last layout-paths-under-mouse)
-                   ]
+                   layout-path-under-mouse (last layout-paths-under-mouse)]
 
                (if (= (:type event)
                       :mouse-clicked)
@@ -187,7 +204,10 @@
                  (window/close window))
 
              :default
-             (recur (event-handler state event)
+             (recur #_(event-handler state event)
+                    (apply-keyboard-event-handlers state
+                                                   previous-focus-path-parts
+                                                   event)
                     state
                     previous-focus-path-parts
                     live-commands)))))
@@ -202,6 +222,14 @@
                           (if (= :mouse-clicked (:type event))
                             (handler state)
                             state))))
+
+(defn handle-click-counter-keyboard-event [state event]
+  (println "got event " event)
+  (cond (events/key-pressed? event :enter)
+        (-> (update-in state [:count] inc))
+
+        :default
+        state))
 
 (defn click-counter-view [state]
   (-> (layout/->Box 10 [(drawable/->Rectangle 0
@@ -244,7 +272,7 @@
   (.start (Thread. (fn [] (start-view #'view
                                       @event-queue
                                       #'handle-event
-                                      {:counter-rows [{:counters [{:count 0}{:count 0}]}
+                                      {:counter-rows [{:counters [{:count 0 :handle-keyboard-event handle-click-counter-keyboard-event}{:count 0}]}
                                                       {:counters [{:count 0}{:count 0}]}]})))))
 
 (event-queue/add-event @event-queue {})
