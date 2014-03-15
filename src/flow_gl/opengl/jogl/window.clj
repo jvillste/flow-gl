@@ -16,7 +16,7 @@
                     KeyEvent/VK_BACK_SPACE :back-space
                     KeyEvent/VK_F1 :f1
                     KeyEvent/VK_F2 :f2
-                    })
+                    KeyEvent/VK_TAB :tab})
 
 (def mouse-keys {MouseEvent/BUTTON1 :left-button
                  MouseEvent/BUTTON2 :right-button

@@ -130,6 +130,12 @@
                                25)
       => '((0) (1 (1))))
 
+(defn layout-index-path-to-layout-path [layout-index-path]
+  (conj (interpose  :children layout-index-path) :children ))
+
+(fact (layout-index-path-to-layout-path [0 0])
+      => '(:children 0 :children 0))
+
 (defn layout-index-paths-in-coordinates [layout parent-path x y]
   (if-let [child-indexes (seq (positions (partial in-coordinates x y) (:children layout)))]
     (mapcat (fn [child-index]
@@ -153,15 +159,35 @@
                                          25)
       => '([0 0] [0 1] [1 1]))
 
-(defn layout-index-path-to-layout-path [layout-index-path]
-  (conj (interpose  :children layout-index-path) :children ))
-
-(fact (layout-index-path-to-layout-path [0 0])
-      => '(:children 0 :children 0))
-
-(defn layout-paths-in-coordinates [layout parent-path x y]
+(defn layout-paths-in-coordinates [layout x y]
   (map layout-index-path-to-layout-path
-       (layout-index-paths-in-coordinates layout parent-path x y)))
+       (layout-index-paths-in-coordinates layout [] x y)))
+
+(defn layout-index-paths-with-keyboard-event-handlers [layout parent-path]
+  (if-let [child-indexes (seq (positions #(or (:handle-keyboard-event %) (:children %))
+                                         (:children layout)))]
+    (concat (if (:handle-keyboard-event layout)
+              [parent-path]
+              [])
+            (mapcat (fn [child-index]
+                      (let [child (get-in layout [:children child-index])]
+                        (layout-index-paths-with-keyboard-event-handlers child
+                                                                         (vec (conj parent-path child-index)))))
+                    child-indexes))
+    [parent-path]))
+
+(fact (layout-index-paths-with-keyboard-event-handlers {:children [{:handle-keyboard-event :handler
+                                                                    :children [{}
+                                                                               {:handle-keyboard-event :handler}]}
+
+                                                                   {:children [{:handle-keyboard-event :handler}
+                                                                               {}]}]}
+                                                       [])
+      => '([0 0] [0 1] [1 1]))
+
+(defn layout-paths-with-keyboard-event-handlers [layout]
+  (map layout-index-path-to-layout-path
+       (layout-index-paths-with-keyboard-event-handlers layout [])))
 
 (defmacro deflayout [name parameters layout-implementation preferred-width-implementation preferred-height-implementation]
   `(defrecord ~name ~parameters

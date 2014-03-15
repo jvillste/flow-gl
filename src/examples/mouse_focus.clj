@@ -85,11 +85,8 @@
                   (path-prefixes layout-path-under-mouse))))
 
 (defn apply-keyboard-event-handlers [state focus-path-parts event]
-  (println "apply-keyboard-event-handlers" focus-path-parts)
   (reduce (fn [state focus-path-parts]
             (let [focus-path (apply concat focus-path-parts)]
-              (println "focus-path " focus-path "handler " (get-in state (conj (vec focus-path) :handle-keyboard-event)))
-              (println "state" state)
               (if-let [keyboard-event-handler (get-in state (conj (vec focus-path) :handle-keyboard-event))]
                 (update-in state
                            focus-path
@@ -100,7 +97,6 @@
           (path-prefixes focus-path-parts)))
 
 (defn set-focus-state [state focus-path-parts has-focus]
-  (println "set-focus-state" focus-path-parts)
   (if (seq focus-path-parts)
     (loop [focus-path (first focus-path-parts)
            focus-path-parts (rest focus-path-parts)
@@ -136,7 +132,6 @@
              previous-state {}
              previous-focus-path-parts []
              cached-runnables {}]
-        (println "state " state)
 
         (let [layoutable (view state)
               layout (layout/layout layoutable
@@ -174,12 +169,13 @@
             (cond
              (= (:source event)
                 :mouse)
-             (let [layout-paths-under-mouse (layout/layout-paths-in-coordinates layout [] (:x event) (:y event))
+             (let [layout-paths-under-mouse (layout/layout-paths-in-coordinates layout (:x event) (:y event))
                    layout-path-under-mouse (last layout-paths-under-mouse)]
 
                (if (= (:type event)
                       :mouse-clicked)
                  (let [focus-path-parts (layout-path-to-state-path-parts layout layout-path-under-mouse)]
+
                    (recur (-> state
                               (set-focus-state previous-focus-path-parts false)
                               (set-focus-state focus-path-parts true)
@@ -197,6 +193,27 @@
                         state
                         previous-focus-path-parts
                         live-commands)))
+
+             (events/key-pressed? event :tab)
+             (let [all-handlers (map (partial layout-path-to-state-path-parts layout)
+                                     (layout/layout-paths-with-keyboard-event-handlers layout))
+                   focus-index (first (positions #{previous-focus-path-parts} all-handlers))
+                   next-focus-index (if (= (+ 1 focus-index) (count all-handlers))
+                                      0
+                                      (inc focus-index))
+                   next-focus-path-parts (get (vec all-handlers) next-focus-index)]
+
+               (println "handlers " all-handlers)
+               (println "focus index " focus-index)
+               (println "next focus index " next-focus-index)
+               (println "next-focus-path-parts " next-focus-path-parts)
+
+               (recur (-> state
+                          (set-focus-state previous-focus-path-parts false)
+                          (set-focus-state next-focus-path-parts true))
+                      state
+                      next-focus-path-parts
+                      live-commands))
 
              (= (:type event)
                 :close-requested)
@@ -224,7 +241,6 @@
                             state))))
 
 (defn handle-click-counter-keyboard-event [state event]
-  (println "got event " event)
   (cond (events/key-pressed? event :enter)
         (-> (update-in state [:count] inc))
 
@@ -243,6 +259,9 @@
 
       (on-mouse-clicked #(update-in % [:count] inc))))
 
+(defn create-click-counter []
+  {:count 0 :handle-keyboard-event handle-click-counter-keyboard-event})
+
 (defn call-view-for-sequence [parent-state view-function key]
   (map-indexed (fn [index child-state]
                  (assoc (view-function child-state)
@@ -255,6 +274,8 @@
                                                                                   [0.8 0.8 0.8 1]
                                                                                   [0.5 0.5 0.5 1]))
                                       (layout/->HorizontalStack (call-view-for-sequence state click-counter-view :counters))])]))
+
+
 
 (defn view [state]
   (layout/->VerticalStack (call-view-for-sequence state counter-row-view :counter-rows)))
@@ -272,7 +293,7 @@
   (.start (Thread. (fn [] (start-view #'view
                                       @event-queue
                                       #'handle-event
-                                      {:counter-rows [{:counters [{:count 0 :handle-keyboard-event handle-click-counter-keyboard-event}{:count 0}]}
-                                                      {:counters [{:count 0}{:count 0}]}]})))))
+                                      {:counter-rows [{:counters [(create-click-counter)(create-click-counter)]}
+                                                      {:counters [(create-click-counter)(create-click-counter)]}]})))))
 
 (event-queue/add-event @event-queue {})
