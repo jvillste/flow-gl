@@ -57,3 +57,13 @@ Kimmo Lapintie
 dialog mapping, jeff conclin
 http://www.amazon.com/Dialogue-Mapping-Building-Understanding-Problems/dp/0470017686
 markku markkula
+
+
+Handling focus
+
+? How to move focus?
+? What are the concepts?
+  ! Layout
+  ! Keyboard event handler
+  ! Mouse event handler
+  ! 

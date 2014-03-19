@@ -183,7 +183,7 @@
                                                                    {:children [{:handle-keyboard-event :handler}
                                                                                {}]}]}
                                                        [])
-      => '([0 0] [0 1] [1 1]))
+      => '([0] [0 1] [1 0]))
 
 (defn layout-paths-with-keyboard-event-handlers [layout]
   (map layout-index-path-to-layout-path

@@ -31,7 +31,7 @@
 
 (defn in?
   "true if seq contains elm"
-  [elm seq] 
+  [elm seq]
   (some #(= elm %) seq))
 
 (def ^:dynamic delayed-applications {})
@@ -76,19 +76,19 @@
       => (throws Exception "No delayed applications available for the key :y"))
 
 (fact delayed-applications-with-two-vars
-        (let [x {}
-              y {}]
-          (with-delayed-applications :x x
-            (assoc x :x-foo (with-delayed-applications :y y
-                              (assoc y :y-foo (do
-                                                (apply-later :x
-                                                             (fn [x] (assoc x :x-bar :x-bar-value)))
-                                                (apply-later :y
-                                                             (fn [y] (assoc y :y-bar :y-bar-value)))
-                                                :y-foo-value))))))
-        => {:x-bar :x-bar-value
-            :x-foo {:y-bar :y-bar-value
-                    :y-foo :y-foo-value}})
+      (let [x {}
+            y {}]
+        (with-delayed-applications :x x
+          (assoc x :x-foo (with-delayed-applications :y y
+                            (assoc y :y-foo (do
+                                              (apply-later :x
+                                                           (fn [x] (assoc x :x-bar :x-bar-value)))
+                                              (apply-later :y
+                                                           (fn [y] (assoc y :y-bar :y-bar-value)))
+                                              :y-foo-value))))))
+      => {:x-bar :x-bar-value
+          :x-foo {:y-bar :y-bar-value
+                  :y-foo :y-foo-value}})
 
 (defn indexed
   "Returns a lazy sequence of [index, item] pairs, where items come
@@ -103,3 +103,7 @@
    is true for items in coll."
   [pred coll]
   (for [[idx elt] (indexed coll) :when (pred elt)] idx))
+
+(defn print-return [message value]
+  (println message value)
+  value)
