@@ -178,11 +178,11 @@
                               event-queue)]
 
     (try
-      (let [initial-focus-path-parts (initial-focus-path-parts initial-state)]
+      (let [initial-focus-path-parts-value (initial-focus-path-parts initial-state)]
         (loop [state (-> initial-state
-                         (set-focus-state initial-focus-path-parts true))
+                         (set-focus-state initial-focus-path-parts-value true))
                previous-state {}
-               previous-focus-path-parts initial-focus-path-parts
+               previous-focus-path-parts initial-focus-path-parts-value
                cached-runnables {}]
 
           (let [layoutable (view state)
@@ -247,25 +247,13 @@
                           live-commands)))
 
                (events/key-pressed? event :tab)
-               (let [all-handlers (map (partial layout-path-to-state-path-parts layout)
-                                       (layout/layout-paths-with-keyboard-event-handlers layout))
-                     focus-index (first (positions #{previous-focus-path-parts} all-handlers))
-                     next-focus-index (if (= (+ 1 focus-index) (count all-handlers))
-                                        0
-                                        (inc focus-index))
-                     next-focus-path-parts (get (vec all-handlers) next-focus-index)]
-                 (println "layout " layout)
-                 (println "layout paths " (layout/layout-paths-with-keyboard-event-handlers layout))
-                 (println "handlers " all-handlers)
-                 (println "focus index " focus-index)
-                 (println "next focus index " next-focus-index)
-                 (println "next-focus-path-parts " next-focus-path-parts)
-
+               (let [next-focus-path-parts-value (or (next-focus-path-parts state previous-focus-path-parts)
+                                                     (initial-focus-path-parts state))]
                  (recur (-> state
                             (set-focus-state previous-focus-path-parts false)
-                            (set-focus-state next-focus-path-parts true))
+                            (set-focus-state next-focus-path-parts-value true))
                         state
-                        next-focus-path-parts
+                        next-focus-path-parts-value
                         live-commands))
 
                (= (:type event)
