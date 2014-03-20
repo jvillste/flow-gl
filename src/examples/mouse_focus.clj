@@ -175,7 +175,7 @@
         (next-focus-path-parts state [[:children1 1] [:children2 1]])  => [[:children1 1] [:children2 2] [:children3 0]]
         (next-focus-path-parts state [[:children1 1] [:children2 2] [:children3 2]])  => nil))
 
-(defn start-view [view event-queue initial-state]
+(defn start-view [event-queue initial-state]
   (let [window (window/create 300
                               400
                               opengl/initialize
@@ -194,7 +194,7 @@
             (do (println "closing")
                 (window/close window))
 
-            (let [layoutable (view state)
+            (let [layoutable ((:view state) state)
                   layout (layout/layout layoutable
                                         (window/width window)
                                         (window/height window))
@@ -325,8 +325,8 @@
 
       (on-mouse-clicked #(update-in % [:count] inc))))
 
-(defn click-counter []
-  {:count 0
+(defn click-counter [count]
+  {:count count
    :handle-keyboard-event handle-click-counter-keyboard-event})
 
 (defn counter-row-view [state]
@@ -354,16 +354,16 @@
                                       (assoc state :close-requested true)
 
                                       :default
-                                      state))}
+                                      state))
+       :view counters-view}
       (conj (seq-focus-handlers :counter-rows))))
 
 (defonce event-queue (atom (event-queue/create)))
 
 (defn start []
   (reset! event-queue (event-queue/create))
-  (.start (Thread. (fn [] (start-view #'counters-view
-                                      @event-queue
-                                      (counters (counter-row (click-counter) (click-counter))
-                                                (counter-row (click-counter) (click-counter))))))))
+  (.start (Thread. (fn [] (start-view @event-queue
+                                      (counters (counter-row (click-counter 0) (click-counter 1))
+                                                (counter-row (click-counter 2) (click-counter 3))))))))
 
 (event-queue/add-event @event-queue {})
