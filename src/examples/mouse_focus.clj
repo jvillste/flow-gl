@@ -343,9 +343,15 @@
       (conj (seq-focus-handlers :counters))))
 
 (defn counters-view [state]
-  (layout/->VerticalStack (call-view-for-sequence state
-                                                  counter-row-view
-                                                  :counter-rows)))
+  (layout/->VerticalStack (conj (call-view-for-sequence state
+                                                        counter-row-view
+                                                        :counter-rows)
+                                (drawable/->Text (str  (->> (:counter-rows state)
+                                                            (mapcat :counters)
+                                                            (map :count)
+                                                            (reduce +)))
+                                                 (font/create "LiberationSans-Regular.ttf" 25)
+                                                 [1 1 1 1]))))
 
 (defn counters [& counter-rows]
   (-> {:counter-rows (vec counter-rows)
@@ -358,12 +364,51 @@
        :view counters-view}
       (conj (seq-focus-handlers :counter-rows))))
 
+(defmacro with-child-views [view]
+  `(binding [view-children (atom [])]
+     [~view
+      (let [view-children# @view-children]
+        (fn [state# model#] (update-focus-container state# model# view-children#)))]))
+
+(defn call-children [key children view]
+  )
+
+(defn construct-counters [& counter-rows]
+  (let [state {:handle-keyboard-event (fn [state event]
+                                        (cond (events/key-pressed? event :esc)
+                                              (assoc state :close-requested true)
+
+                                              :default
+                                              state))}]
+    (with-delayed-applications :children state
+      (assoc state :view (fn [state] (layout/->VerticalStack (conj (do (apply-later :children (fn [state]
+                                                                                                (-> state
+                                                                                                    (assoc state :counter-rows (vec counter-rows))
+                                                                                                    (conj (seq-focus-handlers :counter-rows)))))
+                                                                       (call-view-for-sequence state
+                                                                                               counter-row-view
+                                                                                               :counter-rows))
+                                                                   (drawable/->Text (str  (->> (:counter-rows state)
+                                                                                               (mapcat :counters)
+                                                                                               (map :count)
+                                                                                               (reduce +)))
+                                                                                    (font/create "LiberationSans-Regular.ttf" 25)
+                                                                                    [1 1 1 1]))))))))
+
+(defn model-to-view [model]
+  (apply construct-counters (for [row model]
+                    (apply counter-row (for [count row]
+                                         (click-counter count))))))
+
+
 (defonce event-queue (atom (event-queue/create)))
 
 (defn start []
   (reset! event-queue (event-queue/create))
   (.start (Thread. (fn [] (start-view @event-queue
-                                      (counters (counter-row (click-counter 0) (click-counter 1))
-                                                (counter-row (click-counter 2) (click-counter 3))))))))
+                                      (model-to-view [[1 2]
+                                                      [3 4]])
+                                      #_(counters (counter-row (click-counter 0) (click-counter 1))
+                                                  (counter-row (click-counter 2) (click-counter 3) (click-counter 3))))))))
 
 (event-queue/add-event @event-queue {})
