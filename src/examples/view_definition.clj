@@ -250,7 +250,7 @@
      (apply-keyboard-event-handlers state
                                     event))))
 
-(defn start-view [event-queue initial-state]
+(defn start-view [event-queue initial-state state-updater]
   (let [window (window/create 300
                               400
                               opengl/initialize
@@ -268,10 +268,12 @@
           (let [new-gpu-state (render-state window gpu-state @view-state-atom)
                 event (event-queue/dequeue-event-or-wait event-queue)
                 new-state (swap! view-state-atom
-                                 handle-event
-                                 (window/width window)
-                                 (window/height window)
-                                 (event-queue/dequeue-event-or-wait event-queue))]
+                                 (fn [state]
+                                   (-> state
+                                       (handle-event (window/width window)
+                                                     (window/height window)
+                                                     event)
+                                       (state-updater))))]
             (if new-state
               (recur new-gpu-state)
               (window/close window)))))
@@ -370,8 +372,10 @@
   {:text text
    :has-focus false
    :handle-keyboard-event (fn [state event]
-                            (cond (events/key-pressed? event :enter)
-                                  (do (action-handler)
+                            (cond (and (events/key-pressed? event :enter)
+                                       (not (:disabled state)))
+                                  (do (println "is disabled " (:disabled state) state)
+                                      (action-handler)
                                       state)
 
                                   :default
@@ -386,34 +390,42 @@
                                                          [0 0.5 0.5 1]))
                     (drawable/->Text (:text state)
                                      (font/create "LiberationSans-Regular.ttf" 15)
-                                     [0 0 0 1])]))
+                                     (if (:disabled state)
+                                       [0.5 0.5 0.5 1]
+                                       [0 0 0 1]))]))
 
 (defn model-to-state [model state]
   (-> state
-      (update-in [:password-1 :text] (:password-1 model))
-      (update-in [:password-2 :text] (:password-2 model))))
+      (update-in [:username :text] (:username model))
+      (update-in [:full-name :text] (:full-name model))))
 
 (defn state-to-model [state]
-  {:password-1 (get-in state [:password-1 :edited-text])
-   :password-2 (get-in state [:password-2 :edited-text])})
+  {:username (get-in state [:username :edited-text])
+   :full-name (get-in state [:full-name :edited-text])})
 
-(defn password-view [state]
-  (layout/->VerticalStack [(assoc (text-editor-view (:password-1 state))
-                             :state-path-part [:password-1])
-                           (assoc (text-editor-view (:password-2 state))
-                             :state-path-part [:password-2])
-                           (drawable/->Text (let [model (state-to-model state)]
-                                              (if (not (= (:password-1 model)
-                                                          (:password-2 model)))
-                                                "Passwords differ"
-                                                ""))
-                                            (font/create "LiberationSans-Regular.ttf" 25)
-                                            [1 1 1 1])
+(defn registration-view [state]
+  (layout/->VerticalStack [(assoc (text-editor-view (:username state))
+                             :state-path-part [:username])
+                           (assoc (text-editor-view (:full-name state))
+                             :state-path-part [:full-name])
+                           #_(drawable/->Text (let [model (state-to-model state)]
+                                                (if (not (= (:username model)
+                                                            (:full-name model)))
+                                                  "Passwords differ"
+                                                  ""))
+                                              (font/create "LiberationSans-Regular.ttf" 25)
+                                              [1 1 1 1])
                            (button-view (:submit-button state))]))
 
-(defn initial-password-state []
-  {:password-1 (initial-text-editor-state "")
-   :password-2 (initial-text-editor-state "")
+(defn update-registration-view-state [state]
+  (let [valid? (let [model (state-to-model state)]
+                 (and (not (= (:username model) ""))
+                      (not (= (:full-name model) ""))))]
+    (assoc-in state [:submit-button :disabled] (not valid?))))
+
+(defn initial-registration-view-state []
+  {:username (initial-text-editor-state "")
+   :full-name (initial-text-editor-state "")
    :submit-button (initial-button-state "Send" (fn [] (println "send")))
    :handle-keyboard-event (fn [state event]
                             (cond (events/key-pressed? event :esc)
@@ -421,10 +433,10 @@
 
                                   :default
                                   state))
-   :view password-view
-   :first-focusable-child [:password-1]
+   :view registration-view
+   :first-focusable-child [:username]
    :next-focusable-child (fn [this current-focus]
-                           (let [children [[:password-1]  [:password-2] [:submit-button]]
+                           (let [children [[:username]  [:full-name] [:submit-button]]
                                  focus-index (first (positions #{current-focus} children))]
                              (get children (inc focus-index))))})
 
@@ -451,7 +463,8 @@
 (defn start []
   (reset! event-queue (event-queue/create))
   (.start (Thread. (fn [] (start-view @event-queue
-                                      (initial-password-state)
+                                      (initial-registration-view-state)
+                                      update-registration-view-state
                                       #_(counters (counter-row (click-counter 0) (click-counter 1))
                                                   (counter-row (click-counter 2) (click-counter 3) (click-counter 3))))))))
 

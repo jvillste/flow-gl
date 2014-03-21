@@ -70,6 +70,7 @@ Handling focus
   ? How do these actions read the model?
   ? How do these actions change the model?
 ? How to change model with asynchronous calls?
+? How to make disabled widgets unable to get focus?
 
 model -> view-state
 view-state -> view
