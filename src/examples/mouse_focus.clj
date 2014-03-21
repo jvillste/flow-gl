@@ -373,6 +373,8 @@
 (defn call-children [key children view]
   )
 
+(def ^:dynamic state-atom)
+
 (defn construct-counters [& counter-rows]
   (let [state {:handle-keyboard-event (fn [state event]
                                         (cond (events/key-pressed? event :esc)
@@ -380,25 +382,26 @@
 
                                               :default
                                               state))}]
-    (with-delayed-applications :children state
-      (assoc state :view (fn [state] (layout/->VerticalStack (conj (do (apply-later :children (fn [state]
-                                                                                                (-> state
-                                                                                                    (assoc state :counter-rows (vec counter-rows))
-                                                                                                    (conj (seq-focus-handlers :counter-rows)))))
-                                                                       (call-view-for-sequence state
-                                                                                               counter-row-view
-                                                                                               :counter-rows))
-                                                                   (drawable/->Text (str  (->> (:counter-rows state)
-                                                                                               (mapcat :counters)
-                                                                                               (map :count)
-                                                                                               (reduce +)))
-                                                                                    (font/create "LiberationSans-Regular.ttf" 25)
-                                                                                    [1 1 1 1]))))))))
+    (binding [state-atom (atom state)]
+      [(layout/->VerticalStack (conj (do (swap! state-atom (fn [state]
+                                                             (-> state
+                                                                 (assoc state :counter-rows (vec counter-rows))
+                                                                 (conj (seq-focus-handlers :counter-rows)))))
+                                         (call-view-for-sequence state
+                                                                 counter-row-view
+                                                                 :counter-rows))
+                                     (drawable/->Text (str  (->> (:counter-rows state)
+                                                                 (mapcat :counters)
+                                                                 (map :count)
+                                                                 (reduce +)))
+                                                      (font/create "LiberationSans-Regular.ttf" 25)
+                                                      [1 1 1 1])))
+       @state])))
 
 (defn model-to-view [model]
-  (apply construct-counters (for [row model]
-                    (apply counter-row (for [count row]
-                                         (click-counter count))))))
+  (apply counters (for [row model]
+                              (apply counter-row (for [count row]
+                                                   (click-counter count))))))
 
 
 (defonce event-queue (atom (event-queue/create)))

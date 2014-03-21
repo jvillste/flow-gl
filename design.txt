@@ -66,4 +66,20 @@ Handling focus
   ! Layout
   ! Keyboard event handler
   ! Mouse event handler
-  ! 
+? How to trigger actions for button presses
+  ? How do these actions read the model?
+  ? How do these actions change the model?
+? How to change model with asynchronous calls?
+
+model -> view-state
+view-state -> view
+
+
+model -> view-state
+         view-state -> view
+
+model -> view-state
+         view
+
+child-view-state -> view-state
+                    focus-handlers
