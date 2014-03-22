@@ -1,4 +1,4 @@
-(ns examples.view-definition
+(ns examples.registration-form
   (:require [flow-gl.utils :as utils]
             (flow-gl.gui [drawable :as drawable]
                          [layout :as layout]
@@ -329,14 +329,16 @@
          (assoc :editing? false))
 
      (events/key-pressed? event :back-space)
-     (update-in state [:edited-text] (fn [text] (apply str (drop-last text))))
+     (let [new-text (apply str (drop-last (:edited-text state)))]
+       (when (:on-change state)
+         ((:on-change state) new-text))
+       (assoc-in state [:edited-text] new-text))
 
      (and (:character event)
           (= (:type event)
              :key-pressed))
      (let [new-text (append-character (:edited-text state)
                                       (:character event))]
-       (println "new text 2" new-text state)
        (when (:on-change state)
          ((:on-change state) new-text))
        (assoc-in state [:edited-text] new-text))
@@ -357,13 +359,12 @@
      :default
      state)))
 
-(defn initial-text-editor-state [text on-change]
+(defn initial-text-editor-state [text]
   {:text text
    :edited-text ""
    :editing? false
    :has-focus false
-   :handle-keyboard-event handle-text-editor-event
-   :on-change on-change})
+   :handle-keyboard-event handle-text-editor-event})
 
 (defn text-editor-view [state]
   (layout/->Box 10 [(drawable/->Rectangle 0
@@ -416,18 +417,24 @@
   {:username (get-in state [:username :edited-text])
    :full-name (get-in state [:full-name :edited-text])})
 
+(defn text [content & {:keys [color] :or {color [1 1 1 1]}}]
+  (drawable/->Text content
+                   (font/create "LiberationSans-Regular.ttf" 25)
+                   color))
+(defn call-child-view [state view-function state-path-key]
+  (assoc (view-function (state-path-key state))
+    :state-path-part [state-path-key]))
+
 (defn registration-view [state]
-  (layout/->VerticalStack [(assoc (text-editor-view (:username state))
-                             :state-path-part [:username])
-                           (assoc (text-editor-view (:full-name state))
-                             :state-path-part [:full-name])
-                           #_(drawable/->Text (let [model (state-to-model state)]
-                                                (if (not (= (:username model)
-                                                            (:full-name model)))
-                                                  "Passwords differ"
-                                                  ""))
-                                              (font/create "LiberationSans-Regular.ttf" 25)
-                                              [1 1 1 1])
+  (layout/->VerticalStack [(layout/->HorizontalStack [(call-child-view state text-editor-view :username)
+                                                      (if (:user-name-in-use state)
+                                                        (text "Not available")
+                                                        (drawable/->Empty 0 0))
+                                                      (if (:checking-availability state)
+                                                        (text "Checking availability")
+                                                        (drawable/->Empty 0 0))])
+                           (call-child-view state text-editor-view :full-name)
+
                            (button-view (:submit-button state))]))
 
 (defn update-registration-view-state [state]
@@ -438,17 +445,20 @@
     (assoc-in state [:submit-button :disabled] (not valid?))))
 
 (defn initial-registration-view-state []
-  {:username (initial-text-editor-state "" (fn [new-user-name]
-                                             (println "new user name" new-user-name)
-                                             (let [event-queue current-event-queue
-                                                   view-state-atom current-view-state-atom]
-                                               (.start (Thread. (fn [] (Thread/sleep 1000)
-                                                                  (swap! view-state-atom
-                                                                         (fn [state]
-                                                                           (assoc state :user-name-in-use (= new-user-name
-                                                                                                             "foo"))))
-                                                                  (event-queue/add-event event-queue {})))))))
-   :full-name (initial-text-editor-state "" (fn [new-full-name]))
+  {:username (assoc (initial-text-editor-state "")
+               :on-change (fn [new-user-name]
+                            (let [event-queue current-event-queue
+                                  view-state-atom current-view-state-atom]
+                              (.start (Thread. (fn []
+                                                 (swap! view-state-atom assoc
+                                                        :checking-availability true
+                                                        :user-name-in-use false)
+                                                 (Thread/sleep 1000)
+                                                 (swap! view-state-atom assoc
+                                                        :user-name-in-use (= new-user-name "foo")
+                                                        :checking-availability false)
+                                                 (event-queue/add-event event-queue {})))))))
+   :full-name (initial-text-editor-state "")
    :submit-button (initial-button-state "Send" (fn []))
    :handle-keyboard-event (fn [state event]
                             (cond (events/key-pressed? event :esc)
@@ -462,26 +472,6 @@
                            (let [children [[:username]  [:full-name] [:submit-button]]
                                  focus-index (first (positions #{current-focus} children))]
                              (get children (inc focus-index))))})
-
-(defmacro with-child-views [view]
-  `(binding [view-children (atom [])]
-     [~view
-      (let [view-children# @view-children]
-        (fn [state# model#] (update-focus-container state# model# view-children#)))]))
-
-(defn call-children [key children view]
-  )
-
-(def ^:dynamic state-atom)
-
-
-(defn model-to-view [model]
-  #_(apply counters (for [row model]
-                      (apply counter-row (for [count row]
-                                           (click-counter count))))))
-
-
-
 
 (defn start []
   (reset! event-queue (event-queue/create))
