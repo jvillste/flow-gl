@@ -77,6 +77,9 @@
                                        [:children 0 :child :child :child])
       => [[:foo 1] [:bar]])
 
+(def ^:dynamic current-event-queue nil)
+(def ^:dynamic current-view-state-atom nil)
+
 (defn apply-mouse-event-handlers [state layout layout-path-under-mouse event]
   (reduce (fn [state layout-path]
             (update-in state
@@ -269,10 +272,13 @@
                 event (event-queue/dequeue-event-or-wait event-queue)
                 new-state (swap! view-state-atom
                                  (fn [state]
-                                   (-> state
-                                       (handle-event (window/width window)
-                                                     (window/height window)
-                                                     event)
+                                   (-> (binding [current-event-queue event-queue
+                                                 current-view-state-atom view-state-atom]
+                                         (handle-event state
+                                                       (window/width window)
+                                                       (window/height window)
+                                                       event))
+
                                        (state-updater))))]
             (if new-state
               (recur new-gpu-state)
@@ -328,7 +334,13 @@
      (and (:character event)
           (= (:type event)
              :key-pressed))
-     (update-in state [:edited-text] append-character (:character event))
+     (let [new-text (append-character (:edited-text state)
+                                      (:character event))]
+       (println "new text 2" new-text state)
+       (when (:on-change state)
+         ((:on-change state) new-text))
+       (assoc-in state [:edited-text] new-text))
+
 
 
      :default
@@ -345,12 +357,13 @@
      :default
      state)))
 
-(defn initial-text-editor-state [text]
+(defn initial-text-editor-state [text on-change]
   {:text text
    :edited-text ""
    :editing? false
    :has-focus false
-   :handle-keyboard-event handle-text-editor-event})
+   :handle-keyboard-event handle-text-editor-event
+   :on-change on-change})
 
 (defn text-editor-view [state]
   (layout/->Box 10 [(drawable/->Rectangle 0
@@ -420,13 +433,23 @@
 (defn update-registration-view-state [state]
   (let [valid? (let [model (state-to-model state)]
                  (and (not (= (:username model) ""))
-                      (not (= (:full-name model) ""))))]
+                      (not (= (:full-name model) ""))
+                      (not (:user-name-in-use state))))]
     (assoc-in state [:submit-button :disabled] (not valid?))))
 
 (defn initial-registration-view-state []
-  {:username (initial-text-editor-state "")
-   :full-name (initial-text-editor-state "")
-   :submit-button (initial-button-state "Send" (fn [] (println "send")))
+  {:username (initial-text-editor-state "" (fn [new-user-name]
+                                             (println "new user name" new-user-name)
+                                             (let [event-queue current-event-queue
+                                                   view-state-atom current-view-state-atom]
+                                               (.start (Thread. (fn [] (Thread/sleep 1000)
+                                                                  (swap! view-state-atom
+                                                                         (fn [state]
+                                                                           (assoc state :user-name-in-use (= new-user-name
+                                                                                                             "foo"))))
+                                                                  (event-queue/add-event event-queue {})))))))
+   :full-name (initial-text-editor-state "" (fn [new-full-name]))
+   :submit-button (initial-button-state "Send" (fn []))
    :handle-keyboard-event (fn [state event]
                             (cond (events/key-pressed? event :esc)
                                   (assoc state :close-requested true)
