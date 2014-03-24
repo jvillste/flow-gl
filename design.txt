@@ -67,10 +67,11 @@ Handling focus
   ! Keyboard event handler
   ! Mouse event handler
 ? How to trigger actions for button presses
-  ? How do these actions read the model?
-  ? How do these actions change the model?
-? How to change model with asynchronous calls?
-? How to make disabled widgets unable to get focus?
+  ? How do these actions read the model
+  ? How do these actions change the model
+? How to change model with asynchronous calls
+? How to make disabled widgets unable to get focus
+? How to enable dynamic view hierarchy
 
 model -> view-state
 view-state -> view

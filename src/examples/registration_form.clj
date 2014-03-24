@@ -1,5 +1,6 @@
 (ns examples.registration-form
-  (:require [flow-gl.utils :as utils]
+  (:require [clojure.core.async :as async]
+   [flow-gl.utils :as utils]
             (flow-gl.gui [drawable :as drawable]
                          [layout :as layout]
                          [event-queue :as event-queue]
@@ -303,6 +304,16 @@
                                nil
                                [child-seq-key (inc child-index)])))})
 
+(defn text [content & {:keys [color] :or {color [1 1 1 1]}}]
+  (drawable/->Text content
+                   (font/create "LiberationSans-Regular.ttf" 25)
+                   color))
+
+(defn call-view [state view-function state-path-key]
+  (assoc (view-function (state-path-key state))
+    :state-path-part [state-path-key]))
+
+
 (defn call-view-for-sequence [parent-state view-function key]
   (map-indexed (fn [index child-state]
                  (assoc (view-function child-state)
@@ -408,41 +419,28 @@
                                        [0.5 0.5 0.5 1]
                                        [0 0 0 1]))]))
 
-(defn model-to-state [model state]
-  (-> state
-      (update-in [:username :text] (:username model))
-      (update-in [:full-name :text] (:full-name model))))
-
-(defn state-to-model [state]
-  {:username (get-in state [:username :edited-text])
-   :full-name (get-in state [:full-name :edited-text])})
-
-(defn text [content & {:keys [color] :or {color [1 1 1 1]}}]
-  (drawable/->Text content
-                   (font/create "LiberationSans-Regular.ttf" 25)
-                   color))
-(defn call-child-view [state view-function state-path-key]
-  (assoc (view-function (state-path-key state))
-    :state-path-part [state-path-key]))
+(defn update-registration-view-state [state]
+  (assoc-in state [:submit-button :disabled] (or (= (get-in state [:username :edited-text]) "")
+                                                 (= (get-in state [:full-name :edited-text]) "")
+                                                 (:user-name-in-use state))))
 
 (defn registration-view [state]
-  (layout/->VerticalStack [(layout/->HorizontalStack [(call-child-view state text-editor-view :username)
+  (layout/->VerticalStack [(layout/->HorizontalStack [(call-view state text-editor-view :username)
                                                       (if (:user-name-in-use state)
                                                         (text "Not available")
                                                         (drawable/->Empty 0 0))
                                                       (if (:checking-availability state)
                                                         (text "Checking availability")
                                                         (drawable/->Empty 0 0))])
-                           (call-child-view state text-editor-view :full-name)
+                           (call-view state text-editor-view :full-name)
 
                            (button-view (:submit-button state))]))
 
-(defn update-registration-view-state [state]
-  (let [valid? (let [model (state-to-model state)]
-                 (and (not (= (:username model) ""))
-                      (not (= (:full-name model) ""))
-                      (not (:user-name-in-use state))))]
-    (assoc-in state [:submit-button :disabled] (not valid?))))
+(defn is-available? [name]
+  (Thread/sleep (long (rand 2000)))
+  (not (= name "foo")))
+
+
 
 (defn initial-registration-view-state []
   {:username (assoc (initial-text-editor-state "")
