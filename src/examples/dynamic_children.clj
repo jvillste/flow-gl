@@ -455,8 +455,8 @@
 (fact (update-or-apply-in {:foo {:baz :bar}} [] assoc :x :y) => {:foo {:baz :bar}, :x :y}
       (update-or-apply-in {:foo {:baz :bar}} [:foo] assoc :x :y) => {:foo {:baz :bar, :x :y}})
 
-(defn call-view [state view-function initial-state updater state-path-key]
-  (let [old-state (or (get state state-path-key)
+(defn call-view [view-function initial-state updater state-path-key]
+  (let [old-state (or (get @current-view-state-atom state-path-key)
                       initial-state)
         new-state (updater old-state)
         [new-state child-visual] (binding [current-state-path (conj current-state-path state-path-key)]
@@ -472,22 +472,24 @@
        [(remove-unused-children @current-view-state-atom)
         visual-value#])))
 
-(defn todo-list-view [state]
-  (with-children state
-    (layout/->VerticalStack (for-all [[index todo-text] (indexed (:todo-texts state))]
-                                     (call-view state
-                                                text-editor-view
-                                                initial-text-editor-state
-                                                (let [event-queue current-event-queue
-                                                      state-path current-state-path]
-                                                  #(assoc %
-                                                     :text todo-text
-                                                     :on-change (fn [new-text]
-                                                                  (event-queue/add-event event-queue
-                                                                                         (create-apply-to-view-state-event (fn [state]
-                                                                                                                             (assoc-in state (concat state-path [:todo-texts index])
-                                                                                                                                       new-text)))))))
-                                                index)))))
+(defmacro def-view [name parameters visual]
+  `(defn ~name ~parameters
+     (with-children ~(first parameters)
+       ~visual)))
+
+(def-view todo-list-view [state]
+  (layout/->VerticalStack (for-all [[index todo-text] (indexed (:todo-texts state))]
+                                   (call-view text-editor-view
+                                              initial-text-editor-state
+                                              (let [state-path current-state-path]
+                                                #(assoc %
+                                                   :text todo-text
+                                                   :on-change (fn [new-text]
+                                                                (event-queue/add-event current-event-queue
+                                                                                       (create-apply-to-view-state-event (fn [state]
+                                                                                                                           (assoc-in state (concat state-path [:todo-texts index])
+                                                                                                                                     new-text)))))))
+                                              index))))
 
 (defn focus-index [state]
   (loop [index 0]
