@@ -1,4 +1,4 @@
-(ns examples.mouse-focus
+(ns examples.image-map
   (:require [flow-gl.utils :as utils]
             (flow-gl.gui [drawable :as drawable]
                          [layout :as layout]
@@ -77,10 +77,13 @@
 
 (defn apply-mouse-event-handlers [state layout layout-path-under-mouse event]
   (reduce (fn [state layout-path]
-            (update-in state
-                       (layout-path-to-state-path layout layout-path)
-                       (get-in layout (conj layout-path :handle-mouse-event))
-                       event))
+            (let [state-path (layout-path-to-state-path layout layout-path)]
+              (if (= [] state-path)
+                ((get-in layout (conj layout-path :handle-mouse-event)) state event)
+                (update-in state
+                           (layout-path-to-state-path layout layout-path)
+                           (get-in layout (conj layout-path :handle-mouse-event))
+                           event))))
           state
           (filter (fn [layout-path]
                     (:handle-mouse-event (get-in layout layout-path)))
@@ -298,14 +301,6 @@
                                nil
                                [child-seq-key (inc child-index)])))})
 
-
-(defn handle-click-counter-keyboard-event [state event]
-  (cond (events/key-pressed? event :enter)
-        (-> (update-in state [:count] inc))
-
-        :default
-        state))
-
 (defn call-view-for-sequence [parent-state view-function key]
   (map-indexed (fn [index child-state]
                  (assoc (view-function child-state)
@@ -313,105 +308,71 @@
                (key parent-state)))
 
 
-(defn click-counter-view [state]
-  (-> (layout/->Box 10 [(drawable/->Rectangle 0
-                                              0
-                                              (if (:has-focus state)
-                                                [0 0.8 0.8 1]
-                                                [0 0.5 0.5 1]))
-                        (drawable/->Text (str (:count state))
-                                         (font/create "LiberationSans-Regular.ttf" 15)
-                                         [0 0 0 1])])
+(defn image-map-view [state]
+  (layout/->Stack [(drawable/->Image "/Users/jukka/Dropbox/siru/Politiikka/Vaalit/teemat sivuille/teemat.png")
+                   (assoc (layout/->Absolute (for [[x1,y1,x2,y2] (:coordinates state)]
+                                               (assoc (drawable/->Rectangle (- x2 x1) (- y2 y1) [1 0 0 0.5])
+                                                 :x x1
+                                                 :y y1)))
+                     :handle-mouse-event (fn [state event]
+                                           (if (= :mouse-clicked (:type event))
+                                             (if-let [[x1, y1] (:first-coordinate state)]
+                                               (-> state
+                                                   (update-in [:coordinates] conj [x1, y1, (:x event) (:y event)])
+                                                   (dissoc :first-coordinate))
+                                               (assoc state :first-coordinate [(:x event) (:y event)]))
+                                             state)))]))
 
-      (on-mouse-clicked #(update-in % [:count] inc))))
+(def areas [{:title "Peruskoulun alasajo - kallis virhe"
+             :href "/node/858"}
+            {:title "Ruuan alkuperä näkväksi"
+             :href "/node/862"}
+            {:title "Kitketään korruptio"
+             :href "/node/859"}
+            {:title "Reilu hyvinvointiyhteiskunta"
+             :href "/node/860"}
+            {:title "Pelastetaan pallo lapsillekin"
+             :href "/node/865"}
+            {:title "Veroparatiisit pois"
+             :href "/node/859"}
+            {:title "Vihreää valoa työlle"
+             :href "/node/863"}
+            {:title "Pienyrittäjät pitävät euroopan pinnalla"
+             :href "/node/861"}
+            {:title "Huolehditaan ikääntyvistä"
+             :href "/node/864"}])
 
-(defn click-counter [count]
-  {:count count
-   :handle-keyboard-event handle-click-counter-keyboard-event})
+(def coordinates [[3 67 134 110] [3 145 111 189] [5 199 117 232] [3 287 158 329] [3 399 156 441] [271 103 395 146] [272 183 393 223] [255 280 393 327] [246 366 393 408]])
 
-(defn counter-row-view [state]
-  (layout/->Margin 5 0 5 0
-                   [(layout/->Box 10 [(drawable/->FilledRoundedRectangle 0 0 10 (if (:child-has-focus state)
-                                                                                  [0.8 0.8 0.8 1]
-                                                                                  [0.5 0.5 0.5 1]))
-                                      (layout/->HorizontalStack (call-view-for-sequence state
-                                                                                        click-counter-view
-                                                                                        :counters))])]))
+(defn areas-with-coordinates []
+  (for [[area coordinate] (partition 2 (interleave areas coordinates))]
+    (assoc area :coordinates coordinate)))
 
-(defn counter-row [& counters]
-  (-> {:counters (vec counters)}
-      (conj (seq-focus-handlers :counters))))
+(defn print-area [area]
+  (str "<area title=\"" (:title area)
+       "\" shape=\"rect\" coords=\"" (apply str (interpose "," (:coordinates area)))
+       "\" href=\"" (:href area) "\" alt=\"" (:title area) "\" />"))
 
-(defn counters-view [state]
-  (layout/->VerticalStack (conj (call-view-for-sequence state
-                                                        counter-row-view
-                                                        :counter-rows)
-                                (drawable/->Text (str  (->> (:counter-rows state)
-                                                            (mapcat :counters)
-                                                            (map :count)
-                                                            (reduce +)))
-                                                 (font/create "LiberationSans-Regular.ttf" 25)
-                                                 [1 1 1 1]))))
+(defn print-areas []
+  (doseq [area (areas-with-coordinates)]
+    (println (print-area area))))
 
-(defn counters [& counter-rows]
-  (-> {:counter-rows (vec counter-rows)
-       :handle-keyboard-event (fn [state event]
-                                (cond (events/key-pressed? event :esc)
-                                      (assoc state :close-requested true)
+(defn handle-keyboard [state event]
+  (cond (events/key-pressed? event :enter)
+        (do (println (:coordinates state))
+            state)
 
-                                      :default
-                                      state))
-       :view counters-view}
-      (conj (seq-focus-handlers :counter-rows))))
-
-(defmacro with-child-views [view]
-  `(binding [view-children (atom [])]
-     [~view
-      (let [view-children# @view-children]
-        (fn [state# model#] (update-focus-container state# model# view-children#)))]))
-
-(defn call-children [key children view]
-  )
-
-(def ^:dynamic state-atom)
-
-(defn construct-counters [& counter-rows]
-  (let [state {:handle-keyboard-event (fn [state event]
-                                        (cond (events/key-pressed? event :esc)
-                                              (assoc state :close-requested true)
-
-                                              :default
-                                              state))}]
-    (binding [state-atom (atom state)]
-      [(layout/->VerticalStack (conj (do (swap! state-atom (fn [state]
-                                                             (-> state
-                                                                 (assoc state :counter-rows (vec counter-rows))
-                                                                 (conj (seq-focus-handlers :counter-rows)))))
-                                         (call-view-for-sequence state
-                                                                 counter-row-view
-                                                                 :counter-rows))
-                                     (drawable/->Text (str  (->> (:counter-rows state)
-                                                                 (mapcat :counters)
-                                                                 (map :count)
-                                                                 (reduce +)))
-                                                      (font/create "LiberationSans-Regular.ttf" 25)
-                                                      [1 1 1 1])))
-       @state])))
-
-(defn model-to-view [model]
-  (apply counters (for [row model]
-                              (apply counter-row (for [count row]
-                                                   (click-counter count))))))
-
+        :default
+        state))
 
 (defonce event-queue (atom (event-queue/create)))
 
 (defn start []
   (reset! event-queue (event-queue/create))
   (.start (Thread. (fn [] (start-view @event-queue
-                                      (model-to-view [[1 2]
-                                                      [3 4 5]])
-                                      #_(counters (counter-row (click-counter 0) (click-counter 1))
-                                                  (counter-row (click-counter 2) (click-counter 3) (click-counter 3))))))))
+                                      {:view image-map-view
+                                       :first-coordiante nil
+                                       :handle-keyboard-event handle-keyboard
+                                       :coordinates []})))))
 
 (event-queue/add-event @event-queue {})

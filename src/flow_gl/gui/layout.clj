@@ -249,22 +249,22 @@
   (layoutable/preferred-height [this] (+ margin-top margin-bottom
                                          (layoutable/preferred-height (first children)))))
 
-(deflayout Absolute [layoutables]
+(deflayout Absolute [children]
 
   (layout [absolute requested-width requested-height]
           (assoc absolute :layoutables
                  (vec (map #(set-dimensions-and-layout % (or (:x %) 0) (or (:y %) 0) (layoutable/preferred-width %) (layoutable/preferred-height %))
-                           layoutables))))
+                           children))))
 
   (layoutable/preferred-width [absolute] (apply max (map (fn [layoutable]
                                                            (+ (:x layoutable)
                                                               (layoutable/preferred-width layoutable)))
-                                                         layoutables)))
+                                                         children)))
 
   (layoutable/preferred-height [absolute] (apply max (map (fn [layoutable]
                                                             (+ (:y layoutable)
                                                                (layoutable/preferred-height layoutable)))
-                                                          layoutables))))
+                                                          children))))
 
 (deflayout VerticalStack [children]
   (layout [vertical-stack requested-width requested-height]

@@ -1,9 +1,11 @@
 (ns flow-gl.gui.drawable
   (:require  (flow-gl.graphics.command [text :as text]
+                                       [image :as image]
                                        [triangle-batch :as triangle-batch])
              (flow-gl.graphics [font :as font]
                                [vector :as vector]
-                               [text :as graphics-text])
+                               [text :as graphics-text]
+                               )
              (flow-gl.gui [layoutable :as layoutable])))
 
 (defprotocol Drawable
@@ -31,6 +33,18 @@
 
   Object
   (toString [this] (layoutable/describe-layoutable this "Text" :contents :font :color)))
+
+(defrecord Image [file-name]
+  Drawable
+  (drawing-commands [this]
+    [(image/create file-name)])
+
+  layoutable/Layoutable
+  (preferred-width [this] 100)
+  (preferred-height [this] 100)
+
+  Object
+  (toString [this] (layoutable/describe-layoutable this "Image" :file-name)))
 
 (defrecord Empty [width height]
   Drawable

@@ -1,6 +1,6 @@
-(ns examples.registration-form
+(ns examples.dynamic-children
   (:require [clojure.core.async :as async]
-   [flow-gl.utils :as utils]
+            [flow-gl.utils :as utils]
             (flow-gl.gui [drawable :as drawable]
                          [layout :as layout]
                          [event-queue :as event-queue]
@@ -79,7 +79,7 @@
       => [[:foo 1] [:bar]])
 
 (def ^:dynamic current-event-queue nil)
-(def ^:dynamic current-view-state-atom nil)
+(def ^:dynamic current-view-state-atom)
 
 (defn apply-mouse-event-handlers [state layout layout-path-under-mouse event]
   (reduce (fn [state layout-path]
@@ -93,7 +93,6 @@
                   (path-prefixes layout-path-under-mouse))))
 
 (defn apply-keyboard-event-handlers [state event]
-  (println "applying " event (:focus-path-parts state))
   (reduce (fn [state focus-path-parts]
             (let [focus-path (apply concat focus-path-parts)]
               (if-let [keyboard-event-handler (get-in state (conj (vec focus-path) :handle-keyboard-event))]
@@ -132,7 +131,7 @@
                         :foo :bar}}}]})
 
 (defn seq-focus-handlers [child-seq-key]
-  {:first-focusable-child [child-seq-key 0]
+  {:first-focusable-child (fn [_] [child-seq-key 0])
    :next-focusable-child (fn [this [_ child-index]]
                            (let [new-child-index (inc child-index)]
                              (if (= new-child-index
@@ -143,15 +142,16 @@
 (defn initial-focus-path-parts [state]
   (loop [state state
          focus-path-parts []]
-    (if-let [focus-path-part (:first-focusable-child state)]
+    (if-let [focus-path-part (when-let [first-focusable-child-function (:first-focusable-child state)]
+                               (first-focusable-child-function state))]
       (recur (get-in state focus-path-part)
              (conj focus-path-parts focus-path-part))
       focus-path-parts)))
 
-(fact (initial-focus-path-parts {:first-focusable-child [:children 1]
-                                 :children [{:first-focusable-child [:children 0]
+(fact (initial-focus-path-parts {:first-focusable-child (fn [_] [:children 1])
+                                 :children [{:first-focusable-child (fn [_] [:children 0])
                                              :children [{}]}
-                                            {:first-focusable-child [:children 0]
+                                            {:first-focusable-child (fn [_] [:children 0])
                                              :children [{}]}]})
       => [[:children 1] [:children 0]])
 
@@ -180,14 +180,10 @@
         (next-focus-path-parts state [[:children1 1] [:children2 1]])  => [[:children1 1] [:children2 2] [:children3 0]]
         (next-focus-path-parts state [[:children1 1] [:children2 2] [:children3 2]])  => nil))
 
-(defn render-state [window cached-runnables state]
-  (let [layout (layout/layout ((:view state) state)
-                              (window/width window)
-                              (window/height window))
-        drawing-commands (doall (drawable/drawing-commands layout))
+(defn render-layout [window cached-runnables layout]
+  (let [drawing-commands (doall (drawable/drawing-commands layout))
         cached-runnables-atom (atom cached-runnables)
         unused-commands-atom (atom nil)]
-
     (window/render window gl
                    (opengl/clear gl 0 0 0 1)
                    (doseq [runnable (doall (reduce (fn [runnables command]
@@ -218,75 +214,85 @@
       (set-focus-state focus-path-parts true)
       (assoc :focus-path-parts focus-path-parts)))
 
-(defn handle-event [state width height event]
-  (let [layout (layout/layout ((:view state) state)
-                              width
-                              height)]
-    (cond
-     (= (:source event)
-        :mouse)
-     (let [layout-paths-under-mouse (layout/layout-paths-in-coordinates layout (:x event) (:y event))
-           layout-path-under-mouse (last layout-paths-under-mouse)]
+(defn handle-event [state layout event]
+  (cond
+   (= (:type event)
+      :apply-to-view-state)
+   ((:function event) state)
 
-       (if (= (:type event)
-              :mouse-clicked)
-         (let [focus-path-parts (layout-path-to-state-path-parts layout layout-path-under-mouse)]
-           (let [updated-state (set-focus state focus-path-parts)]
-             (apply-mouse-event-handlers updated-state
-                                         layout
-                                         layout-path-under-mouse
-                                         event)))
-         (apply-mouse-event-handlers state
-                                     layout
-                                     layout-path-under-mouse
-                                     event)))
+   (= (:source event)
+      :mouse)
+   (let [layout-paths-under-mouse (layout/layout-paths-in-coordinates layout (:x event) (:y event))
+         layout-path-under-mouse (last layout-paths-under-mouse)]
 
-     (events/key-pressed? event :tab)
-     (set-focus state (or (next-focus-path-parts state (:focus-path-parts state))
-                          (initial-focus-path-parts state)))
+     (if (= (:type event)
+            :mouse-clicked)
+       (let [focus-path-parts (layout-path-to-state-path-parts layout layout-path-under-mouse)]
+         (let [updated-state (set-focus state focus-path-parts)]
+           (apply-mouse-event-handlers updated-state
+                                       layout
+                                       layout-path-under-mouse
+                                       event)))
+       (apply-mouse-event-handlers state
+                                   layout
+                                   layout-path-under-mouse
+                                   event)))
 
-     (= (:type event)
-        :close-requested)
-     (do (println "closing")
-         nil)
+   (events/key-pressed? event :tab)
+   (set-focus state (or (next-focus-path-parts state (:focus-path-parts state))
+                        (initial-focus-path-parts state)))
 
-     :default
-     (apply-keyboard-event-handlers state
-                                    event))))
+   (= (:type event)
+      :close-requested)
+   (do (println "got :close-requested event, returning nil as view state")
+       nil)
 
-(defn start-view [event-queue initial-state state-updater]
+   :default
+   (apply-keyboard-event-handlers state
+                                  event)))
+
+(defn start-view [event-queue initial-state view]
   (let [window (window/create 300
                               400
                               opengl/initialize
                               opengl/resize
                               event-queue)
-        view-state-atom (atom nil)]
+        view-state-atom (atom initial-state)]
 
     (try
-      (reset! view-state-atom (set-focus initial-state (initial-focus-path-parts initial-state)))
+      (binding [current-event-queue event-queue
+                current-view-state-atom view-state-atom]
+        (view @view-state-atom))
+
+      (swap! view-state-atom (fn [view-state] (set-focus view-state
+                                                         (initial-focus-path-parts view-state))))
       (loop [gpu-state {}]
         (if (:close-requested @view-state-atom)
-          (do (println "closing")
-              (window/close window))
+          (window/close window)
 
-          (let [new-gpu-state (render-state window gpu-state @view-state-atom)
+          (let [layout (layout/layout (binding [current-event-queue event-queue
+                                                current-view-state-atom view-state-atom]
+                                        (view @view-state-atom))
+                                      (window/width window)
+                                      (window/height window))
+                new-gpu-state (render-layout window gpu-state layout)
                 event (event-queue/dequeue-event-or-wait event-queue)
                 new-state (swap! view-state-atom
                                  (fn [state]
-                                   (-> (binding [current-event-queue event-queue
-                                                 current-view-state-atom view-state-atom]
-                                         (handle-event state
-                                                       (window/width window)
-                                                       (window/height window)
-                                                       event))
-
-                                       (state-updater))))]
+                                   (binding [current-event-queue event-queue]
+                                     (handle-event state
+                                                   layout
+                                                   event))))]
             (if new-state
               (recur new-gpu-state)
               (window/close window)))))
       (catch Exception e
         (window/close window)
         (throw e)))))
+
+(defn create-apply-to-view-state-event [function]
+  {:type :apply-to-view-state
+   :function function})
 
 (defn on-mouse-clicked [layoutable handler]
   (assoc layoutable
@@ -296,7 +302,7 @@
                             state))))
 
 (defn seq-focus-handlers [child-seq-key]
-  {:first-focusable-child [child-seq-key 0]
+  {:first-focusable-child (fn [_] [child-seq-key 0])
    :next-focusable-child (fn [this [_ child-index]]
                            (let [new-child-index (inc child-index)]
                              (if (= new-child-index
@@ -309,9 +315,8 @@
                    (font/create "LiberationSans-Regular.ttf" 25)
                    color))
 
-(defn call-view [state view-function state-path-key]
-  (assoc (view-function (state-path-key state))
-    :state-path-part [state-path-key]))
+(def ^:dynamic current-state-path [])
+
 
 
 (defn call-view-for-sequence [parent-state view-function key]
@@ -319,9 +324,6 @@
                  (assoc (view-function child-state)
                    :state-path-part [key index]))
                (key parent-state)))
-
-
-
 
 (defn append-character [string character]
   (apply str (vec (concat string
@@ -354,8 +356,6 @@
          ((:on-change state) new-text))
        (assoc-in state [:edited-text] new-text))
 
-
-
      :default
      state)
 
@@ -370,8 +370,8 @@
      :default
      state)))
 
-(defn initial-text-editor-state [text]
-  {:text text
+(def initial-text-editor-state
+  {:text ""
    :edited-text ""
    :editing? false
    :has-focus false
@@ -393,90 +393,152 @@
                                          [0 0 0 1])
                                        [0.3 0.3 0.3 1]))]))
 
-(defn initial-button-state [text action-handler]
-  {:text text
-   :has-focus false
-   :handle-keyboard-event (fn [state event]
-                            (cond (and (events/key-pressed? event :enter)
-                                       (not (:disabled state)))
-                                  (do (println "is disabled " (:disabled state) state)
-                                      (action-handler)
-                                      state)
 
-                                  :default
-                                  state))})
+(defn add-child [state path]
+  (update-in state [:children] conj path))
 
-(defn button-view [state]
-  (layout/->Box 10 [(drawable/->FilledRoundedRectangle 0
-                                                       0
-                                                       10
-                                                       (if (:has-focus state)
-                                                         [0 0.8 0.8 1]
-                                                         [0 0.5 0.5 1]))
-                    (drawable/->Text (:text state)
-                                     (font/create "LiberationSans-Regular.ttf" 15)
-                                     (if (:disabled state)
-                                       [0.5 0.5 0.5 1]
-                                       [0 0 0 1]))]))
+(defn reset-children [state]
+  (-> state
+      (assoc :old-children (or (:children state)
+                               []))
+      (assoc :children [])))
 
-(defn update-registration-view-state [state]
-  (assoc-in state [:submit-button :disabled] (or (= (get-in state [:username :edited-text]) "")
-                                                 (= (get-in state [:full-name :edited-text]) "")
-                                                 (:user-name-in-use state))))
+(defn remove-unused-children [state]
+  (let [child-set (set (:children state))]
+    (->> (:old-children state)
+         (filter (complement child-set))
+         (apply dissoc state))))
 
-(defn registration-view [state]
-  (layout/->VerticalStack [(layout/->HorizontalStack [(call-view state text-ediftor-view :username)
-                                                      (if (:user-name-in-use state)
-                                                        (text "Not available")
-                                                        (drawable/->Empty 0 0))
-                                                      (if (:checking-availability state)
-                                                        (text "Checking availability")
-                                                        (drawable/->Empty 0 0))])
-                           (call-view state text-editor-view :full-name)
+(fact (let [state-1 (-> {}
+                        (reset-children)
 
-                           (button-view (:submit-button state))]))
+                        (assoc :1 :foo)
+                        (add-child :1)
 
-(defn is-available? [name]
-  (Thread/sleep (long (rand 2000)))
-  (not (= name "foo")))
+                        (assoc :2 :foo)
+                        (add-child :2)
+
+                        (remove-unused-children))]
+
+        state-1 => {:1 :foo
+                    :2 :foo
+                    :children [:1 :2]
+                    :old-children []}
+
+        (-> state-1
+            (reset-children)
+
+            (assoc :2 :foo)
+            (add-child :2)
+
+            (remove-unused-children)) => {:2 :foo
+                                          :children [:2]
+                                          :old-children [:1 :2]}))
 
 
+(def child-focus-handlers
+  {:first-focusable-child (fn [state]
+                            [(first (:children state))])
+   :next-focusable-child (fn [this [child-index]]
+                           (let [new-child-index (inc child-index)]
+                             (if (= new-child-index
+                                    (count (:children this)))
+                               nil
+                               [(get (:children this)
+                                     (inc child-index))])))})
 
-(defn initial-registration-view-state []
-  {:username (assoc (initial-text-editor-state "")
-               :on-change (fn [new-user-name]
-                            (let [event-queue current-event-queue
-                                  view-state-atom current-view-state-atom]
-                              (.start (Thread. (fn []
-                                                 (swap! view-state-atom assoc
-                                                        :checking-availability true
-                                                        :user-name-in-use false)
-                                                 (Thread/sleep 1000)
-                                                 (swap! view-state-atom assoc
-                                                        :user-name-in-use (= new-user-name "foo")
-                                                        :checking-availability false)
-                                                 (event-queue/add-event event-queue {})))))))
-   :full-name (initial-text-editor-state "")
-   :submit-button (initial-button-state "Send" (fn []))
-   :handle-keyboard-event (fn [state event]
-                            (cond (events/key-pressed? event :esc)
-                                  (assoc state :close-requested true)
 
-                                  :default
-                                  state))
-   :view registration-view
-   :first-focusable-child [:username]
-   :next-focusable-child (fn [this current-focus]
-                           (let [children [[:username]  [:full-name] [:submit-button]]
-                                 focus-index (first (positions #{current-focus} children))]
-                             (get children (inc focus-index))))})
+(defn update-or-apply-in [map path function & arguments]
+  (if (seq path)
+    (apply update-in map path function arguments)
+    (apply function map arguments)))
+
+(fact (update-or-apply-in {:foo {:baz :bar}} [] assoc :x :y) => {:foo {:baz :bar}, :x :y}
+      (update-or-apply-in {:foo {:baz :bar}} [:foo] assoc :x :y) => {:foo {:baz :bar, :x :y}})
+
+(defn call-view [state view-function initial-state updater state-path-key]
+  (let [old-state (or (get state state-path-key)
+                      initial-state)
+        new-state (updater old-state)
+        child-state-path (conj current-state-path state-path-key)]
+    (swap! current-view-state-atom assoc-in child-state-path new-state)
+    (swap! current-view-state-atom update-or-apply-in current-state-path add-child state-path-key)
+    (binding [current-state-path child-state-path]
+      (assoc (view-function new-state)
+        :state-path-part [state-path-key]))))
+
+
+(defn todo-list-view [state]
+  (swap! current-view-state-atom update-or-apply-in current-state-path reset-children)
+  (let [visual (layout/->VerticalStack (for-all [[index todo-text] (indexed (:todo-texts state))]
+                                                (call-view state
+                                                           text-editor-view
+                                                           initial-text-editor-state
+                                                           (let [event-queue current-event-queue
+                                                                 state-path current-state-path]
+                                                             #(assoc %
+                                                                :text todo-text
+                                                                :on-change (fn [new-text]
+                                                                             (event-queue/add-event event-queue
+                                                                                                    (create-apply-to-view-state-event (fn [state]
+                                                                                                                                        (assoc-in state (concat state-path [:todo-texts index])
+                                                                                                                                                  new-text)))))))
+                                                           index)))]
+    (swap! current-view-state-atom update-or-apply-in current-state-path remove-unused-children)
+    visual))
+
+(defn focus-index [state]
+  (loop [index 0]
+    (if (:has-focus (get state (get (:children state) index)))
+      index
+      (if (< index
+             (count (:children state)))
+        (recur (inc index))
+        nil))))
+
+(fact (focus-index {0 {}
+                    1 {:has-focus true}
+                    :children [0 1]})
+      => 1
+
+      (focus-index {0 {}
+                    1 {}
+                    :children [0 1]})
+      => nil)
+
+
+(defn insert [vector index value]
+  (apply conj (vec (take index vector)) value (drop index vector)))
+
+(fact (insert [1 2 3 4] 1 10) => [1 10 2 3 4])
+
+(defn remove [vector index]
+  (vec (concat (take index vector) (drop (+ index 1) vector))))
+
+(fact (remove [1 2 3 4] 1) => [1 3 4])
+
+(def initial-todo-list-view-state (conj {:todo-texts ["Do this"
+                                                      "Do that"]
+
+                                         :handle-keyboard-event (fn [state event]
+                                                                  (cond
+                                                                   (events/key-pressed? event :space)
+                                                                   (update-in state [:todo-texts] insert (focus-index state) "New item")
+
+                                                                   (events/key-pressed? event :back-space)
+                                                                   (update-in state [:todo-texts] remove (focus-index state))
+
+                                                                   (events/key-pressed? event :esc)
+                                                                   (assoc state :close-requested true)
+
+                                                                   :default
+                                                                   state))}
+                                        child-focus-handlers))
 
 (defn start []
   (reset! event-queue (event-queue/create))
   (.start (Thread. (fn [] (start-view @event-queue
-                                      (initial-registration-view-state)
-                                      update-registration-view-state
-                                      #_(counters (counter-row (click-counter 0) (click-counter 1))
-                                                  (counter-row (click-counter 2) (click-counter 3) (click-counter 3))))))))
+                                      initial-todo-list-view-state
+                                      todo-list-view)))))
 
 (event-queue/add-event @event-queue {})

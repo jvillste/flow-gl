@@ -85,3 +85,11 @@ model -> view-state
 
 child-view-state -> view-state
                     focus-handlers
+
+(p View is a function 
+   ( state state-path ) ->  ( visual state )
+of a view state to a visual and a new view
+state. The view state affects the child view states, which are updated
+during the view function execution.)
+
+(p View function parameters are the view state, focus path...)
