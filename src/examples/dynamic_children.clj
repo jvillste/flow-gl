@@ -257,34 +257,32 @@
                               opengl/initialize
                               opengl/resize
                               event-queue)
-        view-state-atom (atom initial-state)]
+        [initial-state _] (binding [current-event-queue event-queue]
+                            (view initial-state))
+        initial-state (set-focus initial-state
+                                 (initial-focus-path-parts initial-state))]
+    (println "initial state is" initial-state)
 
     (try
-      (binding [current-event-queue event-queue
-                current-view-state-atom view-state-atom]
-        (view @view-state-atom))
 
-      (swap! view-state-atom (fn [view-state] (set-focus view-state
-                                                         (initial-focus-path-parts view-state))))
-      (loop [gpu-state {}]
-        (if (:close-requested @view-state-atom)
+      (loop [gpu-state {}
+             state initial-state]
+        (if (:close-requested state)
           (window/close window)
 
-          (let [layout (layout/layout (binding [current-event-queue event-queue
-                                                current-view-state-atom view-state-atom]
-                                        (view @view-state-atom))
+          (let [[state visual] (binding [current-event-queue event-queue]
+                                 (view state))
+                layout (layout/layout visual
                                       (window/width window)
                                       (window/height window))
                 new-gpu-state (render-layout window gpu-state layout)
                 event (event-queue/dequeue-event-or-wait event-queue)
-                new-state (swap! view-state-atom
-                                 (fn [state]
-                                   (binding [current-event-queue event-queue]
-                                     (handle-event state
-                                                   layout
-                                                   event))))]
+                new-state (binding [current-event-queue event-queue]
+                            (handle-event state
+                                          layout
+                                          event))]
             (if new-state
-              (recur new-gpu-state)
+              (recur new-gpu-state new-state)
               (window/close window)))))
       (catch Exception e
         (window/close window)
@@ -378,20 +376,21 @@
    :handle-keyboard-event handle-text-editor-event})
 
 (defn text-editor-view [state]
-  (layout/->Box 10 [(drawable/->Rectangle 0
-                                          0
-                                          (if (:has-focus state)
-                                            [0 0.8 0.8 1]
-                                            [0 0.5 0.5 1]))
-                    (drawable/->Text (if (:editing? state)
-                                       (:edited-text state)
-                                       (:text state))
-                                     (font/create "LiberationSans-Regular.ttf" 15)
-                                     (if (:has-focus state)
-                                       (if (:editing? state)
-                                         [0 0 1 1]
-                                         [0 0 0 1])
-                                       [0.3 0.3 0.3 1]))]))
+  [state
+   (layout/->Box 10 [(drawable/->Rectangle 0
+                                           0
+                                           (if (:has-focus state)
+                                             [0 0.8 0.8 1]
+                                             [0 0.5 0.5 1]))
+                     (drawable/->Text (if (:editing? state)
+                                        (:edited-text state)
+                                        (:text state))
+                                      (font/create "LiberationSans-Regular.ttf" 15)
+                                      (if (:has-focus state)
+                                        (if (:editing? state)
+                                          [0 0 1 1]
+                                          [0 0 0 1])
+                                        [0.3 0.3 0.3 1]))])])
 
 
 (defn add-child [state path]
@@ -460,32 +459,35 @@
   (let [old-state (or (get state state-path-key)
                       initial-state)
         new-state (updater old-state)
-        child-state-path (conj current-state-path state-path-key)]
-    (swap! current-view-state-atom assoc-in child-state-path new-state)
-    (swap! current-view-state-atom update-or-apply-in current-state-path add-child state-path-key)
-    (binding [current-state-path child-state-path]
-      (assoc (view-function new-state)
-        :state-path-part [state-path-key]))))
+        [new-state child-visual] (binding [current-state-path (conj current-state-path state-path-key)]
+                                   (view-function new-state))]
+    (swap! current-view-state-atom assoc state-path-key new-state)
+    (swap! current-view-state-atom add-child state-path-key)
+    (assoc child-visual
+      :state-path-part [state-path-key])))
 
+(defmacro with-children [state visual]
+  `(binding [current-view-state-atom (atom (reset-children ~state))]
+     (let [visual-value# ~visual]
+       [(remove-unused-children @current-view-state-atom)
+        visual-value#])))
 
 (defn todo-list-view [state]
-  (swap! current-view-state-atom update-or-apply-in current-state-path reset-children)
-  (let [visual (layout/->VerticalStack (for-all [[index todo-text] (indexed (:todo-texts state))]
-                                                (call-view state
-                                                           text-editor-view
-                                                           initial-text-editor-state
-                                                           (let [event-queue current-event-queue
-                                                                 state-path current-state-path]
-                                                             #(assoc %
-                                                                :text todo-text
-                                                                :on-change (fn [new-text]
-                                                                             (event-queue/add-event event-queue
-                                                                                                    (create-apply-to-view-state-event (fn [state]
-                                                                                                                                        (assoc-in state (concat state-path [:todo-texts index])
-                                                                                                                                                  new-text)))))))
-                                                           index)))]
-    (swap! current-view-state-atom update-or-apply-in current-state-path remove-unused-children)
-    visual))
+  (with-children state
+    (layout/->VerticalStack (for-all [[index todo-text] (indexed (:todo-texts state))]
+                                     (call-view state
+                                                text-editor-view
+                                                initial-text-editor-state
+                                                (let [event-queue current-event-queue
+                                                      state-path current-state-path]
+                                                  #(assoc %
+                                                     :text todo-text
+                                                     :on-change (fn [new-text]
+                                                                  (event-queue/add-event event-queue
+                                                                                         (create-apply-to-view-state-event (fn [state]
+                                                                                                                             (assoc-in state (concat state-path [:todo-texts index])
+                                                                                                                                       new-text)))))))
+                                                index)))))
 
 (defn focus-index [state]
   (loop [index 0]
