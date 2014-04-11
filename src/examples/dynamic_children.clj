@@ -392,6 +392,33 @@
                                           [0 0 0 1])
                                         [0.3 0.3 0.3 1]))])])
 
+(def initial-button-state
+  {:text ""
+   :has-focus false
+   :on-click nil
+   :handle-keyboard-event (fn [state event]
+                            (cond
+                             (events/key-pressed? event :enter)
+                             (do (when (:on-click state)
+                                   ((:on-click state)))
+                                 state)
+
+                             :default
+                             state))})
+
+(defn button-view [state]
+  [state
+   (layout/->Box 10 [(drawable/->FilledRoundedRectangle 0
+                                                        0
+                                                        10
+                                                        (if (:has-focus state)
+                                                          [0 0.8 0.8 1]
+                                                          [0 0.5 0.5 1]))
+                     (drawable/->Text (:text state)
+                                      (font/create "LiberationSans-Regular.ttf" 15)
+                                      (if (:has-focus state)
+                                        [0 0 0 1]
+                                        [0.3 0.3 0.3 1]))])])
 
 (defn add-child [state path]
   (update-in state [:children] conj path))
@@ -406,45 +433,48 @@
   (let [child-set (set (:children state))]
     (->> (:old-children state)
          (filter (complement child-set))
+         (first)
          (apply dissoc state))))
 
 (fact (let [state-1 (-> {}
                         (reset-children)
 
                         (assoc :1 :foo)
-                        (add-child :1)
+                        (add-child [:1])
 
                         (assoc :2 :foo)
-                        (add-child :2)
+                        (add-child [:2])
 
                         (remove-unused-children))]
 
         state-1 => {:1 :foo
                     :2 :foo
-                    :children [:1 :2]
+                    :children [[:1]  [:2]]
                     :old-children []}
 
         (-> state-1
             (reset-children)
 
             (assoc :2 :foo)
-            (add-child :2)
+            (add-child [:2])
 
             (remove-unused-children)) => {:2 :foo
-                                          :children [:2]
-                                          :old-children [:1 :2]}))
+                                          :children [[:2]]
+                                          :old-children [[:1] [:2]]}))
 
 
 (def child-focus-handlers
   {:first-focusable-child (fn [state]
-                            [(first (:children state))])
-   :next-focusable-child (fn [this [child-index]]
-                           (let [new-child-index (inc child-index)]
-                             (if (= new-child-index
-                                    (count (:children this)))
-                               nil
-                               [(get (:children this)
-                                     (inc child-index))])))})
+                            (first (:children state)))
+   :next-focusable-child (fn [this currently-focused-path-part]
+                           (println "next " (:children this) currently-focused-path-part)
+                           (let [child-index (first (positions #{currently-focused-path-part} (:children this)))]
+                             (let [new-child-index (inc child-index)]
+                               (if (= new-child-index
+                                      (count (:children this)))
+                                 nil
+                                 (get (:children this)
+                                       new-child-index)))))})
 
 
 (defn update-or-apply-in [map path function & arguments]
@@ -455,16 +485,16 @@
 (fact (update-or-apply-in {:foo {:baz :bar}} [] assoc :x :y) => {:foo {:baz :bar}, :x :y}
       (update-or-apply-in {:foo {:baz :bar}} [:foo] assoc :x :y) => {:foo {:baz :bar, :x :y}})
 
-(defn call-view [view-function initial-state updater state-path-key]
-  (let [old-state (or (get @current-view-state-atom state-path-key)
+(defn call-view [view-function initial-state state-override state-path-part]
+  (let [old-state (or (get-in @current-view-state-atom state-path-part)
                       initial-state)
-        new-state (updater old-state)
-        [new-state child-visual] (binding [current-state-path (conj current-state-path state-path-key)]
+        new-state (conj old-state state-override)
+        [new-state child-visual] (binding [current-state-path (concat current-state-path state-path-part)]
                                    (view-function new-state))]
-    (swap! current-view-state-atom assoc state-path-key new-state)
-    (swap! current-view-state-atom add-child state-path-key)
+    (swap! current-view-state-atom assoc-in state-path-part new-state)
+    (swap! current-view-state-atom add-child state-path-part)
     (assoc child-visual
-      :state-path-part [state-path-key])))
+      :state-path-part state-path-part)))
 
 (defmacro with-children [state visual]
   `(binding [current-view-state-atom (atom (reset-children ~state))]
@@ -477,19 +507,10 @@
      (with-children ~(first parameters)
        ~visual)))
 
-(def-view todo-list-view [state]
-  (layout/->VerticalStack (for-all [[index todo-text] (indexed (:todo-texts state))]
-                                   (call-view text-editor-view
-                                              initial-text-editor-state
-                                              (let [state-path current-state-path]
-                                                #(assoc %
-                                                   :text todo-text
-                                                   :on-change (fn [new-text]
-                                                                (event-queue/add-event current-event-queue
-                                                                                       (create-apply-to-view-state-event (fn [state]
-                                                                                                                           (assoc-in state (concat state-path [:todo-texts index])
-                                                                                                                                     new-text)))))))
-                                              index))))
+(defn apply-to-state [state-path function]
+  (event-queue/add-event current-event-queue
+                         (create-apply-to-view-state-event (fn [state]
+                                                             (update-or-apply-in state state-path function)))))
 
 (defn focus-index [state]
   (loop [index 0]
@@ -520,6 +541,27 @@
   (vec (concat (take index vector) (drop (+ index 1) vector))))
 
 (fact (remove [1 2 3 4] 1) => [1 3 4])
+
+(def-view todo-list-view [state]
+  (layout/->VerticalStack (concat (for-all [[index todo-text] (indexed (:todo-texts state))]
+                                           (call-view text-editor-view
+                                                      initial-text-editor-state
+                                                      (let [state-path current-state-path]
+                                                        {:text todo-text
+                                                         :on-change (fn [new-text]
+                                                                      (apply-to-state state-path (fn [state]
+                                                                                                   (assoc-in state [:todo-texts index] new-text))))})
+                                                      [index]))
+
+                                  [(layout/->HorizontalStack [(call-view button-view
+                                                                         initial-button-state
+                                                                         (let [state-path current-state-path]
+                                                                           {:text "Add new"
+                                                                            :on-click #(apply-to-state state-path (fn [state]
+                                                                                                                    (update-in state [:todo-texts] conj "New item")))})
+                                                                         [:add-new])] )])))
+
+
 
 (def initial-todo-list-view-state (conj {:todo-texts ["Do this"
                                                       "Do that"]
