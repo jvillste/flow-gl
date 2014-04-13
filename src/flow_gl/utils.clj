@@ -1,4 +1,5 @@
 (ns flow-gl.utils
+  (:refer-clojure :exclude [get])
   (:use midje.sweet))
 
 (defn map-vals [m f]
@@ -107,3 +108,13 @@
 (defn print-return [message value]
   (println message value)
   value)
+
+(defn insert [vector index value]
+  (apply conj (vec (take index vector)) value (drop index vector)))
+
+(fact (insert [1 2 3 4] 1 10) => [1 10 2 3 4])
+
+(defn remove-nth [vector index]
+  (vec (concat (take index vector) (drop (+ index 1) vector))))
+
+(fact (remove [1 2 3 4] 1) => [1 3 4])

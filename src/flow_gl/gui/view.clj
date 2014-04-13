@@ -1,304 +1,388 @@
 (ns flow-gl.gui.view
-  (:require  (flow-gl.graphics [command :as command])
-             (flow-gl.graphics.command [push-modelview :as push-modelview]
-                                       [pop-modelview :as pop-modelview]
-                                       [translate :as translate])
-             (flow-gl.gui [layout :as layout]
-                          [layoutable :as layoutable]
-                          [drawable :as drawable]
-                          [input :as input]
-                          [mouse :as mouse]
-                          [drawable :as drawable])
-             (flow-gl.opengl.jogl [opengl :as opengl])
-             (flow-gl [debug :as debug])
-             (flow-gl.dataflow [dataflow :as dataflow]
-                               [triple-dataflow :as triple-dataflow]
-                               [base-dataflow :as base-dataflow])
+  (:require [clojure.core.async :as async]
+            [flow-gl.utils :as utils]
+            (flow-gl.gui [drawable :as drawable]
+                         [layout :as layout]
+                         [event-queue :as event-queue]
+                         [events :as events])
 
+            (flow-gl.graphics [command :as command]
+                              [font :as font])
 
-             [clojure.data.priority-map :as priority-map])
+            (flow-gl.graphics.command [text :as text]
+                                      [translate :as translate])
 
-  (:use clojure.test
+            (flow-gl.opengl.jogl [opengl :as opengl]
+                                 [window :as window]))
+  (:use flow-gl.utils
         midje.sweet
-        flow-gl.threading))
-
-;; DEBUG
-
-(defn describe-gpu-state [gpu-state]
-  (for [key (keys (:view-part-command-runners gpu-state))]
-    (str key " = " (vec (get-in gpu-state [:view-part-command-runners key])))))
+        flow-gl.gui.layout-dsl))
 
 
-;; VIEW PARTS
 
-(defrecord ChildViewCall [view-id]
-  command/Command
-  (create-runner [view-part-call gl] view-part-call)
-  command/CommandRunner
-  (delete [view-part-call gl])
-  (run [view-part-call gl]))
+(defn path-prefixes [path]
+  (loop [prefixes []
+         prefix []
+         xs path]
+    (if-let [x (first xs)]
+      (let [prefix (conj prefix x)]
+        (recur (conj prefixes prefix)
+               prefix
+               (rest xs)))
+      prefixes)))
 
-(def ^:dynamic view-being-laid-out)
+(fact (path-prefixes [[1 2] [3] [4]])
+      => [[[1 2]]
+          [[1 2] [3]]
+          [[1 2] [3] [4]]])
 
-(defrecord ViewPart [view-id]
-  drawable/Drawable
-  (drawing-commands [view-part]
-    [(->ChildViewCall view-id)])
+(defn layout-path-to-state-path [root-layout child-path]
+  (loop [state-path []
+         rest-of-child-path child-path
+         child-path []]
+    (if-let [child-path-part (first rest-of-child-path)]
+      (let [child-path (conj child-path child-path-part)]
+        (if-let [state-path-part (get-in root-layout (conj child-path :state-path-part))]
+          (recur (concat state-path state-path-part)
+                 (rest rest-of-child-path)
+                 child-path)
+          (recur state-path
+                 (rest rest-of-child-path)
+                 child-path)))
+      state-path)))
 
-  layoutable/Layoutable
-  (preferred-width [view-part] (triple-dataflow/get-value base-dataflow/current-dataflow view-id :preferred-width))
-  (preferred-height [view-part] (triple-dataflow/get-value base-dataflow/current-dataflow view-id :preferred-height))
+(fact (layout-path-to-state-path {:children [{:state-path-part [:foo 1]
+                                              :child {:child {:state-path-part [:bar]
+                                                              :child {}}}}]}
+                                 [:children 0 :child :child :child])
+      => '(:foo 1 :bar))
 
-  layout/Layout
-  (layout [view-part requested-width requested-height]
-    (base-dataflow/apply-to-dataflow (fn [dataflow]
-                                       (-> (triple-dataflow/create-entity dataflow
-                                                                          view-id)
+(defn layout-path-to-state-path-parts [root-layout whole-layout-path]
+  (loop [state-path-parts []
+         remaining-layout-path whole-layout-path
+         layout-path []]
+    (if-let [layout-path-part (first remaining-layout-path)]
+      (let [new-layout-path (conj layout-path layout-path-part)]
+        (if-let [state-path-part (get-in root-layout (conj new-layout-path :state-path-part))]
+          (recur (conj state-path-parts state-path-part)
+                 (rest remaining-layout-path)
+                 new-layout-path)
+          (recur state-path-parts
+                 (rest remaining-layout-path)
+                 new-layout-path)))
+      state-path-parts)))
 
-                                           (assoc :requested-width requested-width
-                                                  :requested-height requested-height)
+(fact (layout-path-to-state-path-parts {:children [{:state-path-part [:foo 1]
+                                                    :child {:child {:state-path-part [:bar]
+                                                                    :child {}}}}]}
+                                       [:children 0 :child :child :child])
+      => [[:foo 1] [:bar]])
 
-                                           ::triple-dataflow/dataflow)))
-    view-part)
+(def ^:dynamic current-event-queue nil)
+(def ^:dynamic current-view-state-atom)
 
-  #_(children [this]
-      (layout/children (triple-dataflow/get-value base-dataflow/current-dataflow view-id :layout)))
+(defn apply-mouse-event-handlers [state layout layout-path-under-mouse event]
+  (reduce (fn [state layout-path]
+            (update-in state
+                       (layout-path-to-state-path layout layout-path)
+                       (get-in layout (conj layout-path :handle-mouse-event))
+                       event))
+          state
+          (filter (fn [layout-path]
+                    (:handle-mouse-event (get-in layout layout-path)))
+                  (path-prefixes layout-path-under-mouse))))
 
-  Object
-  (toString [_] (str "(->ViewPart " view-id)))
+(defn apply-keyboard-event-handlers [state event]
+  (reduce (fn [state focus-path-parts]
+            (let [focus-path (apply concat focus-path-parts)]
+              (if-let [keyboard-event-handler (get-in state (conj (vec focus-path) :handle-keyboard-event))]
+                (if (seq focus-path)
+                  (update-in state
+                             focus-path
+                             keyboard-event-handler
+                             event)
+                  (keyboard-event-handler state event))
+                state)))
+          state
+          (conj (path-prefixes (:focus-path-parts state))
+                [])))
 
-(defn loaded-view-parts [gpu-state]
-  (keys (:view-part-command-runners gpu-state)))
+(defn set-focus-state [state focus-path-parts has-focus]
+  (if (seq focus-path-parts)
+    (loop [focus-path (first focus-path-parts)
+           focus-path-parts (rest focus-path-parts)
+           state state]
+      (if (seq focus-path-parts)
+        (recur (concat focus-path (first focus-path-parts))
+               (rest focus-path-parts)
+               (update-in state focus-path assoc :child-has-focus has-focus))
+        (update-in state focus-path assoc :has-focus has-focus)))
+    state))
 
-(defn view-part-is-loaded? [gpu-state view-id]
-  (contains? (:view-part-command-runners gpu-state) view-id))
-
-(defn unload-view-part [gpu-state view-id gl]
-  (dorun (map #(command/delete % gl) (get-in gpu-state [:view-part-command-runners view-id])))
-  (update-in gpu-state [:view-part-command-runners] dissoc view-id))
-
-(defn load-view-part [gpu-state view-state view-id gl]
-  (println "loading " view-id)
-  (unload-view-part gpu-state view-id gl)
-
-  (debug/do-debug :view-update "loading " view-id " is defined " (triple-dataflow/is-defined? view-state view-id :layout))
-
-  (if (triple-dataflow/is-defined? view-state view-id :layout)
-    (let [drawing-commands (if-let [layout (triple-dataflow/get-value view-state view-id :layout)]
-                             (drawable/drawing-commands layout)
-                             [])
-          gpu-state (reduce (fn [gpu-state view-id]
-                              (load-view-part gpu-state view-state view-id gl))
-                            gpu-state
-                            (->> (filter #(and (instance? ChildViewCall %)
-                                               (not (view-part-is-loaded? gpu-state (:view-id %))))
-                                         drawing-commands)
-                                 (map :view-id)))]
-
-      (assoc-in gpu-state [:view-part-command-runners view-id] (command/command-runners-for-commands drawing-commands gl)))
-    gpu-state))
-
-(defn update-view-part [gpu-state view-state view-id gl]
-  (if (triple-dataflow/is-defined? view-state view-id :layout)
-    (load-view-part gpu-state view-state view-id gl)
-    (unload-view-part gpu-state view-id gl)))
-
-(defn apply-view-function [state view-function parameters]
-  (triple-dataflow/assoc-with-this state
-                                   :view (fn [state]
-                                           (apply view-function state parameters))
-
-                                   :layout (fn [state]
-                                             (layout/add-global-coordinates (layout/layout (:view state)
-                                                                                           (:requested-width state)
-                                                                                           (:requested-height state))
-                                                                            (:global-x state)
-                                                                            (:global-y state)))
-
-                                   :preferred-width (fn [state]
-                                                      (layoutable/preferred-width (:view state)))
-
-                                   :preferred-height (fn [state]
-                                                       (layoutable/preferred-height (:view state)))))
-
-(defn child-view-key [& identifiers]
-  (keyword (str "child-view-" identifiers)))
-
-(defn call-child-view [view initializer & parameters]
-  (let [parent-view (triple-dataflow/create-entity base-dataflow/current-dataflow triple-dataflow/current-subject)
-        key (apply child-view-key (conj parameters view))
-        child-view-id (if (contains? parent-view key)
-                        (::triple-dataflow/entity-id (key parent-view))
-                        (triple-dataflow/create-entity-id))]
-
-    (do (when (not (contains? parent-view key))
-          (base-dataflow/apply-to-dataflow (fn [dataflow]
-                                             (-> (triple-dataflow/create-entity dataflow child-view-id)
-                                                 (initializer)
-                                                 (apply-view-function view
-                                                                      parameters)
-                                                 (triple-dataflow/switch-entity parent-view)
-                                                 (assoc key (triple-dataflow/create-entity-reference-for-id child-view-id))
-                                                 ::triple-dataflow/dataflow))))
-        (->ViewPart child-view-id))))
-
-;; RENDERING
-
-(defn draw-view-part [gpu-state view-id gl]
-  (println "drawing " view-id)
-  (debug/do-debug :render "draw-view-part " view-id)
-
-  (doseq [command-runner (get-in gpu-state [:view-part-command-runners view-id])]
-    (if (instance? ChildViewCall command-runner)
-      (draw-view-part gpu-state (:view-id command-runner) gl)
-      (debug/debug-drop-last :render "running" (type command-runner)
-                             (command/run command-runner gl)))))
-
-(defn render [gpu-state gl]
-  (println "rendering " gpu-state)
-  (opengl/clear gl 0 0 0 0)
-  (draw-view-part gpu-state :root-view gl))
-
-;; TIME
-
-(defn update-time
-  ([view]
-     (update-time view (System/nanoTime)))
-
-  ([view time]
-     (-> view
-         (triple-dataflow/set-value :globals :time time)
-         (dataflow/propagate-changes))))
-
-(defn is-time-dependant? [view]
-  (not (empty? (triple-dataflow/dependents view :globals :time))))
+(fact (set-focus-state {:foo [{:bar {:baz :foobar}}
+                              {:bar {:baz {:foo :bar}}}]}
+                       [[:foo 1] [:bar] [:baz]]
+                       true)
+      => {:foo
+          [{:bar {:baz :foobar}}
+           {:child-has-focus true
+            :bar {:child-has-focus true
+                  :baz {:has-focus true
+                        :foo :bar}}}]})
 
 
-;; EVENT HANDLING
+(defn initial-focus-path-parts [state]
+  (loop [state state
+         focus-path-parts []]
+    (if-let [focus-path-part (when-let [first-focusable-child-function (:first-focusable-child state)]
+                               (first-focusable-child-function state))]
+      (recur (get-in state focus-path-part)
+             (conj focus-path-parts focus-path-part))
+      focus-path-parts)))
 
-(defn call-event-handler [view-state event]
-  (println "calling " event)
-  (-> view-state
+(fact (initial-focus-path-parts {:first-focusable-child (fn [_] [:children 1])
+                                 :children [{:first-focusable-child (fn [_] [:children 0])
+                                             :children [{}]}
+                                            {:first-focusable-child (fn [_] [:children 0])
+                                             :children [{}]}]})
+      => [[:children 1] [:children 0]])
 
-      (triple-dataflow/create-entity :root-view)
+(defn next-focus-path-parts [state previous-focus-path-parts]
+  (when (seq previous-focus-path-parts)
+    (let [parent-focus-path-parts (vec (drop-last previous-focus-path-parts))
+          focus-parent (get-in state (apply concat parent-focus-path-parts))]
+      (if-let [next-focus-path-part ((:next-focusable-child focus-parent) focus-parent (last previous-focus-path-parts))]
+        (concat parent-focus-path-parts
+                [next-focus-path-part]
+                (initial-focus-path-parts (get-in state
+                                                  (apply concat
+                                                         (conj parent-focus-path-parts
+                                                               next-focus-path-part)))))
+        (next-focus-path-parts state parent-focus-path-parts)))))
 
-      ((:event-handler view-state) event)
+(defn render-layout [window cached-runnables layout]
+  (let [drawing-commands (doall (drawable/drawing-commands layout))
+        cached-runnables-atom (atom cached-runnables)
+        unused-commands-atom (atom nil)]
+    (window/render window gl
+                   (opengl/clear gl 0 0 0 1)
+                   (doseq [runnable (doall (reduce (fn [runnables command]
+                                                     (if (contains? @cached-runnables-atom command)
+                                                       (conj runnables (get @cached-runnables-atom command))
+                                                       (let [runnable (command/create-runner command gl)]
+                                                         (swap! cached-runnables-atom assoc command runnable)
+                                                         (conj runnables runnable))))
+                                                   []
+                                                   drawing-commands))]
 
-      ::triple-dataflow/dataflow))
+                     ;;(println (type runnable))
+                     (command/run runnable gl))
 
-(defn handle-event [view-state event]
-  (println "handling-event " event " type " (type view-state))
-  (debug/debug :events "handle event " event)
-  (let [view-state (-> view-state
-                       (assoc :event-handled false)
-                       (update-time #_(:time event)))]
-    (cond (= (:source event) :mouse)
-          (mouse/handle-mouse-event view-state event)
+                   (let [unused-commands (filter (complement (apply hash-set drawing-commands))
+                                                 (keys @cached-runnables-atom))]
+                     (doseq [unused-command unused-commands]
+                       (if-let [unused-runnable (get unused-command @cached-runnables-atom)]
+                         (command/delete unused-runnable gl)))
 
-          (= (:type event) :resize-requested)
-          (-> view-state
-              (triple-dataflow/set-value :globals :width (:width event))
-              (triple-dataflow/set-value :globals :height (:height event)))
-
-          (= (:type event) :close-requested)
-          (-> view-state
-              (assoc :closing true)
-              (call-event-handler event))
-
-          :default
-          (call-event-handler view-state event))))
-
-(defn handle-events [view events]
-  (let [events (->> events
-                    (mouse/trim-mouse-movements)
-                    (map (partial mouse/invert-mouse-y (triple-dataflow/get-value view :globals :height))))]
-
-    (reduce handle-event view events)))
-
-
-;; UPDATE
-
-(defn update-gpu [view-state gl]
-  (let [changes-to-be-processed (dataflow/changes view-state)
-        resized (some #{[:globals :width] [:globals :height]} changes-to-be-processed)
-        changed-view-ids (filter #(view-part-is-loaded? @(:gpu-state view-state) %)
-                                 (map first changes-to-be-processed))]
-
-    (debug/do-debug :view-update "loaded views " (keys (:view-part-command-runners @(:gpu-state view-state))))
-    (debug/do-debug :view-update "changed views " (vec changed-view-ids) (vec changes-to-be-processed))
-
-    (debug/do-debug :view-update "New view state:")
-    (base-dataflow/debug-dataflow view-state)
-
-    (when resized
-      (opengl/resize gl
-                     (triple-dataflow/get-value view-state :globals :width)
-                     (triple-dataflow/get-value view-state :globals :height)))
-    (when (not (empty? changed-view-ids))
-      (-> (swap! (:gpu-state view-state)
-                 (fn [gpu-state]
-                   (-> (reduce (fn [gpu-state view-id]
-                                 (update-view-part gpu-state view-state view-id gl))
-                               gpu-state
-                               changed-view-ids)
-                       ((fn [gpu-state]
-                          (debug/do-debug :view-update "New gpu state:")
-                          (debug/debug-all :view-update (describe-gpu-state gpu-state))
-                          gpu-state)))))
-          (render gl)))))
-
-(defn update [view-atom events]
-  (swap! view-atom
-         (fn [view]
-           (-> view
-               (handle-events events)
-               (dataflow/propagate-changes)
-               ;;(update-time)
-               ;;(update-fps)
-               ))))
+                     (reset! unused-commands-atom unused-commands)))
+    (apply dissoc @cached-runnables-atom @unused-commands-atom)))
 
 
-;; INITIALIZATION
+(defn set-focus [state focus-path-parts]
+  (-> state
+      (set-focus-state (:focus-path-parts state) false)
+      (set-focus-state focus-path-parts true)
+      (assoc :focus-path-parts focus-path-parts)))
 
-(defn initialize-view-state [width height root-view root-view-initializer]
-  (-> (base-dataflow/create)
-      (triple-dataflow/create-entity :globals)
-      (assoc :width width
-             :height height
-             :mouse-x 0
-             :mouse-y 0
-             :fps 0)
-      (triple-dataflow/switch-entity :root-view)
-      (root-view-initializer)
-      (apply-view-function root-view [])
-      (assoc :global-x 0
-             :global-y 0
-             :requested-width (fn [dataflow] (triple-dataflow/get-value dataflow :globals :width))
-             :requested-height (fn [dataflow] (triple-dataflow/get-value dataflow :globals :height)))
-      ::triple-dataflow/dataflow))
+(defn handle-event [state layout event]
+  (cond
+   (= (:type event)
+      :apply-to-view-state)
+   ((:function event) state)
+
+   (= (:source event)
+      :mouse)
+   (let [layout-paths-under-mouse (layout/layout-paths-in-coordinates layout (:x event) (:y event))
+         layout-path-under-mouse (last layout-paths-under-mouse)]
+
+     (if (= (:type event)
+            :mouse-clicked)
+       (let [focus-path-parts (layout-path-to-state-path-parts layout layout-path-under-mouse)]
+         (let [updated-state (set-focus state focus-path-parts)]
+           (apply-mouse-event-handlers updated-state
+                                       layout
+                                       layout-path-under-mouse
+                                       event)))
+       (apply-mouse-event-handlers state
+                                   layout
+                                   layout-path-under-mouse
+                                   event)))
+
+   (events/key-pressed? event :tab)
+   (set-focus state (or (next-focus-path-parts state (:focus-path-parts state))
+                        (initial-focus-path-parts state)))
+
+   (= (:type event)
+      :close-requested)
+   (do (println "got :close-requested event, returning nil as view state")
+       nil)
+
+   :default
+   (apply-keyboard-event-handlers state
+                                  event)))
+
+(defn start-view [event-queue {:keys [view initial-state]}]
+  (let [window (window/create 300
+                              400
+                              opengl/initialize
+                              opengl/resize
+                              event-queue)
+        [initial-state _] (binding [current-event-queue event-queue]
+                            (view initial-state))
+        initial-state (set-focus initial-state
+                                 (initial-focus-path-parts initial-state))]
+    (try
+
+      (loop [gpu-state {}
+             state initial-state]
+                                        ;(println "state is " state)
+        (if (:close-requested state)
+          (window/close window)
+
+          (let [[state visual] (binding [current-event-queue event-queue]
+                                 (view state))
+                layout (layout/layout visual
+                                      (window/width window)
+                                      (window/height window))
+                new-gpu-state (render-layout window gpu-state layout)
+                event (event-queue/dequeue-event-or-wait event-queue)
+                new-state (binding [current-event-queue event-queue]
+                            (handle-event state
+                                          layout
+                                          event))]
+            (if new-state
+              (recur new-gpu-state new-state)
+              (window/close window)))))
+      (catch Exception e
+        (window/close window)
+        (throw e)))))
+
+(defn create-apply-to-view-state-event [function]
+  {:type :apply-to-view-state
+   :function function})
+
+(defn on-mouse-clicked [layoutable handler]
+  (assoc layoutable
+    :handle-mouse-event (fn [state event]
+                          (if (= :mouse-clicked (:type event))
+                            (handler state)
+                            state))))
 
 
-(defn create [width height event-handler root-view root-view-initializer]
-  (-> (initialize-view-state width
-                             height
-                             root-view
-                             root-view-initializer)
-      (assoc
-          :fpss []
-          :last-update-time (System/nanoTime)
-          :mouse-event-handlers-under-mouse []
-          :gpu-state (atom {:view-part-command-runners {}})
-          :event-handler event-handler)))
+(def ^:dynamic current-state-path [])
 
-(defn initialize-gpu-state [view-state gl]
-  (println "initializing gpu state " (:gpu-state view-state))
-  (swap! (:gpu-state view-state)
-         load-view-part
-         view-state :root-view gl))
 
-(defn set-view [view-state view]
-  (-> view-state
-      (triple-dataflow/create-entity :globals)
-      (triple-dataflow/initialize-new-entity :root-view view)
-      :triple-dataflow/dataflow
-      (dataflow/propagate-changes)))
+(defn add-child [state path]
+  (update-in state [:children] conj path))
+
+(defn reset-children [state]
+  (-> state
+      (assoc :old-children (or (:children state)
+                               []))
+      (assoc :children [])))
+
+(defn remove-unused-children [state]
+  (let [child-set (set (:children state))
+        children-to-be-removed (->> (:old-children state)
+                                    (filter (complement child-set)))]
+    (reduce (fn [state child-to-be-removed]
+              (update-in state [:child-states] dissoc child-to-be-removed))
+            state
+            children-to-be-removed)))
+
+(fact (let [state-1 (-> {}
+                        (reset-children)
+
+                        (assoc-in [:child-states :1] :foo)
+                        (add-child :1)
+
+                        (assoc-in [:child-states :2] :foo)
+                        (add-child :2)
+
+                        (remove-unused-children))]
+
+        state-1 => {:child-states {:1 :foo, :2 :foo}, :children [:1 :2], :old-children []}
+
+        (-> state-1
+            (reset-children)
+
+            (assoc-in [:child-states :2] :foo2)
+            (add-child :2)
+
+            (remove-unused-children)) => {:child-states {:2 :foo2}, :children [:2], :old-children [:1 :2]}))
+
+
+(def child-focus-handlers
+  {:first-focusable-child (fn [state]
+                            [:child-states (first (:children state))])
+   :next-focusable-child (fn [this currently-focused-path-part]
+                           (println "currently-focused-path-part " currently-focused-path-part)
+                           (let [child-index (first (positions #{currently-focused-path-part} (map #(conj [:child-states] %)
+                                                                                                   (:children this))))]
+                             (let [new-child-index (inc child-index)]
+                               (if (= new-child-index
+                                      (count (:children this)))
+                                 nil
+                                 [:child-states (get (:children this)
+                                                     new-child-index)]))))})
+
+
+(defn update-or-apply-in [map path function & arguments]
+  (if (seq path)
+    (apply update-in map path function arguments)
+    (apply function map arguments)))
+
+(fact (update-or-apply-in {:foo {:baz :bar}} [] assoc :x :y) => {:foo {:baz :bar}, :x :y}
+      (update-or-apply-in {:foo {:baz :bar}} [:foo] assoc :x :y) => {:foo {:baz :bar, :x :y}})
+
+(defn call-view
+  ([view-specification state-override]
+     (call-view [:child (count (:children @current-view-state-atom))]
+                view-specification
+                state-override))
+
+  ([child-id {:keys [initial-state view]} state-override]
+     (let [state-path-part [:child-states child-id]
+           old-state (or (get-in @current-view-state-atom state-path-part)
+                         initial-state)
+           new-state (conj old-state state-override)
+           [new-state child-visual] (binding [current-state-path (concat current-state-path state-path-part)]
+                                      (view new-state))]
+       (swap! current-view-state-atom assoc-in state-path-part new-state)
+       (swap! current-view-state-atom add-child child-id)
+       (assoc child-visual
+         :state-path-part state-path-part))))
+
+(defmacro with-children [state visual]
+  `(binding [current-view-state-atom (atom (reset-children ~state))]
+     (let [visual-value# ~visual]
+       [(remove-unused-children @current-view-state-atom)
+        visual-value#])))
+
+(defmacro def-view [name parameters initial-state visual]
+  `(def ~name {:view (fn ~parameters
+                       (with-children ~(first parameters)
+                         ~visual))
+               :initial-state (conj ~initial-state
+                                    child-focus-handlers)}))
+
+(defn apply-to-state [state-path function]
+  (event-queue/add-event current-event-queue
+                         (create-apply-to-view-state-event (fn [state]
+                                                             (update-or-apply-in state state-path function)))))
+
+(defmacro apply-to-current-state [[state-parameter & parameters] body]
+  `(let [state-path# current-state-path]
+     (fn [~@parameters]
+       (apply-to-state state-path# (fn [~state-parameter]
+                                     ~body)))) )
