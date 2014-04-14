@@ -415,12 +415,6 @@
       (assoc-in (concat (focus-path old-state) [:has-focus]) false)
       (assoc-in (concat (focus-path new-state) [:has-focus]) true)))
 
-(defn insert [vector pos item]
-  (apply conj (subvec vector 0 pos) item (subvec vector pos)))
-
-(defn remove
-  [vector position]
-  (vec (concat (subvec vector 0 position) (subvec vector (inc position)))))
 
 (defn handle-event [state event]
   (println "handling " event)
@@ -470,7 +464,7 @@
                    (fn [day]
                      (-> (day-view-state-to-day-view-model day)
                          (update-in [:sessions] (fn [sessions]
-                                                  (remove (vec sessions) (:session-in-focus state))))
+                                                  (remove-nth (vec sessions) (:session-in-focus state))))
                          (day-view-model-to-day-view-state day))))
 
 
