@@ -1,0 +1,44 @@
+(:design How to draw visuals repsented as textured quads?
+         (:use-cases repaint (Repainting a visual)
+                     remove (Removing a visual)
+                     resize-smaller (Resizing a visual to a smaller size)
+                     resize-larger (Resizing a visual to a larger size)
+                     move (Move a visual on the screen)
+                     draw-area (Drawing all visuals on a given area))
+         (:solutions (:tiled-and-per-drawable-backing-store
+                      (:list (Draw individual visuals on tiles in one buffer
+                                   texture)
+                             (Build an index which visual tiles are
+                                    reserved for each visual)
+                             (Build an index which visual tiles
+                                    intersect which index tile)
+                             (Draw on tile in a tiled backing store
+                                   with glDrawElementsInstanced. Draw tiled
+                                   backing store using
+                                   glDrawArraysInstanced. Draw tiles to
+                                   screen from tiled backing store using
+                                   glDrawArraysInstanced.))
+                      (:solutions repaint (Draw on a buffered image and update to the buffer texture. Draw on invalidated tiles.)
+                                  remove (:list (Remove the visual tiles from the tile index)
+                                                (Remove visual - tile association)
+                                                (Collect garbage from the buffer texture))
+                                  reisize-smaller (Repaint on the already reserved tiles in the buffer texture)
+                                  reisize-larger (:list (Reserve new tiles)
+                                                        (Remove association between the visual and partially used tiles)
+                                                        (Collect garbage from the buffer texture))
+                                  move (Update coordintes of all of the tiles of the visual)
+                                  draw-area (Draw the visual tiles that are visible according to the spatial index))
+                      (:list (Moving visuals is easy)))
+
+                     (:tiled
+                      (:p Draw each layer on small regular sized quads on a
+                          texture atlas and blit them with
+                          glDrawArrays. Webkit does this.)
+                      (+ Scrolling is easy)
+                      (+ Garbage collection is easy))
+                     (:separate-visuals
+                      (:p Draw individual visuals to small quads. Put the
+                          texture in a buffer texture. Put visual coordinates
+                          and dimensions in an attrib array. Draw using
+                          glDrawArraysInstanced)
+                      (+ Moving visuals is easy))))

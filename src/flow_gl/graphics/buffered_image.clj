@@ -14,6 +14,7 @@
     (.put byte-buffer bytes 0 (alength bytes))
     (.flip byte-buffer)))
 
+
 (defn- create-from-raster [raster]
   (let [component-color-model (ComponentColorModel. (ColorSpace/getInstance ColorSpace/CS_sRGB)
                                                     (int-array [8 8 8 8])
