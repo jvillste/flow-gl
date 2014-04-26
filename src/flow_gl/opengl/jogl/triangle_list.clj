@@ -1,6 +1,7 @@
 (ns flow-gl.opengl.jogl.triangle-list
   (:require (flow-gl.opengl.jogl [shader :as shader]
-                                 [buffer :as buffer]))
+                                 [buffer :as buffer]
+                                 [opengl :as opengl]))
   (:import [javax.media.opengl GL2]
            [com.jogamp.common.nio Buffers]))
 
@@ -15,29 +16,29 @@
                          vertex-color-buffer])
 
 (def vertex-shader-source "
-#version 120
+#version 140
+uniform mat4 projection_matrix;
 
-attribute vec2 vertex_coordinate_attribute;
-attribute vec4 vertex_color_attribute;
+in vec2 vertex_coordinate_attribute;
+in vec4 vertex_color_attribute;
 
-varying vec4 color;
+out vec4 color;
 
 void main() {
-    gl_Position = gl_ProjectionMatrix * gl_ModelViewMatrix * vec4(vertex_coordinate_attribute[0], vertex_coordinate_attribute[1], 0.0, 1.0);
+    gl_Position = projection_matrix * vec4(vertex_coordinate_attribute[0], vertex_coordinate_attribute[1], 0.0, 1.0);
     color = vertex_color_attribute;
 }
 
 ")
 
 (def fragment-shader-source "
-#version 120
+#version 140
 
-varying vec4 color;
+in vec4 color;
+out  vec4 outColor;
 
 void main() {
-    gl_FragColor = color;
-    
-
+    outColor = color;
 }
 ")
 
@@ -86,9 +87,15 @@ void main() {
   (buffer/delete gl (:vertex-color-buffer-id triangle-list))
   triangle-list)
 
-
-(defn render [triangle-list gl]
+(defn render [triangle-list gl width height]
   (shader/enable-program gl @shader-program-atom)
+
+  (shader/set-float4-matrix-uniform gl
+                                    @shader-program-atom
+                                    "projection_matrix"
+                                    (opengl/projection-matrix-2d width
+                                                                 height
+                                                                 1.0))
 
   (buffer/bind-buffer gl (:vertex-coordinate-buffer-id triangle-list))
   (.glVertexAttribPointer gl

@@ -1,33 +1,36 @@
 (ns flow-gl.opengl.jogl.textured-quad
   (:require (flow-gl.opengl.jogl [texture :as texture]
                                  [shader :as shader]
-                                 [buffer :as buffer]))
+                                 [buffer :as buffer]
+                                 [opengl :as opengl]))
   (:import [javax.media.opengl GL2]))
 
 
 (def vertex-shader-source "
-#version 120
+#version 140
+uniform mat4 projection_matrix;
 
-attribute vec2 vertex_coordinate_attribute;
-attribute vec2 texture_coordinate_attribute;
+in vec2 vertex_coordinate_attribute;
+in vec2 texture_coordinate_attribute;
 
-varying vec2 texture_coordinate;
+out vec2 texture_coordinate;
 
 void main() {
-    gl_Position = gl_ProjectionMatrix * gl_ModelViewMatrix * vec4(vertex_coordinate_attribute[0], vertex_coordinate_attribute[1], 0.0, 1.0);
+    gl_Position = projection_matrix * vec4(vertex_coordinate_attribute[0], vertex_coordinate_attribute[1], 0.0, 1.0);
     texture_coordinate = texture_coordinate_attribute;
 }
 
 ")
 
 (def fragment-shader-source "
-#version 120
+#version 140
 
 uniform sampler2D texture;
-varying vec2 texture_coordinate;
+in vec2 texture_coordinate;
+out  vec4 outColor;
 
 void main() {
-    gl_FragColor = texture2D(texture, texture_coordinate);
+    outColor = texture(texture, texture_coordinate);
 }
 ")
 
@@ -45,10 +48,10 @@ void main() {
     (buffer/load-buffer gl
                         texture-coordinate-buffer-id
                         :float
-                        (map float [1 1
+                        (map float [0 0
+                                    0 1
                                     1 0
-                                    0 0
-                                    0 1]))
+                                    1 1]))
 
     (reset! shared-resources-atom {:shader-program shader-program
                                    :texture-coordinate-buffer-id texture-coordinate-buffer-id
@@ -61,10 +64,14 @@ void main() {
   (reset! shared-resources-atom nil))
 
 (defn quad [width height]
-  [width height
+  #_[width height
+     width 0
+     0   0
+     0   height]
+  [0   0
+   0   height
    width 0
-   0   0
-   0   height])
+   width height])
 
 (defn width [textured-quad]
   (:width (:texture textured-quad)))
@@ -90,9 +97,16 @@ void main() {
   (texture/delete (:texture textured-quad) gl)
   (buffer/delete gl (:vertex-coordinate-buffer-id textured-quad)))
 
-(defn render [textured-quad gl]
+(defn render [textured-quad gl width height]
   (shader/enable-program gl
                          (:shader-program @shared-resources-atom))
+
+  (shader/set-float4-matrix-uniform gl
+                                    (:shader-program @shared-resources-atom)
+                                    "projection_matrix"
+                                    (opengl/projection-matrix-2d width
+                                                                 height
+                                                                 1.0))
 
   (texture/bind (:texture textured-quad)
                 gl)
@@ -118,6 +132,6 @@ void main() {
                           (int 0)
                           (long 0))
 
-  (.glDrawArrays gl GL2/GL_QUADS 0 4)
+  (.glDrawArrays gl GL2/GL_TRIANGLE_STRIP 0 4)
 
   textured-quad)

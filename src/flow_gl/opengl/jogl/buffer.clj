@@ -16,12 +16,19 @@
 (defn bind-element-buffer [gl id]
   (.glBindBuffer gl GL2/GL_ELEMENT_ARRAY_BUFFER id))
 
+(defn type-size [type]
+  (case type
+    :byte 1
+    :int 2
+    :float 4))
+
 (defn load-buffer [gl id type values]
   (let [native-buffer (native-buffer/native-buffer-with-values type values)]
     (bind-buffer gl id)
     (.glBufferData gl
                    GL2/GL_ARRAY_BUFFER
-                   (* 4 (count values))
+                   (* (type-size type)
+                      (count values))
                    native-buffer
                    GL2/GL_STATIC_DRAW)))
 

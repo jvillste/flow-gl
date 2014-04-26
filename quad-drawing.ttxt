@@ -8,10 +8,11 @@
          (:solutions (:tiled-and-per-drawable-backing-store
                       (:list (Draw individual visuals on tiles in one buffer
                                    texture)
-                             (Build an index which visual tiles are
-                                    reserved for each visual)
-                             (Build an index which visual tiles
-                                    intersect which index tile)
+                             (Each tile has coordinates stored in one attrib array)
+                             (Build a tile index that tells which
+                                    tiles are reserved for each
+                                    visual)
+                             (Build a spatial index of the tiles)
                              (Draw on tile in a tiled backing store
                                    with glDrawElementsInstanced. Draw tiled
                                    backing store using
@@ -24,10 +25,11 @@
                                                 (Collect garbage from the buffer texture))
                                   reisize-smaller (Repaint on the already reserved tiles in the buffer texture)
                                   reisize-larger (:list (Reserve new tiles)
+                                                        (Paint on new tiles)
                                                         (Remove association between the visual and partially used tiles)
                                                         (Collect garbage from the buffer texture))
                                   move (Update coordintes of all of the tiles of the visual)
-                                  draw-area (Draw the visual tiles that are visible according to the spatial index))
+                                  draw-area (Draw the visual tiles that are visible according to the spatial index using glDrawElements))
                       (:list (Moving visuals is easy)))
 
                      (:tiled

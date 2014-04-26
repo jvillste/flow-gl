@@ -35,8 +35,8 @@
   (.glShaderSource gl shader-id 1 (into-array [source]) nil)
   (.glCompileShader gl shader-id)
   (when (> (count (compile-errors gl shader-id))
-             0)
-      (throw (Exception. (compile-errors gl shader-id)))))
+           0)
+    (throw (Exception. (compile-errors gl shader-id)))))
 
 (defn create-vertex-shader [gl]
   (.glCreateShader gl GL2/GL_VERTEX_SHADER))
@@ -70,6 +70,18 @@
                 value1
                 value2
                 value3))
+
+(defn set-float4-matrix-uniform [gl program name values]
+  (.glUniformMatrix4fv gl
+                       (int (get-uniform-location gl
+                                              program
+                                              name))
+                       (int 1)
+                       false
+                       (float-array values)
+                       (int 0)))
+
+
 
 (defn compile-program [gl vertex-shader-source fragment-shader-source]
   (let [vertex-shader-id (create-vertex-shader gl)

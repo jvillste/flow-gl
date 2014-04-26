@@ -1,4 +1,4 @@
-(ns examples.opengl
+(ns examples.textures
   (:require [flow-gl.gui.event-queue :as event-queue]
             (flow-gl.opengl.jogl [opengl :as opengl]
                                  [window :as window]
@@ -19,24 +19,23 @@
 (def vertex-shader-source "
 #version 140
 
-uniform samplerBuffer texture;
-uniform samplerBuffer texture_offset;
-
 in vec2 vertex_coordinate_attribute;
 
-in vec2 texture_coordinate_attribute;
-in uint texture_offset_attribute;
+attribute vec1 texture_offset_attribute;
 in uint texture_width_attribute;
+in uint texture_height_attribute;
 
 out vec2 texture_coordinate;
 out uint texture_offset;
 out uint texture_width;
+out uint texture_height;
 
 void main() {
     gl_Position = gl_ProjectionMatrix * gl_ModelViewMatrix * vec4(vertex_coordinate_attribute[0], vertex_coordinate_attribute[1], 0.0, 1.0);
     texture_coordinate = texture_coordinate_attribute;
     texture_offset = texture_offset_attribute;
     texture_width = texture_width_attribute;
+    texture_height = texture_height_attribute;
 }
 
 ")
@@ -49,10 +48,10 @@ uniform samplerBuffer texture;
 in vec2 texture_coordinate;
 in uint texture_offset;
 in uint texture_width;
-
+in uint texture_height;
 
 void main() {
-    gl_FragColor = texelFetch(texture, texture_coordinate);
+    gl_FragColor = texelFetch(texture, texture_offset + texture_coordinate.x * texture_width + texture_coordinate.y * texture_height);
 }
 ")
 
@@ -71,63 +70,73 @@ void main() {
       (.put byte-buffer bytes 0 (alength bytes))
       (.flip byte-buffer)))
 
+(defn load-attribute-array [name program gl type size divisor values]
+  (let [attribute-location (.glGetAttribLocation gl program name)
+        buffer-id (buffer/create-gl-buffer gl)]
+
+    (buffer/load-buffer gl
+                        buffer-id
+                        type
+                        values)
+    (buffer/bind-buffer gl buffer-id)
+    (.glEnableVertexAttribArray gl attribute-location)
+    (.glVertexAttribPointer gl
+                            (int attribute-location)
+                            (int size)
+                            (case type
+                              :float GL2/GL_FLOAT
+                              :int GL2/GL_INT)
+                            false
+                            (int 0)
+                            (long 0))
+    (.glVertexAttribDivisor attribute-location
+                            divisor)))
 
 (defn start []
   (let [width 300
         height 300
-        window (window/create width height)]
+        window (window/create width height :profile :gl3)]
 
     (try
       (window/render window gl
+                     (println (.glGetString gl GL2/GL_SHADING_LANGUAGE_VERSION))
                      (opengl/initialize gl)
                      (opengl/resize gl width height)
 
                      (let [shader-program (shader/compile-program gl
                                                                   vertex-shader-source
                                                                   fragment-shader-source)
-                           vertex-coordinate-attribute-index (.glGetAttribLocation gl shader-program "vertex_coordinate_attribute")
-
-                           texture-coordinate-attribute-index (.glGetAttribLocation gl shader-program "texture_coordinate_attribute")
-
-                           vertex-coordinate-buffer-id (buffer/create-gl-buffer gl)
 
                            texture-buffer-id (buffer/create-gl-buffer gl)
                            buffered-image (buffered-image/create-from-file "pumpkin.png")
-                           image-bytes (-> buffered-image (.getRaster) (.getDataBuffer) (.getData))
+
 
                            texture-id (create-gl-texture gl)]
 
-                       (buffer/load-buffer gl
-                                           vertex-coordinate-buffer-id
-                                           :float
-                                           (map float (textured-quad/quad 20 20)))
+                       (load-attribute-array "vertex_coordinate_attribute" shader-program gl :float 2 0 (textured-quad/quad 20 20))
+                       (load-attribute-array "texture_coordinate_attribute" shader-program gl :float 2 0 (textured-quad/quad 1 1))
+                       (load-attribute-array "texture_offset_attribute" shader-program gl :int 1 1 [0])
+                       (load-attribute-array "texture_width_attribute" shader-program gl :int 1 1 [(.getWidth buffered-image)])
+                       (load-attribute-array "texture_height_attribute" shader-program gl :int 1 1 [(.getHeight buffered-image)])
+
 
                        (println "binding")
                        (.glBindBuffer gl GL2/GL_TEXTURE_BUFFER texture-buffer-id)
                        (println "bound")
-                       (.glBufferData gl
-                                      GL2/GL_TEXTURE_BUFFER
-                                      (.remaining image-bytes)
-                                      image-bytes
-                                      GL2/GL_STATIC_DRAW)
 
+                       (let [image-bytes (-> buffered-image (.getRaster) (.getDataBuffer) (.getData))]
+                         (.glBufferData gl
+                                        GL2/GL_TEXTURE_BUFFER
+                                        (.remaining image-bytes)
+                                        image-bytes
+                                        GL2/GL_STATIC_DRAW))
                        (.glBindTexture gl GL2/GL_TEXTURE_BUFFER texture-id)
                        (.glTexBuffer gl GL2/GL_RGBA8UI texture-buffer-id)
 
                        (shader/enable-program gl
                                               shader-program)
 
-                       (buffer/bind-buffer gl vertex-coordinate-buffer-id)
-                       (.glEnableVertexAttribArray gl vertex-coordinate-attribute-index)
-                       (.glVertexAttribPointer gl
-                                               (int vertex-coordinate-attribute-index)
-                                               (int 2)
-                                               (int GL2/GL_FLOAT)
-                                               (boolean GL2/GL_FALSE)
-                                               (int 0)
-                                               (long 0))
-
-                       (.glDrawArrays gl GL2/GL_QUADS 0 4)))
+                       (.glDrawArraysInstanced gl GL2/GL_QUADS 0 4 1)))
 
       (catch Exception e
         (window/close window)

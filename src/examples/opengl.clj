@@ -15,7 +15,7 @@
 (defn start []
   (let [width 300
         height 300
-        window (window/create width height)]
+        window (window/create width height :profile :gl3)]
 
     (try
       (window/render window gl
@@ -25,15 +25,17 @@
 
                      (-> (triangle-list/create-for-coordinates gl
                                                                :triangles
-                                                               [0 0 width 0 (/ width 2) height]
+                                                               [0 0
+                                                                width 0
+                                                                (/ width 2) height]
                                                                (apply concat (repeat 3 [0 1 0 1])))
-                         (triangle-list/render gl)
+                         (triangle-list/render gl width height)
                          (triangle-list/delete gl))
 
                      (-> (buffered-image/create-from-file "pumpkin.png")
                          (texture/create-for-buffered-image gl)
                          (textured-quad/create gl)
-                         (textured-quad/render gl))
+                         (textured-quad/render gl width height))
 
                      (let [buffered-image (buffered-image/create 200 200)
                            graphics (buffered-image/get-graphics buffered-image)]
@@ -44,15 +46,15 @@
                        (-> buffered-image
                            (texture/create-for-buffered-image gl)
                            (textured-quad/create gl)
-                           (textured-quad/render gl)))
+                           (textured-quad/render gl width height)))
 
 
                      (-> (text/create-buffered-image [0 0 1 1]
-                                                       (font/create "LiberationSans-Regular.ttf" 20)
-                                                       "Hello World!")
-                           (texture/create-for-buffered-image gl)
-                           (textured-quad/create gl)
-                           (textured-quad/render gl)))
+                                                     (font/create "LiberationSans-Regular.ttf" 20)
+                                                     "Hello World!")
+                         (texture/create-for-buffered-image gl)
+                         (textured-quad/create gl)
+                         (textured-quad/render gl width height)))
 
       (catch Exception e
         (window/close window)
