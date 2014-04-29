@@ -7,31 +7,37 @@
                                  [texture :as texture]
                                  [shader :as shader]
                                  [buffer :as buffer])
+            [flow-gl.opengl.math :as math]
             (flow-gl.graphics [buffered-image :as buffered-image]
                               [font :as font]
-                              [text :as text]))
+                              [text :as text]
+                              [native-buffer :as native-buffer]))
 
   (:import [javax.media.opengl GL2]
            [java.io PrintWriter StringWriter]
-           [java.nio IntBuffer]))
+           [java.nio IntBuffer]
+           [java.awt Color]))
 
 
 (def vertex-shader-source "
 #version 140
 
-in vec2 vertex_coordinate_attribute;
+uniform mat4 projection_matrix;
 
-attribute vec1 texture_offset_attribute;
+in vec2 vertex_coordinate_attribute;
+in vec2 texture_coordinate_attribute;
+
+in uint texture_offset_attribute;
 in uint texture_width_attribute;
 in uint texture_height_attribute;
 
 out vec2 texture_coordinate;
-out uint texture_offset;
-out uint texture_width;
-out uint texture_height;
+flat out uint texture_offset;
+flat out uint texture_width;
+flat out uint texture_height;
 
 void main() {
-    gl_Position = gl_ProjectionMatrix * gl_ModelViewMatrix * vec4(vertex_coordinate_attribute[0], vertex_coordinate_attribute[1], 0.0, 1.0);
+    gl_Position = projection_matrix * vec4(vertex_coordinate_attribute[0], vertex_coordinate_attribute[1], 0.0, 1.0);
     texture_coordinate = texture_coordinate_attribute;
     texture_offset = texture_offset_attribute;
     texture_width = texture_width_attribute;
@@ -44,14 +50,24 @@ void main() {
 #version 140
 
 uniform samplerBuffer texture;
-// uniform sampler2D texture;
+
 in vec2 texture_coordinate;
-in uint texture_offset;
-in uint texture_width;
-in uint texture_height;
+flat in uint texture_offset;
+flat in uint texture_width;
+flat in uint texture_height;
+
+out vec4 outColor;
 
 void main() {
-    gl_FragColor = texelFetch(texture, texture_offset + texture_coordinate.x * texture_width + texture_coordinate.y * texture_height);
+    //float value = texture_coordinate.x;
+    //if(int(texture_width) == 127)
+
+    // float value = texelFetch(texture, 100).r;
+    //float value = 0.2;
+    //outColor = vec4(value, value, value, 1.0);
+    //outColor = texelFetch(texture, int(texture_offset + texture_coordinate.x * texture_width + texture_coordinate.y * texture_height));
+    //outColor = texelFetch(texture, int(texture_offset + texture_coordinate.x * texture_width + texture_coordinate.y * texture_height));
+    outColor = texelFetch(texture, int( int(texture_coordinate.y * 128) * 128 + texture_coordinate.x * 128));
 }
 ")
 
@@ -89,8 +105,32 @@ void main() {
                             false
                             (int 0)
                             (long 0))
-    (.glVertexAttribDivisor attribute-location
+    (.glVertexAttribDivisor gl
+                            attribute-location
                             divisor)))
+
+(defn buffere-image-data-to-rgba-native-buffer [int-values]
+  (let [native-buffer (native-buffer/native-buffer :byte (* 4 (count int-values)))]
+    (.rewind native-buffer)
+    (doseq [value int-values]
+      ;;(println "put " value " " (extract-byte value 2) " " (extract-byte value 1) " " (extract-byte value 0) " " (extract-byte value 3))
+      (.put native-buffer (unchecked-byte (bit-and (bit-shift-right value 16) 0xff)))
+      (.put native-buffer (unchecked-byte (bit-and (bit-shift-right value 8) 0xff)))
+      (.put native-buffer (unchecked-byte (bit-and value 0xff)))
+      (.put native-buffer (unchecked-byte (bit-and (bit-shift-right value  24) 0xff))))
+    (.rewind native-buffer)
+    native-buffer))
+
+
+(defn create-buffered-image []
+  #_(let [rectangle-width 128
+        rectangle-height 128
+        buffered-image (buffered-image/create rectangle-width rectangle-height)
+        graphics (buffered-image/get-graphics buffered-image)]
+    (.setColor graphics (Color. 254 0 0 254))
+    (.fillRect graphics 0 0 rectangle-width rectangle-height)
+    buffered-image)
+  (buffered-image/create-from-file "pumpkin.png"))
 
 (defn start []
   (let [width 300
@@ -99,7 +139,6 @@ void main() {
 
     (try
       (window/render window gl
-                     (println (.glGetString gl GL2/GL_SHADING_LANGUAGE_VERSION))
                      (opengl/initialize gl)
                      (opengl/resize gl width height)
 
@@ -108,35 +147,55 @@ void main() {
                                                                   fragment-shader-source)
 
                            texture-buffer-id (buffer/create-gl-buffer gl)
-                           buffered-image (buffered-image/create-from-file "pumpkin.png")
+                           buffered-image (create-buffered-image)
 
+                           image-native-buffer (buffere-image-data-to-rgba-native-buffer (-> buffered-image (.getRaster) (.getDataBuffer) (.getData)))
+                           ;;image-native-buffer (native-buffer/native-buffer-with-values :int (-> buffered-image (.getRaster) (.getDataBuffer) (.getData)))
+                           #_image-native-buffer #_(native-buffer/native-buffer-with-values :byte [255 255 255 255
+                                                                                                   0 255 255 255])
 
                            texture-id (create-gl-texture gl)]
 
-                       (load-attribute-array "vertex_coordinate_attribute" shader-program gl :float 2 0 (textured-quad/quad 20 20))
+
+                       (load-attribute-array "vertex_coordinate_attribute" shader-program gl :float 2 0 (textured-quad/quad (.getWidth buffered-image)
+                                                                                                                            (.getHeight buffered-image)))
                        (load-attribute-array "texture_coordinate_attribute" shader-program gl :float 2 0 (textured-quad/quad 1 1))
                        (load-attribute-array "texture_offset_attribute" shader-program gl :int 1 1 [0])
                        (load-attribute-array "texture_width_attribute" shader-program gl :int 1 1 [(.getWidth buffered-image)])
                        (load-attribute-array "texture_height_attribute" shader-program gl :int 1 1 [(.getHeight buffered-image)])
 
-
-                       (println "binding")
                        (.glBindBuffer gl GL2/GL_TEXTURE_BUFFER texture-buffer-id)
-                       (println "bound")
+                       (.glBufferData gl
+                                      GL2/GL_TEXTURE_BUFFER
+                                      (* 4 (.getWidth buffered-image) (.getHeight buffered-image))
+                                      image-native-buffer
+                                      GL2/GL_STATIC_DRAW)
+                       (.glBindBuffer gl GL2/GL_TEXTURE_BUFFER 0)
 
-                       (let [image-bytes (-> buffered-image (.getRaster) (.getDataBuffer) (.getData))]
-                         (.glBufferData gl
-                                        GL2/GL_TEXTURE_BUFFER
-                                        (.remaining image-bytes)
-                                        image-bytes
-                                        GL2/GL_STATIC_DRAW))
-                       (.glBindTexture gl GL2/GL_TEXTURE_BUFFER texture-id)
-                       (.glTexBuffer gl GL2/GL_RGBA8UI texture-buffer-id)
+
+
+                       ;;Draw
 
                        (shader/enable-program gl
                                               shader-program)
+                       (.glActiveTexture gl GL2/GL_TEXTURE0)
+                       (.glBindTexture gl GL2/GL_TEXTURE_BUFFER texture-id)
+                       ;;(.glTexBuffer gl GL2/GL_TEXTURE_BUFFER GL2/GL_RGBA8UI texture-buffer-id)
+                       ;;(.glTexBuffer gl GL2/GL_TEXTURE_BUFFER GL2/GL_R8 texture-buffer-id)
+                       (.glTexBuffer gl GL2/GL_TEXTURE_BUFFER GL2/GL_RGBA8 texture-buffer-id)
 
-                       (.glDrawArraysInstanced gl GL2/GL_QUADS 0 4 1)))
+                       (shader/set-float4-matrix-uniform gl
+                                                         shader-program
+                                                         "projection_matrix"
+                                                         (math/projection-matrix-2d width
+                                                                                    height
+                                                                                    1.0))
+                       ;; (.glPrimitiveRestartIndex gl 4000)
+
+                       ;;(.glDrawArraysInstanced gl GL2/GL_TRIANGLE_STRIP 0 4 1)
+                       ;;(.glDrawArrays gl GL2/GL_TRIANGLES 0 3)
+
+                       (.glDrawArrays gl GL2/GL_TRIANGLE_STRIP 0 4)))
 
       (catch Exception e
         (window/close window)

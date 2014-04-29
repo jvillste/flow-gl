@@ -8,8 +8,8 @@
             (flow-gl.graphics [buffered-image :as buffered-image]
                               [font :as font]
                               [text :as text]))
-
-  (:import [javax.media.opengl GL2]
+  (:import [java.awt Color]
+           [javax.media.opengl GL2]
            [java.io PrintWriter StringWriter]))
 
 (defn start []
@@ -54,7 +54,18 @@
                                                      "Hello World!")
                          (texture/create-for-buffered-image gl)
                          (textured-quad/create gl)
-                         (textured-quad/render gl width height)))
+                         (textured-quad/render gl width height))
+
+                     (let [rectangle-width 20
+                           rectangle-height 20
+                           buffered-image (buffered-image/create rectangle-width rectangle-height)
+                           graphics (buffered-image/get-graphics buffered-image)]
+                       (.setColor graphics (Color. 255 255 255 255))
+                       (.fillRect graphics 0 0 rectangle-width rectangle-height)
+                       (-> buffered-image
+                           (texture/create-for-buffered-image gl)
+                           (textured-quad/create gl)
+                           (textured-quad/render gl width height))))
 
       (catch Exception e
         (window/close window)

@@ -48,8 +48,8 @@
 
 (defn coercion [type]
   (case type
-    :int int
-    :byte byte
+    :int unchecked-int
+    :byte unchecked-byte
     :float float))
 
 (defn native-buffer-with-values [type values]

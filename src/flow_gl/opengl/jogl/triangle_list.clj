@@ -1,7 +1,7 @@
 (ns flow-gl.opengl.jogl.triangle-list
   (:require (flow-gl.opengl.jogl [shader :as shader]
-                                 [buffer :as buffer]
-                                 [opengl :as opengl]))
+                                 [buffer :as buffer])
+            [flow-gl.opengl.math :as math])
   (:import [javax.media.opengl GL2]
            [com.jogamp.common.nio Buffers]))
 
@@ -93,7 +93,7 @@ void main() {
   (shader/set-float4-matrix-uniform gl
                                     @shader-program-atom
                                     "projection_matrix"
-                                    (opengl/projection-matrix-2d width
+                                    (math/projection-matrix-2d width
                                                                  height
                                                                  1.0))
 

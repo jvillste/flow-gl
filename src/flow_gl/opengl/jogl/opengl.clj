@@ -4,26 +4,7 @@
   (:import [javax.media.opengl GL2]))
 
 
-(defn projection-matrix-2d [width height depth]
-  [(/ 2.0 width)
-   0.0
-   0.0
-   0.0
 
-   0.0
-   (/ -2.0 height)
-   0.0
-   0.0
-
-   0.0
-   0.0
-   (/ 2.0 depth)
-   0.0
-
-   -1.0
-   1.0
-   1.0
-   1.0])
 
 (defn initialize-gl [gl]
   (doto gl
@@ -40,7 +21,7 @@
 
 (defn dispose [gl]
   (triangle-list/delete-shared-resources gl)
-  ;;(textured-quad/delete-shared-resources gl)
+  (textured-quad/delete-shared-resources gl)
   )
 
 (defn clear [gl r g b a]

@@ -1,8 +1,8 @@
 (ns flow-gl.opengl.jogl.textured-quad
   (:require (flow-gl.opengl.jogl [texture :as texture]
                                  [shader :as shader]
-                                 [buffer :as buffer]
-                                 [opengl :as opengl]))
+                                 [buffer :as buffer])
+            [flow-gl.opengl.math :as math])
   (:import [javax.media.opengl GL2]))
 
 
@@ -104,9 +104,9 @@ void main() {
   (shader/set-float4-matrix-uniform gl
                                     (:shader-program @shared-resources-atom)
                                     "projection_matrix"
-                                    (opengl/projection-matrix-2d width
-                                                                 height
-                                                                 1.0))
+                                    (math/projection-matrix-2d width
+                                                               height
+                                                               1.0))
 
   (texture/bind (:texture textured-quad)
                 gl)
