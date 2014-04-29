@@ -19,7 +19,7 @@
 (defn type-size [type]
   (case type
     :byte 1
-    :int 2
+    :int 4
     :float 4))
 
 (defn load-buffer [gl id type values]

@@ -27,14 +27,14 @@ uniform mat4 projection_matrix;
 in vec2 vertex_coordinate_attribute;
 in vec2 texture_coordinate_attribute;
 
-in uint texture_offset_attribute;
-in uint texture_width_attribute;
-in uint texture_height_attribute;
+in int texture_offset_attribute;
+in int texture_width_attribute;
+in int texture_height_attribute;
 
 out vec2 texture_coordinate;
-flat out uint texture_offset;
-flat out uint texture_width;
-flat out uint texture_height;
+flat out int texture_offset;
+flat out int texture_width;
+flat out int texture_height;
 
 void main() {
     gl_Position = projection_matrix * vec4(vertex_coordinate_attribute[0], vertex_coordinate_attribute[1], 0.0, 1.0);
@@ -52,9 +52,9 @@ void main() {
 uniform samplerBuffer texture;
 
 in vec2 texture_coordinate;
-flat in uint texture_offset;
-flat in uint texture_width;
-flat in uint texture_height;
+flat in int texture_offset;
+flat in int texture_width;
+flat in int texture_height;
 
 out vec4 outColor;
 
@@ -62,12 +62,13 @@ void main() {
     //float value = texture_coordinate.x;
     //if(int(texture_width) == 127)
 
-    // float value = texelFetch(texture, 100).r;
+    //float value = texelFetch(texture, 100).r;
     //float value = 0.2;
     //outColor = vec4(value, value, value, 1.0);
     //outColor = texelFetch(texture, int(texture_offset + texture_coordinate.x * texture_width + texture_coordinate.y * texture_height));
     //outColor = texelFetch(texture, int(texture_offset + texture_coordinate.x * texture_width + texture_coordinate.y * texture_height));
-    outColor = texelFetch(texture, int( int(texture_coordinate.y * 128) * 128 + texture_coordinate.x * 128));
+    vec4 color = texelFetch(texture, int(texture_offset +  int(texture_coordinate.y * texture_height) * texture_width + texture_coordinate.x * texture_width));
+    outColor = vec4(color.b, color.g, color.r, color.a);
 }
 ")
 
@@ -96,15 +97,23 @@ void main() {
                         values)
     (buffer/bind-buffer gl buffer-id)
     (.glEnableVertexAttribArray gl attribute-location)
-    (.glVertexAttribPointer gl
+
+    (case type
+      :float (.glVertexAttribPointer gl
                             (int attribute-location)
                             (int size)
-                            (case type
-                              :float GL2/GL_FLOAT
-                              :int GL2/GL_INT)
+                            GL2/GL_FLOAT
                             false
                             (int 0)
                             (long 0))
+
+      :int (.glVertexAttribIPointer gl
+                            (int attribute-location)
+                            (int size)
+                            GL2/GL_INT
+                            (int 0)
+                            (long 0)))
+    
     (.glVertexAttribDivisor gl
                             attribute-location
                             divisor)))
@@ -124,13 +133,16 @@ void main() {
 
 (defn create-buffered-image []
   #_(let [rectangle-width 128
-        rectangle-height 128
-        buffered-image (buffered-image/create rectangle-width rectangle-height)
-        graphics (buffered-image/get-graphics buffered-image)]
-    (.setColor graphics (Color. 254 0 0 254))
-    (.fillRect graphics 0 0 rectangle-width rectangle-height)
-    buffered-image)
-  (buffered-image/create-from-file "pumpkin.png"))
+          rectangle-height 128
+          buffered-image (buffered-image/create rectangle-width rectangle-height)
+          graphics (buffered-image/get-graphics buffered-image)]
+      (.setColor graphics (Color. 254 0 0 254))
+      (.fillRect graphics 0 0 rectangle-width rectangle-height)
+      buffered-image)
+  (text/create-buffered-image [0 0 1 1]
+                              (font/create "LiberationSans-Regular.ttf" 20)
+                              "Hello World!")
+  #_(buffered-image/create-from-file "pumpkin.png"))
 
 (defn start []
   (let [width 300
@@ -149,8 +161,8 @@ void main() {
                            texture-buffer-id (buffer/create-gl-buffer gl)
                            buffered-image (create-buffered-image)
 
-                           image-native-buffer (buffere-image-data-to-rgba-native-buffer (-> buffered-image (.getRaster) (.getDataBuffer) (.getData)))
-                           ;;image-native-buffer (native-buffer/native-buffer-with-values :int (-> buffered-image (.getRaster) (.getDataBuffer) (.getData)))
+                           ;;image-native-buffer (buffere-image-data-to-rgba-native-buffer (-> buffered-image (.getRaster) (.getDataBuffer) (.getData)))
+                           image-native-buffer (native-buffer/native-buffer-with-values :int (-> buffered-image (.getRaster) (.getDataBuffer) (.getData)))
                            #_image-native-buffer #_(native-buffer/native-buffer-with-values :byte [255 255 255 255
                                                                                                    0 255 255 255])
 
@@ -192,10 +204,11 @@ void main() {
                                                                                     1.0))
                        ;; (.glPrimitiveRestartIndex gl 4000)
 
-                       ;;(.glDrawArraysInstanced gl GL2/GL_TRIANGLE_STRIP 0 4 1)
+                       (.glDrawArraysInstanced gl GL2/GL_TRIANGLE_STRIP 0 4 1)
                        ;;(.glDrawArrays gl GL2/GL_TRIANGLES 0 3)
 
-                       (.glDrawArrays gl GL2/GL_TRIANGLE_STRIP 0 4)))
+                       ;;(.glDrawArrays gl GL2/GL_TRIANGLE_STRIP 0 4)
+                       ))
 
       (catch Exception e
         (window/close window)
