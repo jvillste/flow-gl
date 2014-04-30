@@ -25,7 +25,14 @@
 uniform mat4 projection_matrix;
 
 in vec2 vertex_coordinate_attribute;
-in vec2 texture_coordinate_attribute;
+//in vec2 texture_coordinate_attribute;
+
+const vec2 texture_coordinates[] = vec2[4](
+  vec2(0.0,  0.0),
+  vec2(0.0, 1.0),
+  vec2(1.0,   0.0),
+  vec2(1.0,  1.0)
+);
 
 in int texture_offset_attribute;
 in int texture_width_attribute;
@@ -38,7 +45,7 @@ flat out int texture_height;
 
 void main() {
     gl_Position = projection_matrix * vec4(vertex_coordinate_attribute[0], vertex_coordinate_attribute[1], 0.0, 1.0);
-    texture_coordinate = texture_coordinate_attribute;
+    texture_coordinate = texture_coordinates[gl_VertexID];
     texture_offset = texture_offset_attribute;
     texture_width = texture_width_attribute;
     texture_height = texture_height_attribute;
@@ -144,6 +151,13 @@ void main() {
                               "Hello World!")
   #_(buffered-image/create-from-file "pumpkin.png"))
 
+(defn create-image-bank []
+  {:coordinates []
+   })
+
+(defn add-image [image-bank]
+  )
+
 (defn start []
   (let [width 300
         height 300
@@ -171,7 +185,7 @@ void main() {
 
                        (load-attribute-array "vertex_coordinate_attribute" shader-program gl :float 2 0 (textured-quad/quad (.getWidth buffered-image)
                                                                                                                             (.getHeight buffered-image)))
-                       (load-attribute-array "texture_coordinate_attribute" shader-program gl :float 2 0 (textured-quad/quad 1 1))
+                       ;;(load-attribute-array "texture_coordinate_attribute" shader-program gl :float 2 0 (textured-quad/quad 1 1))
                        (load-attribute-array "texture_offset_attribute" shader-program gl :int 1 1 [0])
                        (load-attribute-array "texture_width_attribute" shader-program gl :int 1 1 [(.getWidth buffered-image)])
                        (load-attribute-array "texture_height_attribute" shader-program gl :int 1 1 [(.getHeight buffered-image)])
