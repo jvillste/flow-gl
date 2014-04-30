@@ -24,14 +24,13 @@
 
 uniform mat4 projection_matrix;
 
-in vec2 vertex_coordinate_attribute;
-//in vec2 texture_coordinate_attribute;
+in uvec2 quad_coordinate_attribute;
 
 const vec2 texture_coordinates[] = vec2[4](
-  vec2(0.0,  0.0),
+  vec2(0.0, 0.0),
   vec2(0.0, 1.0),
-  vec2(1.0,   0.0),
-  vec2(1.0,  1.0)
+  vec2(1.0, 0.0),
+  vec2(1.0, 1.0)
 );
 
 in int texture_offset_attribute;
@@ -44,7 +43,26 @@ flat out int texture_width;
 flat out int texture_height;
 
 void main() {
-    gl_Position = projection_matrix * vec4(vertex_coordinate_attribute[0], vertex_coordinate_attribute[1], 0.0, 1.0);
+
+    vec2 vertex_coordinate;
+
+    switch(gl_VertexID) {
+      case 0:
+          vertex_coordinate = vec2(0.0, 0.0);
+        break;
+      case 1:
+          vertex_coordinate = vec2(0.0, float(texture_height_attribute));
+        break;
+      case 2:
+          vertex_coordinate = vec2(float(texture_width_attribute), 0.0);
+        break;
+      case 3:
+          vertex_coordinate = vec2(float(texture_width_attribute), float(texture_height_attribute));
+        break;
+    }
+
+    gl_Position = projection_matrix * vec4(vertex_coordinate.x + quad_coordinate_attribute.x, vertex_coordinate.y + quad_coordinate_attribute.y, 0.0, 1.0);
+    //gl_Position = projection_matrix * vec4(vertex_coordinate.x, vertex_coordinate.y, 0.0, 1.0);
     texture_coordinate = texture_coordinates[gl_VertexID];
     texture_offset = texture_offset_attribute;
     texture_width = texture_width_attribute;
@@ -107,20 +125,20 @@ void main() {
 
     (case type
       :float (.glVertexAttribPointer gl
-                            (int attribute-location)
-                            (int size)
-                            GL2/GL_FLOAT
-                            false
-                            (int 0)
-                            (long 0))
+                                     (int attribute-location)
+                                     (int size)
+                                     GL2/GL_FLOAT
+                                     false
+                                     (int 0)
+                                     (long 0))
 
       :int (.glVertexAttribIPointer gl
-                            (int attribute-location)
-                            (int size)
-                            GL2/GL_INT
-                            (int 0)
-                            (long 0)))
-    
+                                    (int attribute-location)
+                                    (int size)
+                                    GL2/GL_INT
+                                    (int 0)
+                                    (long 0)))
+
     (.glVertexAttribDivisor gl
                             attribute-location
                             divisor)))
@@ -152,8 +170,11 @@ void main() {
   #_(buffered-image/create-from-file "pumpkin.png"))
 
 (defn create-image-bank []
-  {:coordinates []
-   })
+  (let [instance-capacity 100
+        texture-capcacity (* instance-capacity 200 200)]
+    {:coordinates (native-buffer/create-native-buffer :float (* 2 instance-capacity))
+     :textrue-offsets []})
+  )
 
 (defn add-image [image-bank]
   )
@@ -182,10 +203,7 @@ void main() {
 
                            texture-id (create-gl-texture gl)]
 
-
-                       (load-attribute-array "vertex_coordinate_attribute" shader-program gl :float 2 0 (textured-quad/quad (.getWidth buffered-image)
-                                                                                                                            (.getHeight buffered-image)))
-                       ;;(load-attribute-array "texture_coordinate_attribute" shader-program gl :float 2 0 (textured-quad/quad 1 1))
+                       (load-attribute-array "quad_coordinate_attribute" shader-program gl :int 2 1 [10 10])
                        (load-attribute-array "texture_offset_attribute" shader-program gl :int 1 1 [0])
                        (load-attribute-array "texture_width_attribute" shader-program gl :int 1 1 [(.getWidth buffered-image)])
                        (load-attribute-array "texture_height_attribute" shader-program gl :int 1 1 [(.getHeight buffered-image)])
