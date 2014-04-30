@@ -31,6 +31,12 @@
             (String. byte-result-buffer)))
       "")))
 
+(defn program-errors [gl program-id]
+  (let [length (int-array 1)
+        result (byte-array 500)]
+    (.glGetProgramInfoLog gl (int program-id) (int 500) length 0 result 0)
+    (String. (byte-array (take (aget length 0) result)))))
+
 (defn compile-shader [gl shader-id source]
   (.glShaderSource gl shader-id 1 (into-array [source]) nil)
   (.glCompileShader gl shader-id)
@@ -50,9 +56,11 @@
     (.glAttachShader gl program-id fragment-shader-id)
     (.glLinkProgram gl program-id)
     (.glValidateProgram gl program-id)
-    #_(when (> (count (compile-errors gl program-id))
+    (let [errors (program-errors gl program-id)]
+      (when (> (count errors)
                0)
-        (throw (Exception. (str "Error when creating shader program: " (compile-errors program-id)))))
+        (throw (Exception. (str "Error when creating shader program: " errors)))))
+
     program-id))
 
 (defn get-uniform-location [gl program name]
@@ -74,8 +82,8 @@
 (defn set-float4-matrix-uniform [gl program name values]
   (.glUniformMatrix4fv gl
                        (int (get-uniform-location gl
-                                              program
-                                              name))
+                                                  program
+                                                  name))
                        (int 1)
                        false
                        (float-array values)

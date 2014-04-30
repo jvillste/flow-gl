@@ -16,11 +16,11 @@
     (.get int-buffer result)
     result))
 
-
 (defn create-native-buffer [type capacity]
   (case type
     :int (Buffers/newDirectIntBuffer capacity)
     :byte (Buffers/newDirectByteBuffer capacity)
+    :short (Buffers/newDirectShortBuffer capacity)
     :float (Buffers/newDirectFloatBuffer capacity)))
 
 (defn buffer-capacity [minimum-capacity]
@@ -50,6 +50,7 @@
   (case type
     :int unchecked-int
     :byte unchecked-byte
+    :short unchecked-short
     :float float))
 
 (defn native-buffer-with-values [type values]

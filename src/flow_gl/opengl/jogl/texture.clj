@@ -9,7 +9,7 @@
 
 (defn- texture-dimension [value] value)
 
-#_(defn- create-gl-texture [gl]
+(defn create-gl-texture [gl]
     (let [result (int-array 1)]
       (.glGenTextures gl 1 result 0)
       (first result)))

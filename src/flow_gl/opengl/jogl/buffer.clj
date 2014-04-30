@@ -20,7 +20,8 @@
   (case type
     :byte 1
     :int 4
-    :float 4))
+    :float 4
+    :short 2))
 
 (defn load-buffer [gl id type values]
   (let [native-buffer (native-buffer/native-buffer-with-values type values)]
