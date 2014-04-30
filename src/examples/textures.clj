@@ -69,7 +69,7 @@ out vec4 outColor;
 
 void main() {
     vec4 color = texelFetch(texture, int(texture_offset + texture_coordinate.y * texture_width + texture_coordinate.x - texture_width / 2));
-    outColor = vec4(color.b, color.g, color.r, color.a);
+    outColor = vec4(color.b, color.g, color.r, color.a * 0.5);
 }
 ")
 
@@ -115,9 +115,9 @@ void main() {
     (.fillRect graphics 0 0 rectangle-width rectangle-height)
     buffered-image)
   (text/create-buffered-image [1 1 1 1]
-                              (font/create "LiberationSans-Regular.ttf" 20)
+                              (font/create "LiberationSans-Regular.ttf" 40)
                               "Hello World!")
-  #_(buffered-image/create-from-file "pumpkin.png"))
+  (buffered-image/create-from-file "pumpkin.png"))
 
 (defn create-image-bank []
   (let [instance-capacity 100
@@ -130,9 +130,10 @@ void main() {
   )
 
 (defn start []
-  (let [width 300
-        height 300
-        window (window/create width height :profile :gl3)]
+  (let [width 800
+        height 800
+        window (window/create width height :profile :gl3)
+        number-of-quads 300]
 
     (try
       (window/render window gl
@@ -146,11 +147,9 @@ void main() {
                            texture-buffer-id (buffer/create-gl-buffer gl)
                            buffered-image (create-buffered-image)]
 
-                       (load-attribute-array "quad_coordinate_attribute" shader-program gl :short 2 1 [0 0
-                                                                                                        30 30
-                                                                                                        100 60])
-                       (load-attribute-array "texture_offset_attribute" shader-program gl :int 1 3 [0])
-                       (load-attribute-array "texture_size_attribute" shader-program gl :short 2 3 [(.getWidth buffered-image) (.getHeight buffered-image)])
+                       (load-attribute-array "quad_coordinate_attribute" shader-program gl :short 2 1 (take (* 2 number-of-quads) (repeatedly #(rand-int 600))))
+                       (load-attribute-array "texture_offset_attribute" shader-program gl :int 1 number-of-quads [0])
+                       (load-attribute-array "texture_size_attribute" shader-program gl :short 2 number-of-quads [(.getWidth buffered-image) (.getHeight buffered-image)])
 
                        (.glBindBuffer gl GL2/GL_TEXTURE_BUFFER texture-buffer-id)
                        (.glBufferData gl
@@ -175,8 +174,8 @@ void main() {
                                                          (math/projection-matrix-2d width
                                                                                     height
                                                                                     1.0))
-
-                       (.glDrawArraysInstanced gl GL2/GL_TRIANGLE_STRIP 0 4 3)))
+                       (dotimes [n 10]
+                         (time (.glDrawArraysInstanced gl GL2/GL_TRIANGLE_STRIP 0 4 number-of-quads)))))
 
       (catch Exception e
         (window/close window)
