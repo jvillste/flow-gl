@@ -24,6 +24,7 @@
 
 uniform mat4 projection_matrix;
 uniform samplerBuffer quad_coordinates_buffer;
+uniform samplerBuffer parents;
 
 //in vec2 quad_coordinate_attribute;
 in vec2 texture_size_attribute;
@@ -50,8 +51,17 @@ void main() {
         break;
     }
 
+    int parent = int(texelFetch(parents, gl_InstanceID).x);
+    vec2 offset = vec2(0,0);
+    while(parent >= 0)
+    {
+       vec4 parent_offset = texelFetch(quad_coordinates_buffer, parent);
+       offset = vec2(offset.x + parent_offset.x, offset.y + parent_offset.y);
+       parent = int(texelFetch(parents, parent).x);
+    }
+    
     vec4 quad_coordinates = texelFetch(quad_coordinates_buffer, gl_InstanceID);
-    gl_Position = projection_matrix * vec4(texture_coordinate.x + quad_coordinates.x, texture_coordinate.y + quad_coordinates.y, 0.0, 1.0);
+    gl_Position = projection_matrix * vec4(offset.x + texture_coordinate.x + quad_coordinates.x, offset.y +  texture_coordinate.y + quad_coordinates.y, 0.0, 1.0);
 
     texture_offset = texture_offset_attribute;
     texture_width = texture_size_attribute.x;
@@ -71,7 +81,7 @@ out vec4 outColor;
 
 void main() {
     vec4 color = texelFetch(texture, int(texture_offset + texture_coordinate.y * texture_width + texture_coordinate.x - texture_width / 2));
-    outColor = vec4(color.b, color.g, color.r, color.a * 0.5);
+    outColor = vec4(color.b, color.g, color.r, color.a);
 }
 ")
 
@@ -113,12 +123,12 @@ void main() {
         rectangle-height 128
         buffered-image (buffered-image/create rectangle-width rectangle-height)
         graphics (buffered-image/get-graphics buffered-image)]
-    (.setColor graphics (Color. 255 255 255 255))
+    (.setColor graphics (Color. 255 255 255 100))
     (.fillRect graphics 0 0 rectangle-width rectangle-height)
     buffered-image)
   #_(text/create-buffered-image [1 1 1 1]
-                              (font/create "LiberationSans-Regular.ttf" 40)
-                              "Hello World!")
+                                (font/create "LiberationSans-Regular.ttf" 40)
+                                "Hello World!")
   #_(buffered-image/create-from-file "pumpkin.png"))
 
 (defn create-image-bank []
@@ -130,6 +140,15 @@ void main() {
 
 (defn add-image [image-bank]
   )
+
+(defn bind-texture-buffer [gl buffer-id texture-unit program uniform-name type]
+  (shader/set-int-uniform gl
+                          program
+                          uniform-name
+                          texture-unit)
+  (.glActiveTexture gl (+ texture-unit GL2/GL_TEXTURE0))
+  (.glBindTexture gl GL2/GL_TEXTURE_BUFFER (texture/create-gl-texture gl))
+  (.glTexBuffer gl GL2/GL_TEXTURE_BUFFER type buffer-id))
 
 (defn start []
   (let [width 400
@@ -148,61 +167,67 @@ void main() {
 
                            texture-buffer-id (buffer/create-gl-buffer gl)
                            quad-coordinate-buffer-id (buffer/create-gl-buffer gl)
+                           parent-buffer-id (buffer/create-gl-buffer gl)
                            buffered-image (create-buffered-image)]
 
                        ;;(load-attribute-array "quad_coordinate_attribute" shader-program gl :short 2 1 (take (* 2 number-of-quads) (repeatedly #(rand-int 600))))
                        (load-attribute-array "texture_offset_attribute" shader-program gl :int 1 number-of-quads [0])
                        (load-attribute-array "texture_size_attribute" shader-program gl :short 2 number-of-quads [(.getWidth buffered-image) (.getHeight buffered-image)])
 
-                       (.glBindBuffer gl GL2/GL_TEXTURE_BUFFER texture-buffer-id)
-                       (.glBufferData gl
-                                      GL2/GL_TEXTURE_BUFFER
-                                      (* 4 (.getWidth buffered-image) (.getHeight buffered-image))
-                                      (native-buffer/native-buffer-with-values :int (-> buffered-image (.getRaster) (.getDataBuffer) (.getData)))
-                                      GL2/GL_STATIC_DRAW)
+                       (buffer/load-texture-buffer gl
+                                                   texture-buffer-id
+                                                   :int
+                                                   (-> buffered-image (.getRaster) (.getDataBuffer) (.getData)))
 
-                       (.glBindBuffer gl GL2/GL_TEXTURE_BUFFER quad-coordinate-buffer-id)
-                       (.glBufferData gl
-                                      GL2/GL_TEXTURE_BUFFER
-                                      (* 4 2 number-of-quads)
-                                      (native-buffer/native-buffer-with-values :float [10 10
-                                                                                       20 20
-                                                                                       30 30])
-                                      GL2/GL_STATIC_DRAW)
+                       (buffer/load-texture-buffer gl
+                                                   quad-coordinate-buffer-id
+                                                   :float
+                                                   [100 10
+                                                    20 20
+                                                    20 30])
 
+                       (buffer/load-texture-buffer gl
+                                                   parent-buffer-id
+                                                   :float
+                                                   [-1 0 0])
 
                        (.glBindBuffer gl GL2/GL_TEXTURE_BUFFER 0)
+
+
 
                        ;;Draw
 
                        (shader/enable-program gl
                                               shader-program)
 
-                       (shader/set-int-uniform gl
-                                               shader-program
-                                               "texture"
-                                               0)
-                       (.glActiveTexture gl GL2/GL_TEXTURE0)
-                       (.glBindTexture gl GL2/GL_TEXTURE_BUFFER (texture/create-gl-texture gl))
-                       (.glTexBuffer gl GL2/GL_TEXTURE_BUFFER GL2/GL_RGBA8 texture-buffer-id)
+                       (bind-texture-buffer gl
+                                            texture-buffer-id
+                                            0
+                                            shader-program
+                                            "texture"
+                                            GL2/GL_RGBA8)
 
+                       (bind-texture-buffer gl
+                                            quad-coordinate-buffer-id
+                                            1
+                                            shader-program
+                                            "quad_coordinates_buffer"
+                                            GL2/GL_RG32UI)
 
-                       (shader/set-int-uniform gl
-                                               shader-program
-                                               "quad_coordinates_buffer"
-                                               1)
-                       (.glActiveTexture gl GL2/GL_TEXTURE1)
-                       (.glBindTexture gl GL2/GL_TEXTURE_BUFFER (texture/create-gl-texture gl))
-                       (.glTexBuffer gl GL2/GL_TEXTURE_BUFFER GL2/GL_RG32UI quad-coordinate-buffer-id)
+                       (bind-texture-buffer gl
+                                            parent-buffer-id
+                                            2
+                                            shader-program
+                                            "parents"
+                                            GL2/GL_R32UI)
 
+                       
                        (shader/set-float4-matrix-uniform gl
                                                          shader-program
                                                          "projection_matrix"
                                                          (math/projection-matrix-2d width
                                                                                     height
                                                                                     1.0))
-                       #_(dotimes [n 10]
-                           (time ))
 
                        (.glDrawArraysInstanced gl GL2/GL_TRIANGLE_STRIP 0 4 number-of-quads)))
 

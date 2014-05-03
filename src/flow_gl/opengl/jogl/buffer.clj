@@ -33,6 +33,16 @@
                    native-buffer
                    GL2/GL_STATIC_DRAW)))
 
+(defn load-texture-buffer [gl id type values]
+  (let [native-buffer (native-buffer/native-buffer-with-values type values)]
+    (.glBindBuffer gl GL2/GL_TEXTURE_BUFFER id)
+    (.glBufferData gl
+                   GL2/GL_TEXTURE_BUFFER
+                   (* (type-size type)
+                      (count values))
+                   native-buffer
+                   GL2/GL_STATIC_DRAW)))
+
 (defn load-element-buffer [gl id values]
   (let [native-buffer (native-buffer/native-buffer-with-values :int values)]
     (bind-element-buffer gl id)
