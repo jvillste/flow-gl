@@ -71,6 +71,11 @@
                                          name)
                 value))
 
+(defn set-int-uniform [gl program name value]
+  (.glUniform1i gl (get-uniform-location gl program
+                                         name)
+                value))
+
 (defn set-float3-uniform [gl program name value1 value2 value3]
   (.glUniform3f gl (get-uniform-location gl
                                          program
