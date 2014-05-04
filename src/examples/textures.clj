@@ -26,7 +26,6 @@ uniform mat4 projection_matrix;
 uniform samplerBuffer quad_coordinates_buffer;
 uniform samplerBuffer parents;
 
-//in vec2 quad_coordinate_attribute;
 in vec2 texture_size_attribute;
 in int texture_offset_attribute;
 
@@ -59,7 +58,7 @@ void main() {
        offset = vec2(offset.x + parent_offset.x, offset.y + parent_offset.y);
        parent = int(texelFetch(parents, parent).x);
     }
-    
+
     vec4 quad_coordinates = texelFetch(quad_coordinates_buffer, gl_InstanceID);
     gl_Position = projection_matrix * vec4(offset.x + texture_coordinate.x + quad_coordinates.x, offset.y +  texture_coordinate.y + quad_coordinates.y, 0.0, 1.0);
 
@@ -131,6 +130,11 @@ void main() {
                                 "Hello World!")
   #_(buffered-image/create-from-file "pumpkin.png"))
 
+(defn text-image [text]
+  (text/create-buffered-image [1 1 1 1]
+                              (font/create "LiberationSans-Regular.ttf" 40)
+                              text))
+
 (defn create-image-bank []
   (let [instance-capacity 100
         texture-capcacity (* instance-capacity 200 200)]
@@ -150,86 +154,122 @@ void main() {
   (.glBindTexture gl GL2/GL_TEXTURE_BUFFER (texture/create-gl-texture gl))
   (.glTexBuffer gl GL2/GL_TEXTURE_BUFFER type buffer-id))
 
+(defn initialize-gpu [window]
+  (let [gpu-state-atom (atom {})]
+    (window/render window gl
+                   (opengl/initialize gl)
+
+                   (reset! gpu-state-atom
+                           {:program (shader/compile-program gl
+                                                             vertex-shader-source
+                                                             fragment-shader-source)
+                            :texture-buffer-id (buffer/create-gl-buffer gl)
+                            :quad-coordinate-buffer-id (buffer/create-gl-buffer gl)
+                            :parent-buffer-id (buffer/create-gl-buffer gl)}))
+    @gpu-state-atom))
+
+(defn update-gpu [window gpu-state state]
+  (window/render window gl
+
+                 (load-attribute-array "texture_offset_attribute" (:program gpu-state) gl :int 1 1 (:texture-offsets state))
+                 (load-attribute-array "texture_size_attribute" (:program gpu-state) gl :short 2 1 (:texture-sizes state))
+
+                 (buffer/load-texture-buffer gl
+                                             (:texture-buffer-id gpu-state)
+                                             :int
+                                             (mapcat #(-> % (.getRaster) (.getDataBuffer) (.getData))
+                                                     (:images state)))
+
+                 (buffer/load-texture-buffer gl
+                                             (:quad-coordinate-buffer-id gpu-state)
+                                             :float
+                                             (:quad-coordinates state))
+
+                 (buffer/load-texture-buffer gl
+                                             (:parent-buffer-id gpu-state)
+                                             :float
+                                             (:parents state))
+
+                 (.glBindBuffer gl GL2/GL_TEXTURE_BUFFER 0)))
+
+(defn draw [window width height gpu-state number-of-quads]
+  (window/render window gl
+                 (shader/enable-program gl
+                                        (:program gpu-state))
+
+                 (bind-texture-buffer gl
+                                      (:texture-buffer-id gpu-state)
+                                      0
+                                      (:program gpu-state)
+                                      "texture"
+                                      GL2/GL_RGBA8)
+
+                 (bind-texture-buffer gl
+                                      (:quad-coordinate-buffer-id gpu-state)
+                                      1
+                                      (:program gpu-state)
+                                      "quad_coordinates_buffer"
+                                      GL2/GL_RG32UI)
+
+                 (bind-texture-buffer gl
+                                      (:parent-buffer-id gpu-state)
+                                      2
+                                      (:program gpu-state)
+                                      "parents"
+                                      GL2/GL_R32UI)
+
+
+                 (shader/set-float4-matrix-uniform gl
+                                                   (:program gpu-state)
+                                                   "projection_matrix"
+                                                   (math/projection-matrix-2d width
+                                                                              height
+                                                                              1.0))
+
+                 (.glDrawArraysInstanced gl GL2/GL_TRIANGLE_STRIP 0 4 number-of-quads)))
+
+(defn create-state [images coordinates parents]
+  {:texture-offsets (loop [offsets [0]
+                           images images]
+                      (if-let [image (first images)]
+                        (recur (conj offsets
+                                     (+ (last offsets)
+                                        (* (.getWidth image)
+                                           (.getHeight image))))
+                               (rest images))
+                        offsets))
+
+   :texture-sizes (mapcat #(vector (.getWidth %) (.getHeight %))
+                          images)
+
+   :quad-coordinates coordinates
+   :parents parents
+   :images images})
+
 (defn start []
   (let [width 400
         height 400
         window (window/create width height :profile :gl3)
-        number-of-quads 300]
+        images (map text-image ["foo" "bar" "baz"])]
 
     (try
-      (window/render window gl
-                     (opengl/initialize gl)
-                     (opengl/resize gl width height)
+      (let [gpu-state (initialize-gpu window)
+            state (create-state images
+                                [100 10
+                                 20 20
+                                 20 30]
+                                [-1 0 1])]
+        (println state)
 
-                     (let [shader-program (shader/compile-program gl
-                                                                  vertex-shader-source
-                                                                  fragment-shader-source)
+        (update-gpu window
+                    gpu-state
+                    state)
 
-                           texture-buffer-id (buffer/create-gl-buffer gl)
-                           quad-coordinate-buffer-id (buffer/create-gl-buffer gl)
-                           parent-buffer-id (buffer/create-gl-buffer gl)
-                           buffered-image (create-buffered-image)]
-
-                       ;;(load-attribute-array "quad_coordinate_attribute" shader-program gl :short 2 1 (take (* 2 number-of-quads) (repeatedly #(rand-int 600))))
-                       (load-attribute-array "texture_offset_attribute" shader-program gl :int 1 number-of-quads [0])
-                       (load-attribute-array "texture_size_attribute" shader-program gl :short 2 number-of-quads [(.getWidth buffered-image) (.getHeight buffered-image)])
-
-                       (buffer/load-texture-buffer gl
-                                                   texture-buffer-id
-                                                   :int
-                                                   (-> buffered-image (.getRaster) (.getDataBuffer) (.getData)))
-
-                       (buffer/load-texture-buffer gl
-                                                   quad-coordinate-buffer-id
-                                                   :float
-                                                   [100 10
-                                                    20 20
-                                                    20 30])
-
-                       (buffer/load-texture-buffer gl
-                                                   parent-buffer-id
-                                                   :float
-                                                   [-1 0 0])
-
-                       (.glBindBuffer gl GL2/GL_TEXTURE_BUFFER 0)
-
-
-
-                       ;;Draw
-
-                       (shader/enable-program gl
-                                              shader-program)
-
-                       (bind-texture-buffer gl
-                                            texture-buffer-id
-                                            0
-                                            shader-program
-                                            "texture"
-                                            GL2/GL_RGBA8)
-
-                       (bind-texture-buffer gl
-                                            quad-coordinate-buffer-id
-                                            1
-                                            shader-program
-                                            "quad_coordinates_buffer"
-                                            GL2/GL_RG32UI)
-
-                       (bind-texture-buffer gl
-                                            parent-buffer-id
-                                            2
-                                            shader-program
-                                            "parents"
-                                            GL2/GL_R32UI)
-
-                       
-                       (shader/set-float4-matrix-uniform gl
-                                                         shader-program
-                                                         "projection_matrix"
-                                                         (math/projection-matrix-2d width
-                                                                                    height
-                                                                                    1.0))
-
-                       (.glDrawArraysInstanced gl GL2/GL_TRIANGLE_STRIP 0 4 number-of-quads)))
+        (draw window
+              width
+              height
+              gpu-state
+              (count images)))
 
       (catch Exception e
         (window/close window)
