@@ -50,3 +50,14 @@
                    GL2/GL_ELEMENT_ARRAY_BUFFER
                    native-buffer
                    GL2/GL_STATIC_DRAW)))
+
+(defn update-texture-buffer [gl id type offset values]
+  (let [native-buffer (native-buffer/native-buffer-with-values type values)]
+    (.glBindBuffer gl GL2/GL_TEXTURE_BUFFER id)
+    (.glBufferSubData gl
+                      GL2/GL_TEXTURE_BUFFER
+                      (* (type-size type)
+                         offset)
+                      (* (type-size type)
+                         (count values))
+                      native-buffer)))

@@ -84,14 +84,8 @@ void main() {
 }
 ")
 
-(defn load-attribute-array [name program gl type size divisor values]
-  (let [attribute-location (.glGetAttribLocation gl program name)
-        buffer-id (buffer/create-gl-buffer gl)]
-
-    (buffer/load-buffer gl
-                        buffer-id
-                        type
-                        values)
+(defn create-vertex-attribute-array [gl name program buffer-id type size divisor]
+  (let [attribute-location (.glGetAttribLocation gl program name)]
     (buffer/bind-buffer gl buffer-id)
     (.glEnableVertexAttribArray gl attribute-location)
 
@@ -115,7 +109,8 @@ void main() {
 
     (.glVertexAttribDivisor gl
                             attribute-location
-                            divisor)))
+                            divisor)
+    buffer-id))
 
 (defn create-buffered-image []
   (let [rectangle-width 128
@@ -165,14 +160,22 @@ void main() {
                                                              fragment-shader-source)
                             :texture-buffer-id (buffer/create-gl-buffer gl)
                             :quad-coordinate-buffer-id (buffer/create-gl-buffer gl)
-                            :parent-buffer-id (buffer/create-gl-buffer gl)}))
+                            :parent-buffer-id (buffer/create-gl-buffer gl)
+                            :texture-offset-attribute-buffer (buffer/create-gl-buffer gl)
+                            :texture-size-attribute-buffer (buffer/create-gl-buffer gl)}))
     @gpu-state-atom))
 
 (defn update-gpu [window gpu-state state]
   (window/render window gl
+                 (buffer/load-buffer gl
+                                     (:texture-offset-attribute-buffer gpu-state)
+                                     :int
+                                     (:texture-offsets state))
 
-                 (load-attribute-array "texture_offset_attribute" (:program gpu-state) gl :int 1 1 (:texture-offsets state))
-                 (load-attribute-array "texture_size_attribute" (:program gpu-state) gl :short 2 1 (:texture-sizes state))
+                 (buffer/load-buffer gl
+                                     (:texture-size-attribute-buffer gpu-state)
+                                     :short
+                                     (:texture-sizes state))
 
                  (buffer/load-texture-buffer gl
                                              (:texture-buffer-id gpu-state)
@@ -196,6 +199,22 @@ void main() {
   (window/render window gl
                  (shader/enable-program gl
                                         (:program gpu-state))
+
+                 (create-vertex-attribute-array gl
+                                                "texture_offset_attribute"
+                                                (:program gpu-state)
+                                                (:texture-offset-attribute-buffer gpu-state)
+                                                :int
+                                                1
+                                                1)
+
+                 (create-vertex-attribute-array gl
+                                                "texture_size_attribute"
+                                                (:program gpu-state)
+                                                (:texture-size-attribute-buffer gpu-state)
+                                                :short
+                                                2
+                                                1)
 
                  (bind-texture-buffer gl
                                       (:texture-buffer-id gpu-state)
@@ -228,6 +247,7 @@ void main() {
 
                  (.glDrawArraysInstanced gl GL2/GL_TRIANGLE_STRIP 0 4 number-of-quads)))
 
+
 (defn create-state [images coordinates parents]
   {:texture-offsets (loop [offsets [0]
                            images images]
@@ -246,24 +266,60 @@ void main() {
    :parents parents
    :images images})
 
+
+(defn change-texture [gl state gpu-state index new-image]
+  (buffer/update-texture-buffer gl
+                                (:texture-buffer-id gpu-state)
+                                :int
+                                (get (:texture-offsets state)
+                                     0)
+                                (-> new-image (.getRaster) (.getDataBuffer) (.getData)))
+
+  (buffer/update-texture-buffer gl
+                                (:texture-size-attribute-buffer gpu-state)
+                                :short
+                                0
+                                [(.getWidth new-image)
+                                 (.getHeight new-image)]))
+
+(defn move-quad [gl gpu-state index x y]
+  (buffer/update-texture-buffer gl
+                                (:quad-coordinate-buffer-id gpu-state)
+                                :float
+                                (* 2 index)
+                                [x y]))
+
 (defn start []
   (let [width 400
         height 400
         window (window/create width height :profile :gl3)
-        images (map text-image ["foo" "bar" "baz"])]
+        images (map text-image ["for" "bar" "baz"])]
 
     (try
       (let [gpu-state (initialize-gpu window)
             state (create-state images
                                 [100 10
-                                 20 20
+                                 20 40
                                  20 30]
                                 [-1 0 1])]
-        (println state)
 
         (update-gpu window
                     gpu-state
                     state)
+
+        (window/render window gl
+
+                       (change-texture gl
+                                       state
+                                       gpu-state
+                                       0
+                                       (text-image "for"))
+
+                       (move-quad gl
+                                  gpu-state
+                                  1
+                                  100
+                                  200))
 
         (draw window
               width
