@@ -7,9 +7,6 @@
     (.glGenBuffers gl 1 result-buffer 0)
     (aget result-buffer 0)))
 
-(defn bind-buffer [gl id]
-  (.glBindBuffer gl GL2/GL_ARRAY_BUFFER id))
-
 (defn delete [gl id]
   (.glDeleteBuffers gl 1 (int-array [id]) 0))
 
@@ -23,33 +20,32 @@
     :float 4
     :short 2))
 
-(defn load-buffer [gl id type values]
+(defn allocate-buffer [gl id type target usage size]
+  (.glBufferData gl
+                 target
+                 (* (type-size type)
+                    size)
+                 nil
+                 usage))
+
+(defn load-buffer [gl id type target usage values]
   (let [native-buffer (native-buffer/native-buffer-with-values type values)]
-    (bind-buffer gl id)
+    (.glBindBuffer gl target id)
     (.glBufferData gl
-                   GL2/GL_ARRAY_BUFFER
+                   target
                    (* (type-size type)
                       (count values))
                    native-buffer
-                   GL2/GL_STATIC_DRAW)))
+                   usage)))
+
+(defn load-vertex-array-buffer [gl id type values]
+  (load-buffer gl id type GL2/GL_ARRAY_BUFFER GL2/GL_STATIC_DRAW values))
 
 (defn load-texture-buffer [gl id type values]
-  (let [native-buffer (native-buffer/native-buffer-with-values type values)]
-    (.glBindBuffer gl GL2/GL_TEXTURE_BUFFER id)
-    (.glBufferData gl
-                   GL2/GL_TEXTURE_BUFFER
-                   (* (type-size type)
-                      (count values))
-                   native-buffer
-                   GL2/GL_STATIC_DRAW)))
+  (load-buffer gl id type GL2/GL_TEXTURE_BUFFER GL2/GL_STATIC_DRAW values))
 
 (defn load-element-buffer [gl id values]
-  (let [native-buffer (native-buffer/native-buffer-with-values :int values)]
-    (bind-element-buffer gl id)
-    (.glBufferData gl
-                   GL2/GL_ELEMENT_ARRAY_BUFFER
-                   native-buffer
-                   GL2/GL_STATIC_DRAW)))
+  (load-buffer gl id :int GL2/GL_ELEMENT_ARRAY_BUFFER GL2/GL_STATIC_DRAW values))
 
 (defn update-texture-buffer [gl id type offset values]
   (let [native-buffer (native-buffer/native-buffer-with-values type values)]

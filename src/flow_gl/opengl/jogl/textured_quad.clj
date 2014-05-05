@@ -45,13 +45,13 @@ void main() {
 
         texture-coordinate-buffer-id (buffer/create-gl-buffer gl)]
 
-    (buffer/load-buffer gl
-                        texture-coordinate-buffer-id
-                        :float
-                        (map float [0 0
-                                    0 1
-                                    1 0
-                                    1 1]))
+    (buffer/load-vertex-array-buffer gl
+                                     texture-coordinate-buffer-id
+                                     :float
+                                     (map float [0 0
+                                                 0 1
+                                                 1 0
+                                                 1 1]))
 
     (reset! shared-resources-atom {:shader-program shader-program
                                    :texture-coordinate-buffer-id texture-coordinate-buffer-id
@@ -80,11 +80,11 @@ void main() {
   (:height (:texture textured-quad)))
 
 (defn update-vertexes [textured-quad gl]
-  (buffer/load-buffer gl
-                      (:vertex-coordinate-buffer-id textured-quad)
-                      :float
-                      (map float (quad (width textured-quad)
-                                       (height textured-quad))))
+  (buffer/load-vertex-array-buffer gl
+                                   (:vertex-coordinate-buffer-id textured-quad)
+                                   :float
+                                   (map float (quad (width textured-quad)
+                                                    (height textured-quad))))
   textured-quad)
 
 
@@ -111,7 +111,7 @@ void main() {
   (texture/bind (:texture textured-quad)
                 gl)
 
-  (buffer/bind-buffer gl (:vertex-coordinate-buffer-id textured-quad))
+  (.glBindBuffer gl GL2/GL_ARRAY_BUFFER (:vertex-coordinate-buffer-id textured-quad))
   (.glEnableVertexAttribArray gl (:vertex-coordinate-attribute-index @shared-resources-atom))
   (.glVertexAttribPointer gl
                           (int (:vertex-coordinate-attribute-index @shared-resources-atom))
@@ -121,7 +121,7 @@ void main() {
                           (int 0)
                           (long 0))
 
-  (buffer/bind-buffer gl (:texture-coordinate-buffer-id @shared-resources-atom))
+  (.glBindBuffer gl GL2/GL_ARRAY_BUFFER (:texture-coordinate-buffer-id @shared-resources-atom))
   (.glEnableVertexAttribArray gl
                               (:texture-coordinate-attribute-index @shared-resources-atom))
   (.glVertexAttribPointer gl

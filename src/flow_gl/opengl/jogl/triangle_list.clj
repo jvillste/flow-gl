@@ -43,15 +43,15 @@ void main() {
 ")
 
 (defn update [triangle-list gl coordinates colors]
-  (buffer/load-buffer gl
-                      (:vertex-coordinate-buffer-id triangle-list)
-                      :float
-                      coordinates)
+  (buffer/load-vertex-array-buffer gl
+                                   (:vertex-coordinate-buffer-id triangle-list)
+                                   :float
+                                   coordinates)
 
-  (buffer/load-buffer gl
-                      (:vertex-color-buffer-id triangle-list)
-                      :float
-                      colors)
+  (buffer/load-vertex-array-buffer gl
+                                   (:vertex-color-buffer-id triangle-list)
+                                   :float
+                                   colors)
 
   (assoc triangle-list
     :number-of-triangles (/ (count coordinates)
@@ -94,10 +94,11 @@ void main() {
                                     @shader-program-atom
                                     "projection_matrix"
                                     (math/projection-matrix-2d width
-                                                                 height
-                                                                 1.0))
+                                                               height
+                                                               1.0))
 
-  (buffer/bind-buffer gl (:vertex-coordinate-buffer-id triangle-list))
+
+  (.glBindBuffer gl GL2/GL_ARRAY_BUFFER (:vertex-coordinate-buffer-id triangle-list))
   (.glVertexAttribPointer gl
                           (int (:vertex-coordinate-attribute-index triangle-list))
                           (int 2)
@@ -107,7 +108,7 @@ void main() {
                           (long 0))
   (.glEnableVertexAttribArray gl (:vertex-coordinate-attribute-index triangle-list))
 
-  (buffer/bind-buffer gl (:vertex-color-buffer-id triangle-list))
+  (.glBindBuffer gl GL2/GL_ARRAY_BUFFER (:vertex-color-buffer-id triangle-list))
   (.glVertexAttribPointer gl
                           (int (:vertex-color-attribute-index triangle-list))
                           (int 4)

@@ -86,7 +86,7 @@ void main() {
 
 (defn create-vertex-attribute-array [gl name program buffer-id type size divisor]
   (let [attribute-location (.glGetAttribLocation gl program name)]
-    (buffer/bind-buffer gl buffer-id)
+    (.glBindBuffer gl GL2/GL_ARRAY_BUFFER buffer-id)
     (.glEnableVertexAttribArray gl attribute-location)
 
     (if (= type :int)
@@ -167,15 +167,15 @@ void main() {
 
 (defn update-gpu [window gpu-state state]
   (window/render window gl
-                 (buffer/load-buffer gl
-                                     (:texture-offset-attribute-buffer gpu-state)
-                                     :int
-                                     (:texture-offsets state))
+                 (buffer/load-vertex-array-buffer gl
+                                                  (:texture-offset-attribute-buffer gpu-state)
+                                                  :int
+                                                  (:texture-offsets state))
 
-                 (buffer/load-buffer gl
-                                     (:texture-size-attribute-buffer gpu-state)
-                                     :short
-                                     (:texture-sizes state))
+                 (buffer/load-vertex-array-buffer gl
+                                                  (:texture-size-attribute-buffer gpu-state)
+                                                  :short
+                                                  (:texture-sizes state))
 
                  (buffer/load-texture-buffer gl
                                              (:texture-buffer-id gpu-state)
