@@ -130,16 +130,6 @@ void main() {
                               (font/create "LiberationSans-Regular.ttf" 40)
                               text))
 
-(defn create-image-bank []
-  (let [instance-capacity 100
-        texture-capcacity (* instance-capacity 200 200)]
-    {:coordinates (native-buffer/create-native-buffer :float (* 2 instance-capacity))
-     :textrue-offsets (native-buffer/create-native-buffer :int (* 2 instance-capacity))
-     :texture-sizes (native-buffer/create-native-buffer :int (* 2 instance-capacity))}))
-
-(defn add-image [image-bank]
-  )
-
 (defn bind-texture-buffer [gl buffer-id texture-unit program uniform-name type]
   (shader/set-int-uniform gl
                           program
@@ -149,20 +139,73 @@ void main() {
   (.glBindTexture gl GL2/GL_TEXTURE_BUFFER (texture/create-gl-texture gl))
   (.glTexBuffer gl GL2/GL_TEXTURE_BUFFER type buffer-id))
 
+(defn allocate-quads [gl number-of-quads]
+  (let [quad-coordinate-buffer-id (buffer/create-gl-buffer gl)
+        parent-buffer-id (buffer/create-gl-buffer gl)
+        texture-offset-attribute-buffer (buffer/create-gl-buffer gl)
+        texture-size-attribute-buffer (buffer/create-gl-buffer gl)]
+
+    (buffer/allocate-buffer gl
+                            quad-coordinate-buffer-id
+                            :float
+                            GL2/GL_TEXTURE_BUFFER
+                            GL2/GL_STATIC_DRAW
+                            (* 2 number-of-quads))
+
+    (buffer/allocate-buffer gl
+                            parent-buffer-id
+                            :float
+                            GL2/GL_TEXTURE_BUFFER
+                            GL2/GL_STATIC_DRAW
+                            number-of-quads)
+
+    (buffer/allocate-buffer gl
+                            texture-offset-attribute-buffer
+                            :int
+                            GL2/GL_ARRAY_BUFFER
+                            GL2/GL_STATIC_DRAW
+                            number-of-quads)
+
+    (buffer/allocate-buffer gl
+                            texture-size-attribute-buffer
+                            :short
+                            GL2/GL_ARRAY_BUFFER
+                            GL2/GL_STATIC_DRAW
+                            (* 2 number-of-quads))
+
+    {:quad-coordinate-buffer-id quad-coordinate-buffer-id
+     :parent-buffer-id parent-buffer-id
+     :texture-offset-attribute-buffer texture-offset-attribute-buffer
+     :texture-size-attribute-buffer texture-size-attribute-buffer }))
+
+
+(defn allocate-texture [gl number-of-texels]
+  (let [texture-buffer-id (buffer/create-gl-buffer gl)]
+    (buffer/allocate-buffer gl
+                            texture-buffer-id
+                            :int
+                            GL2/GL_TEXTURE_BUFFER
+                            GL2/GL_STATIC_DRAW
+                            number-of-texels)
+
+    {:texture-buffer-id texture-buffer-id}))
+
 (defn initialize-gpu [window]
   (let [gpu-state-atom (atom {})]
     (window/render window gl
                    (opengl/initialize gl)
 
-                   (reset! gpu-state-atom
-                           {:program (shader/compile-program gl
-                                                             vertex-shader-source
-                                                             fragment-shader-source)
-                            :texture-buffer-id (buffer/create-gl-buffer gl)
-                            :quad-coordinate-buffer-id (buffer/create-gl-buffer gl)
-                            :parent-buffer-id (buffer/create-gl-buffer gl)
-                            :texture-offset-attribute-buffer (buffer/create-gl-buffer gl)
-                            :texture-size-attribute-buffer (buffer/create-gl-buffer gl)}))
+                   (let [initial-number-of-texels 1024
+                         initial-number-of-quads 50
+                         state (conj {:program (shader/compile-program gl
+                                                                       vertex-shader-source
+                                                                       fragment-shader-source)
+                                      :texture-buffer-size initial-number-of-texels
+                                      :allocated-quads initial-number-of-quads}
+                                     (allocate-texture gl initial-number-of-texels)
+                                     (allocate-quads gl initial-number-of-quads))]
+
+                     (reset! gpu-state-atom state)))
     @gpu-state-atom))
 
 (defn update-gpu [window gpu-state state]

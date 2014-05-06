@@ -20,6 +20,16 @@
     :float 4
     :short 2))
 
+(defn copy-buffer [gl source target number-of-bytes]
+  (.glBindBuffer gl GL2/GL_COPY_READ_BUFFER source)
+  (.glBindBuffer gl GL2/GL_COPY_WRITE_BUFFER target)
+  (.glCopyBufferSubData gl
+                        GL2/GL_COPY_READ_BUFFER
+                        GL2/GL_COPY_WRITE_BUFFER
+                        0
+                        0
+                        number-of-bytes))
+
 (defn allocate-buffer [gl id type target usage size]
   (.glBufferData gl
                  target
