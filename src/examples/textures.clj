@@ -173,11 +173,11 @@ void main() {
                             GL2/GL_STATIC_DRAW
                             (* 2 number-of-quads))
 
-    {:quad-coordinate-buffer-id quad-coordinate-buffer-id
+    {:allocated-quads number-of-quads
+     :quad-coordinate-buffer-id quad-coordinate-buffer-id
      :parent-buffer-id parent-buffer-id
      :texture-offset-attribute-buffer texture-offset-attribute-buffer
      :texture-size-attribute-buffer texture-size-attribute-buffer }))
-
 
 (defn allocate-texture [gl number-of-texels]
   (let [texture-buffer-id (buffer/create-gl-buffer gl)]
@@ -191,22 +191,120 @@ void main() {
     {:texture-buffer-id texture-buffer-id}))
 
 (defn initialize-gpu [window]
-  (let [gpu-state-atom (atom {})]
-    (window/render window gl
-                   (opengl/initialize gl)
+  (window/with-gl  window gl
 
-                   (let [initial-number-of-texels 1024
-                         initial-number-of-quads 50
-                         state (conj {:program (shader/compile-program gl
-                                                                       vertex-shader-source
-                                                                       fragment-shader-source)
-                                      :texture-buffer-size initial-number-of-texels
-                                      :allocated-quads initial-number-of-quads}
-                                     (allocate-texture gl initial-number-of-texels)
-                                     (allocate-quads gl initial-number-of-quads))]
+    (opengl/initialize gl)
 
-                     (reset! gpu-state-atom state)))
-    @gpu-state-atom))
+    (let [initial-number-of-texels 1024
+          initial-number-of-quads 50]
+
+      (conj {:program (shader/compile-program gl
+                                              vertex-shader-source
+                                              fragment-shader-source)
+
+             :allocated-texels initial-number-of-texels
+             :next-free-texel 0
+             :allocated-quads initial-number-of-quads
+             :next-free-quad 0}
+
+            (allocate-texture gl initial-number-of-texels)
+            (allocate-quads gl initial-number-of-quads)))))
+
+(defn grow-texture-buffer [gl gpu-state]
+  (let [new-gpu-state (conj gpu-state
+                            (allocate-texture gl
+                                              (* 2 (:allocated-texels gpu-state))))]
+    (buffer/copy gl
+                 (:texture-buffer-id gpu-state)
+                 (:texture-buffer-id new-gpu-state)
+                 (* 4 (:allocated-texels gpu-state)))
+
+    (buffer/delete gl (:texture-buffer-id gpu-state))
+
+    new-gpu-state))
+
+(defn copy-quad-buffer [buffer-key size-multiplier {:keys [gl size-key old-gpu-state new-gpu-state]}]
+  (buffer/copy gl
+               (buffer-key old-gpu-state)
+               (buffer-key new-gpu-state)
+               (* size-multiplier (:allocated-quads old-gpu-state)))
+  (buffer/delete gl (buffer-key old-gpu-state)))
+
+(defn grow-quad-buffers [gl gpu-state]
+  (let [new-gpu-state (conj gpu-state
+                            (allocate-quads gl
+                                            (* 2 (:allocated-quads gpu-state))))
+
+        copy-buffer-arguments {:gl gl
+                               :old-gpu-state gpu-state
+                               :new-gpu-state new-gpu-state}]
+
+    (copy-quad-buffer :quad-coordinate-buffer-id
+                      (* 4 2)
+                      copy-buffer-arguments)
+
+    (copy-quad-buffer :parent-buffer-id
+                      4
+                      copy-buffer-arguments)
+
+    (copy-quad-buffer :texture-offset-attribute-buffer
+                      4
+                      copy-buffer-arguments)
+
+    (copy-quad-buffer :texture-size-attribute-buffer
+                      2
+                      copy-buffer-arguments)
+
+    new-gpu-state))
+
+(defn add-quad [gl gpu-state buffered-image parent x y]
+  (let [new-gpu-state (if (> (* (.getWidth buffered-image)
+                                (.getHeight buffered-image))
+                             (- (:allocated-texels gpu-state)
+                                (:next-free-texel gpu-state)))
+                        (grow-texture-buffer gl gpu-state)
+                        gpu-state)]
+    (if (= (:allocated-quads gpu-state)
+           (:next-free-quad gpu-state))
+      (let [new-gpu-state (grow-quad-buffers gl gpu-state)
+            ]
+
+        (buffer/update gl
+                       (:texture-buffer-id new-gpu-state)
+                       :int
+                       (:next-free-texel new-gpu-state)
+                       (-> buffered-image (.getRaster) (.getDataBuffer) (.getData)))
+
+        (buffer/update gl
+                       (:parent-buffer-id new-gpu-state)
+                       :float
+                       (:next-free-quad new-gpu-state)
+                       [parent])
+
+        (buffer/update gl
+                       (:quad-coordinate-buffer-id new-gpu-state)
+                       :float
+                       (* 2 (:next-free-quad new-gpu-state))
+                       [x y])
+
+        (buffer/update gl
+                       (:texture-size-attribute-buffer new-gpu-state)
+                       :short
+                       (* 2 (:next-free-quad new-gpu-state))
+                       [(.getWidth buffered-image)
+                        (.getHeight buffered-image)])
+
+        (buffer/update gl
+                       (:texture-offset-attribute-buffer new-gpu-state)
+                       :int
+                       (:next-free-quad new-gpu-state)
+                       [(:next-free-texel new-gpu-state)])
+
+        (conj new-gpu-state
+              :next-free-texel (+ (:next-free-texel gpu-state)
+                                  (* (.getWidth buffered-image)
+                                     (.getHeight buffered-image)))
+              :next-free-quad (+ 1 (:next-free-quad gpu-state)))))))
 
 (defn update-gpu [window gpu-state state]
   (window/render window gl
@@ -339,37 +437,37 @@ void main() {
         images (map text-image ["for" "bar" "baz"])]
 
     (try
-      (let [gpu-state (initialize-gpu window)
-            state (create-state images
-                                [100 10
-                                 20 40
-                                 20 30]
-                                [-1 0 1])]
+      (window/with-gl window gl
+        (let [gpu-state (initialize-gpu window)
+              state (create-state images
+                                  [100 10
+                                   20 40
+                                   20 30]
+                                  [-1 0 1])]
 
-        (update-gpu window
-                    gpu-state
-                    state)
+          (update-gpu window
+                      gpu-state
+                      state)
 
-        (window/render window gl
+          (window/render window gl
 
-                       (change-texture gl
-                                       state
-                                       gpu-state
-                                       0
-                                       (text-image "for"))
+                         (change-texture gl
+                                         state
+                                         gpu-state
+                                         0
+                                         (text-image "for"))
 
-                       (move-quad gl
-                                  gpu-state
-                                  1
-                                  100
-                                  200))
+                         (move-quad gl
+                                    gpu-state
+                                    1
+                                    100
+                                    200))
 
-        (draw window
-              width
-              height
-              gpu-state
-              (count images)))
-
+          (draw window
+                width
+                height
+                gpu-state
+                (count images))))
       (catch Exception e
         (window/close window)
         (throw e)))))

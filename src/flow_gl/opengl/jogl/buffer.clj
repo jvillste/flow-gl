@@ -20,7 +20,7 @@
     :float 4
     :short 2))
 
-(defn copy-buffer [gl source target number-of-bytes]
+(defn copy [gl source target number-of-bytes]
   (.glBindBuffer gl GL2/GL_COPY_READ_BUFFER source)
   (.glBindBuffer gl GL2/GL_COPY_WRITE_BUFFER target)
   (.glCopyBufferSubData gl
@@ -57,11 +57,11 @@
 (defn load-element-buffer [gl id values]
   (load-buffer gl id :int GL2/GL_ELEMENT_ARRAY_BUFFER GL2/GL_STATIC_DRAW values))
 
-(defn update-texture-buffer [gl id type offset values]
+(defn update [gl id type offset values]
   (let [native-buffer (native-buffer/native-buffer-with-values type values)]
-    (.glBindBuffer gl GL2/GL_TEXTURE_BUFFER id)
+    (.glBindBuffer gl GL2/GL_COPY_WRITE_BUFFER id)
     (.glBufferSubData gl
-                      GL2/GL_TEXTURE_BUFFER
+                      GL2/GL_COPY_WRITE_BUFFER
                       (* (type-size type)
                          offset)
                       (* (type-size type)

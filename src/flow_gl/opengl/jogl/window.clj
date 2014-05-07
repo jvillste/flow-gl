@@ -149,3 +149,11 @@
 
 (defmacro render [window gl & body]
   `(render* ~window (fn [~gl] ~@body)))
+
+(defmacro with-gl [window gl & body]
+  `(let [value-atom# (atom {})]
+     (render* ~window
+              (fn [~gl]
+                (reset! value-atom#
+                        (do ~@body))))
+     @value-atom#))
