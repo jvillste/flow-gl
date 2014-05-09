@@ -31,6 +31,7 @@
                         number-of-bytes))
 
 (defn allocate-buffer [gl id type target usage size]
+  (.glBindBuffer gl target id)
   (.glBufferData gl
                  target
                  (* (type-size type)
@@ -67,3 +68,27 @@
                       (* (type-size type)
                          (count values))
                       native-buffer)))
+
+
+(defn read [gl id type  offset length]
+  (println "read" offset length)
+  (let [array (case type
+                :float (float-array length)
+                :int (int-array length)
+                :short (short-array length))]
+    (.glBindBuffer gl GL2/GL_COPY_READ_BUFFER id)
+    (-> (.glMapBufferRange gl
+                           GL2/GL_COPY_READ_BUFFER
+                           (* (type-size type)
+                              offset)
+                           (* (type-size type)
+                              length)
+                           GL2/GL_MAP_READ_BIT)
+        (as-> byte-buffer
+              (case type
+                :float (.asFloatBuffer byte-buffer)
+                :int (.asIntBuffer byte-buffer)
+                :short (.asShortBuffer byte-buffer)))
+        (.get array))
+    (.glUnmapBuffer gl GL2/GL_COPY_READ_BUFFER)
+    array))

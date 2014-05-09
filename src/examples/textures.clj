@@ -145,6 +145,7 @@ void main() {
         texture-offset-attribute-buffer (buffer/create-gl-buffer gl)
         texture-size-attribute-buffer (buffer/create-gl-buffer gl)]
 
+
     (buffer/allocate-buffer gl
                             quad-coordinate-buffer-id
                             :float
@@ -177,7 +178,7 @@ void main() {
      :quad-coordinate-buffer-id quad-coordinate-buffer-id
      :parent-buffer-id parent-buffer-id
      :texture-offset-attribute-buffer texture-offset-attribute-buffer
-     :texture-size-attribute-buffer texture-size-attribute-buffer }))
+     :texture-size-attribute-buffer texture-size-attribute-buffer}))
 
 (defn allocate-texture [gl number-of-texels]
   (let [texture-buffer-id (buffer/create-gl-buffer gl)]
@@ -188,32 +189,31 @@ void main() {
                             GL2/GL_STATIC_DRAW
                             number-of-texels)
 
-    {:texture-buffer-id texture-buffer-id}))
+    {:texture-buffer-id texture-buffer-id
+     :allocated-texels number-of-texels}))
 
-(defn initialize-gpu [window]
-  (window/with-gl  window gl
+(defn initialize-gpu [gl]
+  (opengl/initialize gl)
 
-    (opengl/initialize gl)
+  (let [initial-number-of-texels 1024
+        initial-number-of-quads 50]
 
-    (let [initial-number-of-texels 1024
-          initial-number-of-quads 50]
+    (conj {:program (shader/compile-program gl
+                                            vertex-shader-source
+                                            fragment-shader-source)
 
-      (conj {:program (shader/compile-program gl
-                                              vertex-shader-source
-                                              fragment-shader-source)
+           :allocated-texels initial-number-of-texels
+           :next-free-texel 0
+           :allocated-quads initial-number-of-quads
+           :next-free-quad 0}
 
-             :allocated-texels initial-number-of-texels
-             :next-free-texel 0
-             :allocated-quads initial-number-of-quads
-             :next-free-quad 0}
+          (allocate-texture gl initial-number-of-texels)
+          (allocate-quads gl initial-number-of-quads))))
 
-            (allocate-texture gl initial-number-of-texels)
-            (allocate-quads gl initial-number-of-quads)))))
-
-(defn grow-texture-buffer [gl gpu-state]
+(defn grow-texture-buffer [gl gpu-state minimum-size]
   (let [new-gpu-state (conj gpu-state
                             (allocate-texture gl
-                                              (* 2 (:allocated-texels gpu-state))))]
+                                              (* 2 minimum-size #_(:allocated-texels gpu-state))))]
     (buffer/copy gl
                  (:texture-buffer-id gpu-state)
                  (:texture-buffer-id new-gpu-state)
@@ -257,178 +257,181 @@ void main() {
 
     new-gpu-state))
 
-(defn add-quad [gl gpu-state buffered-image parent x y]
+(defn add-quad [gpu-state gl buffered-image parent x y]
   (let [new-gpu-state (if (> (* (.getWidth buffered-image)
                                 (.getHeight buffered-image))
                              (- (:allocated-texels gpu-state)
                                 (:next-free-texel gpu-state)))
-                        (grow-texture-buffer gl gpu-state)
+                        (grow-texture-buffer gl gpu-state (+ (* (.getWidth buffered-image)
+                                                                (.getHeight buffered-image))
+                                                             (:next-free-texel gpu-state)))
                         gpu-state)]
-    (if (= (:allocated-quads gpu-state)
-           (:next-free-quad gpu-state))
-      (let [new-gpu-state (grow-quad-buffers gl gpu-state)
-            ]
+    (let [new-gpu-state (if (= (:allocated-quads new-gpu-state)
+                               (:next-free-quad new-gpu-state))
+                          (grow-quad-buffers gl new-gpu-state)
+                          new-gpu-state)]
+      (println new-gpu-state)
+      (buffer/update gl
+                     (:texture-buffer-id new-gpu-state)
+                     :int
+                     (:next-free-texel new-gpu-state)
+                     (-> buffered-image (.getRaster) (.getDataBuffer) (.getData)))
 
-        (buffer/update gl
-                       (:texture-buffer-id new-gpu-state)
-                       :int
-                       (:next-free-texel new-gpu-state)
-                       (-> buffered-image (.getRaster) (.getDataBuffer) (.getData)))
+      (buffer/update gl
+                     (:parent-buffer-id new-gpu-state)
+                     :float
+                     (:next-free-quad new-gpu-state)
+                     [parent])
 
-        (buffer/update gl
-                       (:parent-buffer-id new-gpu-state)
-                       :float
-                       (:next-free-quad new-gpu-state)
-                       [parent])
+      (buffer/update gl
+                     (:quad-coordinate-buffer-id new-gpu-state)
+                     :float
+                     (* 2 (:next-free-quad new-gpu-state))
+                     [x y])
 
-        (buffer/update gl
-                       (:quad-coordinate-buffer-id new-gpu-state)
-                       :float
-                       (* 2 (:next-free-quad new-gpu-state))
-                       [x y])
+      (buffer/update gl
+                     (:texture-size-attribute-buffer new-gpu-state)
+                     :short
+                     (* 2 (:next-free-quad new-gpu-state))
+                     [(.getWidth buffered-image)
+                      (.getHeight buffered-image)])
 
-        (buffer/update gl
-                       (:texture-size-attribute-buffer new-gpu-state)
-                       :short
-                       (* 2 (:next-free-quad new-gpu-state))
-                       [(.getWidth buffered-image)
-                        (.getHeight buffered-image)])
+      (buffer/update gl
+                     (:texture-offset-attribute-buffer new-gpu-state)
+                     :int
+                     (:next-free-quad new-gpu-state)
+                     [(:next-free-texel new-gpu-state)])
 
-        (buffer/update gl
-                       (:texture-offset-attribute-buffer new-gpu-state)
-                       :int
-                       (:next-free-quad new-gpu-state)
-                       [(:next-free-texel new-gpu-state)])
+      (assoc new-gpu-state
+        :next-free-texel (+ (:next-free-texel gpu-state)
+                            (* (.getWidth buffered-image)
+                               (.getHeight buffered-image)))
+        :next-free-quad (+ 1 (:next-free-quad gpu-state))))))
 
-        (conj new-gpu-state
-              :next-free-texel (+ (:next-free-texel gpu-state)
-                                  (* (.getWidth buffered-image)
-                                     (.getHeight buffered-image)))
-              :next-free-quad (+ 1 (:next-free-quad gpu-state)))))))
+#_(defn update-gpu [window gpu-state state]
+    (window/render window gl
+                   (buffer/load-vertex-array-buffer gl
+                                                    (:texture-offset-attribute-buffer gpu-state)
+                                                    :int
+                                                    (:texture-offsets state))
 
-(defn update-gpu [window gpu-state state]
-  (window/render window gl
-                 (buffer/load-vertex-array-buffer gl
-                                                  (:texture-offset-attribute-buffer gpu-state)
-                                                  :int
-                                                  (:texture-offsets state))
+                   (buffer/load-vertex-array-buffer gl
+                                                    (:texture-size-attribute-buffer gpu-state)
+                                                    :short
+                                                    (:texture-sizes state))
 
-                 (buffer/load-vertex-array-buffer gl
-                                                  (:texture-size-attribute-buffer gpu-state)
-                                                  :short
-                                                  (:texture-sizes state))
+                   (buffer/load-texture-buffer gl
+                                               (:texture-buffer-id gpu-state)
+                                               :int
+                                               (mapcat #(-> % (.getRaster) (.getDataBuffer) (.getData))
+                                                       (:images state)))
 
-                 (buffer/load-texture-buffer gl
-                                             (:texture-buffer-id gpu-state)
-                                             :int
-                                             (mapcat #(-> % (.getRaster) (.getDataBuffer) (.getData))
-                                                     (:images state)))
+                   (buffer/load-texture-buffer gl
+                                               (:quad-coordinate-buffer-id gpu-state)
+                                               :float
+                                               (:quad-coordinates state))
 
-                 (buffer/load-texture-buffer gl
-                                             (:quad-coordinate-buffer-id gpu-state)
-                                             :float
-                                             (:quad-coordinates state))
+                   (buffer/load-texture-buffer gl
+                                               (:parent-buffer-id gpu-state)
+                                               :float
+                                               (:parents state))
 
-                 (buffer/load-texture-buffer gl
-                                             (:parent-buffer-id gpu-state)
-                                             :float
-                                             (:parents state))
+                   (.glBindBuffer gl GL2/GL_TEXTURE_BUFFER 0)))
 
-                 (.glBindBuffer gl GL2/GL_TEXTURE_BUFFER 0)))
+(defn draw [gpu-state gl width height]
+  (shader/enable-program gl
+                         (:program gpu-state))
 
-(defn draw [window width height gpu-state number-of-quads]
-  (window/render window gl
-                 (shader/enable-program gl
-                                        (:program gpu-state))
+  (create-vertex-attribute-array gl
+                                 "texture_offset_attribute"
+                                 (:program gpu-state)
+                                 (:texture-offset-attribute-buffer gpu-state)
+                                 :int
+                                 1
+                                 1)
 
-                 (create-vertex-attribute-array gl
-                                                "texture_offset_attribute"
-                                                (:program gpu-state)
-                                                (:texture-offset-attribute-buffer gpu-state)
-                                                :int
-                                                1
-                                                1)
+  (create-vertex-attribute-array gl
+                                 "texture_size_attribute"
+                                 (:program gpu-state)
+                                 (:texture-size-attribute-buffer gpu-state)
+                                 :short
+                                 2
+                                 1)
 
-                 (create-vertex-attribute-array gl
-                                                "texture_size_attribute"
-                                                (:program gpu-state)
-                                                (:texture-size-attribute-buffer gpu-state)
-                                                :short
-                                                2
-                                                1)
+  (bind-texture-buffer gl
+                       (:texture-buffer-id gpu-state)
+                       0
+                       (:program gpu-state)
+                       "texture"
+                       GL2/GL_RGBA8)
 
-                 (bind-texture-buffer gl
-                                      (:texture-buffer-id gpu-state)
-                                      0
-                                      (:program gpu-state)
-                                      "texture"
-                                      GL2/GL_RGBA8)
+  (bind-texture-buffer gl
+                       (:quad-coordinate-buffer-id gpu-state)
+                       1
+                       (:program gpu-state)
+                       "quad_coordinates_buffer"
+                       GL2/GL_RG32UI)
 
-                 (bind-texture-buffer gl
-                                      (:quad-coordinate-buffer-id gpu-state)
-                                      1
-                                      (:program gpu-state)
-                                      "quad_coordinates_buffer"
-                                      GL2/GL_RG32UI)
-
-                 (bind-texture-buffer gl
-                                      (:parent-buffer-id gpu-state)
-                                      2
-                                      (:program gpu-state)
-                                      "parents"
-                                      GL2/GL_R32UI)
-
-
-                 (shader/set-float4-matrix-uniform gl
-                                                   (:program gpu-state)
-                                                   "projection_matrix"
-                                                   (math/projection-matrix-2d width
-                                                                              height
-                                                                              1.0))
-
-                 (.glDrawArraysInstanced gl GL2/GL_TRIANGLE_STRIP 0 4 number-of-quads)))
+  (bind-texture-buffer gl
+                       (:parent-buffer-id gpu-state)
+                       2
+                       (:program gpu-state)
+                       "parents"
+                       GL2/GL_R32UI)
 
 
-(defn create-state [images coordinates parents]
-  {:texture-offsets (loop [offsets [0]
-                           images images]
-                      (if-let [image (first images)]
-                        (recur (conj offsets
-                                     (+ (last offsets)
-                                        (* (.getWidth image)
-                                           (.getHeight image))))
-                               (rest images))
-                        offsets))
+  (shader/set-float4-matrix-uniform gl
+                                    (:program gpu-state)
+                                    "projection_matrix"
+                                    (math/projection-matrix-2d width
+                                                               height
+                                                               1.0))
 
-   :texture-sizes (mapcat #(vector (.getWidth %) (.getHeight %))
-                          images)
-
-   :quad-coordinates coordinates
-   :parents parents
-   :images images})
+  (.glDrawArraysInstanced gl GL2/GL_TRIANGLE_STRIP 0 4 (:next-free-quad gpu-state)))
 
 
-(defn change-texture [gl state gpu-state index new-image]
-  (buffer/update-texture-buffer gl
-                                (:texture-buffer-id gpu-state)
-                                :int
-                                (get (:texture-offsets state)
-                                     0)
-                                (-> new-image (.getRaster) (.getDataBuffer) (.getData)))
+#_(defn create-state [images coordinates parents]
+    {:texture-offsets (loop [offsets [0]
+                             images images]
+                        (if-let [image (first images)]
+                          (recur (conj offsets
+                                       (+ (last offsets)
+                                          (* (.getWidth image)
+                                             (.getHeight image))))
+                                 (rest images))
+                          offsets))
 
-  (buffer/update-texture-buffer gl
-                                (:texture-size-attribute-buffer gpu-state)
-                                :short
-                                0
-                                [(.getWidth new-image)
-                                 (.getHeight new-image)]))
+     :texture-sizes (mapcat #(vector (.getWidth %) (.getHeight %))
+                            images)
 
-(defn move-quad [gl gpu-state index x y]
-  (buffer/update-texture-buffer gl
-                                (:quad-coordinate-buffer-id gpu-state)
-                                :float
-                                (* 2 index)
-                                [x y]))
+     :quad-coordinates coordinates
+     :parents parents
+     :images images})
+
+
+(defn change-texture [gpu-state gl index new-image]
+  (println "offset is " (first (buffer/read gl (:texture-offset-attribute-buffer gpu-state) :int index 1)))
+  (buffer/update gl
+                 (:texture-buffer-id gpu-state)
+                 :int
+                 (first (buffer/read gl (:texture-offset-attribute-buffer gpu-state) :int index 1))
+                 (-> new-image (.getRaster) (.getDataBuffer) (.getData)))
+
+  (buffer/update gl
+                 (:texture-size-attribute-buffer gpu-state)
+                 :short
+                 (* 2 index)
+                 [(.getWidth new-image)
+                  (.getHeight new-image)])
+  gpu-state)
+
+(defn move-quad [gpu-state gl index x y]
+  (buffer/update gl
+                 (:quad-coordinate-buffer-id gpu-state)
+                 :float
+                 (* 2 index)
+                 [x y])
+  gpu-state)
 
 (defn start []
   (let [width 400
@@ -438,36 +441,46 @@ void main() {
 
     (try
       (window/with-gl window gl
-        (let [gpu-state (initialize-gpu window)
-              state (create-state images
-                                  [100 10
-                                   20 40
-                                   20 30]
-                                  [-1 0 1])]
+        (-> (initialize-gpu gl)
+            (add-quad gl (text-image "foo") -1 100 10)
+            (add-quad gl (text-image "baaar") -1 100 30)
+            (move-quad gl 0 10 10)
+            (change-texture gl 1 (text-image "baaz"))
+            (as-> gpu-state
+                  (do (println gpu-state)
+                      (println (seq (buffer/read gl (:texture-offset-attribute-buffer gpu-state) :float 0 2)))
+                      gpu-state))
+            (draw gl width height))
 
-          (update-gpu window
-                      gpu-state
-                      state)
+        #_(let [gpu-state (initialize-gpu window)
 
-          (window/render window gl
+                #_state #_(create-state images
+                                        [100 10
+                                         20 40
+                                         20 30]
+                                        [-1 0 1])]
 
-                         (change-texture gl
-                                         state
-                                         gpu-state
-                                         0
-                                         (text-image "for"))
+            #_(update-gpu window
+                          gpu-state
+                          state)
 
-                         (move-quad gl
-                                    gpu-state
-                                    1
-                                    100
-                                    200))
 
-          (draw window
-                width
-                height
-                gpu-state
-                (count images))))
+
+            #_(window/with-gl window gl
+
+                (change-texture gl
+                                state
+                                gpu-state
+                                0
+                                (text-image "for"))
+
+                (move-quad gl
+                           gpu-state
+                           1
+                           100
+                           200))
+
+            ))
       (catch Exception e
         (window/close window)
         (throw e)))))
