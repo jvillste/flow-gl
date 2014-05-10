@@ -26,7 +26,7 @@ uniform mat4 projection_matrix;
 uniform samplerBuffer quad_coordinates_buffer;
 uniform samplerBuffer parents;
 
-in vec2 texture_size_attribute;
+uniform usamplerBuffer texture_size_attribute_sampler;
 uniform usamplerBuffer texture_offset_attribute;
 
 out vec2 texture_coordinate;
@@ -34,6 +34,11 @@ flat out uint texture_offset;
 flat out float texture_width;
 
 void main() {
+
+    //vec2 texture_size_attribute = vec2(128, texelFetch(texture_size_attribute_sampler, 1));
+
+    vec2 texture_size_attribute = vec2(float(texelFetch(texture_size_attribute_sampler, 2 * gl_InstanceID)),
+                                       float(texelFetch(texture_size_attribute_sampler, 1 + 2 * gl_InstanceID)));
 
     switch(gl_VertexID) {
       case 0:
@@ -299,13 +304,7 @@ void main() {
   (shader/enable-program gl
                          (:program gpu-state))
 
-  (create-vertex-attribute-array gl
-                                 "texture_size_attribute"
-                                 (:program gpu-state)
-                                 (:texture-size-attribute-buffer gpu-state)
-                                 :short
-                                 2
-                                 1)
+
 
   (bind-texture-buffer gl
                        (:texture-buffer-id gpu-state)
@@ -334,6 +333,21 @@ void main() {
                        (:program gpu-state)
                        "texture_offset_attribute"
                        GL2/GL_R32UI)
+
+  (bind-texture-buffer gl
+                       (:texture-size-attribute-buffer gpu-state)
+                       4
+                       (:program gpu-state)
+                       "texture_size_attribute_sampler"
+                       GL2/GL_R16UI)
+
+  #_(create-vertex-attribute-array gl
+                                   "texture_size_attribute"
+                                   (:program gpu-state)
+                                   (:texture-size-attribute-buffer gpu-state)
+                                   :short
+                                   2
+                                   1)
 
   (shader/set-float4-matrix-uniform gl
                                     (:program gpu-state)
@@ -378,6 +392,7 @@ void main() {
     (try
       (window/with-gl window gl
         (-> (initialize-gpu gl)
+            #_(add-quad gl (buffered-image/create-from-file "pumpkin.png") -1 100 10)
             (add-quad gl (text-image "foo") -1 100 10)
             (add-quad gl (text-image "baaar") -1 100 30)
             #_(move-quad gl 0 10 10)
