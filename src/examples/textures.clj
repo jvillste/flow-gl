@@ -27,7 +27,7 @@ uniform samplerBuffer quad_coordinates_buffer;
 uniform samplerBuffer parents;
 
 in vec2 texture_size_attribute;
-in int texture_offset_attribute;
+uniform samplerBuffer texture_offset_attribute;
 
 out vec2 texture_coordinate;
 flat out int texture_offset;
@@ -62,7 +62,7 @@ void main() {
     vec4 quad_coordinates = texelFetch(quad_coordinates_buffer, gl_InstanceID);
     gl_Position = projection_matrix * vec4(offset.x + texture_coordinate.x + quad_coordinates.x, offset.y +  texture_coordinate.y + quad_coordinates.y, 0.0, 1.0);
 
-    texture_offset = texture_offset_attribute;
+    texture_offset = int(texelFetch(texture_offset_attribute, gl_InstanceID).x);
     texture_width = texture_size_attribute.x;
 }
 ")
@@ -73,7 +73,7 @@ void main() {
 uniform samplerBuffer texture;
 
 in vec2 texture_coordinate;
-flat  in int texture_offset;
+flat in int texture_offset;
 flat in float texture_width;
 
 out vec4 outColor;
@@ -149,7 +149,7 @@ void main() {
 
     (buffer/allocate-buffer gl
                             texture-offset-attribute-buffer
-                            :int
+                            :float
                             GL2/GL_ARRAY_BUFFER
                             GL2/GL_STATIC_DRAW
                             number-of-quads)
@@ -284,7 +284,7 @@ void main() {
 
       (buffer/update gl
                      (:texture-offset-attribute-buffer new-gpu-state)
-                     :int
+                     :float
                      (:next-free-quad new-gpu-state)
                      [(:next-free-texel new-gpu-state)])
 
@@ -299,13 +299,20 @@ void main() {
   (shader/enable-program gl
                          (:program gpu-state))
 
-  (create-vertex-attribute-array gl
-                                 "texture_offset_attribute"
-                                 (:program gpu-state)
-                                 (:texture-offset-attribute-buffer gpu-state)
-                                 :int
-                                 1
-                                 1)
+  #_(create-vertex-attribute-array gl
+                                   "texture_offset_attribute"
+                                   (:program gpu-state)
+                                   (:texture-offset-attribute-buffer gpu-state)
+                                   :int
+                                   1
+                                   1)
+
+  (bind-texture-buffer gl
+                       (:texture-offset-attribute-buffer gpu-state)
+                       3
+                       (:program gpu-state)
+                       "texture_offset_attribute"
+                       GL2/GL_R32UI)
 
   (create-vertex-attribute-array gl
                                  "texture_size_attribute"
@@ -351,7 +358,7 @@ void main() {
   (buffer/update gl
                  (:texture-buffer-id gpu-state)
                  :int
-                 (first (buffer/read gl (:texture-offset-attribute-buffer gpu-state) :int index 1))
+                 (int (first (buffer/read gl (:texture-offset-attribute-buffer gpu-state) :float index 1)))
                  (-> new-image (.getRaster) (.getDataBuffer) (.getData)))
 
   (buffer/update gl
@@ -381,8 +388,8 @@ void main() {
         (-> (initialize-gpu gl)
             (add-quad gl (text-image "foo") -1 100 10)
             (add-quad gl (text-image "baaar") -1 100 30)
-            (move-quad gl 0 10 10)
-            (change-texture gl 1 (text-image "baaz"))
+            #_(move-quad gl 0 10 10)
+            #_(change-texture gl 1 (text-image "baaz"))
             (as-> gpu-state
                   (do (println gpu-state)
                       gpu-state))
