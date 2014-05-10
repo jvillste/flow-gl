@@ -26,8 +26,8 @@ uniform mat4 projection_matrix;
 uniform samplerBuffer quad_coordinates_buffer;
 uniform samplerBuffer parents;
 
-uniform usamplerBuffer texture_size_attribute_sampler;
-uniform usamplerBuffer texture_offset_attribute;
+uniform usamplerBuffer texture_size_sampler;
+uniform usamplerBuffer texture_offset_sampler;
 
 out vec2 texture_coordinate;
 flat out uint texture_offset;
@@ -35,23 +35,21 @@ flat out float texture_width;
 
 void main() {
 
-    //vec2 texture_size_attribute = vec2(128, texelFetch(texture_size_attribute_sampler, 1));
-
-    vec2 texture_size_attribute = vec2(float(texelFetch(texture_size_attribute_sampler, 2 * gl_InstanceID)),
-                                       float(texelFetch(texture_size_attribute_sampler, 1 + 2 * gl_InstanceID)));
+    vec2 texture_size = vec2(float(texelFetch(texture_size_sampler, 2 * gl_InstanceID)),
+                             float(texelFetch(texture_size_sampler, 1 + 2 * gl_InstanceID)));
 
     switch(gl_VertexID) {
       case 0:
           texture_coordinate = vec2(0.0, 0.0);
         break;
       case 1:
-          texture_coordinate = vec2(0.0, texture_size_attribute.y);
+          texture_coordinate = vec2(0.0, texture_size.y);
         break;
       case 2:
-          texture_coordinate = vec2(texture_size_attribute.x, 0.0);
+          texture_coordinate = vec2(texture_size.x, 0.0);
         break;
       case 3:
-          texture_coordinate = vec2(texture_size_attribute.x, texture_size_attribute.y);
+          texture_coordinate = vec2(texture_size.x, texture_size.y);
         break;
     }
 
@@ -67,8 +65,8 @@ void main() {
     vec4 quad_coordinates = texelFetch(quad_coordinates_buffer, gl_InstanceID);
     gl_Position = projection_matrix * vec4(offset.x + texture_coordinate.x + quad_coordinates.x, offset.y +  texture_coordinate.y + quad_coordinates.y, 0.0, 1.0);
 
-    texture_offset = texelFetch(texture_offset_attribute, gl_InstanceID).x;
-    texture_width = texture_size_attribute.x;
+    texture_offset = texelFetch(texture_offset_sampler, gl_InstanceID).x;
+    texture_width = texture_size.x;
 }
 ")
 
@@ -331,23 +329,15 @@ void main() {
                        (:texture-offset-attribute-buffer gpu-state)
                        3
                        (:program gpu-state)
-                       "texture_offset_attribute"
+                       "texture_offset_sampler"
                        GL2/GL_R32UI)
 
   (bind-texture-buffer gl
                        (:texture-size-attribute-buffer gpu-state)
                        4
                        (:program gpu-state)
-                       "texture_size_attribute_sampler"
+                       "texture_size_sampler"
                        GL2/GL_R16UI)
-
-  #_(create-vertex-attribute-array gl
-                                   "texture_size_attribute"
-                                   (:program gpu-state)
-                                   (:texture-size-attribute-buffer gpu-state)
-                                   :short
-                                   2
-                                   1)
 
   (shader/set-float4-matrix-uniform gl
                                     (:program gpu-state)
