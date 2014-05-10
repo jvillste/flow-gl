@@ -50,12 +50,18 @@
 (defn create-fragment-shader [gl]
   (.glCreateShader gl GL2/GL_FRAGMENT_SHADER))
 
+(defn validate-program [gl program-id]
+  (.glValidateProgram gl program-id)
+  (let [errors (program-errors gl program-id)]
+    (when (> (count errors)
+             0)
+      (throw (Exception. (str "Error when validating shader program: " errors))))))
+
 (defn create-program [gl vertex-shader-id fragment-shader-id]
   (let [program-id (.glCreateProgram gl)]
     (.glAttachShader gl program-id vertex-shader-id)
     (.glAttachShader gl program-id fragment-shader-id)
     (.glLinkProgram gl program-id)
-    (.glValidateProgram gl program-id)
     (let [errors (program-errors gl program-id)]
       (when (> (count errors)
                0)
