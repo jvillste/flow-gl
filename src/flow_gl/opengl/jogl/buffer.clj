@@ -71,7 +71,6 @@
 
 
 (defn read [gl id type  offset length]
-  (println "read" offset length)
   (let [array (case type
                 :float (float-array length)
                 :int (int-array length)
