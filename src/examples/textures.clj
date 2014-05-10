@@ -25,7 +25,6 @@
 uniform mat4 projection_matrix;
 uniform samplerBuffer quad_coordinates_buffer;
 uniform samplerBuffer parents;
-
 uniform usamplerBuffer texture_size_sampler;
 uniform usamplerBuffer texture_offset_sampler;
 
@@ -117,7 +116,7 @@ void main() {
 
 (defn text-image [text]
   (text/create-buffered-image [1 1 1 1]
-                              (font/create "LiberationSans-Regular.ttf" 40)
+                              (font/create "LiberationSans-Regular.ttf" 12)
                               text))
 
 (defn bind-texture-buffer [gl buffer-id texture-unit program uniform-name type]
@@ -347,7 +346,10 @@ void main() {
                                                                1.0))
 
   (shader/validate-program gl (:program gpu-state))
-  (.glDrawArraysInstanced gl GL2/GL_TRIANGLE_STRIP 0 4 (:next-free-quad gpu-state)))
+
+  (.glDrawArraysInstanced gl GL2/GL_TRIANGLE_STRIP 0 4 (:next-free-quad gpu-state))
+
+  gpu-state)
 
 
 (defn change-texture [gpu-state gl index new-image]
@@ -373,24 +375,72 @@ void main() {
                  [x y])
   gpu-state)
 
+
+
+(defn wait-for-frame-end-time [frame-start-time framerate]
+  (let [frame-length (/ 1E9
+                        framerate)
+        time-spent-until-now (- (System/nanoTime)
+                                frame-start-time)]
+
+    (Thread/sleep (max 0
+                       (/ (- frame-length
+                             time-spent-until-now)
+                          1000000)))))
+
+(defn render-loop [gpu-state window]
+  (loop [gpu-state gpu-state
+         frame-start-time (System/nanoTime)]
+    (let [new-gpu-state (window/with-gl window gl
+                          (opengl/clear gl 0 0 0 1)
+                          (-> gpu-state
+                              (move-quad gl
+                                         0
+                                         (* (/ (mod (System/nanoTime)
+                                                    1E9)
+                                               1E9)
+                                            100)
+                                         10))
+                          (draw gpu-state
+                                gl
+                                (window/width window)
+                                (window/height window)))]
+
+      (wait-for-frame-end-time frame-start-time 60)
+      (when (.isVisible (:gl-window window))
+        (recur new-gpu-state
+               (System/nanoTime))))))
+
+(defn add-quads [gpu-state gl]
+  (reduce (fn [gpu-state text]
+            (add-quad gpu-state gl (text-image text) -1 (rand-int 700) (rand-int 700)))
+          gpu-state
+          (map str (range 10000))))
+
 (defn start []
-  (let [width 400
-        height 400
-        window (window/create width height :profile :gl3)
+  (let [width 800
+        height 800
+        ;;event-queue (event-queue/create)
+        window (window/create width height :profile :gl3 #_:event-queue #_event-queue)
         images (map text-image ["for" "bar" "baz"])]
 
     (try
-      (window/with-gl window gl
-        (-> (initialize-gpu gl)
-            #_(add-quad gl (buffered-image/create-from-file "pumpkin.png") -1 100 10)
-            (add-quad gl (text-image "foo") -1 100 10)
-            (add-quad gl (text-image "baaar") -1 100 30)
-            #_(move-quad gl 0 10 10)
-            #_(change-texture gl 1 (text-image "baaz"))
-            (as-> gpu-state
-                  (do (println gpu-state)
-                      gpu-state))
-            (draw gl width height)))
+      (let [gpu-state (window/with-gl window gl
+                        (-> (initialize-gpu gl)
+                            #_(add-quad gl (buffered-image/create-from-file "pumpkin.png") -1 100 10)
+                            (add-quads gl)
+                            #_(add-quad gl (text-image "foo") -1 100 10)
+                            #_(add-quad gl (text-image "baaar") -1 100 30)
+                            #_(move-quad gl 0 10 10)
+                            #_(change-texture gl 1 (text-image "baaz"))
+                            (as-> gpu-state
+                                  (do (println gpu-state)
+                                      gpu-state))
+                            #_(draw gl width height)))]
+        (render-loop gpu-state window))
+
+      (println "exiting")
+
       (catch Exception e
         (window/close window)
         (throw e)))))
