@@ -36,12 +36,6 @@ flat out uint texture_width;
 void main() {
 
     int quad_index = texelFetch(quad_index_sampler, gl_InstanceID).x;
-    //int quad_index = int(texelFetch(quad_index_sampler, 2).x);
-    //int quad_index = gl_InstanceID;
-    //int quad_index = 4;
-
-    //vec2 texture_size = uvec2(texelFetch(texture_size_sampler, 2 * quad_index),
-   //                           texelFetch(texture_size_sampler, 1 + 2 * quad_index));
 
     uvec4 texture_size = texelFetch(texture_size_sampler, quad_index);
 
@@ -454,7 +448,7 @@ void main() {
                                     (int (+ 10 (* (Math/floor (/ number per-column)) column-width)))
                                     (int (* (mod number per-column) (.getHeight image)))))))
                 gpu-state
-                (range 10))))
+                (range 300))))
 
 (defn start []
   (let [width 500
@@ -489,8 +483,9 @@ void main() {
         (window/close window)
         (throw e)))))
 
-
 ;; TODO
+;; combine buffers
+;; load multiple quads with single buffer mapping
 ;; remove quad
 ;; resize quad larger
 ;; share texture
