@@ -27,18 +27,23 @@ uniform samplerBuffer quad_coordinates_buffer;
 uniform samplerBuffer parents;
 uniform usamplerBuffer texture_size_sampler;
 uniform usamplerBuffer texture_offset_sampler;
-uniform usamplerBuffer quad_index_sampler;
+uniform isamplerBuffer quad_index_sampler;
 
 out vec2 texture_coordinate;
 flat out uint texture_offset;
-flat out float texture_width;
+flat out uint texture_width;
 
 void main() {
 
-    int quad_index = int(texelFetch(quad_index_sampler, gl_InstanceID).x);
+    int quad_index = texelFetch(quad_index_sampler, gl_InstanceID).x;
+    //int quad_index = int(texelFetch(quad_index_sampler, 2).x);
+    //int quad_index = gl_InstanceID;
+    //int quad_index = 4;
 
-    vec2 texture_size = vec2(float(texelFetch(texture_size_sampler, 2 * quad_index)),
-                             float(texelFetch(texture_size_sampler, 1 + 2 * quad_index)));
+    //vec2 texture_size = uvec2(texelFetch(texture_size_sampler, 2 * quad_index),
+   //                           texelFetch(texture_size_sampler, 1 + 2 * quad_index));
+
+    uvec4 texture_size = texelFetch(texture_size_sampler, quad_index);
 
     switch(gl_VertexID) {
       case 0:
@@ -79,12 +84,12 @@ uniform samplerBuffer texture;
 
 in vec2 texture_coordinate;
 flat in uint texture_offset;
-flat in float texture_width;
+flat in uint texture_width;
 
 out vec4 outColor;
 
 void main() {
-    vec4 color = texelFetch(texture, int(texture_offset + texture_coordinate.y * texture_width + texture_coordinate.x - texture_width / 2));
+    vec4 color = texelFetch(texture, int(texture_offset + texture_coordinate.y * texture_width + texture_coordinate.x - int(texture_width) / 2));
     outColor = vec4(color.b, color.g, color.r, color.a);
 }
 ")
@@ -119,7 +124,7 @@ void main() {
 
 (defn text-image [text]
   (text/create-buffered-image [1 1 1 1]
-                              (font/create "LiberationSans-Regular.ttf" 12)
+                              (font/create "LiberationSans-Regular.ttf" 14)
                               text))
 
 (defn bind-texture-buffer [gl buffer-id texture-unit program uniform-name type]
@@ -196,8 +201,8 @@ void main() {
 (defn initialize-gpu [gl]
   (opengl/initialize gl)
 
-  (let [initial-number-of-texels 1024
-        initial-number-of-quads 50]
+  (let [initial-number-of-texels 10000
+        initial-number-of-quads 10]
 
     (conj {:program (shader/compile-program gl
                                             vertex-shader-source
@@ -257,7 +262,7 @@ void main() {
                       copy-buffer-arguments)
 
     (copy-quad-buffer :texture-size-attribute-buffer
-                      2
+                      (* 2 2)
                       copy-buffer-arguments)
 
     new-gpu-state))
@@ -316,14 +321,12 @@ void main() {
         :next-free-texel (+ (:next-free-texel gpu-state)
                             (* (.getWidth buffered-image)
                                (.getHeight buffered-image)))
-        :next-free-quad (+ 1 (:next-free-quad gpu-state))))))
+        :next-free-quad (inc (:next-free-quad gpu-state))))))
 
 
 (defn draw [gpu-state gl width height]
   (shader/enable-program gl
                          (:program gpu-state))
-
-
 
   (bind-texture-buffer gl
                        (:texture-buffer-id gpu-state)
@@ -358,21 +361,20 @@ void main() {
                        4
                        (:program gpu-state)
                        "texture_size_sampler"
-                       GL2/GL_R16UI)
+                       GL2/GL_RG16UI)
 
   (bind-texture-buffer gl
                        (:quad-index-buffer gpu-state)
                        5
                        (:program gpu-state)
                        "quad_index_sampler"
-                       GL2/GL_R16UI)
+                       GL2/GL_R32I)
 
   (shader/set-float4-matrix-uniform gl
                                     (:program gpu-state)
                                     "projection_matrix"
                                     (math/projection-matrix-2d width
-                                                               height
-                                                               1.0))
+                                                               height))
 
   (shader/validate-program gl (:program gpu-state))
 
@@ -422,14 +424,14 @@ void main() {
          frame-start-time (System/nanoTime)]
     (let [new-gpu-state (window/with-gl window gl
                           (opengl/clear gl 0 0 0 1)
-                          (-> gpu-state
-                              (move-quad gl
-                                         0
-                                         (* (/ (mod (System/nanoTime)
-                                                    1E9)
-                                               1E9)
-                                            100)
-                                         10))
+                          #_(-> gpu-state
+                                (move-quad gl
+                                           0
+                                           (* (/ (mod (System/nanoTime)
+                                                      1E9)
+                                                 1E9)
+                                              400)
+                                           0))
                           (draw gpu-state
                                 gl
                                 (window/width window)
@@ -441,10 +443,18 @@ void main() {
                (System/nanoTime))))))
 
 (defn add-quads [gpu-state gl]
-  (reduce (fn [gpu-state text]
-            (add-quad gpu-state gl (text-image text) 0 (rand-int 500) (rand-int 500)))
-          gpu-state
-          (map str (range 10))))
+  (time (reduce (fn [gpu-state number]
+                  (let [image (time (text-image (str number)))
+                        per-column 25
+                        column-width 40]
+                    (time (add-quad gpu-state
+                                    gl
+                                    image
+                                    -1
+                                    (int (+ 10 (* (Math/floor (/ number per-column)) column-width)))
+                                    (int (* (mod number per-column) (.getHeight image)))))))
+                gpu-state
+                (range 10))))
 
 (defn start []
   (let [width 500
@@ -456,7 +466,7 @@ void main() {
     (try
       (let [gpu-state (window/with-gl window gl
                         (-> (initialize-gpu gl)
-                            (add-quad gl (buffered-image/create-from-file "pumpkin.png") -1 10 10)
+                            #_(add-quad gl (buffered-image/create-from-file "pumpkin.png") -1 10 10)
                             (add-quads gl)
                             #_(add-quad gl (text-image "foo") -1 100 10)
                             #_(add-quad gl (text-image "baaar") -1 100 30)
@@ -464,6 +474,11 @@ void main() {
                             #_(change-texture gl 1 (text-image "baaz"))
                             (as-> gpu-state
                                   (do (println gpu-state)
+                                      ;;(println "quad index" (seq (buffer/read gl (:quad-index-buffer gpu-state) :int 0 (:next-free-quad gpu-state))))
+                                      ;;(println "quad coordinate" (seq (buffer/read gl (:quad-coordinate-buffer-id gpu-state) :float 0 (* 2 (:next-free-quad gpu-state)))))
+                                      ;;(println "texture offset" (seq (buffer/read gl (:texture-offset-attribute-buffer gpu-state) :int 0 (:next-free-quad gpu-state))))
+
+                                      ;;(println "texture size" (seq (buffer/read gl (:texture-size-attribute-buffer gpu-state) :short 0 (* 2 (:next-free-quad gpu-state)))))
                                       gpu-state))
                             #_(draw gl width height)))]
         (render-loop gpu-state window))
