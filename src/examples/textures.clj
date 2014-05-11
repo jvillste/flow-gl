@@ -27,6 +27,7 @@ uniform samplerBuffer quad_coordinates_buffer;
 uniform samplerBuffer parents;
 uniform usamplerBuffer texture_size_sampler;
 uniform usamplerBuffer texture_offset_sampler;
+uniform usamplerBuffer quad_index_sampler;
 
 out vec2 texture_coordinate;
 flat out uint texture_offset;
@@ -34,8 +35,10 @@ flat out float texture_width;
 
 void main() {
 
-    vec2 texture_size = vec2(float(texelFetch(texture_size_sampler, 2 * gl_InstanceID)),
-                             float(texelFetch(texture_size_sampler, 1 + 2 * gl_InstanceID)));
+    int quad_index = int(texelFetch(quad_index_sampler, gl_InstanceID).x);
+
+    vec2 texture_size = vec2(float(texelFetch(texture_size_sampler, 2 * quad_index)),
+                             float(texelFetch(texture_size_sampler, 1 + 2 * quad_index)));
 
     switch(gl_VertexID) {
       case 0:
@@ -52,7 +55,7 @@ void main() {
         break;
     }
 
-    int parent = int(texelFetch(parents, gl_InstanceID).x);
+    int parent = int(texelFetch(parents, quad_index).x);
     vec2 offset = vec2(0,0);
     while(parent >= 0)
     {
@@ -61,10 +64,10 @@ void main() {
        parent = int(texelFetch(parents, parent).x);
     }
 
-    vec4 quad_coordinates = texelFetch(quad_coordinates_buffer, gl_InstanceID);
+    vec4 quad_coordinates = texelFetch(quad_coordinates_buffer, quad_index);
     gl_Position = projection_matrix * vec4(offset.x + texture_coordinate.x + quad_coordinates.x, offset.y +  texture_coordinate.y + quad_coordinates.y, 0.0, 1.0);
 
-    texture_offset = texelFetch(texture_offset_sampler, gl_InstanceID).x;
+    texture_offset = texelFetch(texture_offset_sampler, quad_index).x;
     texture_width = texture_size.x;
 }
 ")
@@ -132,7 +135,8 @@ void main() {
   (let [quad-coordinate-buffer-id (buffer/create-gl-buffer gl)
         parent-buffer-id (buffer/create-gl-buffer gl)
         texture-offset-attribute-buffer (buffer/create-gl-buffer gl)
-        texture-size-attribute-buffer (buffer/create-gl-buffer gl)]
+        texture-size-attribute-buffer (buffer/create-gl-buffer gl)
+        quad-index-buffer (buffer/create-gl-buffer gl)]
 
 
     (buffer/allocate-buffer gl
@@ -157,6 +161,13 @@ void main() {
                             number-of-quads)
 
     (buffer/allocate-buffer gl
+                            quad-index-buffer
+                            :int
+                            GL2/GL_ARRAY_BUFFER
+                            GL2/GL_STATIC_DRAW
+                            number-of-quads)
+
+    (buffer/allocate-buffer gl
                             texture-size-attribute-buffer
                             :short
                             GL2/GL_ARRAY_BUFFER
@@ -167,7 +178,8 @@ void main() {
      :quad-coordinate-buffer-id quad-coordinate-buffer-id
      :parent-buffer-id parent-buffer-id
      :texture-offset-attribute-buffer texture-offset-attribute-buffer
-     :texture-size-attribute-buffer texture-size-attribute-buffer}))
+     :texture-size-attribute-buffer texture-size-attribute-buffer
+     :quad-index-buffer quad-index-buffer}))
 
 (defn allocate-texture [gl number-of-texels]
   (let [texture-buffer-id (buffer/create-gl-buffer gl)]
@@ -236,6 +248,10 @@ void main() {
                       4
                       copy-buffer-arguments)
 
+    (copy-quad-buffer :quad-index-buffer
+                      4
+                      copy-buffer-arguments)
+
     (copy-quad-buffer :texture-offset-attribute-buffer
                       4
                       copy-buffer-arguments)
@@ -290,6 +306,12 @@ void main() {
                      (:next-free-quad new-gpu-state)
                      [(:next-free-texel new-gpu-state)])
 
+      (buffer/update gl
+                     (:quad-index-buffer new-gpu-state)
+                     :int
+                     (:next-free-quad new-gpu-state)
+                     [(:next-free-quad new-gpu-state)])
+
       (assoc new-gpu-state
         :next-free-texel (+ (:next-free-texel gpu-state)
                             (* (.getWidth buffered-image)
@@ -336,6 +358,13 @@ void main() {
                        4
                        (:program gpu-state)
                        "texture_size_sampler"
+                       GL2/GL_R16UI)
+
+  (bind-texture-buffer gl
+                       (:quad-index-buffer gpu-state)
+                       5
+                       (:program gpu-state)
+                       "quad_index_sampler"
                        GL2/GL_R16UI)
 
   (shader/set-float4-matrix-uniform gl
@@ -413,13 +442,13 @@ void main() {
 
 (defn add-quads [gpu-state gl]
   (reduce (fn [gpu-state text]
-            (add-quad gpu-state gl (text-image text) -1 (rand-int 700) (rand-int 700)))
+            (add-quad gpu-state gl (text-image text) 0 (rand-int 500) (rand-int 500)))
           gpu-state
-          (map str (range 10000))))
+          (map str (range 10))))
 
 (defn start []
-  (let [width 800
-        height 800
+  (let [width 500
+        height 500
         ;;event-queue (event-queue/create)
         window (window/create width height :profile :gl3 #_:event-queue #_event-queue)
         images (map text-image ["for" "bar" "baz"])]
@@ -427,7 +456,7 @@ void main() {
     (try
       (let [gpu-state (window/with-gl window gl
                         (-> (initialize-gpu gl)
-                            #_(add-quad gl (buffered-image/create-from-file "pumpkin.png") -1 100 10)
+                            (add-quad gl (buffered-image/create-from-file "pumpkin.png") -1 10 10)
                             (add-quads gl)
                             #_(add-quad gl (text-image "foo") -1 100 10)
                             #_(add-quad gl (text-image "baaar") -1 100 30)
@@ -449,3 +478,5 @@ void main() {
 ;; TODO
 ;; remove quad
 ;; resize quad larger
+;; share texture
+;; collect garbage
