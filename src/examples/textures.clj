@@ -19,6 +19,12 @@
            [java.awt Color]))
 
 (def quad-parameters-size (+ 2 1 1 2))
+(def parent-offset 0)
+(def x-offset 1)
+(def y-offset 2)
+(def width-offset 3)
+(def height-offset 4)
+(def texture-offset-offset 5)
 
 (def vertex-shader-source "
 #version 140
@@ -371,9 +377,10 @@ void main() {
 
 (defn move-quad [gpu-state gl index x y]
   (buffer/update gl
-                 (:quad-coordinate-buffer-id gpu-state)
-                 :float
-                 (* 2 index)
+                 (:quad-parameters-buffer-id gpu-state)
+                 :int
+                 (+ x-offset
+                    (* quad-parameters-size index))
                  [x y])
   gpu-state)
 
@@ -393,14 +400,14 @@ void main() {
          frame-start-time (System/nanoTime)]
     (let [new-gpu-state (window/with-gl window gl
                           (opengl/clear gl 0 0 0 1)
-                          #_(-> gpu-state
-                                (move-quad gl
-                                           0
-                                           (* (/ (mod (System/nanoTime)
-                                                      1E9)
-                                                 1E9)
-                                              400)
-                                           0))
+                          (-> gpu-state
+                              (move-quad gl
+                                         0
+                                         (* (/ (mod (System/nanoTime)
+                                                    1E9)
+                                               1E9)
+                                            400)
+                                         0))
                           (draw gpu-state
                                 gl
                                 (window/width window)
