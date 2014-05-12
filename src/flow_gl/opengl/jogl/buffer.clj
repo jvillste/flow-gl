@@ -69,6 +69,23 @@
                          (count values))
                       native-buffer)))
 
+(defn map-for-write [gl id type offset length]
+  (.glBindBuffer gl GL2/GL_COPY_WRITE_BUFFER id)
+  (-> (.glMapBufferRange gl
+                         GL2/GL_COPY_WRITE_BUFFER
+                         (* (type-size type)
+                            offset)
+                         (* (type-size type)
+                            length)
+                         GL2/GL_MAP_WRITE_BIT)
+      (as-> byte-buffer
+            (case type
+              :float (.asFloatBuffer byte-buffer)
+              :int (.asIntBuffer byte-buffer)
+              :short (.asShortBuffer byte-buffer)))))
+
+(defn unmap-for-write [gl]
+  (.glUnmapBuffer gl GL2/GL_COPY_WRITE_BUFFER))
 
 (defn read [gl id type  offset length]
   (let [array (case type
