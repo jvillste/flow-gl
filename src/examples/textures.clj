@@ -31,6 +31,8 @@
 
 uniform mat4 projection_matrix;
 
+uniform int use_quad_index_buffer;
+
 uniform usamplerBuffer quad_parameters;
 
 uniform isamplerBuffer quad_index_sampler;
@@ -50,7 +52,11 @@ void main() {
     // 4 (.getHeight buffered-image)
     // 5 (:next-free-texel new-gpu-state)
 
-    int quad_index = texelFetch(quad_index_sampler, gl_InstanceID).x;
+    int quad_index;
+    if(use_quad_index_buffer == 1)
+      quad_index = texelFetch(quad_index_sampler, gl_InstanceID).x;
+    else
+      quad_index = gl_InstanceID;
 
     uvec2 texture_size = uvec2(texelFetch(quad_parameters, quad_index * quad_parameters_size + 3).x,
                                texelFetch(quad_parameters, quad_index * quad_parameters_size + 4).x);
@@ -152,8 +158,7 @@ void main() {
   (.glTexBuffer gl GL2/GL_TEXTURE_BUFFER type buffer-id))
 
 (defn allocate-quads [gl number-of-quads]
-  (let [quad-index-buffer (buffer/create-gl-buffer gl)
-        quad-parameters-buffer (buffer/create-gl-buffer gl)]
+  (let [quad-parameters-buffer (buffer/create-gl-buffer gl)]
 
     (buffer/allocate-buffer gl
                             quad-parameters-buffer
@@ -163,16 +168,8 @@ void main() {
                             (* quad-parameters-size number-of-quads))
 
 
-    (buffer/allocate-buffer gl
-                            quad-index-buffer
-                            :int
-                            GL2/GL_ARRAY_BUFFER
-                            GL2/GL_STATIC_DRAW
-                            number-of-quads)
-
     {:allocated-quads number-of-quads
-     :quad-parameters-buffer-id quad-parameters-buffer
-     :quad-index-buffer quad-index-buffer}))
+     :quad-parameters-buffer-id quad-parameters-buffer}))
 
 (defn allocate-texture [gl number-of-texels]
   (let [texture-buffer-id (buffer/create-gl-buffer gl)]
@@ -235,11 +232,6 @@ void main() {
 
     (copy-quad-buffer :quad-parameters-buffer-id
                       (* 4 quad-parameters-size)
-                      copy-buffer-arguments)
-
-
-    (copy-quad-buffer :quad-index-buffer
-                      4
                       copy-buffer-arguments)
 
     new-gpu-state))
@@ -309,14 +301,6 @@ void main() {
                      (rest quads)))))
       (buffer/unmap-for-write gl))
 
-    (buffer/update gl
-                   (:quad-index-buffer new-gpu-state)
-                   :int
-                   (:next-free-quad new-gpu-state)
-                   (range (:next-free-quad new-gpu-state)
-                          (+ (:next-free-quad new-gpu-state)
-                             quad-count)))
-
     (assoc new-gpu-state
       :next-free-texel (+ (:next-free-texel gpu-state)
                           texel-count)
@@ -335,13 +319,6 @@ void main() {
                        GL2/GL_RGBA8)
 
   (bind-texture-buffer gl
-                       (:quad-index-buffer gpu-state)
-                       5
-                       (:program gpu-state)
-                       "quad_index_sampler"
-                       GL2/GL_R32I)
-
-  (bind-texture-buffer gl
                        (:quad-parameters-buffer-id gpu-state)
                        6
                        (:program gpu-state)
@@ -353,6 +330,10 @@ void main() {
                                     "projection_matrix"
                                     (math/projection-matrix-2d width
                                                                height))
+  (shader/set-int-uniform gl
+                          (:program gpu-state)
+                          "use_quad_index_buffer"
+                          0)
 
   (shader/validate-program gl (:program gpu-state))
 
@@ -360,27 +341,91 @@ void main() {
 
   gpu-state)
 
-(defn change-texture [gpu-state gl index new-image]
-  (buffer/update gl
-                 (:texture-buffer-id gpu-state)
-                 :int
-                 (first (buffer/read gl (:texture-offset-attribute-buffer gpu-state) :int index 1))
-                 (-> new-image (.getRaster) (.getDataBuffer) (.getData)))
+(defn draw-indexes [gpu-state gl width height indexes]
+  (let [quad-index-buffer (buffer/create-gl-buffer gl)]
+    (shader/enable-program gl
+                           (:program gpu-state))
 
-  (buffer/update gl
-                 (:texture-size-attribute-buffer gpu-state)
-                 :short
-                 (* 2 index)
-                 [(.getWidth new-image)
-                  (.getHeight new-image)])
-  gpu-state)
+    (buffer/load-buffer gl
+                        quad-index-buffer
+                        :int
+                        GL2/GL_ARRAY_BUFFER
+                        GL2/GL_STATIC_DRAW
+                        indexes)
+
+    (bind-texture-buffer gl
+                         quad-index-buffer
+                         5
+                         (:program gpu-state)
+                         "quad_index_sampler"
+                         GL2/GL_R32I)
+
+    (bind-texture-buffer gl
+                         (:texture-buffer-id gpu-state)
+                         0
+                         (:program gpu-state)
+                         "texture"
+                         GL2/GL_RGBA8)
+
+    (bind-texture-buffer gl
+                         (:quad-parameters-buffer-id gpu-state)
+                         6
+                         (:program gpu-state)
+                         "quad_parameters"
+                         GL2/GL_R32UI)
+
+    (shader/set-float4-matrix-uniform gl
+                                      (:program gpu-state)
+                                      "projection_matrix"
+                                      (math/projection-matrix-2d width
+                                                                 height))
+    (shader/set-int-uniform gl
+                            (:program gpu-state)
+                            "use_quad_index_buffer"
+                            1)
+
+    (shader/validate-program gl (:program gpu-state))
+
+    (.glDrawArraysInstanced gl GL2/GL_TRIANGLE_STRIP 0 4 (count indexes))
+
+    gpu-state))
+
+#_(defn remove-quad [gpu-state gl index]
+    (let [last-index (first (buffer/read gl
+                                         (:quad-index-buffer gpu-state)
+                                         :int
+                                         (- (:next-free-quad gpu-state)
+                                            1)
+                                         1))])
+    (buffer/update gl
+                   (:quad-index-buffer gpu-state)
+                   :int
+                   index
+                   [last-index])
+    (update-in gpu-state
+               [:next-free-quad]
+               dec))
+
+#_(defn change-texture [gpu-state gl index new-image]
+    (buffer/update gl
+                   (:texture-buffer-id gpu-state)
+                   :int
+                   (first (buffer/read gl (:texture-offset-attribute-buffer gpu-state) :int index 1))
+                   (-> new-image (.getRaster) (.getDataBuffer) (.getData)))
+
+    (buffer/update gl
+                   (:texture-size-attribute-buffer gpu-state)
+                   :short
+                   (* 2 index)
+                   [(.getWidth new-image)
+                    (.getHeight new-image)])
+    gpu-state)
 
 (defn move-quad [gpu-state gl index x y]
   (buffer/update gl
                  (:quad-parameters-buffer-id gpu-state)
                  :int
-                 (+ x-offset
-                    (* quad-parameters-size index))
+                 (+ x-offset (* quad-parameters-size index))
                  [x y])
   gpu-state)
 
@@ -404,8 +449,8 @@ void main() {
                               (move-quad gl
                                          0
                                          (* (/ (mod (System/nanoTime)
-                                                    1E9)
-                                               1E9)
+                                                    (* 10 1E9))
+                                               (* 10 1E9))
                                             400)
                                          0))
                           (draw gpu-state
