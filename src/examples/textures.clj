@@ -196,7 +196,9 @@ void main() {
            :allocated-texels initial-number-of-texels
            :next-free-texel 0
            :allocated-quads initial-number-of-quads
-           :next-free-quad 0}
+           :next-free-quad 0
+
+           :removed-quads #{}}
 
           (allocate-texture gl initial-number-of-texels)
           (allocate-quads gl initial-number-of-quads))))
@@ -390,21 +392,14 @@ void main() {
 
     gpu-state))
 
-#_(defn remove-quad [gpu-state gl index]
-    (let [last-index (first (buffer/read gl
-                                         (:quad-index-buffer gpu-state)
-                                         :int
-                                         (- (:next-free-quad gpu-state)
-                                            1)
-                                         1))])
-    (buffer/update gl
-                   (:quad-index-buffer gpu-state)
-                   :int
-                   index
-                   [last-index])
-    (update-in gpu-state
-               [:next-free-quad]
-               dec))
+(defn remove-quad [gpu-state gl index]
+  (buffer/update gl
+                 (:quad-parameters-buffer-id gpu-state)
+                 :int
+                 (+ width-offset (* quad-parameters-size index))
+                 [0 0])
+
+  (update-in gpu-state [:removed-quads] conj index))
 
 #_(defn change-texture [gpu-state gl index new-image]
     (buffer/update gl
@@ -478,7 +473,8 @@ void main() {
                      {:image (text-image (str number))
                       :x (int (* (Math/floor (/ number per-column)) column-width))
                       :y (int (+ 20 (* (mod number per-column) row-height)))
-                      :parent 0})))))
+                      :parent 0})))
+      (remove-quad gl 10)))
 
 (defn start []
   (let [width 500
@@ -514,9 +510,10 @@ void main() {
         (throw e)))))
 
 ;; TODO
-;; combine buffers
-;; load multiple quads with single buffer mapping
-;; remove quad
+;; optimize updating the same quads constantly. generational GC?
+;; optimize updating the single same quad constantly. (dec (:next-free-quad gpu-state))
 ;; resize quad larger
 ;; share texture
-;; collect garbage
+;; collect garbage. quad indexes change. map quad id:s to indexes
+;; group quads to tiles and draw given tiles only
+;; load new quads asynchronously in small batches. Ready made byte buffers to be loaded to the GPU
