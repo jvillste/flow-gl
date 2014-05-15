@@ -20,15 +20,15 @@
     :float 4
     :short 2))
 
-(defn copy [gl source target number-of-bytes]
+(defn copy [gl source target type read-offset write-offset size]
   (.glBindBuffer gl GL2/GL_COPY_READ_BUFFER source)
   (.glBindBuffer gl GL2/GL_COPY_WRITE_BUFFER target)
   (.glCopyBufferSubData gl
                         GL2/GL_COPY_READ_BUFFER
                         GL2/GL_COPY_WRITE_BUFFER
-                        0
-                        0
-                        number-of-bytes))
+                        (* read-offset (type-size type))
+                        (* write-offset (type-size type))
+                        (* size (type-size type))))
 
 (defn allocate-buffer [gl id type target usage size]
   (.glBindBuffer gl target id)
@@ -86,6 +86,24 @@
 
 (defn unmap-for-write [gl]
   (.glUnmapBuffer gl GL2/GL_COPY_WRITE_BUFFER))
+
+(defn map-for-read [gl id type offset length]
+  (.glBindBuffer gl GL2/GL_COPY_READ_BUFFER id)
+  (-> (.glMapBufferRange gl
+                         GL2/GL_COPY_READ_BUFFER
+                         (* (type-size type)
+                            offset)
+                         (* (type-size type)
+                            length)
+                         GL2/GL_MAP_READ_BIT)
+      (as-> byte-buffer
+            (case type
+              :float (.asFloatBuffer byte-buffer)
+              :int (.asIntBuffer byte-buffer)
+              :short (.asShortBuffer byte-buffer)))))
+
+(defn unmap-for-read [gl]
+  (.glUnmapBuffer gl GL2/GL_COPY_READ_BUFFER))
 
 (defn read [gl id type  offset length]
   (let [array (case type
