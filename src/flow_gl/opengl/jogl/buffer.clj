@@ -39,6 +39,15 @@
                  nil
                  usage))
 
+(defn load-buffer-from-native-buffer [gl id type target usage native-buffer]
+  (.glBindBuffer gl target id)
+  (.glBufferData gl
+                 target
+                 (* (type-size type)
+                    (.limit native-buffer))
+                 native-buffer
+                 usage))
+
 (defn load-buffer [gl id type target usage values]
   (let [native-buffer (native-buffer/native-buffer-with-values type values)]
     (.glBindBuffer gl target id)

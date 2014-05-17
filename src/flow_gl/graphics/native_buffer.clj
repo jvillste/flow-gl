@@ -42,7 +42,8 @@
     (if native-buffer
       (if (>= (.capacity native-buffer)
               minimum-capacity)
-        native-buffer
+        (do (.rewind native-buffer)
+            native-buffer)
         (add-native-buffer type minimum-capacity))
       (add-native-buffer type minimum-capacity))))
 
@@ -56,7 +57,6 @@
 (defn native-buffer-with-values [type values]
   (let [native-buffer (native-buffer type (count values))
         coerce (coercion type)]
-    (.rewind native-buffer)
     (doseq [value values]
       (.put native-buffer (coerce value)))
     (.rewind native-buffer)
