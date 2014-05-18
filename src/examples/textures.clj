@@ -554,11 +554,16 @@ void main() {
         (update-in [:ids-to-indexes] dissoc id))))
 
 (defn change-texture [gpu-state gl id new-image]
-  (let [quad-parameters (read-quad-parameters gpu-state gl id)]
-    (if (and (<= (.getWidth new-image)
-                 (:width quad-parameters))
-             (<= (.getHeight new-image)
-                 (:height quad-parameters)))
+  (let [quad-parameters (read-quad-parameters gpu-state gl id)
+
+        this-is-the-last-texture (= (:texture-offset quad-parameters)
+                                    (- (:next-free-texel gpu-state)
+                                       (* (:width quad-parameters)
+                                          (:height quad-parameters))))]
+    (if (and (<= (* (.getWidth new-image)
+                    (.getHeight new-image))
+                 (* (:width quad-parameters)
+                    (:height quad-parameters))))
 
       (do (buffer/update gl
                          (:texture-buffer-id gpu-state)
@@ -571,11 +576,24 @@ void main() {
                                  :width (.getWidth new-image)
                                  :height (.getHeight new-image)))
 
-          gpu-state)
+          (if this-is-the-last-texture
+            (assoc gpu-state
+              :next-free-texel (+ (:texture-offset quad-parameters)
+                                  (* (.getWidth new-image)
+                                     (.getHeight new-image))))
+            gpu-state))
 
-      (do (let [new-texture-offset (:next-free-texel gpu-state)
-                new-gpu-state (add-textures gpu-state gl [new-image])]
-            (set-quad-parameters gpu-state gl id
+      (do (let [new-texture-offset (if this-is-the-last-texture
+                                     (:texture-offset quad-parameters)
+                                     (:next-free-texel gpu-state))
+
+                new-gpu-state (add-textures (if this-is-the-last-texture
+                                              (assoc gpu-state :next-free-texel (:texture-offset quad-parameters))
+                                              gpu-state)
+                                            gl
+                                            [new-image])]
+
+            (set-quad-parameters new-gpu-state gl id
                                  (assoc quad-parameters
                                    :texture-offset new-texture-offset
                                    :width (.getWidth new-image)
@@ -632,24 +650,23 @@ void main() {
                    :y 30
                    :parent -1}])
 
-      (change-texture gl 0 (text-image "parents"))
-
-      (add-quads gl
-                 (let [per-column 25
-                       column-width 40
-                       row-height 16]
-                   (for [number (range 10)]
-                     {:image (text-image (str number))
-                      :x (int (* (Math/floor (/ number per-column)) column-width))
-                      :y (int (+ 20 (* (mod number per-column) row-height)))
-                      :parent 0})))
-      (remove-quad gl 3)
+      #_(add-quads gl
+                   (let [per-column 25
+                         column-width 40
+                         row-height 16]
+                     (for [number (range 10)]
+                       {:image (text-image (str number))
+                        :x (int (* (Math/floor (/ number per-column)) column-width))
+                        :y (int (+ 20 (* (mod number per-column) row-height)))
+                        :parent 0})))
+      #_(remove-quad gl 3)
       (as-> gpu-state
-            (do (println "before GC" gpu-state)
+            (do (println "before" gpu-state)
                 gpu-state))
-      (collect-garbage gl)
+      (change-texture gl 0 (text-image "par"))
+      #_(collect-garbage gl)
       (as-> gpu-state
-            (do (println "after GC" gpu-state)
+            (do (println "after" gpu-state)
                 gpu-state))))
 
 (defn start []
@@ -681,11 +698,8 @@ void main() {
         (throw e)))))
 
 ;; TODO
-;; collect garbage. quad indexes change. map quad id:s to indexes
 ;; optimize updating the same quads constantly. generational GC?
 ;; optimize updating the single same quad constantly. (dec (:next-free-quad gpu-state))
-;; resize quad larger
 ;; share texture
-
 ;; group quads to tiles and draw given tiles only
 ;; load new quads asynchronously in small batches. Ready made byte buffers to be loaded to the GPU
