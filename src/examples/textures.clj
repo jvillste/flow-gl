@@ -305,6 +305,9 @@ void main() {
                                            GL2/GL_STATIC_DRAW
                                            quad-parameters-native-buffer)
 
+    (buffer/delete gl (:texture-buffer-id gpu-state))
+    (buffer/delete gl (:quad-parameters-buffer-id gpu-state))
+
     (assoc gpu-state
       :texture-buffer-id new-texture-buffer
       :quad-parameters-buffer-id new-quad-parameters-buffer
@@ -332,29 +335,20 @@ void main() {
 
     new-gpu-state))
 
-(defn copy-quad-buffer [buffer-key size-multiplier {:keys [gl size-key old-gpu-state new-gpu-state]}]
-  (buffer/copy gl
-               (buffer-key old-gpu-state)
-               (buffer-key new-gpu-state)
-               :int
-               0
-               0
-               (* size-multiplier (:allocated-quads old-gpu-state)))
-  (buffer/delete gl (buffer-key old-gpu-state)))
-
 (defn grow-quad-buffers [gl gpu-state minimum-size]
   (let [new-gpu-state (assoc gpu-state
                         :allocated-quads (* 2 minimum-size)
-                        :quad-parameters-buffer-id (allocate-quads gl (* 2 minimum-size)))
+                        :quad-parameters-buffer-id (allocate-quads gl (* 2 minimum-size)))]
 
-        copy-buffer-arguments {:gl gl
-                               :old-gpu-state gpu-state
-                               :new-gpu-state new-gpu-state}]
+    (buffer/copy gl
+                 (:quad-parameters-buffer-id gpu-state)
+                 (:quad-parameters-buffer-id new-gpu-state)
+                 :int
+                 0
+                 0
+                 (* quad-parameters-size (:allocated-quads gpu-state)))
 
-    (copy-quad-buffer :quad-parameters-buffer-id
-                      quad-parameters-size
-                      copy-buffer-arguments)
-
+    (buffer/delete gl (:quad-parameters-buffer-id gpu-state))
     new-gpu-state))
 
 (defn add-textures [gpu-state gl images]
@@ -650,21 +644,21 @@ void main() {
                    :y 30
                    :parent -1}])
 
-      #_(add-quads gl
+      (add-quads gl
                    (let [per-column 25
                          column-width 40
                          row-height 16]
-                     (for [number (range 10)]
+                     (for [number (range 300)]
                        {:image (text-image (str number))
                         :x (int (* (Math/floor (/ number per-column)) column-width))
                         :y (int (+ 20 (* (mod number per-column) row-height)))
                         :parent 0})))
-      #_(remove-quad gl 3)
+      (remove-quad gl 3)
       (as-> gpu-state
             (do (println "before" gpu-state)
                 gpu-state))
       (change-texture gl 0 (text-image "par"))
-      #_(collect-garbage gl)
+      (collect-garbage gl)
       (as-> gpu-state
             (do (println "after" gpu-state)
                 gpu-state))))
@@ -699,7 +693,6 @@ void main() {
 
 ;; TODO
 ;; optimize updating the same quads constantly. generational GC?
-;; optimize updating the single same quad constantly. (dec (:next-free-quad gpu-state))
 ;; share texture
 ;; group quads to tiles and draw given tiles only
 ;; load new quads asynchronously in small batches. Ready made byte buffers to be loaded to the GPU
