@@ -26,6 +26,34 @@
 (def height-offset 4)
 (def texture-offset-offset 5)
 
+(defn read-quad-parameters [gpu-state gl id]
+  (let [[parent x y width height texture-offset] (buffer/read gl
+                                                              (:quad-parameters-buffer-id gpu-state)
+                                                              :int
+                                                              (* quad-parameters-size
+                                                                 ((:ids-to-indexes gpu-state) id))
+                                                              quad-parameters-size)]
+    {:parent parent
+     :x x
+     :y y
+     :width width
+     :height height
+     :texture-offset texture-offset}))
+
+(defn set-quad-parameters [gpu-state gl id quad-parameters]
+  (buffer/update gl
+                 (:quad-parameters-buffer-id gpu-state)
+                 :int
+                 (* quad-parameters-size
+                    ((:ids-to-indexes gpu-state) id))
+                 [(:parent quad-parameters)
+                  (:x quad-parameters)
+                  (:y quad-parameters)
+                  (:width quad-parameters)
+                  (:height quad-parameters)
+                  (:texture-offset quad-parameters)])
+  gpu-state)
+
 (def vertex-shader-source "
 #version 140
 
@@ -329,8 +357,47 @@ void main() {
 
     new-gpu-state))
 
+(defn add-textures [gpu-state gl images]
+  (let [texel-count (reduce (fn [texel-count image]
+                              (+ texel-count
+                                 (* (.getWidth image)
+                                    (.getHeight image))))
+                            0
+                            images)
+
+        minimum-texel-capacity (+ texel-count
+                                  (:next-free-texel gpu-state))
+
+        new-gpu-state (if (< (:allocated-texels gpu-state)
+                             minimum-texel-capacity)
+                        (grow-texture-buffer gl
+                                             gpu-state
+                                             minimum-texel-capacity)
+                        gpu-state)]
+
+    (let [buffer (buffer/map-for-write gl
+                                       (:texture-buffer-id new-gpu-state)
+                                       :int
+                                       (:next-free-texel new-gpu-state)
+                                       texel-count)]
+
+      (doseq [image images]
+        (.put buffer
+              (-> image
+                  (.getRaster)
+                  (.getDataBuffer)
+                  (.getData))))
+
+      (buffer/unmap-for-write gl))
+
+    (assoc new-gpu-state
+      :next-free-texel (+ (:next-free-texel gpu-state)
+                          texel-count))))
+
 (defn add-quads [gpu-state gl quads]
-  (let [quad-count (count quads)
+  (let [#_new-gpu-state #_(add-textures gpu-state gl (map :image quads))
+
+        quad-count (count quads)
 
         texel-count (reduce (fn [texel-count quad]
                               (+ texel-count
@@ -519,20 +586,34 @@ void main() {
         (update-in [:removed-texels] + (* width height))
         (update-in [:ids-to-indexes] dissoc id))))
 
-#_(defn change-texture [gpu-state gl index new-image]
-    (buffer/update gl
-                   (:texture-buffer-id gpu-state)
-                   :int
-                   (first (buffer/read gl (:texture-offset-attribute-buffer gpu-state) :int index 1))
-                   (-> new-image (.getRaster) (.getDataBuffer) (.getData)))
+(defn change-texture [gpu-state gl id new-image]
+  (let [quad-parameters (read-quad-parameters gpu-state gl id)]
+    (if (and (<= (.getWidth new-image)
+                 (:width quad-parameters))
+             (<= (.getHeight new-image)
+                 (:height quad-parameters)))
 
-    (buffer/update gl
-                   (:texture-size-attribute-buffer gpu-state)
-                   :short
-                   (* 2 index)
-                   [(.getWidth new-image)
-                    (.getHeight new-image)])
-    gpu-state)
+      (do (buffer/update gl
+                         (:texture-buffer-id gpu-state)
+                         :int
+                         (:texture-offset quad-parameters)
+                         (-> new-image (.getRaster) (.getDataBuffer) (.getData)))
+
+          (set-quad-parameters gpu-state gl id
+                               (assoc quad-parameters
+                                 :width (.getWidth new-image)
+                                 :height (.getHeight new-image)))
+
+          gpu-state)
+
+      (do (let [new-texture-offset (:next-free-texel gpu-state)
+                new-gpu-state (add-textures gpu-state gl [new-image])]
+            (set-quad-parameters gpu-state gl id
+                                 (assoc quad-parameters
+                                   :texture-offset new-texture-offset
+                                   :width (.getWidth new-image)
+                                   :height (.getHeight new-image)))
+            new-gpu-state)))))
 
 (defn move-quad [gpu-state gl index x y]
   (buffer/update gl
@@ -583,6 +664,8 @@ void main() {
                    :x 10
                    :y 30
                    :parent -1}])
+
+      (change-texture gl 0 (text-image "parents"))
 
       (add-quads gl
                  (let [per-column 25
