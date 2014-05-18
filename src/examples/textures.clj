@@ -193,7 +193,6 @@ void main() {
      :removed-quads 0
      :removed-texels 0
      :ids-to-indexes {}
-     :indexes-to-ids {}
      :next-free-id 0
 
      :allocated-quads initial-number-of-quads
@@ -231,54 +230,42 @@ void main() {
                                      0
                                      (* quad-parameters-size (:next-free-quad gpu-state)))
 
-        [indexes-to-ids ids-to-indexes] (loop [texture-offset 0
-                                               old-index 0
-                                               new-index 0
-                                               indexes-to-ids {}
-                                               ids-to-indexes {}
-                                               remaining-quad-parameters quad-parameters]
+        ids-to-indexes (loop [remaining-ids (keys (:ids-to-indexes gpu-state))
+                              texture-offset 0
+                              new-index 0
+                              ids-to-indexes {}]
 
-                                          (if (seq remaining-quad-parameters)
-                                            (let [id (get (:indexes-to-ids gpu-state)
-                                                          old-index)
-                                                  current-quad-parameters (vec (take quad-parameters-size remaining-quad-parameters))
-                                                  width (get current-quad-parameters width-offset)
-                                                  height (get current-quad-parameters height-offset)]
+                         (if (seq remaining-ids)
+                           (let [id (first remaining-ids)
+                                 old-index (get (:ids-to-indexes gpu-state) id)
+                                 current-quad-parameters (vec (java.util.Arrays/copyOfRange quad-parameters
+                                                                                            (* quad-parameters-size
+                                                                                               old-index)
+                                                                                            (+ (* quad-parameters-size
+                                                                                                  old-index)
+                                                                                               quad-parameters-size)))
+                                 width (get current-quad-parameters width-offset)
+                                 height (get current-quad-parameters height-offset)]
 
-                                              (if (and (> width
-                                                          0)
-                                                       (> height
-                                                          0))
+                             (.put quad-parameters-native-buffer (int-array (assoc current-quad-parameters
+                                                                              texture-offset-offset
+                                                                              texture-offset)))
 
-                                                (do (.put quad-parameters-native-buffer (int-array (assoc current-quad-parameters
-                                                                                                     texture-offset-offset
-                                                                                                     texture-offset)))
+                             (buffer/copy gl
+                                          (:texture-buffer-id gpu-state)
+                                          new-texture-buffer
+                                          :int
+                                          (get current-quad-parameters texture-offset-offset)
+                                          texture-offset
+                                          (* width height))
 
-                                                    (buffer/copy gl
-                                                                 (:texture-buffer-id gpu-state)
-                                                                 new-texture-buffer
-                                                                 :int
-                                                                 (get current-quad-parameters texture-offset-offset)
-                                                                 texture-offset
-                                                                 (* width height))
+                             (recur (rest remaining-ids)
+                                    (+ texture-offset
+                                       (* width height))
+                                    (inc new-index)
+                                    (assoc ids-to-indexes id new-index)))
 
-                                                    (recur (+ texture-offset
-                                                              (* width height))
-                                                           (inc old-index)
-                                                           (inc new-index)
-                                                           (assoc indexes-to-ids new-index id)
-                                                           (assoc ids-to-indexes id new-index)
-                                                           (drop quad-parameters-size remaining-quad-parameters)))
-
-                                                (recur (+ texture-offset
-                                                          (* width height))
-                                                       (inc old-index)
-                                                       new-index
-                                                       indexes-to-ids
-                                                       ids-to-indexes
-                                                       (drop quad-parameters-size remaining-quad-parameters))))
-
-                                            [indexes-to-ids ids-to-indexes]))]
+                           ids-to-indexes))]
 
 
 
@@ -297,7 +284,6 @@ void main() {
       :next-free-quad new-number-of-quads
       :allocated-texels new-texture-buffer-size
       :next-free-texel new-number-of-texels
-      :indexes-to-ids indexes-to-ids
       :ids-to-indexes ids-to-indexes
       :removed-quads 0
       :removed-texels 0)))
@@ -373,18 +359,16 @@ void main() {
                                            minimum-quad-capacity)
                         new-gpu-state)
 
-        [ids-to-indexes indexes-to-ids] (loop [count quad-count
-                                               id (:next-free-id gpu-state)
-                                               index (:next-free-quad gpu-state)
-                                               ids-to-indexes (:ids-to-indexes gpu-state)
-                                               indexes-to-ids (:ids-to-indexes gpu-state)]
-                                          (if (> count 0)
-                                            (recur (dec count)
-                                                   (inc id)
-                                                   (inc index)
-                                                   (assoc ids-to-indexes id index)
-                                                   (assoc indexes-to-ids index id))
-                                            [ids-to-indexes indexes-to-ids]))]
+        ids-to-indexes (loop [count quad-count
+                              id (:next-free-id gpu-state)
+                              index (:next-free-quad gpu-state)
+                              ids-to-indexes (:ids-to-indexes gpu-state)]
+                         (if (> count 0)
+                           (recur (dec count)
+                                  (inc id)
+                                  (inc index)
+                                  (assoc ids-to-indexes id index))
+                           ids-to-indexes))]
 
     (let [buffer (buffer/map-for-write gl
                                        (:texture-buffer-id new-gpu-state)
@@ -426,13 +410,12 @@ void main() {
 
     (assoc new-gpu-state
       :next-free-id (+ (:next-free-id gpu-state)
-                      quad-count)
+                       quad-count)
       :next-free-texel (+ (:next-free-texel gpu-state)
                           texel-count)
       :next-free-quad (+ (:next-free-quad gpu-state)
                          quad-count)
-      :ids-to-indexes ids-to-indexes
-      :indexes-to-ids indexes-to-ids)))
+      :ids-to-indexes ids-to-indexes)))
 
 (defn draw [gpu-state gl width height]
   (shader/enable-program gl
@@ -534,8 +517,7 @@ void main() {
     (-> gpu-state
         (update-in [:removed-quads] inc)
         (update-in [:removed-texels] + (* width height))
-        (update-in [:ids-to-indexes] dissoc id)
-        (update-in [:indexes-to-ids] dissoc index))))
+        (update-in [:ids-to-indexes] dissoc id))))
 
 #_(defn change-texture [gpu-state gl index new-image]
     (buffer/update gl
