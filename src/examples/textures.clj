@@ -395,26 +395,9 @@ void main() {
                           texel-count))))
 
 (defn add-quads [gpu-state gl quads]
-  (let [#_new-gpu-state #_(add-textures gpu-state gl (map :image quads))
+  (let [new-gpu-state (add-textures gpu-state gl (map :image quads))
 
         quad-count (count quads)
-
-        texel-count (reduce (fn [texel-count quad]
-                              (+ texel-count
-                                 (* (.getWidth (:image quad))
-                                    (.getHeight (:image quad)))))
-                            0
-                            quads)
-
-        minimum-texel-capacity (+ texel-count
-                                  (:next-free-texel gpu-state))
-
-        new-gpu-state (if (< (:allocated-texels gpu-state)
-                             minimum-texel-capacity)
-                        (grow-texture-buffer gl
-                                             gpu-state
-                                             minimum-texel-capacity)
-                        gpu-state)
 
         minimum-quad-capacity (+ (:next-free-quad new-gpu-state)
                                  quad-count)
@@ -438,28 +421,14 @@ void main() {
                            ids-to-indexes))]
 
     (let [buffer (buffer/map-for-write gl
-                                       (:texture-buffer-id new-gpu-state)
-                                       :int
-                                       (:next-free-texel new-gpu-state)
-                                       texel-count)]
-
-      (doseq [quad quads]
-        (.put buffer
-              (-> (:image quad)
-                  (.getRaster)
-                  (.getDataBuffer)
-                  (.getData))))
-
-      (buffer/unmap-for-write gl))
-
-    (let [buffer (buffer/map-for-write gl
                                        (:quad-parameters-buffer-id new-gpu-state)
                                        :int
                                        (* quad-parameters-size
                                           (:next-free-quad new-gpu-state))
                                        (* quad-parameters-size
                                           quad-count))]
-      (loop [texture-offset (:next-free-texel new-gpu-state)
+
+      (loop [texture-offset (:next-free-texel gpu-state)
              quads quads]
         (when-let [quad (first quads)]
           (do (.put buffer
@@ -478,8 +447,6 @@ void main() {
     (assoc new-gpu-state
       :next-free-id (+ (:next-free-id gpu-state)
                        quad-count)
-      :next-free-texel (+ (:next-free-texel gpu-state)
-                          texel-count)
       :next-free-quad (+ (:next-free-quad gpu-state)
                          quad-count)
       :ids-to-indexes ids-to-indexes)))
