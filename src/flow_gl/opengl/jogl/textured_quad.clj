@@ -27,10 +27,12 @@ void main() {
 
 uniform sampler2D texture;
 in vec2 texture_coordinate;
-out  vec4 outColor;
+out vec4 outColor;
 
 void main() {
-    outColor = texture(texture, texture_coordinate);
+    vec4 outColor2 = texture(texture, texture_coordinate);
+    outColor = texture(texture, vec2(0.5, 0.5));
+    //outColor = vec4(color[1], 0.0, 0.0, 1.0);
 }
 ")
 
@@ -87,7 +89,6 @@ void main() {
                                                     (height textured-quad))))
   textured-quad)
 
-
 (defn create [texture gl]
   (-> {:texture texture
        :vertex-coordinate-buffer-id (buffer/create-gl-buffer gl)}
@@ -105,8 +106,7 @@ void main() {
                                     (:shader-program @shared-resources-atom)
                                     "projection_matrix"
                                     (math/projection-matrix-2d width
-                                                               height
-                                                               1.0))
+                                                               height))
 
   (texture/bind (:texture textured-quad)
                 gl)
@@ -135,3 +135,53 @@ void main() {
   (.glDrawArrays gl GL2/GL_TRIANGLE_STRIP 0 4)
 
   textured-quad)
+
+(defn render-gl-texture [gl texture-width texture-height texture-id width height]
+  (let [vertex-coordinate-buffer-id (buffer/create-gl-buffer gl)]
+    (buffer/load-vertex-array-buffer gl
+                                     vertex-coordinate-buffer-id
+                                     :float
+                                     (map float (quad texture-width
+                                                      texture-height)))
+
+    (shader/enable-program gl
+                           (:shader-program @shared-resources-atom))
+
+    (shader/set-float4-matrix-uniform gl
+                                      (:shader-program @shared-resources-atom)
+                                      "projection_matrix"
+                                      (math/projection-matrix-2d width
+                                                                 height))
+
+    #_(texture/bind texture-id gl)
+    #_(shader/set-int-uniform gl
+                            (:shader-program @shared-resources-atom)
+                            "texture"
+                            0)
+    #_(.glActiveTexture gl GL2/GL_TEXTURE0)
+    (.glBindTexture gl GL2/GL_TEXTURE_2D texture-id)
+
+    (.glBindBuffer gl GL2/GL_ARRAY_BUFFER vertex-coordinate-buffer-id)
+    (.glEnableVertexAttribArray gl (:vertex-coordinate-attribute-index @shared-resources-atom))
+    (.glVertexAttribPointer gl
+                            (int (:vertex-coordinate-attribute-index @shared-resources-atom))
+                            (int 2)
+                            (int GL2/GL_FLOAT)
+                            (boolean GL2/GL_FALSE)
+                            (int 0)
+                            (long 0))
+
+    (.glBindBuffer gl GL2/GL_ARRAY_BUFFER (:texture-coordinate-buffer-id @shared-resources-atom))
+    (.glEnableVertexAttribArray gl
+                                (:texture-coordinate-attribute-index @shared-resources-atom))
+    (.glVertexAttribPointer gl
+                            (int (:texture-coordinate-attribute-index @shared-resources-atom))
+                            (int 2)
+                            (int GL2/GL_FLOAT)
+                            (boolean GL2/GL_FALSE)
+                            (int 0)
+                            (long 0))
+
+    (.glDrawArrays gl GL2/GL_TRIANGLE_STRIP 0 4)
+
+    (buffer/delete gl vertex-coordinate-buffer-id)))

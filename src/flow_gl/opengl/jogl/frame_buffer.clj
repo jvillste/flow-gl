@@ -3,7 +3,7 @@
 
 (defn create [gl]
   (let [result-buffer (int-array 1)]
-    (.glGenFrameBuffers gl 1 result-buffer 0)
+    (.glGenFramebuffers gl (int 1) result-buffer (int 0))
     (aget result-buffer 0)))
 
 (defn bind [gl id]
