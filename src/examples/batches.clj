@@ -1,5 +1,8 @@
 (ns examples.batches
-  (:require [flow-gl.gui.event-queue :as event-queue]
+  (:require (flow-gl.gui [event-queue :as event-queue]
+                         [layout :as layout]
+                         [drawable :as drawable]
+                         [layoutable :as layoutable])
             (flow-gl.opengl.jogl [opengl :as opengl]
                                  [window :as window]
                                  [triangle-list :as triangle-list]
@@ -17,12 +20,13 @@
   (:import [javax.media.opengl GL2]
            [java.io PrintWriter StringWriter]
            [java.nio IntBuffer]
-           [java.awt Color]))
+           [java.awt Color])
 
+  (:use clojure.test))
 
-(defprotocol BatchItem
-  (add [drawable gl layer parents batches])
-  (remove [drawable gl layer parents batches]))
+#_(defprotocol BatchItem
+    (add [drawable gl layer parents batches])
+    (remove [drawable gl layer parents batches]))
 
 (defn wait-for-frame-end-time [frame-start-time framerate]
   (let [frame-length (/ 1E9
@@ -44,9 +48,9 @@
                                (quad-batch/move-quad gl
                                                      0
                                                      (* (/ (mod (System/nanoTime)
-                                                                (* 10 1E9))
-                                                           (* 10 1E9))
-                                                        400)
+                                                                (* 3 1E9))
+                                                           (* 3 1E9))
+                                                        (window/width window))
                                                      0)
                                (quad-batch/draw gl
                                                 (window/width window)
@@ -62,14 +66,74 @@
                               (font/create "LiberationSans-Regular.ttf" 14)
                               text))
 
+
+
+(defn image-for-java2d-drawable [drawable]
+  )
+
+(defn quads-for-layout [layout parent next-free-id]
+  (let [this-layout-id next-free-id]
+    (loop [quads [{:image (buffered-image/create 1 1)
+                   :x (:x layout)
+                   :y (:y layout)
+                   :parent parent}]
+           children (:children layout)
+           next-free-id (inc next-free-id)]
+
+      (if-let [child (first children)]
+        (if (satisfies? drawable/Java2DDrawable child)
+          (recur (concat quads
+                         [{:image (let [image (buffered-image/create (:width child)
+                                                                    (:height child))]
+                                   (drawable/draw child (buffered-image/get-graphics image))
+                                   image)
+                          :x (:x child)
+                          :y (:y child)
+                          :parent this-layout-id}])
+                 (rest children)
+                 (inc next-free-id))
+          (let [layout-quads (quads-for-layout child this-layout-id next-free-id)]
+            (recur (concat quads
+                           layout-quads)
+                   (rest children)
+                   (+ next-free-id (count layout-quads)))))
+        quads))))
+
+(deftest quads-for-layout-test
+  (is (=  (let [layout (layout/layout (layout/->VerticalStack [(drawable/->Text "Foo"
+                                                                                (font/create "LiberationSans-Regular.ttf" 14)
+                                                                                [1 1 1 1])
+                                                               (drawable/->Text "Bar"
+                                                                                (font/create "LiberationSans-Regular.ttf" 14)
+                                                                                [1 1 1 1])])
+                                      100 100)]
+            (println "layout " layout)
+            (quads-for-layout (assoc layout :x 0 :y 0)
+                              -1
+                              0))
+
+          nil)))
+
 (defn add-test-quads-batch [quad-batch gl]
   (-> quad-batch
 
+      #_(quad-batch/add-quads gl
+                              [{:image (text-image "parent")
+                                :x 10
+                                :y 30
+                                :parent -1}])
+
       (quad-batch/add-quads gl
-                            [{:image (text-image "parent")
-                              :x 10
-                              :y 30
-                              :parent -1}])
+                            (let [layout (layout/layout (layout/->VerticalStack [(drawable/->Text "Foo"
+                                                                                                  (font/create "LiberationSans-Regular.ttf" 14)
+                                                                                                  [1 1 1 1])
+                                                                                 (drawable/->Text "Bar"
+                                                                                                  (font/create "LiberationSans-Regular.ttf" 14)
+                                                                                                  [1 1 1 1])])
+                                                        100 100)]
+                              (quads-for-layout (assoc layout :x 0 :y 0)
+                                                -1
+                                                0)))
 
       #_(quad-batch/add-quads gl
                               (let [per-column 25
@@ -86,9 +150,13 @@
                 quad-batch))
       #_(quad-batch/change-texture gl 0 (text-image "par"))
       #_(quad-batch/collect-garbage gl)
-      (as-> quad-batch
-            (do (println "after" quad-batch)
-                quad-batch))))
+      #_(as-> quad-batch
+              (do (println "after" quad-batch)
+                  quad-batch))))
+
+
+
+
 
 (defn start []
   (let [width 500
@@ -125,3 +193,5 @@
 ;; share texture
 ;; group quads to tiles and draw given tiles only
 ;; load new quads asynchronously in small batches. Ready made byte buffers to be loaded to the GPU
+
+(run-tests)

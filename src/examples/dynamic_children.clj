@@ -254,9 +254,10 @@
 (defn start-view [event-queue initial-state view]
   (let [window (window/create 300
                               400
-                              opengl/initialize
-                              opengl/resize
-                              event-queue)
+                              :profile :gl3
+                              :init opengl/initialize
+                              :reshape opengl/resize
+                              :event-queue event-queue)
         [initial-state _] (binding [current-event-queue event-queue]
                             (view initial-state))
         initial-state (set-focus initial-state
@@ -551,7 +552,7 @@
                     :children [0 1]})
       => nil)
 
-(defn insert [vector index value]
+#_(defn insert [vector index value]
   (apply conj (vec (take index vector)) value (drop index vector)))
 
 (fact (insert [1 2 3 4] 1 10) => [1 10 2 3 4])

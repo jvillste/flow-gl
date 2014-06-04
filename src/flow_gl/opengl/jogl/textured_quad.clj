@@ -31,7 +31,7 @@ out vec4 outColor;
 
 void main() {
     vec4 outColor2 = texture(texture, texture_coordinate);
-    outColor = texture(texture, vec2(0.5, 0.5));
+    //outColor = texture(texture, vec2(0.5, 0.5));
     //outColor = vec4(color[1], 0.0, 0.0, 1.0);
 }
 ")
@@ -110,7 +110,8 @@ void main() {
 
   (texture/bind (:texture textured-quad)
                 gl)
-
+  (.glTexParameteri gl GL2/GL_TEXTURE_2D GL2/GL_TEXTURE_MAG_FILTER GL2/GL_NEAREST)
+  (.glTexParameteri gl GL2/GL_TEXTURE_2D GL2/GL_TEXTURE_MIN_FILTER GL2/GL_NEAREST)
   (.glBindBuffer gl GL2/GL_ARRAY_BUFFER (:vertex-coordinate-buffer-id textured-quad))
   (.glEnableVertexAttribArray gl (:vertex-coordinate-attribute-index @shared-resources-atom))
   (.glVertexAttribPointer gl
@@ -155,9 +156,9 @@ void main() {
 
     #_(texture/bind texture-id gl)
     #_(shader/set-int-uniform gl
-                            (:shader-program @shared-resources-atom)
-                            "texture"
-                            0)
+                              (:shader-program @shared-resources-atom)
+                              "texture"
+                              0)
     #_(.glActiveTexture gl GL2/GL_TEXTURE0)
     (.glBindTexture gl GL2/GL_TEXTURE_2D texture-id)
 

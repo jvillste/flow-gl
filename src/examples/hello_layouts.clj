@@ -14,8 +14,7 @@
         height 300
         window (window/create width
                               height
-                              opengl/initialize
-                              opengl/resize)
+                              :init opengl/initialize)
 
         text-drawable (drawable/->Text "Hello World "
                                        (font/create "LiberationSans-Regular.ttf" 40)

@@ -16,8 +16,9 @@
 
 (defn initialize [gl]
   (initialize-gl gl)
-  (triangle-list/create-shared-resources gl)
-  (textured-quad/create-shared-resources gl))
+  ;; (triangle-list/create-shared-resources gl)
+  ;; (textured-quad/create-shared-resources gl)
+  )
 
 
 (defn dispose [gl]
