@@ -1,5 +1,6 @@
 (ns examples.dynamic-children
   (:require [clojure.core.async :as async]
+            [flow-gl.tools.layoutable-inspector :as layoutable-inspector]
             [flow-gl.utils :as utils]
             (flow-gl.gui [drawable :as drawable]
                          [layout :as layout]
@@ -13,7 +14,8 @@
                                       [translate :as translate])
 
             (flow-gl.opengl.jogl [opengl :as opengl]
-                                 [window :as window]))
+                                 [window :as window]
+                                 [quad-batch :as quad-batch]))
   (:use flow-gl.utils
         midje.sweet
         flow-gl.gui.layout-dsl))
@@ -180,32 +182,37 @@
         (next-focus-path-parts state [[:children1 1] [:children2 1]])  => [[:children1 1] [:children2 2] [:children3 0]]
         (next-focus-path-parts state [[:children1 1] [:children2 2] [:children3 2]])  => nil))
 
-(defn render-layout [window cached-runnables layout]
-  (let [drawing-commands (doall (drawable/drawing-commands layout))
-        cached-runnables-atom (atom cached-runnables)
-        unused-commands-atom (atom nil)]
-    (window/render window gl
-                   (opengl/clear gl 0 0 0 1)
-                   (doseq [runnable (doall (reduce (fn [runnables command]
-                                                     (if (contains? @cached-runnables-atom command)
-                                                       (conj runnables (get @cached-runnables-atom command))
-                                                       (let [runnable (command/create-runner command gl)]
-                                                         (swap! cached-runnables-atom assoc command runnable)
-                                                         (conj runnables runnable))))
-                                                   []
-                                                   drawing-commands))]
+(defn text [content & {:keys [color size] :or {color [1 1 1 1] size 14}}]
+  (drawable/->Text content
+                   (font/create "LiberationSans-Regular.ttf" size)
+                   color))
 
-                     ;;(println (type runnable))
-                     (command/run runnable gl))
+(defn layoutable-name [layoutable]
+  (-> (clojure.reflect/typename (type layoutable))
+      (clojure.string/replace  "flow_gl.gui.layout." "")
+      (clojure.string/replace  "flow_gl.gui.drawable." "")))
 
-                   (let [unused-commands (filter (complement (apply hash-set drawing-commands))
-                                                 (keys @cached-runnables-atom))]
-                     (doseq [unused-command unused-commands]
-                       (if-let [unused-runnable (get unused-command @cached-runnables-atom)]
-                         (command/delete unused-runnable gl)))
+(defn draw-layoutable [layoutable]
+  (layout/->VerticalStack [(text (layoutable-name layoutable))
+                           (if (:state-path-part layoutable)
+                             (text (str (:state-path-part layoutable)) :size 12 :color [0.6 0.6 0.6 1.0])
+                             (drawable/->Empty 0 0))
+                           (layout/->Margin 0 0 0 10 [(layout/->VerticalStack (map draw-layoutable (:children layoutable)))])]))
 
-                     (reset! unused-commands-atom unused-commands)))
-    (apply dissoc @cached-runnables-atom @unused-commands-atom)))
+(defn render-layout [window quad-batch layout]
+  #_(println "rendering" (quad-batch/ids quad-batch))
+  #_(layoutable-inspector/show-layoutable (draw-layoutable layout))
+  (window/with-gl window gl
+    (opengl/clear gl 0 0 0 1)
+    (-> (reduce (fn [quad-batch id]
+                  (quad-batch/remove-quad quad-batch gl id))
+                quad-batch
+                (quad-batch/ids quad-batch))
+        (quad-batch/collect-garbage gl)
+        (quad-batch/add-quads gl (layoutable-inspector/quads-for-layout (assoc layout
+                                                                          :x 0 :y 0)
+                                                                        -1 (:next-free-id quad-batch)))
+        (quad-batch/draw gl (window/width window) (window/height window)))))
 
 
 (defn set-focus [state focus-path-parts]
@@ -264,7 +271,7 @@
                                  (initial-focus-path-parts initial-state))]
     (try
 
-      (loop [gpu-state {}
+      (loop [gpu-state (window/with-gl window gl (quad-batch/create gl))
              state initial-state]
                                         ;(println "state is " state)
         (if (:close-requested state)
@@ -308,14 +315,9 @@
                                nil
                                [child-seq-key (inc child-index)])))})
 
-(defn text [content & {:keys [color] :or {color [1 1 1 1]}}]
-  (drawable/->Text content
-                   (font/create "LiberationSans-Regular.ttf" 25)
-                   color))
+
 
 (def ^:dynamic current-state-path [])
-
-
 
 (defn call-view-for-sequence [parent-state view-function key]
   (map-indexed (fn [index child-state]
@@ -413,7 +415,7 @@
   [state
    (on-mouse-clicked (layout/->Box 10 [(drawable/->FilledRoundedRectangle 0
                                                                           0
-                                                                          10
+                                                                          30
                                                                           (if (:has-focus state)
                                                                             [0 0.8 0.8 1]
                                                                             [0 0.5 0.5 1]))
@@ -553,7 +555,7 @@
       => nil)
 
 #_(defn insert [vector index value]
-  (apply conj (vec (take index vector)) value (drop index vector)))
+    (apply conj (vec (take index vector)) value (drop index vector)))
 
 (fact (insert [1 2 3 4] 1 10) => [1 10 2 3 4])
 
@@ -570,22 +572,24 @@
                                                        :on-change (apply-to-current-state [state new-text]
                                                                                           (assoc-in state [:todo-texts index] new-text))}))
 
-                                  [(layout/->Margin 10 0 0 0  [(layout/->HorizontalStack [(call-view :new-todo-text
-                                                                                                     text-editor
-                                                                                                     {:text (:new-todo-text state)
-                                                                                                      :on-change (apply-to-current-state [state new-text]
-                                                                                                                                         (assoc state :new-todo-text new-text))})
-                                                                                          (layout/->Margin 0 0 0 10 [(call-view  :add-new
-                                                                                                                                 button
-                                                                                                                                 {:text "Add new"
-                                                                                                                                  :on-click (apply-to-current-state [state]
-                                                                                                                                                                    (-> state
-                                                                                                                                                                        (update-in [:todo-texts] conj (:new-todo-text state))
-                                                                                                                                                                        (assoc :new-todo-text "")))})])])])])))
+                                  [(layout/->Margin 10 0 0 0
+                                                    [(layout/->HorizontalStack [(call-view :new-todo-text
+                                                                                           text-editor
+                                                                                           {:text (:new-todo-text state)
+                                                                                            :on-change (apply-to-current-state [state new-text]
+                                                                                                                               (assoc state :new-todo-text new-text))})
+                                                                                (layout/->Margin 0 0 0 10
+                                                                                                 [(call-view :add-new
+                                                                                                             button
+                                                                                                             {:text "Add new"
+                                                                                                              :on-click (apply-to-current-state [state]
+                                                                                                                                                (-> state
+                                                                                                                                                    (update-in [:todo-texts] conj (:new-todo-text state))
+                                                                                                                                                    (assoc :new-todo-text "")))})])])])])))
 
 
 
-(def initial-todo-list-view-state (conj {:todo-texts []
+(def initial-todo-list-view-state (conj {:todo-texts ["Foo"]
                                          :new-todo-text ""
                                          :handle-keyboard-event (fn [state event]
                                                                   (cond

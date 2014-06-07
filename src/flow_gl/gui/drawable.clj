@@ -6,7 +6,9 @@
                                [vector :as vector]
                                [text :as graphics-text]
                                )
-             (flow-gl.gui [layoutable :as layoutable])))
+             (flow-gl.gui [layoutable :as layoutable]))
+  (:import [java.awt.geom Rectangle2D$Float RoundRectangle2D$Float]
+           [java.awt Color RenderingHints]))
 
 (defprotocol Drawable
   (drawing-commands [drawable]))
@@ -65,9 +67,17 @@
                        width
                        height
                        color)])
+
   layoutable/Layoutable
   (preferred-width [rectangle] width)
   (preferred-height [rectangle] height)
+
+  Java2DDrawable
+  (draw [this graphics]
+    (let [[r g b a] (map float color)]
+      (doto graphics
+        (.setColor (Color. r g b a))
+        (.fill (Rectangle2D$Float. 0 0 width height)))))
 
   Object
   (toString [this] (layoutable/describe-layoutable this "Rectangle" :color)))
@@ -326,6 +336,14 @@
   layoutable/Layoutable
   (preferred-width [this] width)
   (preferred-height [this] height)
+
+  Java2DDrawable
+  (draw [this graphics]
+    (.setRenderingHint graphics RenderingHints/KEY_ANTIALIASING RenderingHints/VALUE_ANTIALIAS_ON)
+    (let [[r g b a] (map float color)]
+      (doto graphics
+        (.setColor (Color. r g b a))
+        (.fill (RoundRectangle2D$Float. 0 0 width height radius radius)))))
 
   Object
   (toString [this] (layoutable/describe-layoutable this "FilledRoundedRectangle" :radius)))

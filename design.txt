@@ -93,3 +93,7 @@ state. The view state affects the child view states, which are updated
 during the view function execution.)
 
 (p View function parameters are the view state, focus path...)
+
+
+Change detection
+

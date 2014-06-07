@@ -1,0 +1,13 @@
+(:design How to determine how the gpu needs to be updated after application state change?
+         (:points
+          (:p For each state path the previous state and previous
+              layoutable is preserved. The view function is run if
+              the state has changed.)
+          (:p The whole layout is recalculated if anything has changed)
+          (:p For each state path the corresponding quad is
+              preserved. Previous quads are removed and new quads
+              loaded for state paths for which the view function is
+              rerun.))
+          (:questions
+            (How to connect state paths to quads?)))
+              
