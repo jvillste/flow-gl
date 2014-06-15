@@ -70,9 +70,28 @@ void main() {
 uniform mat4 projection_matrix;
 
 in vec2 vertex_coordinate_attribute;
+out vec3 color;
 
 void main() {
-    gl_Position = projection_matrix * vec4(vertex_coordinate_attribute[0], vertex_coordinate_attribute[1], 0.0, 1.0);
+
+    switch(gl_VertexID) {
+      case 0:
+          color = vec3(1.0, 0.0, 0.0);
+        break;
+      case 1:
+          color = vec3(0.0, 1.0, 0.0);
+        break;
+      case 2:
+          color = vec3(0.0, 0.0, 1.0);
+        break;
+      case 3:
+          color = vec3(1.0, 1.0, 0.0);
+        break;
+    }
+
+
+   // gl_Position = projection_matrix * vec4(vertex_coordinate_attribute[0], vertex_coordinate_attribute[1], 0.0, 1.0);
+   gl_Position = vec4(vertex_coordinate_attribute[0], vertex_coordinate_attribute[1], 0.0, 1.0);
 }
 
 ")
@@ -82,8 +101,11 @@ void main() {
 
 layout(location = 0) out vec4 outColor;
 
+in vec3 color;
+
 void main() {
-    outColor = vec4(0.0, 0.0, 1.0, 1.0);
+    //outColor = vec4(0.0, 0.0, 1.0, 1.0);
+    outColor = vec4(color[0], color[1], color[2], 1.0);
     //gl_FragColor.rgb = vec3(1.0, 0.0, 0.0);
 }
 ")
@@ -141,10 +163,17 @@ void main() {
                             (long 0))
 
     (.glDrawArrays gl GL2/GL_TRIANGLE_STRIP 0 4)
+    
 
     (.glBindTexture gl GL2/GL_TEXTURE_2D 0)
     (buffer/delete gl vertex-coordinate-buffer-id)
     (shader/delete-program gl shader-program)))
+
+(defn quad-2 [from to]
+  [from   from
+   from   to
+   to from
+   to to])
 
 (defn draw-single-color-quad [gl quad-width quad-height frame-buffer-width frame-buffer-height]
   (let [shader-program (shader/compile-program gl
@@ -157,9 +186,9 @@ void main() {
                            shader-program)
 
     #_(.glBindFragDataLocation gl
-                             shader-program
-                             1
-                             "outColor")
+                               shader-program
+                               1
+                               "outColor")
     (println "single outColor location " (.glGetFragDataLocation gl shader-program "outColor"))
 
     (shader/set-float4-matrix-uniform gl
@@ -168,11 +197,34 @@ void main() {
                                       (math/projection-matrix-2d frame-buffer-width
                                                                  frame-buffer-height))
 
+    #_(buffer/load-vertex-array-buffer gl
+                                       vertex-coordinate-buffer-id
+                                       :float
+                                       (map float (quad quad-width
+                                                        quad-height)))
+
+    #_(buffer/load-vertex-array-buffer gl
+                                       vertex-coordinate-buffer-id
+                                       :float
+                                       (map float [-0.5   -0.5
+                                                   -0.5   0.5
+                                                   0.5 -0.5
+                                                   0.5 0.5]))
+
+    #_(buffer/load-vertex-array-buffer gl
+                                       vertex-coordinate-buffer-id
+                                       :float
+                                       (map float [-1   -1
+                                                   -1   1
+                                                   1 -1
+                                                   1 1]))
+
     (buffer/load-vertex-array-buffer gl
                                      vertex-coordinate-buffer-id
                                      :float
-                                     (map float (quad quad-width
-                                                      quad-height)))
+                                     (map float (quad-2 -0.9 0.9)))
+
+
 
     (.glBindBuffer gl GL2/GL_ARRAY_BUFFER vertex-coordinate-buffer-id)
     (.glEnableVertexAttribArray gl vertex-coordinate-attribute-index)
@@ -211,8 +263,8 @@ void main() {
                 (native-buffer/native-buffer-with-values :int (-> image (.getRaster) (.getDataBuffer) (.getData)))))
 
 (defn start []
-  (let [window-width 500
-        window-height 500
+  (let [window-width 600
+        window-height 600
         window (window/create window-width window-height :profile :gl3)]
 
     (try
@@ -227,8 +279,8 @@ void main() {
         (let [texture (create-texture gl)
               ;;frame-buffer-texture (create-texture gl)
               frame-buffer (frame-buffer/create gl)
-              frame-buffer-width 50
-              frame-buffer-height 50
+              frame-buffer-width 500
+              frame-buffer-height 500
               image (buffered-image/create-from-file "pumpkin.png")
 
               shader-program (shader/compile-program gl
@@ -237,12 +289,13 @@ void main() {
           ;;(frame-buffer/bind gl frame-buffer)
           (.glBindFramebuffer gl GL2/GL_FRAMEBUFFER frame-buffer)
 
-          ;;(load-texture-from-buffered-image gl texture image)
+          (load-texture-from-buffered-image gl texture image)
 
           ;;(.glDisable gl GL2/GL_DEPTH_TEST)
           ;;(.glDepthMask gl false)
 
           (let [frame-buffer-texture (texture/create-gl-texture gl)]
+            ;;(.glActiveTexture gl GL2/GL_TEXTURE0)
             (.glBindTexture gl GL2/GL_TEXTURE_2D frame-buffer-texture)
 
             (.glTexParameteri gl GL2/GL_TEXTURE_2D GL2/GL_TEXTURE_MAG_FILTER GL2/GL_LINEAR)
@@ -273,6 +326,13 @@ void main() {
             ;;(.glViewport gl 0 0 frame-buffer-width frame-buffer-height)
 
             (opengl/clear gl 1 0 0 0.7)
+
+            ;; (.glBegin gl GL2/GL_TRIANGLES)
+            ;; (.glVertex2f gl 0 0)
+            ;; (.glVertex2f gl 10 0)
+            ;; (.glVertex2f gl 1 10)
+            ;; (.glEnd gl)
+
             ;;(.glClear gl GL2/GL_COLOR_BUFFER_BIT)
             ;;(draw-quad gl texture (.getWidth image) (.getHeight image) frame-buffer-width frame-buffer-height)
             (draw-single-color-quad gl 10 10 frame-buffer-width frame-buffer-height)
