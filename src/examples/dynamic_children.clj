@@ -8,7 +8,8 @@
                          [events :as events])
 
             (flow-gl.graphics [command :as command]
-                              [font :as font])
+                              [font :as font]
+                              [buffered-image :as buffered-image])
 
             (flow-gl.graphics.command [text :as text]
                                       [translate :as translate])
@@ -18,7 +19,8 @@
                                  [quad-batch :as quad-batch]))
   (:use flow-gl.utils
         midje.sweet
-        flow-gl.gui.layout-dsl))
+        flow-gl.gui.layout-dsl
+        clojure.test))
 
 (def event-queue (atom (event-queue/create)))
 
@@ -193,27 +195,127 @@
       (clojure.string/replace  "flow_gl.gui.drawable." "")))
 
 (defn draw-layoutable [layoutable]
-  (layout/->VerticalStack [(text (layoutable-name layoutable))
-                           (if (:state-path-part layoutable)
+  (layout/->VerticalStack [(if (:state-path-part layoutable)
                              (text (str (:state-path-part layoutable)) :size 12 :color [0.6 0.6 0.6 1.0])
                              (drawable/->Empty 0 0))
+                           (text (layoutable-name layoutable))
                            (layout/->Margin 0 0 0 10 [(layout/->VerticalStack (map draw-layoutable (:children layoutable)))])]))
 
-(defn render-layout [window quad-batch layout]
-  #_(println "rendering" (quad-batch/ids quad-batch))
+
+;; todo set new parents to preserved quads
+(defn quads-for-layout [layout old-state-paths-to-quads state-path parent next-free-id]
+  (let [this-layout-id next-free-id]
+    (loop [quads [{:image (buffered-image/create 1 1)
+                   :x (:x layout)
+                   :y (:y layout)
+                   :parent parent}]
+           removed-quads []
+           children (:children layout)
+           next-free-id (inc next-free-id)
+           state-paths-to-quads old-state-paths-to-quads]
+
+      (if-let [child (first children)]
+        (let [state-path-part (:state-path-part child)
+              state-path (if state-path-part
+                           (concat state-path state-path-part)
+                           state-path)]
+
+          (when state-path-part
+            (let [old (second (get state-paths-to-quads state-path))]
+              (println "comparing " (= (dissoc old
+                                               :children)
+                                       (dissoc child
+                                               :children))
+                       (layoutable-name child)
+                       #_(dissoc child :children)
+                       #_(dissoc old :children))))
+
+          (if (and state-path-part
+                   (= (second (get state-paths-to-quads state-path))
+                      child))
+            (recur quads
+                   removed-quads
+                   (rest children)
+                   next-free-id
+                   state-paths-to-quads)
+            (let [state-paths-to-quads (if state-path-part
+                                         (assoc state-paths-to-quads state-path [next-free-id child])
+                                         state-paths-to-quads)
+                  removed-quads (if (and state-path-part (get state-paths-to-quads state-path))
+                                  (conj removed-quads (first (get state-paths-to-quads state-path)))
+                                  removed-quads)]
+              (if (satisfies? drawable/Java2DDrawable child)
+                (recur (concat quads
+                               [{:image (let [image (buffered-image/create (max 1 (:width child))
+                                                                           (max 1 (:height child)))]
+                                          (drawable/draw child (buffered-image/get-graphics image))
+                                          image)
+                                 :x (:x child)
+                                 :y (:y child)
+                                 :parent this-layout-id}])
+                       removed-quads
+                       (rest children)
+                       (inc next-free-id)
+                       state-paths-to-quads)
+                (let [[child-quads child-state-path-quads child-removed-quads] (quads-for-layout child old-state-paths-to-quads state-path this-layout-id next-free-id)]
+                  (recur (concat quads
+                                 child-quads)
+                         (concat removed-quads
+                                 child-removed-quads)
+                         (rest children)
+                         (+ next-free-id (count child-quads))
+                         (conj state-paths-to-quads child-state-path-quads)))))))
+
+        [quads state-paths-to-quads removed-quads]))))
+
+(deftest quads-for-layout-test
+  (is (=  (let [layout (layout/layout (layout/->HorizontalStack [(assoc (layout/->VerticalStack [(drawable/->Text "Foo"
+                                                                                                                  (font/create "LiberationSans-Regular.ttf" 14)
+                                                                                                                  [1 1 1 1])
+                                                                                                 (assoc (drawable/->Text "Bar"
+                                                                                                                         (font/create "LiberationSans-Regular.ttf" 14)
+                                                                                                                         [1 1 1 1])
+                                                                                                   :state-path-part [:bar] )])
+                                                                   :state-path-part [:child-states 0])
+                                                                 (assoc (layout/->VerticalStack [(drawable/->Text "Foo"
+                                                                                                                  (font/create "LiberationSans-Regular.ttf" 14)
+                                                                                                                  [1 1 1 1])
+                                                                                                 (drawable/->Text "Bar"
+                                                                                                                  (font/create "LiberationSans-Regular.ttf" 14)
+                                                                                                                  [1 1 1 1])])
+                                                                   :state-path-part [:child-states 1])] )
+                                      100 100)]
+            (println "layout " layout)
+            (quads-for-layout (assoc layout :x 0 :y 0)
+                              {}
+                              []
+                              -1
+                              0))
+
+          nil)))
+
+
+(defn render-layout [window gpu-state layout]
+  (println "")
+  (println "rendering")
   #_(layoutable-inspector/show-layoutable (draw-layoutable layout))
   (window/with-gl window gl
     (opengl/clear gl 0 0 0 1)
-    (-> (reduce (fn [quad-batch id]
-                  (quad-batch/remove-quad quad-batch gl id))
-                quad-batch
-                (quad-batch/ids quad-batch))
-        (quad-batch/collect-garbage gl)
-        (quad-batch/add-quads gl (layoutable-inspector/quads-for-layout (assoc layout
-                                                                          :x 0 :y 0)
-                                                                        -1 (:next-free-id quad-batch)))
-        (quad-batch/draw gl (window/width window) (window/height window)))))
-
+    (let [[quads state-paths-to-quads] (quads-for-layout (assoc layout
+                                                           :x 0 :y 0)
+                                                         (:state-paths-to-quads gpu-state)
+                                                         []
+                                                         -1
+                                                         (:next-free-id (:quad-batch gpu-state)))
+          quad-batch (-> (reduce (fn [quad-batch id]
+                                   (quad-batch/remove-quad quad-batch gl id))
+                                 (:quad-batch gpu-state)
+                                 (quad-batch/ids (:quad-batch gpu-state)))
+                         (quad-batch/collect-garbage gl)
+                         (quad-batch/add-quads gl quads)
+                         (quad-batch/draw gl (window/width window) (window/height window)))]
+      (assoc gpu-state :quad-batch quad-batch
+             :state-paths-to-quads state-paths-to-quads))))
 
 (defn set-focus [state focus-path-parts]
   (-> state
@@ -271,7 +373,8 @@
                                  (initial-focus-path-parts initial-state))]
     (try
 
-      (loop [gpu-state (window/with-gl window gl (quad-batch/create gl))
+      (loop [gpu-state (window/with-gl window gl {:quad-batch (quad-batch/create gl)
+                                                  :state-paths-to-quads {}})
              state initial-state]
                                         ;(println "state is " state)
         (if (:close-requested state)
@@ -613,3 +716,5 @@
                                       todo-list-view)))))
 
 (event-queue/add-event @event-queue {})
+
+(run-tests)

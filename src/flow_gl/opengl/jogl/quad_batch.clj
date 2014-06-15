@@ -76,9 +76,9 @@ void main() {
     // 0 parent
     // 1 x
     // 2 y
-    // 3 (.getWidth buffered-image)
-    // 4 (.getHeight buffered-image)
-    // 5 (:next-free-texel new-quad-batch)
+    // 3 texture width
+    // 4 texture height
+    // 5 texel index
 
     int quad_index;
     if(use_quad_index_buffer == 1)
@@ -171,7 +171,9 @@ void main() {
                             divisor)
     buffer-id))
 
-
+(defn ids [quad-batch]
+  (or (keys (:ids-to-indexes quad-batch))
+      []))
 
 (defn bind-texture-buffer [gl buffer-id texture-unit program uniform-name type]
   (shader/set-int-uniform gl
@@ -543,9 +545,7 @@ void main() {
         (update-in [:removed-quads] inc)
         (update-in [:removed-texels] + (* width height)))))
 
-(defn ids [quad-batch]
-  (or (keys (:ids-to-indexes quad-batch))
-      []))
+
 
 (defn remove-quad [quad-batch gl id]
   (-> quad-batch

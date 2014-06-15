@@ -10,4 +10,19 @@
               rerun.))
           (:questions
             (How to connect state paths to quads?)))
-              
+
+
+state -> child states -> layoutables
+
+{:state ["foo" "bar"]
+ :text-box-0 "foo"
+ :text-box-1 "bar"}
+
+[vertical-stack [box [rectangle]
+                     [text "foo"]]
+                [box [rectangle]]
+                     [text "foo"]]
+
+[quad [
+
+

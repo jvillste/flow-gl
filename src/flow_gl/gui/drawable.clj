@@ -56,6 +56,9 @@
   (preferred-width [empty] width)
   (preferred-height [empty] height)
 
+  Java2DDrawable
+  (draw [this graphics])
+
   Object
   (toString [this] (layoutable/describe-layoutable this "Empty" :width :height)))
 
