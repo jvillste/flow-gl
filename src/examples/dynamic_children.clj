@@ -202,71 +202,33 @@
                            (layout/->Margin 0 0 0 10 [(layout/->VerticalStack (map draw-layoutable (:children layoutable)))])]))
 
 
-;; todo set new parents to preserved quads
-(defn quads-for-layout [layout old-state-paths-to-quads state-path parent next-free-id]
+(defn quads-for-layout [layout parent next-free-id]
   (let [this-layout-id next-free-id]
     (loop [quads [{:image (buffered-image/create 1 1)
                    :x (:x layout)
                    :y (:y layout)
                    :parent parent}]
-           removed-quads []
            children (:children layout)
-           next-free-id (inc next-free-id)
-           state-paths-to-quads old-state-paths-to-quads]
+           next-free-id (inc next-free-id)]
 
       (if-let [child (first children)]
-        (let [state-path-part (:state-path-part child)
-              state-path (if state-path-part
-                           (concat state-path state-path-part)
-                           state-path)]
-
-          (when state-path-part
-            (let [old (second (get state-paths-to-quads state-path))]
-              (println "comparing " (= (dissoc old
-                                               :children)
-                                       (dissoc child
-                                               :children))
-                       (layoutable-name child)
-                       #_(dissoc child :children)
-                       #_(dissoc old :children))))
-
-          (if (and state-path-part
-                   (= (second (get state-paths-to-quads state-path))
-                      child))
-            (recur quads
-                   removed-quads
+        (if (satisfies? drawable/Java2DDrawable child)
+          (recur (concat quads
+                         [{:image (let [image (buffered-image/create (:width child)
+                                                                    (:height child))]
+                                   (drawable/draw child (buffered-image/get-graphics image))
+                                   image)
+                          :x (:x child)
+                          :y (:y child)
+                          :parent this-layout-id}])
+                 (rest children)
+                 (inc next-free-id))
+          (let [layout-quads (quads-for-layout child this-layout-id next-free-id)]
+            (recur (concat quads
+                           layout-quads)
                    (rest children)
-                   next-free-id
-                   state-paths-to-quads)
-            (let [state-paths-to-quads (if state-path-part
-                                         (assoc state-paths-to-quads state-path [next-free-id child])
-                                         state-paths-to-quads)
-                  removed-quads (if (and state-path-part (get state-paths-to-quads state-path))
-                                  (conj removed-quads (first (get state-paths-to-quads state-path)))
-                                  removed-quads)]
-              (if (satisfies? drawable/Java2DDrawable child)
-                (recur (concat quads
-                               [{:image (let [image (buffered-image/create (max 1 (:width child))
-                                                                           (max 1 (:height child)))]
-                                          (drawable/draw child (buffered-image/get-graphics image))
-                                          image)
-                                 :x (:x child)
-                                 :y (:y child)
-                                 :parent this-layout-id}])
-                       removed-quads
-                       (rest children)
-                       (inc next-free-id)
-                       state-paths-to-quads)
-                (let [[child-quads child-state-path-quads child-removed-quads] (quads-for-layout child old-state-paths-to-quads state-path this-layout-id next-free-id)]
-                  (recur (concat quads
-                                 child-quads)
-                         (concat removed-quads
-                                 child-removed-quads)
-                         (rest children)
-                         (+ next-free-id (count child-quads))
-                         (conj state-paths-to-quads child-state-path-quads)))))))
-
-        [quads state-paths-to-quads removed-quads]))))
+                   (+ next-free-id (count layout-quads)))))
+        quads))))
 
 (deftest quads-for-layout-test
   (is (=  (let [layout (layout/layout (layout/->HorizontalStack [(assoc (layout/->VerticalStack [(drawable/->Text "Foo"
@@ -287,8 +249,6 @@
                                       100 100)]
             (println "layout " layout)
             (quads-for-layout (assoc layout :x 0 :y 0)
-                              {}
-                              []
                               -1
                               0))
 

@@ -202,8 +202,8 @@
      drawable/Drawable
      (drawing-commands [this#] (layout-drawing-commands this#))
 
-     drawable/Java2DDrawable
-     (draw [this# graphics#] (draw-layout this# graphics#))
+     #_drawable/Java2DDrawable
+     #_(draw [this# graphics#] (draw-layout this# graphics#))
 
      Object
      (toString [this#] (layoutable/describe-layoutable this#))))

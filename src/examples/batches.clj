@@ -38,80 +38,77 @@
                              time-spent-until-now)
                           1000000)))))
 
-(defn render-loop [quad-batch window]
-  (loop [quad-batch quad-batch
-         frame-start-time (System/nanoTime)]
-    (let [new-quad-batch (window/with-gl window gl
-                           (opengl/clear gl 0 0 0 1)
-                           (-> quad-batch
-                               (quad-batch/move-quad gl
-                                                     0
-                                                     (* (/ (mod (System/nanoTime)
-                                                                (* 3 1E9))
-                                                           (* 3 1E9))
-                                                        (window/width window))
-                                                     0)
-                               (quad-batch/move-quad gl
-                                                     1
-                                                     (* (/ (mod (System/nanoTime)
-                                                                (* 1 1E9))
-                                                           (* 1 1E9))
-                                                        50)
-                                                     0)
-                               (quad-batch/draw gl
-                                                (window/width window)
-                                                (window/height window))))]
 
-      (wait-for-frame-end-time frame-start-time 60)
-      (when (.isVisible (:gl-window window))
-        (recur new-quad-batch
-               (System/nanoTime))))))
 
 (defn text-image [text]
   (text/create-buffered-image [1 1 1 1]
-                              (font/create "LiberationSans-Regular.ttf" 14)
+                              (font/create "LiberationSans-Regular.ttf" 20)
                               text))
 
 (defn image-for-java2d-drawable [drawable]
   )
 
-(defn quads-for-layout [layout state-path parent next-free-id]
-  (let [this-layout-id next-free-id]
-    (loop [quads [{:image (buffered-image/create 1 1)
-                   :x (:x layout)
-                   :y (:y layout)
-                   :parent parent}]
-           children (:children layout)
-           next-free-id (inc next-free-id)
-           state-path-quads {}]
+#_(defn quads-for-layout [layout state-path parent next-free-id]
+    (let [this-layout-id next-free-id]
+      (loop [quads [{:drawable (buffered-image/create 1 1)
+                     :x (:x layout)
+                     :y (:y layout)
+                     :parent parent}]
+             children (:children layout)
+             next-free-id (inc next-free-id)
+             state-path-quads {}]
 
-      (if-let [child (first children)]
-        (let [state-path (if-let [state-path-part (:state-path-part child)]
-                           (concat state-path state-path-part)
-                           state-path)
-              state-path-quads (if-let [state-path-part (:state-path-part child)]
-                                 (assoc state-path-quads state-path next-free-id)
-                                 state-path-quads)]
-          (if (satisfies? drawable/Java2DDrawable child)
-            (recur (concat quads
-                           [{:image (let [image (buffered-image/create (:width child)
-                                                                       (:height child))]
-                                      (drawable/draw child (buffered-image/get-graphics image))
-                                      image)
-                             :x (:x child)
-                             :y (:y child)
-                             :parent this-layout-id}])
-                   (rest children)
-                   (inc next-free-id)
-                   state-path-quads)
-            (let [[layout-quads child-state-path-quads] (quads-for-layout child state-path this-layout-id next-free-id)]
+        (if-let [child (first children)]
+          (let [state-path (if-let [state-path-part (:state-path-part child)]
+                             (concat state-path state-path-part)
+                             state-path)
+                state-path-quads (if-let [state-path-part (:state-path-part child)]
+                                   (assoc state-path-quads state-path next-free-id)
+                                   state-path-quads)]
+            (if (satisfies? drawable/Java2DDrawable child)
               (recur (concat quads
-                             layout-quads)
+                             [{:drawable (let [image (buffered-image/create (:width child)
+                                                                            (:height child))]
+                                           (drawable/draw child (buffered-image/get-graphics image))
+                                           image)
+                               :x (:x child)
+                               :y (:y child)
+                               :parent this-layout-id}])
                      (rest children)
-                     (+ next-free-id (count layout-quads))
-                     (conj state-path-quads child-state-path-quads)))))
+                     (inc next-free-id)
+                     state-path-quads)
+              (let [[layout-quads child-state-path-quads] (quads-for-layout child state-path this-layout-id next-free-id)]
+                (recur (concat quads
+                               layout-quads)
+                       (rest children)
+                       (+ next-free-id (count layout-quads))
+                       (conj state-path-quads child-state-path-quads)))))
 
-        [quads state-path-quads] ))))
+          [quads state-path-quads]))))
+
+(defn quads-for-layout
+  ([layout]
+     (quads-for-layout layout -1 0))
+
+  ([layout parent next-free-id]
+     (if (satisfies? drawable/Java2DDrawable layout)
+       [{:drawable (dissoc layout :x :y)
+         :x (:x layout)
+         :y (:y layout)
+         :parent parent}]
+       (let [curretn-id next-free-id]
+         (loop [quads [{:x (:x layout)
+                        :y (:y layout)
+                        :parent parent}]
+                children (:children layout)
+                next-free-id (inc next-free-id)]
+           (if-let [child (first children)]
+             (let [child-quads (quads-for-layout child curretn-id next-free-id)]
+               (recur (concat quads
+                              child-quads)
+                      (rest children)
+                      (+ next-free-id (count child-quads))))
+             quads))))))
 
 (deftest quads-for-layout-test
   (is (=  (let [layout (layout/layout (layout/->HorizontalStack [(assoc (layout/->VerticalStack [(drawable/->Text "Foo"
@@ -130,87 +127,135 @@
                                                                                                                   [1 1 1 1])])
                                                                    :state-path-part [:child-states 1])] )
                                       100 100)]
-            (println "layout " layout)
             (quads-for-layout (assoc layout :x 0 :y 0)
-                              []
                               -1
                               0))
 
           nil)))
 
-(defn add-test-quads-batch [quad-batch gl]
-  (-> quad-batch
+(defn unused-drawables [drawable-textures quads]
+  (->> quads
+       (map :drawable)
+       (reduce dissoc drawable-textures)))
 
-      #_(quad-batch/add-quads gl
-                              [{:image (text-image "parent")
-                                :x 10
-                                :y 30
-                                :parent -1}])
+(defn new-drawables [drawable-textures quads]
+  (reduce (fn [new-drawables quad]
+            (if (contains? quad :drawable)
+              (if (contains? drawable-textures (:drawable quad))
+                new-drawables
+                (conj new-drawables (:drawable quad)))
+              new-drawables ))
+          #{}
+          quads))
 
-      (quad-batch/add-quads gl
-                            (let [layout (layout/layout (layout/->HorizontalStack [(layout/->VerticalStack [(drawable/->Text "Foo"
+(defn create-textures [drawables]
+  (map (fn [drawable]
+         (let [buffered-image (buffered-image/create (:width drawable)
+                                                     (:height drawable))]
+           (drawable/draw drawable
+                          (buffered-image/get-graphics buffered-image))
+           buffered-image))
+       drawables))
+
+(defn add-new-textures [drawable-textures drawables first-texture-id]
+  (loop [texture-id first-texture-id
+         drawable-textures drawable-textures
+         drawables drawables]
+    (if-let [drawable (first drawables)]
+      (recur (inc texture-id)
+             (assoc drawable-textures drawable texture-id)
+             (rest drawables))
+      drawable-textures)))
+
+(defn load-new-textures [quad-view quads gl]
+  (let [first-texture-id (:next-free-texture-id (:quad-batch quad-view))
+        drawables (new-drawables (:drawable-textures quad-view) quads)
+        new-textures (create-textures drawables)]
+    (if (empty? new-textures)
+      quad-view
+      (do (println "new drawables" drawables)
+          (assoc quad-view
+            :quad-batch (quad-batch/add-textures (:quad-batch quad-view) gl new-textures)
+            :drawable-textures (add-new-textures (:drawable-textures quad-view) drawables (:next-free-texture-id (:quad-batch quad-view))))))))
+
+(defn add-texture-ids [quads drawable-textures]
+  (map (fn [quad]
+         (if (contains? quad :drawable)
+           (assoc quad
+             :texture-id (get drawable-textures
+                              (:drawable quad)))
+
+           quad))
+       quads))
+
+(defn unload-unused-textures [quad-view quads]
+  (let [unused-drawables (unused-drawables (:drawable-textures quad-view)
+                                           quads)]
+    (println "unused" unused-drawables)
+    quad-view))
+
+(defn draw-quads [quad-view quads width height gl]
+  (let [quad-view (load-new-textures quad-view
+                                     quads
+                                     gl)
+        quad-view (unload-unused-textures quad-view quads)
+        quads (add-texture-ids quads
+                               (:drawable-textures quad-view))]
+    (quad-batch/draw-quads (:quad-batch quad-view)
+                           gl
+                           quads
+                           width height)
+    quad-view))
+
+(defn create-quad-view [gl]
+  {:drawable-textures {}
+   :quad-batch (quad-batch/create gl)})
+
+(defn render-loop [quad-view window]
+  (loop [quad-view quad-view
+         frame-start-time (System/nanoTime)]
+    (let [phase (/ (mod (System/nanoTime)
+                        (* 3 1E9))
+                   (* 3 1E9))
+          quads (quads-for-layout (assoc (layout/layout (layout/->HorizontalStack [(layout/->VerticalStack [(drawable/->Text (str phase)
                                                                                                                              (font/create "LiberationSans-Regular.ttf" 14)
                                                                                                                              [1 1 1 1])
-                                                                                                            (drawable/->Text "Bar"
-                                                                                                                             (font/create "LiberationSans-Regular.ttf" 14)
-                                                                                                                             [1 1 1 1])])
+                                                                                                            (layout/->Margin (* phase 50 ) 0 0 0
+                                                                                                                             [(drawable/->Text "Bar"
+                                                                                                                                               (font/create "LiberationSans-Regular.ttf" 14)
+                                                                                                                                               [1 1 1 1])])])
                                                                                    (layout/->VerticalStack [(drawable/->Text "Foo"
                                                                                                                              (font/create "LiberationSans-Regular.ttf" 14)
                                                                                                                              [1 1 1 1])
                                                                                                             (drawable/->Text "Bar"
                                                                                                                              (font/create "LiberationSans-Regular.ttf" 14)
-                                                                                                                             [1 1 1 1])])] )
-                                                        100 100)]
-                              (quads-for-layout (assoc layout :x 0 :y 0)
-                                                -1
-                                                0)))
+                                                                                                                             [1 1 1 1])])])
+                                                        (window/width window)
+                                                        (window/height window))
+                                    :x 0 :y 0))
+          new-quad-view (window/with-gl window gl
+                          (opengl/clear gl 0 0 0 1)
+                          (draw-quads quad-view
+                                      quads
+                                      (window/width window)
+                                      (window/height window)
+                                      gl))]
 
-      #_(quad-batch/add-quads gl
-                              (let [per-column 25
-                                    column-width 40
-                                    row-height 16]
-                                (for [number (range 300)]
-                                  {:image (text-image (str number))
-                                   :x (int (* (Math/floor (/ number per-column)) column-width))
-                                   :y (int (+ 20 (* (mod number per-column) row-height)))
-                                   :parent 0})))
-      #_(quad-batch/remove-quad gl 3)
-      (as-> quad-batch
-            (do (println "before" quad-batch)
-                quad-batch))
-      #_(quad-batch/change-texture gl 0 (text-image "par"))
-      #_(quad-batch/collect-garbage gl)
-      #_(as-> quad-batch
-              (do (println "after" quad-batch)
-                  quad-batch))))
-
-
-
-
+      (wait-for-frame-end-time frame-start-time 1)
+      (when (.isVisible (:gl-window window))
+        (recur new-quad-view
+               (System/nanoTime))))))
 
 (defn start []
   (let [width 500
         height 500
-        ;;event-queue (event-queue/create)
-        window (window/create width height :profile :gl3 #_:event-queue #_event-queue)
-        images (map text-image ["for" "bar" "baz"])]
+        window (window/create width height :profile :gl3)]
 
     (try
-      (let [quad-batch (window/with-gl window gl
-                         (opengl/initialize gl)
-
-                         (-> (quad-batch/create gl)
-                             (add-test-quads-batch gl)
-                             (as-> quad-batch
-                                   (do ;; (println quad-batch)
-                                     ;;(println "quad index" (seq (buffer/read gl (:quad-index-buffer quad-batch) :int 0 (:next-free-quad quad-batch))))
-                                     ;;(println "quad coordinate" (seq (buffer/read gl (:quad-coordinate-buffer-id quad-batch) :float 0 (* 2 (:next-free-quad quad-batch)))))
-                                     ;;(println "texture offset" (seq (buffer/read gl (:texture-offset-attribute-buffer quad-batch) :int 0 (:next-free-quad quad-batch))))
-
-                                     ;;(println "texture size" (seq (buffer/read gl (:texture-size-attribute-buffer quad-batch) :short 0 (* 2 (:next-free-quad quad-batch)))))
-                                     quad-batch))
-                             #_(draw gl width height)))]
-        (render-loop quad-batch window))
+      (let [quad-view (window/with-gl window gl
+                        (opengl/initialize gl)
+                        (create-quad-view gl))]
+        (render-loop quad-view window))
 
       (println "exiting")
 

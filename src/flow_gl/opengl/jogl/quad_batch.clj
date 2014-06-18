@@ -222,6 +222,9 @@ void main() {
      :ids-to-indexes {}
      :next-free-id 0
 
+     :textures-in-use {}
+     :next-free-texture-id 0
+
      :allocated-quads initial-number-of-quads
      :quad-parameters-buffer-id (allocate-quads gl initial-number-of-quads)
 
@@ -372,7 +375,21 @@ void main() {
                                        (:texture-buffer-id new-quad-batch)
                                        :int
                                        (:next-free-texel new-quad-batch)
-                                       texel-count)]
+                                       texel-count)
+          textures-in-use (loop [textures-in-use (:textures-in-use quad-batch)
+                                 next-free-texel (:next-free-texel new-quad-batch)
+                                 next-free-texture-id (:next-free-texture-id quad-batch)
+                                 images images]
+                            (if-let [image (first images)]
+                              (recur (assoc textures-in-use
+                                       next-free-texture-id {:first-texel next-free-texel
+                                                             :width (.getWidth image)
+                                                             :height (.getHeight image)})
+                                     (+ next-free-texel (* (.getWidth image)
+                                                           (.getHeight image)))
+                                     (inc next-free-texture-id)
+                                     (rest images))
+                              textures-in-use))]
 
       (doseq [image images]
         (.put buffer
@@ -381,11 +398,12 @@ void main() {
                   (.getDataBuffer)
                   (.getData))))
 
-      (buffer/unmap-for-write gl))
+      (buffer/unmap-for-write gl)
 
-    (assoc new-quad-batch
-      :next-free-texel (+ (:next-free-texel quad-batch)
-                          texel-count))))
+      (assoc new-quad-batch
+        :next-free-texel (+ (:next-free-texel quad-batch)
+                            texel-count)
+        :textures-in-use textures-in-use))))
 
 (defn add-quads [quad-batch gl quads]
   (let [new-quad-batch (add-textures quad-batch gl (map :image quads))
@@ -479,6 +497,46 @@ void main() {
   (.glDrawArraysInstanced gl GL2/GL_TRIANGLE_STRIP 0 4 (:next-free-quad quad-batch))
 
   quad-batch)
+
+(defn draw-quads [quad-batch gl quads width height]
+  (let [quad-count (count quads)
+
+        minimum-quad-capacity (+ (:next-free-quad quad-batch)
+                                 quad-count)
+
+        quad-batch (if (< (:allocated-quads quad-batch)
+                          minimum-quad-capacity)
+                     (grow-quad-buffers gl
+                                        quad-batch
+                                        minimum-quad-capacity)
+                     quad-batch)]
+
+    (let [buffer (buffer/map-for-write gl
+                                       (:quad-parameters-buffer-id quad-batch)
+                                       :int
+                                       0
+                                       (* quad-parameters-size
+                                          quad-count))]
+      (loop [quads quads]
+        (when-let [quad (first quads)]
+          (let [texture (if (contains? quad :texture-id)
+                          (get (:textures-in-use quad-batch)
+                               (:texture-id quad))
+                          {:first-texel 0
+                           :width 0
+                           :height 0})]
+            (do (.put buffer
+                      (int-array [(:parent quad)
+                                  (:x quad)
+                                  (:y quad)
+                                  (:width texture)
+                                  (:height texture)
+                                  (:first-texel texture)]))
+                (recur (rest quads))))))
+      (buffer/unmap-for-write gl))
+
+    (draw (assoc quad-batch
+            :next-free-quad quad-count) gl width height)))
 
 (defn draw-indexes [quad-batch gl width height indexes]
   (let [quad-index-buffer (buffer/create-gl-buffer gl)]
