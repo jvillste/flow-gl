@@ -254,7 +254,6 @@
 
           nil)))
 
-
 (defn render-layout [window gpu-state layout]
   (println "")
   (println "rendering")

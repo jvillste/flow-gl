@@ -389,7 +389,8 @@ void main() {
                  :int
                  0
                  0
-                 (* quad-parameters-size (:allocated-quads quad-batch)))
+                 (* quad-parameters-size
+                    (:allocated-quads quad-batch)))
 
     (buffer/delete gl (:quad-parameters-buffer-id quad-batch))
     new-quad-batch))
@@ -454,7 +455,7 @@ void main() {
         :next-free-texture-id (+ (:next-free-texture-id quad-batch)
                                  (count images))))))
 
-(defn add-quads [quad-batch gl quads]
+#_(defn add-quads [quad-batch gl quads]
   (let [new-quad-batch (add-textures quad-batch gl (map :image quads))
 
         quad-count (count quads)
@@ -550,14 +551,11 @@ void main() {
 (defn draw-quads [quad-batch gl quads width height]
   (let [quad-count (count quads)
 
-        minimum-quad-capacity (+ (:next-free-quad quad-batch)
-                                 quad-count)
-
         quad-batch (if (< (:allocated-quads quad-batch)
-                          minimum-quad-capacity)
+                          quad-count)
                      (grow-quad-buffers gl
                                         quad-batch
-                                        minimum-quad-capacity)
+                                        quad-count)
                      quad-batch)]
 
     (let [buffer (buffer/map-for-write gl

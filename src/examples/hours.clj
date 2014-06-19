@@ -3,7 +3,8 @@
             (flow-gl.gui [drawable :as drawable]
                          [layout :as layout]
                          [event-queue :as event-queue]
-                         [events :as events])
+                         [events :as events]
+                         [quad-view :as quad-view])
 
             (flow-gl.graphics [command :as command]
                               [font :as font])
@@ -33,64 +34,45 @@
 (defn start-view [view event-queue event-handler initial-state]
   (let [window (window/create 300
                               400
-                              opengl/initialize
-                              opengl/resize
-                              event-queue)]
+                              :profile :gl3
+                              :init opengl/initialize
+                              :event-queue event-queue)]
 
     (println "initial " initial-state)
     (try
       (loop [state initial-state
-             previous-state {}
-             cached-runnables {}]
+             previous-state nil
+             quad-view (window/with-gl window gl
+                         (quad-view/create gl))]
 
-        (println "rendering")
         (let [layoutable (view state)
-              layout (layout/layout layoutable
-                                    (window/width window)
-                                    (window/height window))
-              drawing-commands (doall (drawable/drawing-commands layout))
-              cached-runnables-atom (atom cached-runnables)
-              unused-commands-atom (atom nil)]
+              layout (assoc (layout/layout layoutable
+                                           (window/width window)
+                                           (window/height window))
+                       :x 0 :y 0)
 
-          (when (not= state previous-state)
-            (window/render window gl
-                           (opengl/clear gl 0 0 0 1)
-                           (doseq [runnable (doall (reduce (fn [runnables command]
-                                                             (if (contains? @cached-runnables-atom command)
-                                                               (conj runnables (get @cached-runnables-atom command))
-                                                               (let [runnable (command/create-runner command gl)]
-                                                                 (swap! cached-runnables-atom assoc command runnable)
-                                                                 (conj runnables runnable))))
-                                                           []
-                                                           drawing-commands))]
-
-                             ;;(println (type runnable))
-                             (command/run runnable gl))
-
-                           (let [unused-commands (filter (complement (apply hash-set drawing-commands))
-                                                         (keys @cached-runnables-atom))]
-                             (doseq [unused-command unused-commands]
-                               (if-let [unused-runnable (get unused-command @cached-runnables-atom)]
-                                 (command/delete unused-runnable gl)))
-
-                             (reset! unused-commands-atom unused-commands))))
-
-          (let [event (event-queue/dequeue-event-or-wait event-queue)
-                live-commands (apply dissoc @cached-runnables-atom @unused-commands-atom)]
-            (println "event loop " event)
+              quad-view (if (not (= previous-state state))
+                          (window/with-gl window gl
+                            (quad-view/draw-layout quad-view
+                                                   layout
+                                                   (window/width window)
+                                                   (window/height window)
+                                                   gl))
+                          quad-view)]
+          (let [event (event-queue/dequeue-event-or-wait event-queue)]
             (cond
              #_(= (:source event)
-                :mouse)
+                  :mouse)
              #_(do (println "children in coordinates" )
-                 (let [child-paths-under-mouse (layout/children-in-coordinates-list layout [] (:x event) (:y event))]
-                   (doseq [child-path child-paths-under-mouse]
-                     (println "type under mouse " (type (get-in layout child-path))))
+                   (let [child-paths-under-mouse (layout/children-in-coordinates-list layout [] (:x event) (:y event))]
+                     (doseq [child-path child-paths-under-mouse]
+                       (println "type under mouse " (type (get-in layout child-path))))
 
-                   (recur (apply-mouse-event-handlers layout
-                                                      child-paths-under-mouse
-                                                      event)
-                          state
-                          live-commands)))
+                     (recur (apply-mouse-event-handlers layout
+                                                        child-paths-under-mouse
+                                                        event)
+                            state
+                            live-commands)))
 
              (= (:type event)
                 :close-requested)
@@ -100,7 +82,7 @@
              :default
              (recur (event-handler state event)
                     state
-                    live-commands)))))
+                    quad-view)))))
 
       (catch Exception e
         (window/close window)
@@ -417,7 +399,7 @@
 
 
 (defn handle-event [state event]
-  (println "handling " event)
+  #_(println "handling " event)
   (cond (events/key-pressed? event :down)
         (-> (if (< (:session-in-focus state)
                    (dec (count (-> state :days (get (:day-in-focus state)) :sessions))))
@@ -476,15 +458,15 @@
 
 (defn start []
   (reset! event-queue (event-queue/create))
-  (.start (Thread. (fn [] (start-view #'view
+  #_(.start (Thread. (fn [] (start-view #'view
                                       @event-queue
                                       #'handle-event
                                       (model-to-view-state log initial-view-state)))))
 
-  #_(start-view view
-                @event-queue
-                handle-event
-                (model-to-view-state log initial-view-state)))
+  (start-view #'view
+              @event-queue
+              #'handle-event
+              (model-to-view-state log initial-view-state)))
 
 (event-queue/add-event @event-queue {})
 
