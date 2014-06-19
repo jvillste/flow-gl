@@ -5,7 +5,8 @@
             (flow-gl.gui [drawable :as drawable]
                          [layout :as layout]
                          [event-queue :as event-queue]
-                         [events :as events])
+                         [events :as events]
+                         [quad-view :as quad-view])
 
             (flow-gl.graphics [command :as command]
                               [font :as font]
@@ -201,7 +202,6 @@
                            (text (layoutable-name layoutable))
                            (layout/->Margin 0 0 0 10 [(layout/->VerticalStack (map draw-layoutable (:children layoutable)))])]))
 
-
 (defn quads-for-layout [layout parent next-free-id]
   (let [this-layout-id next-free-id]
     (loop [quads [{:image (buffered-image/create 1 1)
@@ -215,12 +215,12 @@
         (if (satisfies? drawable/Java2DDrawable child)
           (recur (concat quads
                          [{:image (let [image (buffered-image/create (:width child)
-                                                                    (:height child))]
-                                   (drawable/draw child (buffered-image/get-graphics image))
-                                   image)
-                          :x (:x child)
-                          :y (:y child)
-                          :parent this-layout-id}])
+                                                                     (:height child))]
+                                    (drawable/draw child (buffered-image/get-graphics image))
+                                    image)
+                           :x (:x child)
+                           :y (:y child)
+                           :parent this-layout-id}])
                  (rest children)
                  (inc next-free-id))
           (let [layout-quads (quads-for-layout child this-layout-id next-free-id)]
@@ -261,21 +261,12 @@
   #_(layoutable-inspector/show-layoutable (draw-layoutable layout))
   (window/with-gl window gl
     (opengl/clear gl 0 0 0 1)
-    (let [[quads state-paths-to-quads] (quads-for-layout (assoc layout
-                                                           :x 0 :y 0)
-                                                         (:state-paths-to-quads gpu-state)
-                                                         []
-                                                         -1
-                                                         (:next-free-id (:quad-batch gpu-state)))
-          quad-batch (-> (reduce (fn [quad-batch id]
-                                   (quad-batch/remove-quad quad-batch gl id))
-                                 (:quad-batch gpu-state)
-                                 (quad-batch/ids (:quad-batch gpu-state)))
-                         (quad-batch/collect-garbage gl)
-                         (quad-batch/add-quads gl quads)
-                         (quad-batch/draw gl (window/width window) (window/height window)))]
-      (assoc gpu-state :quad-batch quad-batch
-             :state-paths-to-quads state-paths-to-quads))))
+    (quad-view/draw-layout gpu-state
+                           (assoc layout
+                             :x 0 :y 0)
+                           (window/width window)
+                           (window/height window)
+                           gl)))
 
 (defn set-focus [state focus-path-parts]
   (-> state
@@ -333,8 +324,7 @@
                                  (initial-focus-path-parts initial-state))]
     (try
 
-      (loop [gpu-state (window/with-gl window gl {:quad-batch (quad-batch/create gl)
-                                                  :state-paths-to-quads {}})
+      (loop [gpu-state (window/with-gl window gl (quad-view/create gl))
              state initial-state]
                                         ;(println "state is " state)
         (if (:close-requested state)
