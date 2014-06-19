@@ -321,6 +321,47 @@ void main() {
         :removed-quads 0
         :removed-texels 0))))
 
+(defn collect-texture-garbage [quad-batch gl]
+  (let [new-number-of-texels (- (:next-free-texel quad-batch)
+                                (:removed-texels quad-batch))
+
+        new-texture-buffer-size (max 100000
+                                     (* new-number-of-texels
+                                        2))
+
+        new-texture-buffer (allocate-texture gl
+                                             new-texture-buffer-size)
+
+        textures-in-use (loop [remaining-ids (keys (:textures-in-use quad-batch))
+                               texture-offset 0
+                               textures-in-use (:textures-in-use quad-batch)]
+
+                          (if-let [id (first remaining-ids)]
+                            (let [{:keys [width height first-texel]} (get-in quad-batch [:textures-in-use id])]
+                              (do (buffer/copy gl
+                                               (:texture-buffer-id quad-batch)
+                                               new-texture-buffer
+                                               :int
+                                               first-texel
+                                               texture-offset
+                                               (* width height))
+
+                                  (recur (rest remaining-ids)
+                                         (+ texture-offset
+                                            (* width height))
+                                         (assoc-in textures-in-use [id :first-texel] texture-offset))))
+
+                            textures-in-use))]
+
+    (buffer/delete gl (:texture-buffer-id quad-batch))
+
+    (assoc quad-batch
+      :texture-buffer-id new-texture-buffer
+      :allocated-texels new-texture-buffer-size
+      :next-free-texel new-number-of-texels
+      :textures-in-use textures-in-use
+      :removed-texels 0)))
+
 (defn grow-texture-buffer [gl quad-batch minimum-size]
   (let [new-quad-batch (assoc quad-batch
                          :texture-buffer-id (allocate-texture gl (* 2 minimum-size))
@@ -361,23 +402,29 @@ void main() {
                             0
                             images)
 
+        quad-batch (if (> (:removed-texels quad-batch)
+                          (/ (:allocated-texels quad-batch)
+                             2))
+                     (collect-texture-garbage quad-batch gl)
+                     quad-batch)
+
         minimum-texel-capacity (+ texel-count
                                   (:next-free-texel quad-batch))
 
-        new-quad-batch (if (< (:allocated-texels quad-batch)
-                              minimum-texel-capacity)
-                         (grow-texture-buffer gl
-                                              quad-batch
-                                              minimum-texel-capacity)
-                         quad-batch)]
+        quad-batch (if (< (:allocated-texels quad-batch)
+                          minimum-texel-capacity)
+                     (grow-texture-buffer gl
+                                          quad-batch
+                                          minimum-texel-capacity)
+                     quad-batch)]
 
     (let [buffer (buffer/map-for-write gl
-                                       (:texture-buffer-id new-quad-batch)
+                                       (:texture-buffer-id quad-batch)
                                        :int
-                                       (:next-free-texel new-quad-batch)
+                                       (:next-free-texel quad-batch)
                                        texel-count)
           textures-in-use (loop [textures-in-use (:textures-in-use quad-batch)
-                                 next-free-texel (:next-free-texel new-quad-batch)
+                                 next-free-texel (:next-free-texel quad-batch)
                                  next-free-texture-id (:next-free-texture-id quad-batch)
                                  images images]
                             (if-let [image (first images)]
@@ -400,10 +447,12 @@ void main() {
 
       (buffer/unmap-for-write gl)
 
-      (assoc new-quad-batch
+      (assoc quad-batch
         :next-free-texel (+ (:next-free-texel quad-batch)
                             texel-count)
-        :textures-in-use textures-in-use))))
+        :textures-in-use textures-in-use
+        :next-free-texture-id (+ (:next-free-texture-id quad-batch)
+                                 (count images))))))
 
 (defn add-quads [quad-batch gl quads]
   (let [new-quad-batch (add-textures quad-batch gl (map :image quads))
@@ -604,6 +653,13 @@ void main() {
         (update-in [:removed-texels] + (* width height)))))
 
 
+(defn remove-texture [quad-batch texture-id]
+  (let [texture (get (:textures-in-use quad-batch)
+                     texture-id)]
+    (-> quad-batch
+        (update-in [:removed-texels] + (* (:width texture)
+                                          (:height texture)))
+        (update-in [:textures-in-use] dissoc texture-id))))
 
 (defn remove-quad [quad-batch gl id]
   (-> quad-batch

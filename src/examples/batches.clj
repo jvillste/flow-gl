@@ -133,7 +133,7 @@
 
           nil)))
 
-(defn unused-drawables [drawable-textures quads]
+(defn unused-drawable-textures [drawable-textures quads]
   (->> quads
        (map :drawable)
        (reduce dissoc drawable-textures)))
@@ -173,10 +173,9 @@
         new-textures (create-textures drawables)]
     (if (empty? new-textures)
       quad-view
-      (do (println "new drawables" drawables)
-          (assoc quad-view
-            :quad-batch (quad-batch/add-textures (:quad-batch quad-view) gl new-textures)
-            :drawable-textures (add-new-textures (:drawable-textures quad-view) drawables (:next-free-texture-id (:quad-batch quad-view))))))))
+      (assoc quad-view
+        :quad-batch (quad-batch/add-textures (:quad-batch quad-view) gl new-textures)
+        :drawable-textures (add-new-textures (:drawable-textures quad-view) drawables (:next-free-texture-id (:quad-batch quad-view)))))))
 
 (defn add-texture-ids [quads drawable-textures]
   (map (fn [quad]
@@ -189,12 +188,24 @@
        quads))
 
 (defn unload-unused-textures [quad-view quads]
-  (let [unused-drawables (unused-drawables (:drawable-textures quad-view)
-                                           quads)]
-    (println "unused" unused-drawables)
-    quad-view))
+  (let [unused-drawable-textures (unused-drawable-textures (:drawable-textures quad-view)
+                                                           quads)
+        new-quad-batch (reduce quad-batch/remove-texture
+                               (:quad-batch quad-view)
+                               (vals unused-drawable-textures))
+        new-drawable-textures (apply dissoc
+                                     (:drawable-textures quad-view)
+                                     (keys unused-drawable-textures))]
+
+    (assoc quad-view
+      :quad-batch new-quad-batch
+      :drawable-textures new-drawable-textures)))
 
 (defn draw-quads [quad-view quads width height gl]
+  #_(println (select-keys (:quad-batch quad-view)
+                        [:allocated-texels
+                         :next-free-texel
+                         :removed-texels]))
   (let [quad-view (load-new-textures quad-view
                                      quads
                                      gl)
@@ -241,7 +252,7 @@
                                       (window/height window)
                                       gl))]
 
-      (wait-for-frame-end-time frame-start-time 1)
+      (wait-for-frame-end-time frame-start-time 60)
       (when (.isVisible (:gl-window window))
         (recur new-quad-view
                (System/nanoTime))))))
