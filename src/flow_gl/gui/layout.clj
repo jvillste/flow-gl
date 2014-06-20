@@ -189,12 +189,13 @@
        (layout-index-paths-with-keyboard-event-handlers layout [])))
 
 (defmacro deflayout [name parameters layout-implementation preferred-width-implementation preferred-height-implementation]
-  (let [[layout-name layout-parameters & layout-body] layout-implementation]
+  (let [[_ layout-parameters & layout-body] layout-implementation
+        [_ preferred-width-parameters & preferred-width-body] preferred-width-implementation
+        [_ preferred-height-parameters & preferred-height-body] preferred-height-implementation]
     `(do (defrecord ~name ~parameters
-           layoutable/Layoutable
-           ~preferred-width-implementation
-
-           ~preferred-height-implementation
+           #_layoutable/Layoutable
+           #_~preferred-width-implementation
+           #_~preferred-height-implementation
 
            drawable/Drawable
            (drawing-commands [this#] (layout-drawing-commands this#))
@@ -207,7 +208,12 @@
 
          (extend ~name
            Layout
-           {:layout (memoize (fn ~layout-parameters (let [{:keys ~parameters} ~(first layout-parameters)] (println (str "running" ~name) #_~parameters) ~@layout-body)))}))))
+           {:layout (memoize (fn ~layout-parameters (let [{:keys ~parameters} ~(first layout-parameters)] (println (str "running" ~name) #_~parameters) ~@layout-body)))}
+           layoutable/Layoutable
+           {:preferred-width (memoize (fn ~preferred-width-parameters (let [{:keys ~parameters} ~(first preferred-width-parameters)]  ~@preferred-width-body)))
+
+            :preferred-height (memoize (fn ~preferred-height-parameters (let [{:keys ~parameters} ~(first preferred-height-parameters)] ~@preferred-height-body)))}
+           ))))
 
 ;; LAYOUTS
 

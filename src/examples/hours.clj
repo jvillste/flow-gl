@@ -14,11 +14,9 @@
                                       [translate :as translate])
 
             (flow-gl.opengl.jogl [opengl :as opengl]
-                                 [window :as window])
-            gui.diff)
+                                 [window :as window]))
   (:use flow-gl.utils
         flow-gl.gui.layout-dsl))
-
 
 
 (defn apply-mouse-event-handlers [root-layout child-paths event]
@@ -32,6 +30,7 @@
           (filter (fn [child-path]
                     (:handle-mouse-event (get-in root-layout child-path)))
                   child-paths)))
+
 
 (defn start-view [view event-queue event-handler initial-state]
   (let [window (window/create 300
@@ -49,6 +48,7 @@
         (let [layout (if (= previous-state state)
                        previous-layout
                        (let [layoutable (named-time "view" (view state))]
+
                          (named-time "layout" (assoc (layout/layout layoutable
                                                                     (window/width window)
                                                                     (window/height window))
@@ -63,8 +63,9 @@
                                                                              (window/height window)
                                                                              gl))))]
           #_(spit "/Users/jukka/Downloads/versio.txt" (prn-str layout) :append true)
-          (layoutable-inspector/inspect-layoutable layout)
-          #_(gui.diff/gui-diff previous-layout layout)
+          (when (and (not (nil? previous-layout))
+                     (not (= layout previous-layout)))
+            #_(layoutable-inspector/diff-layoutables layout previous-layout))
           (let [event (event-queue/dequeue-event-or-wait event-queue)]
             (cond
              #_(= (:source event)
@@ -154,12 +155,12 @@
               (:minute b)))))
 
 #_(tabular
- (fact (time-greater-than? ?a ?b) => ?expected)
- ?a                  ?b                  ?expected
- {:hour 1 :minute 1} {:hour 1 :minute 1} false
- {:hour 2 :minute 1} {:hour 1 :minute 1} true
- {:hour 1 :minute 2} {:hour 1 :minute 1} true
- {:hour 1 :minute 2} {:hour 2 :minute 1} false)
+   (fact (time-greater-than? ?a ?b) => ?expected)
+   ?a                  ?b                  ?expected
+   {:hour 1 :minute 1} {:hour 1 :minute 1} false
+   {:hour 2 :minute 1} {:hour 1 :minute 1} true
+   {:hour 1 :minute 2} {:hour 1 :minute 1} true
+   {:hour 1 :minute 2} {:hour 2 :minute 1} false)
 
 
 (defn minutes-to-time [minutes]
@@ -232,7 +233,7 @@
                           (str character)))))
 
 #_(fact (append-character "Foo" \a)
-      => "Fooa")
+        => "Fooa")
 
 (defn handle-text-editor-event [state event]
   (if (:editing? state)
@@ -266,6 +267,10 @@
      :default
      state)))
 
+(defn handle-text-editor-mouse-event [state event]
+  (println "got mouse event " (:text state))
+  state)
+
 (defn text-editor-view [state]
   (assoc (drawable/->Text (if (:editing? state)
                             (:edited-text state)
@@ -276,9 +281,7 @@
                               [0 0 1 1]
                               [0 0 0 1])
                             [0.3 0.3 0.3 1]))
-    :handle-mouse-event (fn [state event]
-                          (println "got mouse event " (:text state))
-                          state)))
+    :handle-mouse-event handle-text-editor-mouse-event))
 
 
 
@@ -487,14 +490,13 @@
 ;;(Start)
 
 #_(let [layoutable (layout/->HorizontalStack [(layout/->Margin 10 10 10 10
-                                                             [(drawable/->Text "Foo"
-                                                                               (font/create "LiberationSans-Regular.ttf" 15)
-                                                                               [1 1 1 1])])])
-      layout (layout/layout layoutable 100 100)
-      layoutable (layout/->HorizontalStack [(layout/->Margin 10 10 10 100
-                                                             [(drawable/->Text "Foo"
-                                                                               (font/create "LiberationSans-Regular.ttf" 15)
-                                                                               [1 1 1 1])])])
-      layout (layout/layout layoutable 100 100)]
-  (println layout))
-
+                                                               [(drawable/->Text "Foo"
+                                                                                 (font/create "LiberationSans-Regular.ttf" 15)
+                                                                                 [1 1 1 1])])])
+        layout (layout/layout layoutable 100 100)
+        layoutable (layout/->HorizontalStack [(layout/->Margin 10 10 10 100
+                                                               [(drawable/->Text "Foo"
+                                                                                 (font/create "LiberationSans-Regular.ttf" 15)
+                                                                                 [1 1 1 1])])])
+        layout (layout/layout layoutable 100 100)]
+    (println layout))
