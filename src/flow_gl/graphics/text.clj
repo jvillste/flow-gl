@@ -1,8 +1,7 @@
 (ns flow-gl.graphics.text
   (:require (flow-gl.graphics [font :as font]
                               [buffered-image :as buffered-image]))
-  (:import [java.awt Color RenderingHints])
-  (:use midje.sweet))
+  (:import [java.awt Color RenderingHints]))
 
 (defn draw [graphics color font text]
   (let [[r g b a] (map float color)]

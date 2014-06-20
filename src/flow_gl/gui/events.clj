@@ -1,5 +1,4 @@
-(ns flow-gl.gui.events
-  (:require  [flow-gl.dataflow.triple-dataflow :as triple-dataflow]))
+(ns flow-gl.gui.events)
 
 (defn key-pressed? [keyboard-event key]
   (and (= (:key keyboard-event)

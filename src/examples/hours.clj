@@ -1,5 +1,6 @@
 (ns examples.hours
   (:require [flow-gl.utils :as utils]
+            [flow-gl.tools.layoutable-inspector :as layoutable-inspector]
             (flow-gl.gui [drawable :as drawable]
                          [layout :as layout]
                          [event-queue :as event-queue]
@@ -13,10 +14,11 @@
                                       [translate :as translate])
 
             (flow-gl.opengl.jogl [opengl :as opengl]
-                                 [window :as window]))
+                                 [window :as window])
+            gui.diff)
   (:use flow-gl.utils
-        midje.sweet
         flow-gl.gui.layout-dsl))
+
 
 
 (defn apply-mouse-event-handlers [root-layout child-paths event]
@@ -38,27 +40,31 @@
                               :init opengl/initialize
                               :event-queue event-queue)]
 
-    (println "initial " initial-state)
     (try
       (loop [state initial-state
              previous-state nil
+             previous-layout nil
              quad-view (window/with-gl window gl
                          (quad-view/create gl))]
+        (let [layout (if (= previous-state state)
+                       previous-layout
+                       (let [layoutable (named-time "view" (view state))]
+                         (named-time "layout" (assoc (layout/layout layoutable
+                                                                    (window/width window)
+                                                                    (window/height window))
+                                                :x 0 :y 0))))
 
-        (let [layoutable (view state)
-              layout (assoc (layout/layout layoutable
-                                           (window/width window)
-                                           (window/height window))
-                       :x 0 :y 0)
-
-              quad-view (if (not (= previous-state state))
+              quad-view (if (= previous-state state)
+                          quad-view
                           (window/with-gl window gl
-                            (quad-view/draw-layout quad-view
-                                                   layout
-                                                   (window/width window)
-                                                   (window/height window)
-                                                   gl))
-                          quad-view)]
+                            (named-time "draw layout" (quad-view/draw-layout quad-view
+                                                                             layout
+                                                                             (window/width window)
+                                                                             (window/height window)
+                                                                             gl))))]
+          #_(spit "/Users/jukka/Downloads/versio.txt" (prn-str layout) :append true)
+          (layoutable-inspector/inspect-layoutable layout)
+          #_(gui.diff/gui-diff previous-layout layout)
           (let [event (event-queue/dequeue-event-or-wait event-queue)]
             (cond
              #_(= (:source event)
@@ -80,8 +86,9 @@
                  (window/close window))
 
              :default
-             (recur (event-handler state event)
+             (recur (named-time "event handler" (event-handler state event))
                     state
+                    layout
                     quad-view)))))
 
       (catch Exception e
@@ -113,6 +120,12 @@
                       {:start-time {:hour 16 :minute 0}
                        :task "kotiin"}]}])
 
+(def log [{:year 2013
+           :month 10
+           :day 10
+           :sessions [{:start-time {:hour 8 :minute 0}
+                       :task "koodausta"}]}])
+
 
 ;; TIME
 
@@ -140,7 +153,7 @@
            (> (:minute a)
               (:minute b)))))
 
-(tabular
+#_(tabular
  (fact (time-greater-than? ?a ?b) => ?expected)
  ?a                  ?b                  ?expected
  {:hour 1 :minute 1} {:hour 1 :minute 1} false
@@ -218,7 +231,7 @@
   (apply str (vec (concat string
                           (str character)))))
 
-(fact (append-character "Foo" \a)
+#_(fact (append-character "Foo" \a)
       => "Fooa")
 
 (defn handle-text-editor-event [state event]
@@ -459,9 +472,9 @@
 (defn start []
   (reset! event-queue (event-queue/create))
   #_(.start (Thread. (fn [] (start-view #'view
-                                      @event-queue
-                                      #'handle-event
-                                      (model-to-view-state log initial-view-state)))))
+                                        @event-queue
+                                        #'handle-event
+                                        (model-to-view-state log initial-view-state)))))
 
   (start-view #'view
               @event-queue
@@ -473,4 +486,15 @@
 
 ;;(Start)
 
-;;
+#_(let [layoutable (layout/->HorizontalStack [(layout/->Margin 10 10 10 10
+                                                             [(drawable/->Text "Foo"
+                                                                               (font/create "LiberationSans-Regular.ttf" 15)
+                                                                               [1 1 1 1])])])
+      layout (layout/layout layoutable 100 100)
+      layoutable (layout/->HorizontalStack [(layout/->Margin 10 10 10 100
+                                                             [(drawable/->Text "Foo"
+                                                                               (font/create "LiberationSans-Regular.ttf" 15)
+                                                                               [1 1 1 1])])])
+      layout (layout/layout layoutable 100 100)]
+  (println layout))
+

@@ -4,8 +4,7 @@
                                        [push-modelview :as push-modelview]
                                        [pop-modelview :as pop-modelview])
              (flow-gl.gui [layoutable :as layoutable]
-                          [drawable :as drawable]))
-  (:use midje.sweet))
+                          [drawable :as drawable])))
 
 (defprotocol Layout
   (layout [layout requested-width requested-height]))
@@ -121,7 +120,7 @@
 
 
 
-(fact (children-in-coordinates {:x 0 :y 0 :width 100 :height 100
+#_(fact (children-in-coordinates {:x 0 :y 0 :width 100 :height 100
                                 :children [{:x 0 :y 0 :width 20 :height 30}
                                            {:x 10 :y 10 :width 10 :height 30
                                             :children [{:x 0 :y 0 :width 10 :height 10}
@@ -133,7 +132,7 @@
 (defn layout-index-path-to-layout-path [layout-index-path]
   (conj (interpose  :children layout-index-path) :children ))
 
-(fact (layout-index-path-to-layout-path [0 0])
+#_(fact (layout-index-path-to-layout-path [0 0])
       => '(:children 0 :children 0))
 
 (defn layout-index-paths-in-coordinates [layout parent-path x y]
@@ -147,7 +146,7 @@
             child-indexes)
     [parent-path]))
 
-(fact (layout-index-paths-in-coordinates {:children [{:x 0 :y 0 :width 20 :height 40
+#_(fact (layout-index-paths-in-coordinates {:children [{:x 0 :y 0 :width 20 :height 40
                                                       :children [{:x 0 :y 0 :width 40 :height 40}
                                                                  {:x 0 :y 10 :width 40 :height 40}]}
 
@@ -176,7 +175,7 @@
                     child-indexes))
     [parent-path]))
 
-(fact (layout-index-paths-with-keyboard-event-handlers {:children [{:handle-keyboard-event :handler
+#_(fact (layout-index-paths-with-keyboard-event-handlers {:children [{:handle-keyboard-event :handler
                                                                     :children [{}
                                                                                {:handle-keyboard-event :handler}]}
 
@@ -190,23 +189,25 @@
        (layout-index-paths-with-keyboard-event-handlers layout [])))
 
 (defmacro deflayout [name parameters layout-implementation preferred-width-implementation preferred-height-implementation]
-  `(defrecord ~name ~parameters
-     Layout
-     ~layout-implementation
+  (let [[layout-name layout-parameters & layout-body] layout-implementation]
+    `(do (defrecord ~name ~parameters
+           layoutable/Layoutable
+           ~preferred-width-implementation
 
-     layoutable/Layoutable
-     ~preferred-width-implementation
+           ~preferred-height-implementation
 
-     ~preferred-height-implementation
+           drawable/Drawable
+           (drawing-commands [this#] (layout-drawing-commands this#))
 
-     drawable/Drawable
-     (drawing-commands [this#] (layout-drawing-commands this#))
+           #_drawable/Java2DDrawable
+           #_(draw [this# graphics#] (draw-layout this# graphics#))
 
-     #_drawable/Java2DDrawable
-     #_(draw [this# graphics#] (draw-layout this# graphics#))
+           Object
+           (toString [this#] (layoutable/describe-layoutable this#)))
 
-     Object
-     (toString [this#] (layoutable/describe-layoutable this#))))
+         (extend ~name
+           Layout
+           {:layout (memoize (fn ~layout-parameters (let [{:keys ~parameters} ~(first layout-parameters)] (println (str "running" ~name) #_~parameters) ~@layout-body)))}))))
 
 ;; LAYOUTS
 

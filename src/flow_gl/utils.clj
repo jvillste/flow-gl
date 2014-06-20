@@ -1,6 +1,5 @@
 (ns flow-gl.utils
-  (:refer-clojure :exclude [get])
-  (:use midje.sweet))
+  (:refer-clojure :exclude [get]))
 
 (defn map-vals [m f]
   (zipmap (keys m) (map f (vals m))))
@@ -15,7 +14,7 @@
                   (assoc value now-key (key value)
                          key new-value)))))
 
-(fact get-and-reset-test
+#_(fact get-and-reset-test
       (get-and-reset (atom {::foo 4})
                      ::foo
                      0)
@@ -57,7 +56,7 @@
 ;; Tests
 
 
-(fact delayed-applications-with-one-var
+#_(fact delayed-applications-with-one-var
       (let [x {}]
         (with-delayed-applications :x x
           (assoc x :foo (do
@@ -69,14 +68,14 @@
       => {:foo :foo-value
           :x-bar :x-bar-value})
 
-(fact apply-later-for-wrong-key-throws-exception
+#_(fact apply-later-for-wrong-key-throws-exception
       (let [x 1]
         (with-delayed-applications :x x
           (apply-later :y
                        (fn [x]))))
       => (throws Exception "No delayed applications available for the key :y"))
 
-(fact delayed-applications-with-two-vars
+#_(fact delayed-applications-with-two-vars
       (let [x {}
             y {}]
         (with-delayed-applications :x x
@@ -112,9 +111,9 @@
 (defn insert [vector index value]
   (apply conj (vec (take index vector)) value (drop index vector)))
 
-(fact (insert [1 2 3 4] 1 10) => [1 10 2 3 4])
+#_(fact (insert [1 2 3 4] 1 10) => [1 10 2 3 4])
 
 (defn remove-nth [vector index]
   (vec (concat (take index vector) (drop (+ index 1) vector))))
 
-(fact (remove [1 2 3 4] 1) => [1 3 4])
+#_(fact (remove [1 2 3 4] 1) => [1 3 4])
