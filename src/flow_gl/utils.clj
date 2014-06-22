@@ -1,6 +1,11 @@
 (ns flow-gl.utils
   (:refer-clojure :exclude [get]))
 
+#_(let [log-file-name "/Users/jukka/Downloads/versio2.txt"]
+    (spit log-file-name "")
+    (defn log-to-file [& values]
+      (spit log-file-name (apply str (interpose " " values)) :append true)))
+
 (defn map-vals [m f]
   (zipmap (keys m) (map f (vals m))))
 
@@ -15,11 +20,11 @@
                          key new-value)))))
 
 #_(fact get-and-reset-test
-      (get-and-reset (atom {::foo 4})
-                     ::foo
-                     0)
-      =>
-      {::foo-now 4, ::foo 0})
+        (get-and-reset (atom {::foo 4})
+                       ::foo
+                       0)
+        =>
+        {::foo-now 4, ::foo 0})
 
 (defmacro for-all [bindings body]
   `(doall (for ~bindings ~body)))
@@ -57,38 +62,38 @@
 
 
 #_(fact delayed-applications-with-one-var
-      (let [x {}]
-        (with-delayed-applications :x x
-          (assoc x :foo (do
-                          (apply-later :x
-                                       (fn [x] (assoc x :x-bar :x-bar-value)))
+        (let [x {}]
+          (with-delayed-applications :x x
+            (assoc x :foo (do
+                            (apply-later :x
+                                         (fn [x] (assoc x :x-bar :x-bar-value)))
 
-                          :foo-value))))
+                            :foo-value))))
 
-      => {:foo :foo-value
-          :x-bar :x-bar-value})
+        => {:foo :foo-value
+            :x-bar :x-bar-value})
 
 #_(fact apply-later-for-wrong-key-throws-exception
-      (let [x 1]
-        (with-delayed-applications :x x
-          (apply-later :y
-                       (fn [x]))))
-      => (throws Exception "No delayed applications available for the key :y"))
+        (let [x 1]
+          (with-delayed-applications :x x
+            (apply-later :y
+                         (fn [x]))))
+        => (throws Exception "No delayed applications available for the key :y"))
 
 #_(fact delayed-applications-with-two-vars
-      (let [x {}
-            y {}]
-        (with-delayed-applications :x x
-          (assoc x :x-foo (with-delayed-applications :y y
-                            (assoc y :y-foo (do
-                                              (apply-later :x
-                                                           (fn [x] (assoc x :x-bar :x-bar-value)))
-                                              (apply-later :y
-                                                           (fn [y] (assoc y :y-bar :y-bar-value)))
-                                              :y-foo-value))))))
-      => {:x-bar :x-bar-value
-          :x-foo {:y-bar :y-bar-value
-                  :y-foo :y-foo-value}})
+        (let [x {}
+              y {}]
+          (with-delayed-applications :x x
+            (assoc x :x-foo (with-delayed-applications :y y
+                              (assoc y :y-foo (do
+                                                (apply-later :x
+                                                             (fn [x] (assoc x :x-bar :x-bar-value)))
+                                                (apply-later :y
+                                                             (fn [y] (assoc y :y-bar :y-bar-value)))
+                                                :y-foo-value))))))
+        => {:x-bar :x-bar-value
+            :x-foo {:y-bar :y-bar-value
+                    :y-foo :y-foo-value}})
 
 (defn indexed
   "Returns a lazy sequence of [index, item] pairs, where items come

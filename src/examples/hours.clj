@@ -31,10 +31,9 @@
                     (:handle-mouse-event (get-in root-layout child-path)))
                   child-paths)))
 
-
 (defn start-view [view event-queue event-handler initial-state]
-  (let [window (window/create 300
-                              400
+  (let [window (window/create 600
+                              600
                               :profile :gl3
                               :init opengl/initialize
                               :event-queue event-queue)]
@@ -63,9 +62,9 @@
                                                                              (window/height window)
                                                                              gl))))]
           #_(spit "/Users/jukka/Downloads/versio.txt" (prn-str layout) :append true)
-          (when (and (not (nil? previous-layout))
-                     (not (= layout previous-layout)))
-            #_(layoutable-inspector/diff-layoutables layout previous-layout))
+          #_(when (and (not (nil? previous-layout))
+                       (not (= layout previous-layout)))
+              (layoutable-inspector/diff-layoutables layout previous-layout))
           (let [event (event-queue/dequeue-event-or-wait event-queue)]
             (cond
              #_(= (:source event)
@@ -119,14 +118,32 @@
                       {:start-time {:hour 15 :minute 0}
                        :task "koodausta"}
                       {:start-time {:hour 16 :minute 0}
+                       :task "kotiin"}]}
+          {:year 2013
+           :month 10
+           :day 11
+           :sessions [{:start-time {:hour 8 :minute 0}
+                       :task "koodausta"}
+                      {:start-time {:hour 9 :minute 0}
+                       :task "kahvi"}
+                      {:start-time {:hour 10 :minute 0}
+                       :task "koodausta"}
+                      {:start-time {:hour 11 :minute 0}
+                       :task "kotiin"}
+                      {:start-time {:hour 12 :minute 0}
+                       :task "koodausta"}
+                      {:start-time {:hour 13 :minute 0}
+                       :task "kahvi"}
+                      {:start-time {:hour 14 :minute 0}
+                       :task "koodausta"}
+                      {:start-time {:hour 16 :minute 0}
                        :task "kotiin"}]}])
 
-(def log [{:year 2013
-           :month 10
-           :day 10
-           :sessions [{:start-time {:hour 8 :minute 0}
-                       :task "koodausta"}]}])
-
+#_(def log [{:year 2013
+             :month 10
+             :day 10
+             :sessions [{:start-time {:hour 8 :minute 0}
+                         :task "koodausta"}]}])
 
 ;; TIME
 

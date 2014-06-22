@@ -121,19 +121,19 @@
 
 
 #_(fact (children-in-coordinates {:x 0 :y 0 :width 100 :height 100
-                                :children [{:x 0 :y 0 :width 20 :height 30}
-                                           {:x 10 :y 10 :width 10 :height 30
-                                            :children [{:x 0 :y 0 :width 10 :height 10}
-                                                       {:x 0 :y 10 :width 10 :height 10}]}]}
-                               15
-                               25)
-      => '((0) (1 (1))))
+                                  :children [{:x 0 :y 0 :width 20 :height 30}
+                                             {:x 10 :y 10 :width 10 :height 30
+                                              :children [{:x 0 :y 0 :width 10 :height 10}
+                                                         {:x 0 :y 10 :width 10 :height 10}]}]}
+                                 15
+                                 25)
+        => '((0) (1 (1))))
 
 (defn layout-index-path-to-layout-path [layout-index-path]
   (conj (interpose  :children layout-index-path) :children ))
 
 #_(fact (layout-index-path-to-layout-path [0 0])
-      => '(:children 0 :children 0))
+        => '(:children 0 :children 0))
 
 (defn layout-index-paths-in-coordinates [layout parent-path x y]
   (if-let [child-indexes (seq (positions (partial in-coordinates x y) (:children layout)))]
@@ -147,16 +147,16 @@
     [parent-path]))
 
 #_(fact (layout-index-paths-in-coordinates {:children [{:x 0 :y 0 :width 20 :height 40
-                                                      :children [{:x 0 :y 0 :width 40 :height 40}
-                                                                 {:x 0 :y 10 :width 40 :height 40}]}
+                                                        :children [{:x 0 :y 0 :width 40 :height 40}
+                                                                   {:x 0 :y 10 :width 40 :height 40}]}
 
-                                                     {:x 10 :y 10 :width 10 :height 30
-                                                      :children [{:x 0 :y 0 :width 10 :height 10}
-                                                                 {:x 0 :y 10 :width 10 :height 10}]}]}
-                                         []
-                                         15
-                                         25)
-      => '([0 0] [0 1] [1 1]))
+                                                       {:x 10 :y 10 :width 10 :height 30
+                                                        :children [{:x 0 :y 0 :width 10 :height 10}
+                                                                   {:x 0 :y 10 :width 10 :height 10}]}]}
+                                           []
+                                           15
+                                           25)
+        => '([0 0] [0 1] [1 1]))
 
 (defn layout-paths-in-coordinates [layout x y]
   (map layout-index-path-to-layout-path
@@ -176,23 +176,32 @@
     [parent-path]))
 
 #_(fact (layout-index-paths-with-keyboard-event-handlers {:children [{:handle-keyboard-event :handler
-                                                                    :children [{}
-                                                                               {:handle-keyboard-event :handler}]}
+                                                                      :children [{}
+                                                                                 {:handle-keyboard-event :handler}]}
 
-                                                                   {:children [{:handle-keyboard-event :handler}
-                                                                               {}]}]}
-                                                       [])
-      => '([0] [0 1] [1 0]))
+                                                                     {:children [{:handle-keyboard-event :handler}
+                                                                                 {}]}]}
+                                                         [])
+        => '([0] [0 1] [1 0]))
 
 (defn layout-paths-with-keyboard-event-handlers [layout]
   (map layout-index-path-to-layout-path
        (layout-index-paths-with-keyboard-event-handlers layout [])))
 
 (defmacro deflayout [name parameters layout-implementation preferred-width-implementation preferred-height-implementation]
-  (let [[_ layout-parameters & layout-body] layout-implementation
-        [_ preferred-width-parameters & preferred-width-body] preferred-width-implementation
-        [_ preferred-height-parameters & preferred-height-body] preferred-height-implementation]
+  #_{:pre [(= (first layout-implementation) 'layout)
+           (= (first preferred-width-implementation ) 'preferred-width)]}
+  (let [[layout-name layout-parameters & layout-body] layout-implementation
+        [preferred-width-name preferred-width-parameters & preferred-width-body] preferred-width-implementation
+        [preferred-height-name preferred-height-parameters & preferred-height-body] preferred-height-implementation]
+    (assert (= layout-name 'layout) (str "invalid layout name" layout-name))
+    (assert (= preferred-width-name 'preferred-width) (str "invalid preferred width name" preferred-width-name))
+    (assert (= preferred-height-name 'preferred-height) (str "invalid preferred height name" preferred-height-name))
+
     `(do (defrecord ~name ~parameters
+           #_Layout
+           #_~layout-implementation
+
            #_layoutable/Layoutable
            #_~preferred-width-implementation
            #_~preferred-height-implementation
@@ -208,12 +217,36 @@
 
          (extend ~name
            Layout
-           {:layout (memoize (fn ~layout-parameters (let [{:keys ~parameters} ~(first layout-parameters)] (println (str "running" ~name) #_~parameters) ~@layout-body)))}
+           {:layout (memoize (fn ~layout-parameters (let [{:keys ~parameters} ~(first layout-parameters)] #_(println (str "running" ~name) #_~parameters) ~@layout-body)))}
            layoutable/Layoutable
-           {:preferred-width (memoize (fn ~preferred-width-parameters (let [{:keys ~parameters} ~(first preferred-width-parameters)]  ~@preferred-width-body)))
+           {:preferred-width (memoize (fn ~preferred-width-parameters (let [{:keys ~parameters} ~(first preferred-width-parameters)] ~@preferred-width-body) ))
+            :preferred-height (memoize (fn ~preferred-height-parameters (let [{:keys ~parameters} ~(first preferred-height-parameters)] ~@preferred-height-body)))}))))
 
-            :preferred-height (memoize (fn ~preferred-height-parameters (let [{:keys ~parameters} ~(first preferred-height-parameters)] ~@preferred-height-body)))}
-           ))))
+
+(defmacro deflayout-not-memoized [name parameters layout-implementation preferred-width-implementation preferred-height-implementation]
+  (let [[layout-name layout-parameters & layout-body] layout-implementation
+        [preferred-width-name preferred-width-parameters & preferred-width-body] preferred-width-implementation
+        [preferred-height-name preferred-height-parameters & preferred-height-body] preferred-height-implementation]
+    (assert (= layout-name 'layout) (str "invalid layout name" layout-name))
+    (assert (= preferred-width-name 'preferred-width) (str "invalid preferred width name" preferred-width-name))
+    (assert (= preferred-height-name 'preferred-height) (str "invalid preferred height name" preferred-height-name))
+
+    `(defrecord ~name ~parameters
+       Layout
+       ~layout-implementation
+
+       layoutable/Layoutable
+       (layoutable/preferred-width ~preferred-width-parameters ~@preferred-width-body)
+       (layoutable/preferred-height ~preferred-height-parameters ~@preferred-height-body)
+
+       drawable/Drawable
+       (drawing-commands [this#] (layout-drawing-commands this#))
+
+       #_drawable/Java2DDrawable
+       #_(draw [this# graphics#] (draw-layout this# graphics#))
+
+       Object
+       (toString [this#] (layoutable/describe-layoutable this#)))))
 
 ;; LAYOUTS
 
@@ -223,9 +256,9 @@
                      [:children 0]
                      #(set-dimensions-and-layout % 0 0 width height)))
 
-  (layoutable/preferred-width [this] width)
+  (preferred-width [this] width)
 
-  (layoutable/preferred-height [this] height))
+  (preferred-height [this] height))
 
 (deflayout Box [margin children]
   (layout [box requested-width requested-height]
@@ -235,13 +268,13 @@
                            [(set-dimensions-and-layout outer 0 0 requested-width requested-height)
                             (set-dimensions-and-layout inner margin margin (layoutable/preferred-width inner) (layoutable/preferred-height inner))]))))
 
-  (layoutable/preferred-width [box] (+ (* 2 margin)
-                                       (layoutable/preferred-width (second children))))
+  (preferred-width [box] (+ (* 2 margin)
+                            (layoutable/preferred-width (second children))))
 
-  (layoutable/preferred-height [box] (+ (* 2 margin)
-                                        (layoutable/preferred-height (second children)))))
+  (preferred-height [box] (+ (* 2 margin)
+                             (layoutable/preferred-height (second children)))))
 
-(deflayout Margin [margin-top margin-right margin-bottom margin-left children]
+(deflayout-not-memoized Margin [margin-top margin-right margin-bottom margin-left children]
   (layout [this requested-width requested-height]
           (update-in this [:children] (fn [[layoutable]]
                                         [(set-dimensions-and-layout layoutable
@@ -250,11 +283,11 @@
                                                                     (layoutable/preferred-width layoutable)
                                                                     (layoutable/preferred-height layoutable))])))
 
-  (layoutable/preferred-width [this] (+ margin-left margin-right
-                                        (layoutable/preferred-width (first children))))
+  (preferred-width [this] (+ margin-left margin-right
+                             (layoutable/preferred-width (first children))))
 
-  (layoutable/preferred-height [this] (+ margin-top margin-bottom
-                                         (layoutable/preferred-height (first children)))))
+  (preferred-height [this] (+ margin-top margin-bottom
+                              (layoutable/preferred-height (first children)))))
 
 (deflayout Absolute [children]
 
@@ -263,17 +296,17 @@
                  (vec (map #(set-dimensions-and-layout % (or (:x %) 0) (or (:y %) 0) (layoutable/preferred-width %) (layoutable/preferred-height %))
                            children))))
 
-  (layoutable/preferred-width [absolute] (apply max (map (fn [layoutable]
-                                                           (+ (:x layoutable)
-                                                              (layoutable/preferred-width layoutable)))
-                                                         children)))
+  (preferred-width [absolute] (apply max (map (fn [layoutable]
+                                                (+ (:x layoutable)
+                                                   (layoutable/preferred-width layoutable)))
+                                              children)))
 
-  (layoutable/preferred-height [absolute] (apply max (map (fn [layoutable]
-                                                            (+ (:y layoutable)
-                                                               (layoutable/preferred-height layoutable)))
-                                                          children))))
+  (preferred-height [absolute] (apply max (map (fn [layoutable]
+                                                 (+ (:y layoutable)
+                                                    (layoutable/preferred-height layoutable)))
+                                               children))))
 
-(deflayout VerticalStack [children]
+(deflayout-not-memoized VerticalStack [children]
   (layout [vertical-stack requested-width requested-height]
           (assoc vertical-stack :children
                  (let [width (apply max (conj (map layoutable/preferred-width children)
@@ -288,13 +321,15 @@
                                 (rest children)))
                        layouted-layoutables)))))
 
-  (layoutable/preferred-height [vertical-stack] (reduce + (map layoutable/preferred-height children)))
+  (preferred-width [vertical-stack] (apply max (conj (map layoutable/preferred-width children)
+                                                     0)))
 
-  (layoutable/preferred-width [vertical-stack] (apply max (conj (map layoutable/preferred-width children)
-                                                                0))))
+  (preferred-height [vertical-stack] (reduce + (map layoutable/preferred-height children))))
+
 
 (deflayout HorizontalStack [children]
   (layout [this requested-width requested-height]
+          #_(println "horiz" requested-width requested-height)
           (assoc this :children
                  (let [height (apply max (conj (map layoutable/preferred-height children)
                                                0))]
@@ -308,10 +343,11 @@
                                 (rest children)))
                        layouted-layoutables)))))
 
-  (layoutable/preferred-height [this] (apply max (conj (map layoutable/preferred-height children)
-                                                       0)))
+  (preferred-width [this] (reduce + (map layoutable/preferred-width children)))
 
-  (layoutable/preferred-width [this] (reduce + (map layoutable/preferred-width children))))
+  (preferred-height [this] (apply max (conj (map layoutable/preferred-height children)
+                                            0))))
+
 
 
 (defn size-group-width [size-group]
@@ -322,7 +358,7 @@
   (apply max (conj (map layoutable/preferred-height (:members @size-group))
                    0)))
 
-(deflayout SizeGroupMember [size-group mode children]
+(deflayout-not-memoized SizeGroupMember [size-group mode children]
   (layout [this requested-width requested-height]
           (assoc this :children
                  [(set-dimensions-and-layout (first children)
@@ -332,13 +368,12 @@
                                              (layoutable/preferred-height (first children)))]))
 
 
-  (layoutable/preferred-height [this] (if (#{:height :both} mode)
-                                        (size-group-height size-group)
-                                        (layoutable/preferred-height (first children))))
-
-  (layoutable/preferred-width [this] (if (#{:width :both} mode)
-                                       (size-group-width size-group)
-                                       (layoutable/preferred-width (first children)))))
+  (preferred-width [this] (if (#{:width :both} mode)
+                            (size-group-width size-group)
+                            (layoutable/preferred-width (first children))))
+  (preferred-height [this] (if (#{:height :both} mode)
+                             (size-group-height size-group)
+                             (layoutable/preferred-height (first children)))))
 
 (defn create-size-group []
   (atom {:members #{}}))
@@ -367,13 +402,13 @@
                  (vec (map #(set-dimensions-and-layout % 0 0 requested-width requested-height)
                            children))))
 
-  (layoutable/preferred-width [this]
-                              (apply max (conj (map layoutable/preferred-width children)
-                                               0)))
+  (preferred-width [this]
+                   (apply max (conj (map layoutable/preferred-width children)
+                                    0)))
 
-  (layoutable/preferred-height [this]
-                               (apply max (conj (map layoutable/preferred-height children)
-                                                0))))
+  (preferred-height [this]
+                    (apply max (conj (map layoutable/preferred-height children)
+                                     0))))
 
 (deflayout Superimpose [layoutables]
 
@@ -382,11 +417,11 @@
                  (vec (map #(set-dimensions-and-layout % 0 0 requested-width requested-height)
                            layoutables))))
 
-  (layoutable/preferred-width [this]
-                              (layoutable/preferred-width (first layoutables)))
+  (preferred-width [this]
+                   (layoutable/preferred-width (first layoutables)))
 
-  (layoutable/preferred-height [this]
-                               (layoutable/preferred-height (first layoutables))))
+  (preferred-height [this]
+                    (layoutable/preferred-height (first layoutables))))
 
 (deflayout Translation [translate-x translate-y layoutable]
 
@@ -398,9 +433,9 @@
                                             (layoutable/preferred-width layoutable)
                                             (layoutable/preferred-height layoutable))))
 
-  (layoutable/preferred-width [translation] (+ translate-x (layoutable/preferred-width layoutable)))
+  (preferred-width [translation] (+ translate-x (layoutable/preferred-width layoutable)))
 
-  (layoutable/preferred-height [translation] (+ translate-y (layoutable/preferred-height layoutable))))
+  (preferred-height [translation] (+ translate-y (layoutable/preferred-height layoutable))))
 
 
 (deflayout DockBottom [layoutable]
@@ -415,6 +450,8 @@
                                               (layoutable/preferred-width layoutable)
                                               height))))
 
-  (layoutable/preferred-width [dock-bottom] (layoutable/preferred-width layoutable))
+  (preferred-width [dock-bottom] (layoutable/preferred-width layoutable))
 
-  (layoutable/preferred-height [dock-bottom] (layoutable/preferred-height layoutable)))
+  (preferred-height [dock-bottom] (layoutable/preferred-height layoutable)))
+
+
