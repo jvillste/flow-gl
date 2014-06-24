@@ -188,9 +188,7 @@
   (map layout-index-path-to-layout-path
        (layout-index-paths-with-keyboard-event-handlers layout [])))
 
-(defmacro deflayout [name parameters layout-implementation preferred-width-implementation preferred-height-implementation]
-  #_{:pre [(= (first layout-implementation) 'layout)
-           (= (first preferred-width-implementation ) 'preferred-width)]}
+#_(defmacro deflayout [name parameters layout-implementation preferred-width-implementation preferred-height-implementation]
   (let [[layout-name layout-parameters & layout-body] layout-implementation
         [preferred-width-name preferred-width-parameters & preferred-width-body] preferred-width-implementation
         [preferred-height-name preferred-height-parameters & preferred-height-body] preferred-height-implementation]
@@ -199,19 +197,6 @@
     (assert (= preferred-height-name 'preferred-height) (str "invalid preferred height name" preferred-height-name))
 
     `(do (defrecord ~name ~parameters
-           #_Layout
-           #_~layout-implementation
-
-           #_layoutable/Layoutable
-           #_~preferred-width-implementation
-           #_~preferred-height-implementation
-
-           drawable/Drawable
-           (drawing-commands [this#] (layout-drawing-commands this#))
-
-           #_drawable/Java2DDrawable
-           #_(draw [this# graphics#] (draw-layout this# graphics#))
-
            Object
            (toString [this#] (layoutable/describe-layoutable this#)))
 
@@ -221,6 +206,25 @@
            layoutable/Layoutable
            {:preferred-width (memoize (fn ~preferred-width-parameters (let [{:keys ~parameters} ~(first preferred-width-parameters)] ~@preferred-width-body) ))
             :preferred-height (memoize (fn ~preferred-height-parameters (let [{:keys ~parameters} ~(first preferred-height-parameters)] ~@preferred-height-body)))}))))
+
+(defmacro deflayout [name parameters layout-implementation preferred-width-implementation preferred-height-implementation]
+  (let [[layout-name layout-parameters & layout-body] layout-implementation
+        [preferred-width-name preferred-width-parameters & preferred-width-body] preferred-width-implementation
+        [preferred-height-name preferred-height-parameters & preferred-height-body] preferred-height-implementation]
+    (assert (= layout-name 'layout) (str "invalid layout name" layout-name))
+    (assert (= preferred-width-name 'preferred-width) (str "invalid preferred width name" preferred-width-name))
+    (assert (= preferred-height-name 'preferred-height) (str "invalid preferred height name" preferred-height-name))
+
+    `(defrecord ~name ~parameters
+       Layout
+       ~layout-implementation
+
+       layoutable/Layoutable
+       (layoutable/preferred-width ~preferred-width-parameters ~@preferred-width-body)
+       (layoutable/preferred-height ~preferred-height-parameters ~@preferred-height-body)
+
+       Object
+       (toString [this#] (layoutable/describe-layoutable this#)))))
 
 
 (defmacro deflayout-not-memoized [name parameters layout-implementation preferred-width-implementation preferred-height-implementation]
@@ -238,12 +242,6 @@
        layoutable/Layoutable
        (layoutable/preferred-width ~preferred-width-parameters ~@preferred-width-body)
        (layoutable/preferred-height ~preferred-height-parameters ~@preferred-height-body)
-
-       drawable/Drawable
-       (drawing-commands [this#] (layout-drawing-commands this#))
-
-       #_drawable/Java2DDrawable
-       #_(draw [this# graphics#] (draw-layout this# graphics#))
 
        Object
        (toString [this#] (layoutable/describe-layoutable this#)))))
@@ -329,7 +327,6 @@
 
 (deflayout HorizontalStack [children]
   (layout [this requested-width requested-height]
-          #_(println "horiz" requested-width requested-height)
           (assoc this :children
                  (let [height (apply max (conj (map layoutable/preferred-height children)
                                                0))]

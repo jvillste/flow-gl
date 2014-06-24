@@ -11,10 +11,11 @@
                  [com.datomic/datomic-free "0.8.4020.24"]
                  [org.clojure/core.async "0.1.278.0-76b25b-alpha"]
                  [org.clojure/tools.namespace "0.2.4"]
-                 ;;[midje "1.6.3"]
+                 [midje "1.6.3"]
                  ;;[org.clojars.toxi/jogl "2.0.0-rc11"]
                  [org.clojars.jvillste/jogl-all "2.1.3-rc-20131212"]
-                 [gui-diff "0.6.6"]]
+                 ;;[gui-diff "0.6.6"]
+                 ]
 
   ;; :java-cmd "/usr/lib/jvm/java-6-sun/bin/java"
    ;;/Library/Internet\ Plug-Ins/JavaAppletPlugin.plugin/Contents/Home/bin/java

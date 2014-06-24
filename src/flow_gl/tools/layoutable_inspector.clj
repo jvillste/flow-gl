@@ -96,7 +96,7 @@
                                                                 (layout/->Margin 0 0 0 10
                                                                                  [(draw-layoutable (diff layoutable-2 layoutable-1))])])])))
 
-(diff-layoutables (layout/->VerticalStack [(drawable/->Text "Foo" (font/create "LiberationSans-Regular.ttf" 20) [1 1 1 1])
+#_(diff-layoutables (layout/->VerticalStack [(drawable/->Text "Foo" (font/create "LiberationSans-Regular.ttf" 20) [1 1 1 1])
                                            (drawable/->Text "Foo" (font/create "LiberationSans-Regular.ttf" 20) [1 1 1 1])
                                            (drawable/->Text "Foo" (font/create "LiberationSans-Regular.ttf" 20) [1 1 1 1])])
                   (layout/->VerticalStack [(drawable/->Text "Foo" (font/create "LiberationSans-Regular.ttf" 20) [1 1 1 1])
