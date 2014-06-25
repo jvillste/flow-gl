@@ -184,9 +184,6 @@
         (next-focus-path-parts state [[:children1 1] [:children2 2] [:children3 2]])  => nil))
 
 (defn render-layout [window gpu-state layout]
-  (println "")
-  (println "rendering")
-  #_(layoutable-inspector/show-layoutable (draw-layoutable layout))
   (window/with-gl window gl
     (opengl/clear gl 0 0 0 1)
     (quad-view/draw-layout gpu-state

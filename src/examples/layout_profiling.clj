@@ -26,13 +26,6 @@
 
 (def event-queue (atom (event-queue/create)))
 
-(defn append-character [string character]
-  (apply str (vec (concat string
-                          (str character)))))
-
-(fact (append-character "Foo" \a)
-      => "Fooa")
-
 (defn handle-text-editor-event [state event]
   (if (:editing? state)
     (cond
@@ -51,8 +44,8 @@
      (and (:character event)
           (= (:type event)
              :key-pressed))
-     (let [new-text (append-character (:edited-text state)
-                                      (:character event))]
+     (let [new-text (str (:edited-text state)
+                         (:character event))]
        (when (:on-change state)
          ((:on-change state) new-text))
        (assoc-in state [:edited-text] new-text))
@@ -98,7 +91,6 @@
 (def text-editor {:initial-state initial-text-editor-state
                   :view text-editor-view})
 
-
 (quad-gui/def-view grid-view [state]
   (layout/grid (for-all [[row-index cell-texts] (indexed (:rows state))]
                         (for-all [[column-index cell-text] (indexed cell-texts)]
@@ -122,6 +114,25 @@
                                                               :default
                                                               state))}
                                    quad-gui/child-focus-handlers))
+(defn run-view-and-layout [state name window quad-view]
+  (let [width (window/width window)
+        height (window/height window)
+        [state layoutable] (utils/named-time (str name " View") (grid-view state))
+        layout (utils/named-time (str name " Layout") (layout/layout layoutable width height))
+        quad-view (window/with-gl window gl (utils/named-time (str name " Draw") (quad-view/draw-layout quad-view layout width height gl)))]
+    [state quad-view]))
+
+(let [window (window/create 600
+                            600
+                            :profile :gl3)
+      quad-view (window/with-gl window gl (quad-view/create gl))
+
+      [state quad-view] (run-view-and-layout initial-grid-view-state "1" window quad-view)
+
+      state (update-in state [:rows 5 5] str "a")
+
+      [state quad-view] (run-view-and-layout state "1" window quad-view)]
+  (window/close window))
 
 (defn start []
   (reset! event-queue (event-queue/create))

@@ -33,14 +33,14 @@
          :x (:x layout)
          :y (:y layout)
          :parent parent}]
-       (let [curretn-id next-free-id]
+       (let [current-id next-free-id]
          (loop [quads [{:x (:x layout)
                         :y (:y layout)
                         :parent parent}]
                 children (:children layout)
                 next-free-id (inc next-free-id)]
            (if-let [child (first children)]
-             (let [child-quads (quads-for-layout child curretn-id next-free-id)]
+             (let [child-quads (quads-for-layout child current-id next-free-id)]
                (recur (concat quads
                               child-quads)
                       (rest children)
@@ -157,7 +157,7 @@
 
 (defn draw-layout [quad-view layout width height gl]
   (draw-quads quad-view
-              (quads-for-layout layout)
+              (quads-for-layout (assoc layout :x 0 :y 0))
               width
               height
               gl))
