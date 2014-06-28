@@ -1,6 +1,7 @@
 (ns flow-gl.opengl.jogl.window
   (:require [flow-gl.gui.event-queue :as event-queue]
-            [flow-gl.gui.events :as events])
+            [flow-gl.gui.events :as events]
+            [clojure.core.async :as async])
   (:import [com.jogamp.newt.event WindowAdapter WindowEvent KeyAdapter KeyEvent MouseAdapter MouseEvent]
            [com.jogamp.newt.opengl GLWindow]
            [javax.media.opengl GLCapabilities GLProfile GLContext GL GL2 DebugGL2 DebugGL3 DebugGL4 GLEventListener GLAutoDrawable TraceGL2]
@@ -76,10 +77,10 @@
   ;; ([width height init reshape]
   ;;    (create width height init reshape nil :gl2))
 
-  ;; ([width height init reshape event-queue]
-  ;;    (create width height init reshape event-queue :gl2))
+  ;; ([width height init reshape event-channel]
+  ;;    (create width height init reshape event-channel :gl2))
 
-  ([width height & {:keys [init reshape event-queue profile] :or {init identity reshape (fn [gl width height]) event-queue nil profile :gl2}}]
+  ([width height & {:keys [init reshape event-channel profile] :or {init identity reshape (fn [gl width height]) event-channel nil profile :gl2}}]
      (let [gl-profile (GLProfile/get (case profile
                                        :gl2 GLProfile/GL2
                                        :gl3 GLProfile/GL3
@@ -89,34 +90,34 @@
            window (GLWindow/create gl-capabilities)]
 
 
-       (when event-queue
+       (when event-channel
          (doto window
            (.addKeyListener (proxy [KeyAdapter] []
                               (keyPressed [event]
-                                (event-queue/add-event event-queue (create-keyboard-event event :key-pressed)))
+                                (async/>!! event-channel (create-keyboard-event event :key-pressed)))
                               (keyReleased [event]
-                                (event-queue/add-event event-queue (create-keyboard-event event :key-released)))))
+                                (async/>!! event-channel (create-keyboard-event event :key-released)))))
 
            (.addMouseListener (proxy [MouseAdapter] []
                                 (mouseMoved [event]
-                                  ;;(event-queue/add-event event-queue (create-mouse-event event :mouse-moved))
+                                  ;;(event-queue/add-event event-channel (create-mouse-event event :mouse-moved))
                                   )
                                 (mousePressed [event]
                                   (println "mouse pressed")
-                                  (event-queue/add-event event-queue (create-mouse-event event :mouse-pressed)))
+                                  (async/>!! event-channel (create-mouse-event event :mouse-pressed)))
                                 (mouseReleased [event]
-                                  (event-queue/add-event event-queue (create-mouse-event event :mouse-released)))
+                                  (async/>!! event-channel (create-mouse-event event :mouse-released)))
                                 (mouseClicked [event]
                                   (println "mouse clicked")
-                                  (event-queue/add-event event-queue (create-mouse-event event :mouse-clicked)))))
+                                  (async/>!! event-channel (create-mouse-event event :mouse-clicked)))))
 
            (.addWindowListener (proxy [WindowAdapter] []
                                  (windowDestroyNotify [event]
                                    (println "destroy notify")
-                                   (event-queue/add-event event-queue
+                                   (async/>!! event-channel
                                                           (events/create-close-requested-event)))
                                  (windowResized [event]
-                                   (event-queue/add-event event-queue
+                                   (async/>!! event-channel
                                                           (events/create-resize-requested-event (.getWidth window)
                                                                                                 (.getHeight window))))))
 
@@ -132,7 +133,8 @@
 
        {:gl-window  window
         :display-atom display-atom
-        :profile profile})))
+        :profile profile
+        :event-channel event-channel})))
 
 (defn width [window]
   (.getWidth (:gl-window window)))

@@ -24,9 +24,9 @@
         flow-gl.gui.layout-dsl
         clojure.test))
 
-(def event-queue (atom (event-queue/create)))
 
 (defn handle-text-editor-event [state event]
+  (println "handcling " state event)
   (if (:editing? state)
     (cond
 
@@ -100,12 +100,14 @@
                                                       :on-change (quad-gui/apply-to-current-state [state new-text]
                                                                                                   (assoc-in state [:rows row-index column-index] new-text))})))))
 
+#_(quad-gui/apply-to-current-state [state new-text] (assoc-in state [:rows row-index column-index] new-text))
 
 #_(layoutable-inspector/show-layoutable (second (grid-view {:rows [["11" "12"] ["21" "22"]]})))
 
 (def initial-grid-view-state (conj {:rows (vec(for [x (range 10)]
                                                 (vec (for [y (range 10)]
                                                        (str x y)))))
+                                    :text-change-channel (async/chan)
                                     :handle-keyboard-event (fn [state event]
                                                              (cond
                                                               (events/key-pressed? event :esc)
@@ -114,6 +116,10 @@
                                                               :default
                                                               state))}
                                    quad-gui/child-focus-handlers))
+
+(defn state-updater [state]
+  ())
+
 (defn run-view-and-layout [state name window quad-view]
   (let [width (window/width window)
         height (window/height window)
@@ -122,24 +128,42 @@
         quad-view (window/with-gl window gl (utils/named-time (str name " Draw") (quad-view/draw-layout quad-view layout width height gl)))]
     [state quad-view]))
 
-(let [window (window/create 600
-                            600
-                            :profile :gl3)
-      quad-view (window/with-gl window gl (quad-view/create gl))
+#_(let [window (window/create 600
+                              600
+                              :profile :gl3)
+        quad-view (window/with-gl window gl (quad-view/create gl))
 
-      [state quad-view] (run-view-and-layout initial-grid-view-state "1" window quad-view)
+        [state quad-view] (run-view-and-layout initial-grid-view-state "1" window quad-view)
 
-      state (update-in state [:rows 5 5] str "a")
+        state (update-in state [:rows 5 5] str "a")
 
-      [state quad-view] (run-view-and-layout state "1" window quad-view)]
-  (window/close window))
+        [state quad-view] (run-view-and-layout state "1" window quad-view)]
+    (window/close window))
+
+
+#_(let [c1 (async/chan)
+        c2 (async/chan)]
+    (async/thread (while true
+                    (let [[v ch] (async/alts!! [c1 c2])]
+                      (println "Read" v "from" ch))))
+    (async/>!! c1 "hi")
+    (async/>!! c2 "there"))
 
 (defn start []
-  (reset! event-queue (event-queue/create))
-  (.start (Thread. (fn [] (quad-gui/start-view @event-queue
-                                               initial-grid-view-state
-                                               grid-view)))))
+  (quad-gui/start-view initial-grid-view-state
+                       grid-view))
 
-(event-queue/add-event @event-queue {})
 
 (run-tests)
+
+
+#_(def channel (async/chan))
+
+#_(async/go (async/onto-chan channel [1 2 3 4 5 6 7] false))
+
+#_(async/go-loop [[v ch] (async/alts! [channel (async/timeout 0)] :priority true)]
+                 (when (and v (= ch channel))
+                   (println "Read" v))
+                 (if v (recur (async/alts! [channel (async/timeout 0)] :priority true))))
+
+                                        ;(.start (Thread. go-loop))

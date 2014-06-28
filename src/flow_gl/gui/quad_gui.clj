@@ -81,7 +81,7 @@
                                        [:children 0 :child :child :child])
       => [[:foo 1] [:bar]])
 
-(def ^:dynamic current-event-queue nil)
+(def ^:dynamic current-event-channel nil)
 (def ^:dynamic current-view-state-atom)
 
 (defn apply-mouse-event-handlers [state layout layout-path-under-mouse event]
@@ -236,14 +236,17 @@
    (apply-keyboard-event-handlers state
                                   event)))
 
-(defn start-view [event-queue initial-state view]
-  (let [window (window/create 300
+
+
+(defn start-view [initial-state view]
+  (let [event-channel (async/chan 10)
+        window (window/create 300
                               400
                               :profile :gl3
                               :init opengl/initialize
                               :reshape opengl/resize
-                              :event-queue event-queue)
-        [initial-state _] (binding [current-event-queue event-queue]
+                              :event-channel event-channel)
+        [initial-state _] (binding [current-event-channel event-channel]
                             (view initial-state))
         initial-state (set-focus initial-state
                                  (initial-focus-path-parts initial-state))]
@@ -255,14 +258,14 @@
         (if (:close-requested state)
           (window/close window)
 
-          (let [[state visual] (binding [current-event-queue event-queue]
+          (let [[state visual] (binding [current-event-channel event-channel]
                                  (view state))
                 layout (layout/layout visual
                                       (window/width window)
                                       (window/height window))
                 new-gpu-state (render-layout window gpu-state layout)
-                event (event-queue/dequeue-event-or-wait event-queue)
-                new-state (binding [current-event-queue event-queue]
+                event (async/<!! event-channel)
+                new-state (binding [current-event-channel event-channel]
                             (handle-event state
                                           layout
                                           event))]
@@ -397,9 +400,9 @@
        ~visual)))
 
 (defn apply-to-state [state-path function]
-  (event-queue/add-event current-event-queue
-                         (create-apply-to-view-state-event (fn [state]
-                                                             (update-or-apply-in state state-path function)))))
+  (async/go (async/>! current-event-channel
+                      (create-apply-to-view-state-event (fn [state]
+                                                          (update-or-apply-in state state-path function))))))
 
 (defmacro apply-to-current-state [[state-parameter & parameters] body]
   `(let [state-path# current-state-path]
@@ -425,4 +428,3 @@
                     1 {}
                     :children [0 1]})
       => nil)
-
