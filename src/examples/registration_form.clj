@@ -425,7 +425,7 @@
                                                  (:user-name-in-use state))))
 
 (defn registration-view [state]
-  (layout/->VerticalStack [(layout/->HorizontalStack [(call-view state text-ediftor-view :username)
+  (layout/->VerticalStack [(layout/->HorizontalStack [(call-view state text-editor-view :username)
                                                       (if (:user-name-in-use state)
                                                         (text "Not available")
                                                         (drawable/->Empty 0 0))

@@ -404,11 +404,22 @@
                       (create-apply-to-view-state-event (fn [state]
                                                           (update-or-apply-in state state-path function))))))
 
+(defn transact [state-path event-channel function]
+  (async/go (async/>! event-channel
+                      (create-apply-to-view-state-event (fn [state]
+                                                          (update-or-apply-in state state-path function))))))
+
 (defmacro apply-to-current-state [[state-parameter & parameters] body]
   `(let [state-path# current-state-path]
      (fn [~@parameters]
        (apply-to-state state-path# (fn [~state-parameter]
-                                     ~body)))) )
+                                     ~body)))))
+
+(defmacro with-view-context [[state-path-parameter event-channel-parameter & parameters] & body]
+  `(let [~state-path-parameter current-state-path
+         ~event-channel-parameter current-event-channel]
+     (fn [~@parameters]
+       ~@body)))
 
 (defn focus-index [state]
   (loop [index 0]
