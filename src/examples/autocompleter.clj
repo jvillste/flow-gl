@@ -18,11 +18,17 @@
 
             (flow-gl.opengl.jogl [opengl :as opengl]
                                  [window :as window]
-                                 [quad-batch :as quad-batch]))
+                                 [quad-batch :as quad-batch])
+            [clj-http.client :as client])
   (:use flow-gl.utils
         midje.sweet
         flow-gl.gui.layout-dsl
         clojure.test))
+
+(defn query-wikipedia [query]
+  (let [channel (async/chan)]
+    (async/put! channel (second (:body (client/get (str "http://en.wikipedia.org/w/api.php?action=opensearch&format=json&search=" query) {:as :json}))))
+    channel))
 
 
 (defn handle-text-editor-event [state event]
@@ -31,7 +37,7 @@
    (events/key-pressed? event :back-space)
    (let [new-text (apply str (drop-last (:text state)))]
      (when (:on-change state)
-       ((:on-change state) new-text))
+       (async/go (async/>! (:on-change state) new-text)))
      (assoc-in state [:text] new-text))
 
    (and (:character event)
@@ -40,7 +46,7 @@
    (let [new-text (str (:text state)
                        (:character event))]
      (when (:on-change state)
-       ((:on-change state) new-text))
+       (async/go (async/>! (:on-change state) new-text)))
      (assoc-in state [:text] new-text))
 
    :default
@@ -71,14 +77,7 @@
   (layout/->VerticalStack (concat [(quad-gui/call-view :query-editor
                                                        text-editor
                                                        {:text (:query state)
-                                                        :on-change (quad-gui/with-view-context [state-path event-channel new-text]
-                                                                     (quad-gui/transact state-path event-channel
-                                                                                        (fn [state]
-                                                                                          (assoc-in state [:query] new-text)))
-                                                                     (async/go (async/<! (async/timeout 1000))
-                                                                               (quad-gui/transact state-path event-channel
-                                                                                                  (fn [state]
-                                                                                                    (assoc-in state [:results] [new-text])))))})]
+                                                        :on-change (:query-channel state)})]
                                   (for-all [result (:results state)]
                                            (layout/->Box 10 [(drawable/->Rectangle 0
                                                                                    0
@@ -87,13 +86,8 @@
                                                                               (font/create "LiberationSans-Regular.ttf" 15)
                                                                               [0 0 0 1])])))))
 
-#_(quad-gui/apply-to-current-state [state new-text] (assoc-in state [:rows row-index column-index] new-text))
-
-#_(layoutable-inspector/show-layoutable (second (grid-view {:rows [["11" "12"] ["21" "22"]]})))
-
 (def initial-state (conj {:query ""
                           :results ["foo" "bar"]
-                          :control-channel (async/chan)
                           :query-channel (async/chan)
                           :handle-keyboard-event (fn [state event]
                                                    (cond
@@ -104,6 +98,57 @@
                                                     state))}
                          quad-gui/child-focus-handlers))
 
+
+(defn throttle [mult interval]
+  (let [output-channel (async/chan)
+        windowed-channel (async/chan (async/sliding-buffer 1))]
+    (async/tap mult windowed-channel)
+    (async/go-loop []
+                   (let [value (async/<! windowed-channel)]
+                     (when value
+                       (>! output-channel value)
+                       (async/<! (async/timeout interval))
+                       (recur))))
+    output-channel))
+
+(let [source (async/chan)
+      mult (async/mult source)
+      unthrottled (async/chan)
+      throttled (throttle mult 1000)
+      control (async/timeout 10000)]
+  (async/tap mult unthrottled)
+  (async/go (dotimes [n 10]
+              (async/<! (async/timeout 200))
+              (println "sending" n)
+              (async/>! source n)))
+  (async/go (loop []
+              (async/alt! control (println "exiting")
+                          throttled ([value]
+                                       (println "got" value)
+                                       (recur))
+                          unthrottled ([value]
+                                         (println "got from unthrottled" value)
+                                         (recur))))))
+
+(defn start-processes [state-path event-channel control-channel state]
+  (async/go (let [throttled-query (throttle (:query-channel state) 1000)]
+              (loop []
+                (async/alt! control-channel ([_] (println "exiting process"))
+                            throttled-query ([query]
+                                               (println "throttled" query)
+                                               (async/go (let [results (async/<! (query-wikipedia query))]
+                                                           (quad-gui/transact state-path event-channel
+                                                                              (fn [state]
+                                                                                (assoc-in state [:results] results)))))
+
+                                               (recur))
+
+                            (:query-channel state) ([query]
+                                                      (println "unthrottled" query)
+                                                      (quad-gui/transact state-path event-channel
+                                                                         (fn [state]
+                                                                           (assoc-in state [:query] query)))
+                                                      (recur)))))))
 
 #_(defn run-view-and-layout [state name window quad-view]
     (let [width (window/width window)
@@ -136,7 +181,8 @@
 
 (defn start []
   (quad-gui/start-view initial-state
-                       view))
+                       view
+                       start-processes))
 
 
 (run-tests)

@@ -238,7 +238,7 @@
 
 
 
-(defn start-view [initial-state view]
+(defn start-view [initial-state view process-starter]
   (let [event-channel (async/chan 10)
         window (window/create 300
                               400
@@ -249,9 +249,11 @@
         [initial-state _] (binding [current-event-channel event-channel]
                             (view initial-state))
         initial-state (set-focus initial-state
-                                 (initial-focus-path-parts initial-state))]
-    (try
-
+                                 (initial-focus-path-parts initial-state))
+        initial-state (assoc initial-state :control-channel (async/chan))]
+    
+    (try 
+      (process-starter [] event-channel (:control-channel initial-state) initial-state)
       (loop [gpu-state (window/with-gl window gl (quad-view/create gl))
              state initial-state]
                                         ;(println "state is " state)
@@ -274,7 +276,9 @@
               (window/close window)))))
       (catch Exception e
         (window/close window)
-        (throw e)))))
+        (throw e)))
+
+    (async/go (async/>! (:control-channel initial-state) :close))))
 
 (defn create-apply-to-view-state-event [function]
   {:type :apply-to-view-state

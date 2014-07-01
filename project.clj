@@ -12,6 +12,7 @@
                  [org.clojure/core.async "0.1.278.0-76b25b-alpha"]
                  [org.clojure/tools.namespace "0.2.4"]
                  [midje "1.6.3"]
+                 [clj-http "0.9.2"]
                  ;;[org.clojars.toxi/jogl "2.0.0-rc11"]
                  [org.clojars.jvillste/jogl-all "2.1.3-rc-20131212"]
                  ;;[gui-diff "0.6.6"]
