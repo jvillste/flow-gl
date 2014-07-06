@@ -31,26 +31,72 @@
     channel))
 
 
-(defn handle-text-editor-event [state event]
-  (cond
+;; CSP
+(defn tap-new
+  ([mult]
+     (tap-new mult (async/chan)))
 
+  ([mult channel]
+     (async/tap mult channel)
+     channel))
+
+(defn throttle [input-channel interval]
+  (let [mult (async/mult input-channel)
+        throttled-channel (async/chan)
+        unthrottled-channel (tap-new mult)
+        unthrottled-channel-2 (tap-new mult)]
+
+    (async/go-loop [value (async/<! unthrottled-channel-2)]
+                   (when value
+                     (async/alt! (async/timeout interval) (do (>! throttled-channel value)
+                                                              (recur (async/<! unthrottled-channel-2)))
+                                 unthrottled-channel-2 ([value] (recur value)))))
+    [throttled-channel unthrottled-channel]))
+
+#_(let [source (async/chan)
+      [throttled unthrottled] (throttle source 1000)
+      control (async/timeout 10000)]
+  (async/go (dotimes [n 10]
+              (if (= n 5)
+                (async/<! (async/timeout 1200))
+                (async/<! (async/timeout 200)))
+
+              (println "sending" n)
+              (async/>! source n)))
+  (async/go (loop []
+              (async/alt! control (println "exiting")
+                          throttled ([value]
+                                       (println "got" value)
+                                       (recur))
+                          unthrottled ([value]
+                                         #_(println "got from unthrottled" value)
+                                         (recur))))))
+
+
+;; Text editor
+
+(defn handle-new-text [state new-text]
+  (when (:on-change state)
+    (async/go (async/>! (:on-change state) new-text)))
+  (assoc-in state [:text] new-text))
+
+(defn handle-text-editor-event [state event]
+  (println "text editor got" event)
+
+  (cond
    (events/key-pressed? event :back-space)
-   (let [new-text (apply str (drop-last (:text state)))]
-     (when (:on-change state)
-       (async/go (async/>! (:on-change state) new-text)))
-     (assoc-in state [:text] new-text))
+   [(handle-new-text state (apply str (drop-last (:text state))))
+    false] 
 
    (and (:character event)
         (= (:type event)
            :key-pressed))
-   (let [new-text (str (:text state)
-                       (:character event))]
-     (when (:on-change state)
-       (async/go (async/>! (:on-change state) new-text)))
-     (assoc-in state [:text] new-text))
-
+   [(handle-new-text state (str (:text state)
+                                  (:character event)))
+    false] 
+   
    :default
-   state))
+   [state true]))
 
 (def initial-text-editor-state
   {:text ""
@@ -73,128 +119,94 @@
 (def text-editor {:initial-state initial-text-editor-state
                   :view text-editor-view})
 
-(quad-gui/def-view view [state]
+
+;; Auto completer
+
+(quad-gui/def-view auto-completer-view [state]
   (layout/->VerticalStack (concat [(quad-gui/call-view :query-editor
                                                        text-editor
                                                        {:text (:query state)
                                                         :on-change (:query-channel state)})]
-                                  (for-all [result (:results state)]
-                                           (layout/->Box 10 [(drawable/->Rectangle 0
-                                                                                   0
-                                                                                   [0 0.5 0.5 1])
-                                                             (drawable/->Text result
-                                                                              (font/create "LiberationSans-Regular.ttf" 15)
-                                                                              [0 0 0 1])])))))
+                                  (doall (map-indexed (fn [index result]
+                                                        (layout/->Box 10 [(drawable/->Rectangle 0
+                                                                                                0
+                                                                                                (if (= (:selection state)
+                                                                                                       index)
+                                                                                                  [0 0.8 0.8 1]
+                                                                                                  [0 0.5 0.5 1]))
+                                                                          (drawable/->Text result
+                                                                                           (font/create "LiberationSans-Regular.ttf" 15)
+                                                                                           [0 0 0 1])]))
 
-(def initial-state (conj {:query ""
-                          :results ["foo" "bar"]
-                          :query-channel (async/chan)
-                          :handle-keyboard-event (fn [state event]
-                                                   (cond
-                                                    (events/key-pressed? event :esc)
-                                                    (assoc state :close-requested true)
+                                                      (:results state))))))
 
-                                                    :default
-                                                    state))}
-                         quad-gui/child-focus-handlers))
+(defn initial-auto-completer-state []
+  (conj {:query ""
+         :results ["foo" "bar"]
+         :selection nil
+         :selection-channel (async/chan)
+         :query-channel (async/chan)
+         :handle-keyboard-event (fn [state event]
+                                  (println "autocompleter got " event)
+                                  (events/on-key state event
+                                                 :esc (assoc state :close-requested true)
+                                                 :down (do (async/put! (:selection-channel state) :next)
+                                                           state)
+                                                 :enter (if (:selection state)
+                                                          (do (async/put! (:selection-channel state) :select)
+                                                                   state)
+                                                          state)))}
+        quad-gui/child-focus-handlers))
 
 
-(defn throttle [mult interval]
-  (let [output-channel (async/chan)
-        windowed-channel (async/chan (async/sliding-buffer 1))]
-    (async/tap mult windowed-channel)
-    (async/go-loop []
-                   (let [value (async/<! windowed-channel)]
-                     (when value
-                       (>! output-channel value)
-                       (async/<! (async/timeout interval))
-                       (recur))))
-    output-channel))
-
-(let [source (async/chan)
-      mult (async/mult source)
-      unthrottled (async/chan)
-      throttled (throttle mult 1000)
-      control (async/timeout 10000)]
-  (async/tap mult unthrottled)
-  (async/go (dotimes [n 10]
-              (async/<! (async/timeout 200))
-              (println "sending" n)
-              (async/>! source n)))
-  (async/go (loop []
-              (async/alt! control (println "exiting")
-                          throttled ([value]
-                                       (println "got" value)
-                                       (recur))
-                          unthrottled ([value]
-                                         (println "got from unthrottled" value)
-                                         (recur))))))
-
-(defn start-processes [state-path event-channel control-channel state]
-  (async/go (let [throttled-query (throttle (:query-channel state) 1000)]
+(defn start-auto-completer-processes [state-path event-channel control-channel state]
+  (async/go (let [[throttled-query unthrottled-query] (throttle (:query-channel state) 1000)]
               (loop []
-                (async/alt! control-channel ([_] (println "exiting process"))
+                (async/alt! control-channel ([_] (println "exiting auto completer process"))
                             throttled-query ([query]
-                                               (println "throttled" query)
+                                               (println "throttled query" query)
                                                (async/go (let [results (async/<! (query-wikipedia query))]
                                                            (quad-gui/transact state-path event-channel
                                                                               (fn [state]
-                                                                                (assoc-in state [:results] results)))))
-
+                                                                                (assoc state
+                                                                                  :results results
+                                                                                  :selection nil)))))
                                                (recur))
 
-                            (:query-channel state) ([query]
-                                                      (println "unthrottled" query)
-                                                      (quad-gui/transact state-path event-channel
-                                                                         (fn [state]
-                                                                           (assoc-in state [:query] query)))
-                                                      (recur)))))))
+                            unthrottled-query ([query]
+                                                 (quad-gui/transact state-path event-channel
+                                                                    (fn [state]
+                                                                      (assoc-in state [:query] query)))
+                                                 (recur))))))
 
-#_(defn run-view-and-layout [state name window quad-view]
-    (let [width (window/width window)
-          height (window/height window)
-          [state layoutable] (utils/named-time (str name " View") (grid-view state))
-          layout (utils/named-time (str name " Layout") (layout/layout layoutable width height))
-          quad-view (window/with-gl window gl (utils/named-time (str name " Draw") (quad-view/draw-layout quad-view layout width height gl)))]
-      [state quad-view]))
-
-#_(let [window (window/create 600
-                              600
-                              :profile :gl3)
-        quad-view (window/with-gl window gl (quad-view/create gl))
-
-        [state quad-view] (run-view-and-layout initial-grid-view-state "1" window quad-view)
-
-        state (update-in state [:rows 5 5] str "a")
-
-        [state quad-view] (run-view-and-layout state "1" window quad-view)]
-    (window/close window))
+  (async/go-loop [] (async/alt! control-channel ([_] (println "exiting selection process"))
+                                (:selection-channel state) ([selection-event]
+                                                              (case selection-event
+                                                                :next (quad-gui/transact state-path event-channel
+                                                                                         (fn [{:keys [results selection] :as state}]
+                                                                                           (if (not (empty? results))
+                                                                                             (update-in state [:selection]
+                                                                                                        (fn [selection]
+                                                                                                          (min (if selection
+                                                                                                                 (inc selection)
+                                                                                                                 0)
+                                                                                                               (dec (count results))))))))
+                                                                :select (quad-gui/transact state-path event-channel
+                                                                                           (fn [{:keys [results selection] :as state}]
+                                                                                             (assoc state
+                                                                                               :selection nil
+                                                                                               :results []
+                                                                                               :query (get results selection)))))
 
 
-#_(let [c1 (async/chan)
-        c2 (async/chan)]
-    (async/thread (while true
-                    (let [[v ch] (async/alts!! [c1 c2])]
-                      (println "Read" v "from" ch))))
-    (async/>!! c1 "hi")
-    (async/>!! c2 "there"))
+                                                              (recur)))))
+
+
 
 (defn start []
-  (quad-gui/start-view initial-state
-                       view
-                       start-processes))
+  (quad-gui/start-view (initial-auto-completer-state)
+                       auto-completer-view
+                       start-auto-completer-processes))
 
 
 (run-tests)
-
-
-#_(def channel (async/chan))
-
-#_(async/go (async/onto-chan channel [1 2 3 4 5 6 7] false))
-
-#_(async/go-loop [[v ch] (async/alts! [channel (async/timeout 0)] :priority true)]
-                 (when (and v (= ch channel))
-                   (println "Read" v))
-                 (if v (recur (async/alts! [channel (async/timeout 0)] :priority true))))
-
-                                        ;(.start (Thread. go-loop))

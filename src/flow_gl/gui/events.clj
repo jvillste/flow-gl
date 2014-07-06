@@ -17,6 +17,17 @@
                      specs )
            :default ~state)))
 
+(defn on-key-one [event key body]
+  `((key-pressed? ~event ~key)
+    [~body false]))
+
+(defmacro on-key [state event & specs]
+  (let [specs (partition 2 specs)]
+    `(cond ~@(mapcat (fn [[key body]]
+                       (on-key-one event key body))
+                     specs)
+           :default [~state true])))
+
 
 (defn create-close-requested-event []
   {:type :close-requested})

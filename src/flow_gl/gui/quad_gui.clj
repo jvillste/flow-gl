@@ -95,20 +95,44 @@
                     (:handle-mouse-event (get-in layout layout-path)))
                   (path-prefixes layout-path-under-mouse))))
 
+(defn update-or-apply-in [map path function & arguments]
+  (if (seq path)
+    (apply update-in map path function arguments)
+    (apply function map arguments)))
+
 (defn apply-keyboard-event-handlers [state event]
   (reduce (fn [state focus-path-parts]
             (let [focus-path (apply concat focus-path-parts)]
               (if-let [keyboard-event-handler (get-in state (conj (vec focus-path) :handle-keyboard-event))]
-                (if (seq focus-path)
-                  (update-in state
-                             focus-path
-                             keyboard-event-handler
-                             event)
-                  (keyboard-event-handler state event))
+                (update-or-apply-in state focus-path keyboard-event-handler event)
                 state)))
           state
           (conj (path-prefixes (:focus-path-parts state))
                 [])))
+
+(defn apply-keyboard-event-handlers-2 [state event]
+  (loop [state state
+         focus-path-prefixes (concat [[]]
+                                     (path-prefixes (:focus-path-parts state)))]
+    (if-let [focus-prefix (first focus-path-prefixes)]
+      (let [focus-path (apply concat focus-prefix)]
+        (if-let [keyboard-event-handler (get-in state (conj (vec focus-path) :handle-keyboard-event))]
+          (if (seq focus-path)
+            (let [[child-state continue] (keyboard-event-handler (get-in state focus-path)
+                                                                 event)
+                  state (assoc-in state focus-path child-state)]
+              (if continue
+                (recur state
+                       (rest focus-path-prefixes))
+                state))
+            (let [[state continue] (keyboard-event-handler state event)]
+              (if continue
+                (recur state
+                       (rest focus-path-prefixes))
+                state)))
+          (recur state
+                 (rest focus-path-prefixes))))
+      state)))
 
 (defn set-focus-state [state focus-path-parts has-focus]
   (if (seq focus-path-parts)
@@ -233,8 +257,8 @@
        nil)
 
    :default
-   (apply-keyboard-event-handlers state
-                                  event)))
+   (apply-keyboard-event-handlers-2 state
+                                    event)))
 
 
 
@@ -251,8 +275,8 @@
         initial-state (set-focus initial-state
                                  (initial-focus-path-parts initial-state))
         initial-state (assoc initial-state :control-channel (async/chan))]
-    
-    (try 
+
+    (try
       (process-starter [] event-channel (:control-channel initial-state) initial-state)
       (loop [gpu-state (window/with-gl window gl (quad-view/create gl))
              state initial-state]
@@ -366,10 +390,7 @@
                                                      new-child-index)]))))})
 
 
-(defn update-or-apply-in [map path function & arguments]
-  (if (seq path)
-    (apply update-in map path function arguments)
-    (apply function map arguments)))
+
 
 (fact (update-or-apply-in {:foo {:baz :bar}} [] assoc :x :y) => {:foo {:baz :bar}, :x :y}
       (update-or-apply-in {:foo {:baz :bar}} [:foo] assoc :x :y) => {:foo {:baz :bar, :x :y}})
