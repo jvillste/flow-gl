@@ -260,24 +260,24 @@
    (apply-keyboard-event-handlers-2 state
                                     event)))
 
-
-
-(defn start-view [initial-state view process-starter]
+(defn start-view [view-definition]
   (let [event-channel (async/chan 10)
+        control-channel (async/chan)
         window (window/create 300
                               400
                               :profile :gl3
                               :init opengl/initialize
                               :reshape opengl/resize
                               :event-channel event-channel)
+        initial-state ((:constructor view-definition) [] event-channel control-channel)
         [initial-state _] (binding [current-event-channel event-channel]
-                            (view initial-state))
+                            ((:view view-definition) initial-state))
         initial-state (set-focus initial-state
                                  (initial-focus-path-parts initial-state))
-        initial-state (assoc initial-state :control-channel (async/chan))]
+        initial-state (assoc initial-state :control-channel control-channel)]
 
     (try
-      (process-starter [] event-channel (:control-channel initial-state) initial-state)
+      #_(process-starter [] event-channel (:control-channel initial-state) initial-state)
       (loop [gpu-state (window/with-gl window gl (quad-view/create gl))
              state initial-state]
                                         ;(println "state is " state)
@@ -285,7 +285,7 @@
           (window/close window)
 
           (let [[state visual] (binding [current-event-channel event-channel]
-                                 (view state))
+                                 ((:view view-definition) state))
                 layout (layout/layout visual
                                       (window/width window)
                                       (window/height window))
@@ -302,7 +302,7 @@
         (window/close window)
         (throw e)))
 
-    (async/go (async/>! (:control-channel initial-state) :close))))
+    (async/go (async/close! (:control-channel initial-state)))))
 
 (defn create-apply-to-view-state-event [function]
   {:type :apply-to-view-state
@@ -324,8 +324,6 @@
                                nil
                                [child-seq-key (inc child-index)])))})
 
-
-
 (def ^:dynamic current-state-path [])
 
 (defn call-view-for-sequence [parent-state view-function key]
@@ -344,12 +342,18 @@
                                []))
       (assoc :children [])))
 
+(defn close-control-channels [state]
+  (async/close! (:control-channel state))
+  (doseq [state (vals (:child-states state))]
+    (close-control-channels state)))
+
 (defn remove-unused-children [state]
   (let [child-set (set (:children state))
         children-to-be-removed (->> (:old-children state)
                                     (filter (complement child-set)))]
     (reduce (fn [state child-to-be-removed]
-              (update-in state [:child-states] dissoc child-to-be-removed))
+              (do (close-control-channels (get-in state [:child-states child-to-be-removed]))
+                  (update-in state [:child-states] dissoc child-to-be-removed)))
             state
             children-to-be-removed)))
 
@@ -390,8 +394,6 @@
                                                      new-child-index)]))))})
 
 
-
-
 (fact (update-or-apply-in {:foo {:baz :bar}} [] assoc :x :y) => {:foo {:baz :bar}, :x :y}
       (update-or-apply-in {:foo {:baz :bar}} [:foo] assoc :x :y) => {:foo {:baz :bar, :x :y}})
 
@@ -401,10 +403,14 @@
                 view-specification
                 state-override))
 
-  ([child-id {:keys [initial-state view]} state-override]
+  ([child-id {:keys [constructor view]} state-override]
      (let [state-path-part [:child-states child-id]
            old-state (or (get-in @current-view-state-atom state-path-part)
-                         initial-state)
+                         (let [control-channel (async/chan)]
+                           (-> (constructor (concat current-state-path state-path-part)
+                                            current-event-channel
+                                            control-channel)
+                               (assoc :control-channel control-channel))))
            new-state (conj old-state state-override)
            [new-state child-visual] (binding [current-state-path (concat current-state-path state-path-part)]
                                       (view new-state))]
@@ -425,6 +431,7 @@
        ~visual)))
 
 (defn apply-to-state [state-path function]
+  (println "apply to state" state-path)
   (async/go (async/>! current-event-channel
                       (create-apply-to-view-state-event (fn [state]
                                                           (update-or-apply-in state state-path function))))))

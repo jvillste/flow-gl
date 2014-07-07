@@ -54,23 +54,23 @@
     [throttled-channel unthrottled-channel]))
 
 #_(let [source (async/chan)
-      [throttled unthrottled] (throttle source 1000)
-      control (async/timeout 10000)]
-  (async/go (dotimes [n 10]
-              (if (= n 5)
-                (async/<! (async/timeout 1200))
-                (async/<! (async/timeout 200)))
+        [throttled unthrottled] (throttle source 1000)
+        control (async/timeout 10000)]
+    (async/go (dotimes [n 10]
+                (if (= n 5)
+                  (async/<! (async/timeout 1200))
+                  (async/<! (async/timeout 200)))
 
-              (println "sending" n)
-              (async/>! source n)))
-  (async/go (loop []
-              (async/alt! control (println "exiting")
-                          throttled ([value]
-                                       (println "got" value)
-                                       (recur))
-                          unthrottled ([value]
-                                         #_(println "got from unthrottled" value)
-                                         (recur))))))
+                (println "sending" n)
+                (async/>! source n)))
+    (async/go (loop []
+                (async/alt! control (println "exiting")
+                            throttled ([value]
+                                         (println "got" value)
+                                         (recur))
+                            unthrottled ([value]
+                                           #_(println "got from unthrottled" value)
+                                           (recur))))))
 
 
 ;; Text editor
@@ -86,19 +86,19 @@
   (cond
    (events/key-pressed? event :back-space)
    [(handle-new-text state (apply str (drop-last (:text state))))
-    false] 
+    false]
 
    (and (:character event)
         (= (:type event)
            :key-pressed))
    [(handle-new-text state (str (:text state)
-                                  (:character event)))
-    false] 
-   
+                                (:character event)))
+    false]
+
    :default
    [state true]))
 
-(def initial-text-editor-state
+(defn crate-text-editor [state-path event-channel control-channel]
   {:text ""
    :has-focus false
    :handle-keyboard-event handle-text-editor-event})
@@ -116,7 +116,7 @@
                                         [0 0 0 1]
                                         [0.3 0.3 0.3 1]))])])
 
-(def text-editor {:initial-state initial-text-editor-state
+(def text-editor {:constructor crate-text-editor
                   :view text-editor-view})
 
 
@@ -140,73 +140,100 @@
 
                                                       (:results state))))))
 
-(defn initial-auto-completer-state []
-  (conj {:query ""
-         :results ["foo" "bar"]
-         :selection nil
-         :selection-channel (async/chan)
-         :query-channel (async/chan)
-         :handle-keyboard-event (fn [state event]
-                                  (println "autocompleter got " event)
-                                  (events/on-key state event
-                                                 :esc (assoc state :close-requested true)
-                                                 :down (do (async/put! (:selection-channel state) :next)
-                                                           state)
-                                                 :enter (if (:selection state)
-                                                          (do (async/put! (:selection-channel state) :select)
-                                                                   state)
-                                                          state)))}
+(defn create-auto-completer [state-path event-channel control-channel]
+  (let [state (conj {:query ""
+                     :results []
+                     :selection nil
+                     :selection-channel (async/chan)
+                     :query-channel (async/chan)
+                     :handle-keyboard-event (fn [state event]
+                                              (println "autocompleter got " event)
+                                              (events/on-key state event
+                                                             :esc (assoc state :close-requested true)
+                                                             :down (do (async/put! (:selection-channel state) :next)
+                                                                       state)
+                                                             :up (do (async/put! (:selection-channel state) :previous)
+                                                                     state)
+                                                             :enter (if (:selection state)
+                                                                      (do (async/put! (:selection-channel state) :select)
+                                                                          state)
+                                                                      state)))}
+                    quad-gui/child-focus-handlers)]
+
+    (async/go (let [[throttled-query unthrottled-query] (throttle (:query-channel state) 1000)]
+                (loop []
+                  (async/alt! control-channel ([_] (println "exiting auto completer process"))
+                              throttled-query ([query]
+                                                 (println "throttled query" query)
+                                                 (async/go (let [results (async/<! (query-wikipedia query))]
+                                                             (quad-gui/transact state-path event-channel
+                                                                                (fn [state]
+                                                                                  (assoc state
+                                                                                    :results results
+                                                                                    :selection nil)))))
+                                                 (recur))
+
+                              unthrottled-query ([query]
+                                                   (quad-gui/transact state-path event-channel
+                                                                      (fn [state]
+                                                                        (when-let [on-selection (:on-selection state)]
+                                                                          (on-selection query))
+                                                                        (assoc state :query query)))
+                                                   (recur))))))
+
+    (async/go-loop [] (async/alt! control-channel ([_] (println "exiting selection process"))
+                                  (:selection-channel state) ([selection-event]
+                                                                (case selection-event
+                                                                  :next (quad-gui/transact state-path event-channel
+                                                                                           (fn [{:keys [results selection] :as state}]
+                                                                                             (if (not (empty? results))
+                                                                                               (update-in state [:selection]
+                                                                                                          (fn [selection]
+                                                                                                            (min (if selection
+                                                                                                                   (inc selection)
+                                                                                                                   0)
+                                                                                                                 (dec (count results))))))))
+                                                                  :select (quad-gui/transact state-path event-channel
+                                                                                             (fn [{:keys [results selection] :as state}]
+                                                                                               (when-let [on-selection (:on-selection state)]
+                                                                                                 (on-selection (get results selection)))
+                                                                                               (assoc state
+                                                                                                 :selection nil
+                                                                                                 :results []
+                                                                                                 :query (get results selection)))))
+
+
+                                                                (recur))))
+    state))
+
+
+(def auto-completer
+  {:constructor create-auto-completer
+   :view auto-completer-view})
+
+(quad-gui/def-view view [state]
+  (layout/->HorizontalStack [(quad-gui/call-view :completer-1
+                                                 auto-completer
+                                                 {:query (:text-1 state)
+                                                  :on-selection (quad-gui/apply-to-current-state [state new-text]
+                                                                                                 (assoc state :text-1 new-text))})
+                             (quad-gui/call-view :completer-2
+                                                 auto-completer
+                                                 {:query (:text-2 state)
+                                                  :on-selection (quad-gui/apply-to-current-state [state new-text]
+                                                                                                 (assoc state :text-2 new-text))})]))
+
+(defn create [state-path event-channel control-channel]
+  (conj {:text-1 ""
+         :text-2 ""}
         quad-gui/child-focus-handlers))
 
-
-(defn start-auto-completer-processes [state-path event-channel control-channel state]
-  (async/go (let [[throttled-query unthrottled-query] (throttle (:query-channel state) 1000)]
-              (loop []
-                (async/alt! control-channel ([_] (println "exiting auto completer process"))
-                            throttled-query ([query]
-                                               (println "throttled query" query)
-                                               (async/go (let [results (async/<! (query-wikipedia query))]
-                                                           (quad-gui/transact state-path event-channel
-                                                                              (fn [state]
-                                                                                (assoc state
-                                                                                  :results results
-                                                                                  :selection nil)))))
-                                               (recur))
-
-                            unthrottled-query ([query]
-                                                 (quad-gui/transact state-path event-channel
-                                                                    (fn [state]
-                                                                      (assoc-in state [:query] query)))
-                                                 (recur))))))
-
-  (async/go-loop [] (async/alt! control-channel ([_] (println "exiting selection process"))
-                                (:selection-channel state) ([selection-event]
-                                                              (case selection-event
-                                                                :next (quad-gui/transact state-path event-channel
-                                                                                         (fn [{:keys [results selection] :as state}]
-                                                                                           (if (not (empty? results))
-                                                                                             (update-in state [:selection]
-                                                                                                        (fn [selection]
-                                                                                                          (min (if selection
-                                                                                                                 (inc selection)
-                                                                                                                 0)
-                                                                                                               (dec (count results))))))))
-                                                                :select (quad-gui/transact state-path event-channel
-                                                                                           (fn [{:keys [results selection] :as state}]
-                                                                                             (assoc state
-                                                                                               :selection nil
-                                                                                               :results []
-                                                                                               :query (get results selection)))))
-
-
-                                                              (recur)))))
-
-
+(def root
+  {:constructor create
+   :view view})
 
 (defn start []
-  (quad-gui/start-view (initial-auto-completer-state)
-                       auto-completer-view
-                       start-auto-completer-processes))
+  (quad-gui/start-view root))
 
 
 (run-tests)
