@@ -128,15 +128,18 @@
                                                        {:text (:query state)
                                                         :on-change (:query-channel state)})]
                                   (doall (map-indexed (fn [index result]
-                                                        (layout/->Box 10 [(drawable/->Rectangle 0
-                                                                                                0
-                                                                                                (if (= (:selection state)
-                                                                                                       index)
-                                                                                                  [0 0.8 0.8 1]
-                                                                                                  [0 0.5 0.5 1]))
-                                                                          (drawable/->Text result
-                                                                                           (font/create "LiberationSans-Regular.ttf" 15)
-                                                                                           [0 0 0 1])]))
+                                                        (-> (layout/->Box 10 [(drawable/->Rectangle 0
+                                                                                                    0
+                                                                                                    (if (= (:selection state)
+                                                                                                           index)
+                                                                                                      [0 0.8 0.8 1]
+                                                                                                      [0 0.5 0.5 1]))
+                                                                              (drawable/->Text result
+                                                                                               (font/create "LiberationSans-Regular.ttf" 15)
+                                                                                               [0 0 0 1])])
+                                                            (quad-gui/on-mouse-clicked (fn [state]
+                                                                                         (async/>!! (:selection-channel state) index)
+                                                                                         state))))
 
                                                       (:results state))))))
 
@@ -149,7 +152,6 @@
                      :handle-keyboard-event (fn [state event]
                                               (println "autocompleter got " event)
                                               (events/on-key state event
-                                                             :esc (assoc state :close-requested true)
                                                              :down (do (async/put! (:selection-channel state) :next)
                                                                        state)
                                                              :up (do (async/put! (:selection-channel state) :previous)
@@ -200,7 +202,15 @@
                                                                                                (assoc state
                                                                                                  :selection nil
                                                                                                  :results []
-                                                                                                 :query (get results selection)))))
+                                                                                                 :query (get results selection))))
+                                                                  (quad-gui/transact state-path event-channel
+                                                                                     (fn [{:keys [results] :as state}]
+                                                                                       (when-let [on-selection (:on-selection state)]
+                                                                                         (on-selection (get results selection-event)))
+                                                                                       (assoc state
+                                                                                         :selection nil
+                                                                                         :results []
+                                                                                         :query (get results selection-event)))))
 
 
                                                                 (recur))))
@@ -212,20 +222,26 @@
    :view auto-completer-view})
 
 (quad-gui/def-view view [state]
-  (layout/->HorizontalStack [(quad-gui/call-view :completer-1
-                                                 auto-completer
-                                                 {:query (:text-1 state)
-                                                  :on-selection (quad-gui/apply-to-current-state [state new-text]
-                                                                                                 (assoc state :text-1 new-text))})
-                             (quad-gui/call-view :completer-2
-                                                 auto-completer
-                                                 {:query (:text-2 state)
-                                                  :on-selection (quad-gui/apply-to-current-state [state new-text]
-                                                                                                 (assoc state :text-2 new-text))})]))
+
+  (do (println "view " (type state))
+      (layout/->HorizontalStack [(quad-gui/call-view :completer-1
+                                                     auto-completer
+                                                     {:query (:text-1 state)
+                                                      :on-selection (quad-gui/apply-to-current-state [state new-text]
+                                                                                                     (assoc state :text-1 new-text))})
+                                 (quad-gui/call-view :completer-2
+                                                     auto-completer
+                                                     {:query (:text-2 state)
+                                                      :on-selection (quad-gui/apply-to-current-state [state new-text]
+                                                                                                     (assoc state :text-2 new-text))})])))
 
 (defn create [state-path event-channel control-channel]
   (conj {:text-1 ""
-         :text-2 ""}
+         :text-2 ""
+         :handle-keyboard-event (fn [state event]
+                                  (events/on-key state event
+                                                 :esc (do (quad-gui/request-close event-channel)
+                                                          state)))}
         quad-gui/child-focus-handlers))
 
 (def root

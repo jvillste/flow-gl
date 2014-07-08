@@ -260,6 +260,9 @@
    (apply-keyboard-event-handlers-2 state
                                     event)))
 
+(defn request-close [event-channel]
+  (async/put! event-channel {:type :close-requested}))
+
 (defn start-view [view-definition]
   (let [event-channel (async/chan 10)
         control-channel (async/chan)
@@ -282,7 +285,8 @@
              state initial-state]
                                         ;(println "state is " state)
         (if (:close-requested state)
-          (window/close window)
+          (do (close-control-channels state)
+              (window/close window))
 
           (let [[state visual] (binding [current-event-channel event-channel]
                                  ((:view view-definition) state))
@@ -297,12 +301,11 @@
                                           event))]
             (if new-state
               (recur new-gpu-state new-state)
-              (window/close window)))))
+              (do (close-control-channels state)
+                  (window/close window))))))
       (catch Exception e
         (window/close window)
-        (throw e)))
-
-    (async/go (async/close! (:control-channel initial-state)))))
+        (throw e)))))
 
 (defn create-apply-to-view-state-event [function]
   {:type :apply-to-view-state
