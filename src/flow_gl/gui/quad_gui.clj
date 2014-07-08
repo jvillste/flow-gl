@@ -143,7 +143,13 @@
         (recur (concat focus-path (first focus-path-parts))
                (rest focus-path-parts)
                (update-in state focus-path assoc :child-has-focus has-focus))
-        (update-in state focus-path assoc :has-focus has-focus)))
+        (update-in state focus-path (fn [state]
+                                      (let [focus-handler-key (if has-focus :on-focus-gained :on-focus-lost)]
+                                        (-> (if-let [focus-handler (focus-handler-key state)]
+                                              (do (println "calling " focus-handler-key)
+                                                  (focus-handler state))
+                                              state)
+                                            (assoc :has-focus has-focus)))))))
     state))
 
 (fact (set-focus-state {:foo [{:bar {:baz :foobar}}
