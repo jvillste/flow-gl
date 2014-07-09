@@ -573,7 +573,7 @@ void main() {
                            :width 0
                            :height 0})]
             (do (.put buffer
-                      (int-array [(:parent quad)
+                      (int-array [(or (:parent quad) -1)
                                   (:x quad)
                                   (:y quad)
                                   (:width texture)

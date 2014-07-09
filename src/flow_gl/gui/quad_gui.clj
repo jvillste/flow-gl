@@ -146,8 +146,7 @@
         (update-in state focus-path (fn [state]
                                       (let [focus-handler-key (if has-focus :on-focus-gained :on-focus-lost)]
                                         (-> (if-let [focus-handler (focus-handler-key state)]
-                                              (do (println "calling " focus-handler-key)
-                                                  (focus-handler state))
+                                              (focus-handler state)
                                               state)
                                             (assoc :has-focus has-focus)))))))
     state))
@@ -269,6 +268,11 @@
 (defn request-close [event-channel]
   (async/put! event-channel {:type :close-requested}))
 
+(defn close-control-channels [state]
+  (async/close! (:control-channel state))
+  (doseq [state (vals (:child-states state))]
+    (close-control-channels state)))
+
 (defn start-view [view-definition]
   (let [event-channel (async/chan 10)
         control-channel (async/chan)
@@ -351,10 +355,7 @@
                                []))
       (assoc :children [])))
 
-(defn close-control-channels [state]
-  (async/close! (:control-channel state))
-  (doseq [state (vals (:child-states state))]
-    (close-control-channels state)))
+
 
 (defn remove-unused-children [state]
   (let [child-set (set (:children state))
@@ -392,7 +393,6 @@
   {:first-focusable-child (fn [state]
                             [:child-states (first (:children state))])
    :next-focusable-child (fn [this currently-focused-path-part]
-                           (println "currently-focused-path-part " currently-focused-path-part)
                            (let [child-index (first (positions #{currently-focused-path-part} (map #(conj [:child-states] %)
                                                                                                    (:children this))))]
                              (let [new-child-index (inc child-index)]
@@ -440,7 +440,6 @@
        ~visual)))
 
 (defn apply-to-state [state-path function]
-  (println "apply to state" state-path)
   (async/go (async/>! current-event-channel
                       (create-apply-to-view-state-event (fn [state]
                                                           (update-or-apply-in state state-path function))))))

@@ -12,6 +12,7 @@
                                  [buffer :as buffer]
                                  [quad-batch :as quad-batch])
             [flow-gl.opengl.math :as math]
+            [clojure.data.priority-map :as priority-map]
             (flow-gl.graphics [buffered-image :as buffered-image]
                               [font :as font]
                               [text :as text]
@@ -23,7 +24,7 @@
 
   (:use clojure.test))
 
-(defn quads-for-layout
+#_(defn quads-for-layout
   ([layout]
      (quads-for-layout layout -1 0))
 
@@ -47,26 +48,57 @@
                       (+ next-free-id (count child-quads))))
              quads))))))
 
+(defn compare-z-and-index [[z-1 index-1] [z-2 index-2]]
+  (println "comparing" [z-1 index-1] [z-2 index-2])
+  (let [result (compare z-1 z-2)]
+    (if (= result 0)
+      (compare index-1 index-2)
+      result)))
+
+(defn quads-for-layout
+  ([layout]
+     (keys (second (quads-for-layout layout 0 0 0 0 (priority-map/priority-map-by compare-z-and-index)))))
+
+  ([layout index parent-x parent-y parent-z quads]
+     (if (satisfies? drawable/Java2DDrawable layout)
+       [(inc index)
+        (assoc quads
+          {:drawable (dissoc layout :x :y)
+           :x (+ parent-x (:x layout))
+           :y (+ parent-y (:y layout))}
+          [(+ parent-z (or (:z layout) 0)) index])]
+       (let [parent-x (+ parent-x (:x layout))
+             parent-y (+ parent-y (:y layout))
+             parent-z (+ parent-z (or (:z layout) 0))]
+         (loop [quads quads
+                index index
+                children (:children layout)]
+           (if-let [child (first children)]
+             (let [[index quads] (quads-for-layout child index parent-x parent-y parent-z quads)]
+               (recur quads
+                      index
+                      (rest children)))
+             [index quads]))))))
+
 (deftest quads-for-layout-test
-  (is (=  (let [layout (layout/layout (layout/->HorizontalStack [(assoc (layout/->VerticalStack [(drawable/->Text "Foo"
+  (is (=  (let [layout (layout/layout (layout/->HorizontalStack [(assoc (layout/->VerticalStack [(drawable/->Text "Foo1"
                                                                                                                   (font/create "LiberationSans-Regular.ttf" 14)
                                                                                                                   [1 1 1 1])
-                                                                                                 (assoc (drawable/->Text "Bar"
+                                                                                                 (assoc (drawable/->Text "Bar1"
                                                                                                                          (font/create "LiberationSans-Regular.ttf" 14)
                                                                                                                          [1 1 1 1])
                                                                                                    :state-path-part [:bar] )])
-                                                                   :state-path-part [:child-states 0])
-                                                                 (assoc (layout/->VerticalStack [(drawable/->Text "Foo"
+                                                                   :state-path-part [:child-states 0]
+                                                                   :z 1)
+                                                                 (assoc (layout/->VerticalStack [(drawable/->Text "Foo2"
                                                                                                                   (font/create "LiberationSans-Regular.ttf" 14)
                                                                                                                   [1 1 1 1])
-                                                                                                 (drawable/->Text "Bar"
+                                                                                                 (drawable/->Text "Bar2"
                                                                                                                   (font/create "LiberationSans-Regular.ttf" 14)
                                                                                                                   [1 1 1 1])])
                                                                    :state-path-part [:child-states 1])] )
                                       100 100)]
-            (quads-for-layout (assoc layout :x 0 :y 0)
-                              -1
-                              0))
+            (seq (quads-for-layout (assoc layout :x 0 :y 0))))
 
           nil)))
 

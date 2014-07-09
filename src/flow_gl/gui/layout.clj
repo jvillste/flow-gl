@@ -346,6 +346,16 @@
                                             0))))
 
 
+(deflayout AboveBelow [children]
+  (layout [this requested-width requested-height]
+          (assoc this :children [(assoc (set-dimensions-and-layout (first children) 0 0 requested-width requested-height)
+                                   :z 1)]))
+
+  (preferred-width [this] (layoutable/preferred-width (first children)))
+
+  (preferred-height [this] 0))
+
+
 
 (defn size-group-width [size-group]
   (apply max (conj (map layoutable/preferred-width (:members @size-group))
