@@ -238,9 +238,16 @@
       :mouse)
    (let [layout-paths-under-mouse (layout/layout-paths-in-coordinates layout (:x event) (:y event))
          layout-path-under-mouse (last layout-paths-under-mouse)]
+     (println layout-paths-under-mouse)
+     
+     (println (map (fn [path] (layout-path-to-state-path-parts layout path)) layout-paths-under-mouse))
+     (println (map (fn [path] (type (get-in layout path))) layout-paths-under-mouse) )
      (if (= (:type event)
             :mouse-clicked)
        (let [focus-path-parts (layout-path-to-state-path-parts layout layout-path-under-mouse)]
+         (println layout-path-under-mouse)
+         (println focus-path-parts)
+         
          (let [updated-state (if (get-in state (concat (apply concat focus-path-parts)
                                                        [:can-gain-focus]))
                                (set-focus state focus-path-parts)
@@ -303,8 +310,8 @@
           (let [[state visual] (binding [current-event-channel event-channel]
                                  ((:view view-definition) state))
                 layout (-> (layout/layout visual
-                                       (window/width window)
-                                       (window/height window))
+                                          (window/width window)
+                                          (window/height window))
                            (layout/add-higher-level-hints))
                 new-gpu-state (render-layout window gpu-state layout)
                 event (async/<!! event-channel)
@@ -371,25 +378,25 @@
             children-to-be-removed)))
 
 #_(fact (let [state-1 (-> {}
-                        (reset-children)
+                          (reset-children)
 
-                        (assoc-in [:child-states :1] :foo)
-                        (add-child :1)
+                          (assoc-in [:child-states :1] :foo)
+                          (add-child :1)
 
-                        (assoc-in [:child-states :2] :foo)
-                        (add-child :2)
+                          (assoc-in [:child-states :2] :foo)
+                          (add-child :2)
 
-                        (remove-unused-children))]
+                          (remove-unused-children))]
 
-        state-1 => {:child-states {:1 :foo, :2 :foo}, :children [:1 :2], :old-children []}
+          state-1 => {:child-states {:1 :foo, :2 :foo}, :children [:1 :2], :old-children []}
 
-        (-> state-1
-            (reset-children)
+          (-> state-1
+              (reset-children)
 
-            (assoc-in [:child-states :2] :foo2)
-            (add-child :2)
+              (assoc-in [:child-states :2] :foo2)
+              (add-child :2)
 
-            (remove-unused-children)) => {:child-states {:2 :foo2}, :children [:2], :old-children [:1 :2]}))
+              (remove-unused-children)) => {:child-states {:2 :foo2}, :children [:2], :old-children [:1 :2]}))
 
 
 (def child-focus-handlers

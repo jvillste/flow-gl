@@ -136,14 +136,15 @@
 #_(fact (layout-index-path-to-layout-path [0 0])
         => '(:children 0 :children 0))
 
-(defn layout-index-paths-in-coordinates [layout parent-path x y paths]
+(defn layout-index-paths-in-coordinates [layout parent-path x y z paths]
   (let [child-indexes (positions (fn [child] (or (in-coordinates x y child)
                                                  (:has-higher-level-children child)))
                                  (:children layout))]
     (if (empty? child-indexes)
       (if (in-coordinates (+  x (:x layout))
                           (+  y (:y layout)) layout)
-        (conj paths parent-path)
+        (conj paths {:path parent-path
+                     :z z})
         paths)
       (loop [child-indexes child-indexes
              paths paths]
@@ -152,8 +153,9 @@
             (recur (rest child-indexes)
                    (layout-index-paths-in-coordinates child
                                                       (vec (conj parent-path child-index))
-                                                      (-  x (:x child))
-                                                      (-  y (:y child))
+                                                      (- x (:x child))
+                                                      (- y (:y child))
+                                                      (+ z (or (:z child) 0))
                                                       paths)))
           paths)))))
 
@@ -166,16 +168,25 @@
                                                         {:x 10 :y 10 :width 10 :height 10
                                                          :has-higher-level-children true
                                                          :children [{:x 0 :y 0 :width 10 :height 10}
-                                                                    {:x 0 :y 10 :width 10 :height 10}]}]}
+                                                                    {:x 0 :y 10 :z 1 :width 10 :height 10}]}
+
+                                                        {:x 10 :y 20 :width 10 :height 10
+                                                         :children [{:x 0 :y 0 :width 10 :height 10}
+                                                                    {:x 0 :y 10 :z 1 :width 10 :height 10}]}]}
                                             []
                                             15
                                             25
+                                            0
                                             [])
-         '([0 0] [0 1] [1 1]))))
+         [{:path [0 0], :z 0} {:path [0 1], :z 0} {:path [1 1], :z 1} {:path [2 0], :z 0}])))
 
 (defn layout-paths-in-coordinates [layout x y]
   (map layout-index-path-to-layout-path
-       (layout-index-paths-in-coordinates layout [] x y [])))
+       (->> (layout-index-paths-in-coordinates layout [] x y 0 [])
+            (sort (fn [path-1 path-2]
+                    (compare (or (:z path-1) 0)
+                             (or (:z path-2) 0))))
+            (map :path))))
 
 (defn layout-index-paths-with-keyboard-event-handlers [layout parent-path]
   (if-let [child-indexes (seq (positions #(or (:handle-keyboard-event %) (:children %))
@@ -315,7 +326,8 @@
               (update-in [:children]
                          (fn [[outer inner]]
                            [(set-dimensions-and-layout outer 0 0 requested-width requested-height)
-                            (set-dimensions-and-layout inner margin margin (layoutable/preferred-width inner) (layoutable/preferred-height inner))]))))
+                            (assoc (set-dimensions-and-layout inner margin margin (layoutable/preferred-width inner) (layoutable/preferred-height inner))
+                              :z 1)]))))
 
   (preferred-width [box] (+ (* 2 margin)
                             (layoutable/preferred-width (second children))))
@@ -453,8 +465,6 @@
                                                              (interleave row
                                                                          size-groups))]
                             (size-group-member size-group :width cell)))))))
-
-
 
 
 (deflayout Stack [children]
