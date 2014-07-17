@@ -238,11 +238,12 @@
       :mouse)
    (let [layout-paths-under-mouse (layout/layout-paths-in-coordinates layout (:x event) (:y event))
          layout-path-under-mouse (last layout-paths-under-mouse)]
-
      (if (= (:type event)
             :mouse-clicked)
        (let [focus-path-parts (layout-path-to-state-path-parts layout layout-path-under-mouse)]
-         (let [updated-state (set-focus state focus-path-parts)]
+         (let [updated-state (if (not (= focus-path-parts []))
+                               (set-focus state focus-path-parts)
+                               state)]
            (apply-mouse-event-handlers updated-state
                                        layout
                                        layout-path-under-mouse
@@ -300,9 +301,10 @@
 
           (let [[state visual] (binding [current-event-channel event-channel]
                                  ((:view view-definition) state))
-                layout (layout/layout visual
-                                      (window/width window)
-                                      (window/height window))
+                layout (-> (layout/layout visual
+                                       (window/width window)
+                                       (window/height window))
+                           (layout/add-higher-level-hints))
                 new-gpu-state (render-layout window gpu-state layout)
                 event (async/<!! event-channel)
                 new-state (binding [current-event-channel event-channel]
@@ -367,7 +369,7 @@
             state
             children-to-be-removed)))
 
-(fact (let [state-1 (-> {}
+#_(fact (let [state-1 (-> {}
                         (reset-children)
 
                         (assoc-in [:child-states :1] :foo)

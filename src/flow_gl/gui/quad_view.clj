@@ -49,7 +49,6 @@
              quads))))))
 
 (defn compare-z-and-index [[z-1 index-1] [z-2 index-2]]
-  (println "comparing" [z-1 index-1] [z-2 index-2])
   (let [result (compare z-1 z-2)]
     (if (= result 0)
       (compare index-1 index-2)

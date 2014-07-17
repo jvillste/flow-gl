@@ -4,7 +4,8 @@
                                        [push-modelview :as push-modelview]
                                        [pop-modelview :as pop-modelview])
              (flow-gl.gui [layoutable :as layoutable]
-                          [drawable :as drawable])))
+                          [drawable :as drawable]))
+  (:use clojure.test))
 
 (defprotocol Layout
   (layout [layout requested-width requested-height]))
@@ -135,32 +136,46 @@
 #_(fact (layout-index-path-to-layout-path [0 0])
         => '(:children 0 :children 0))
 
-(defn layout-index-paths-in-coordinates [layout parent-path x y]
-  (if-let [child-indexes (seq (positions (partial in-coordinates x y) (:children layout)))]
-    (mapcat (fn [child-index]
-              (let [child (get-in layout [:children child-index])]
-                (layout-index-paths-in-coordinates child
-                                                   (vec (conj parent-path child-index))
-                                                   (-  x (:x child))
-                                                   (-  y (:y child)))))
-            child-indexes)
-    [parent-path]))
+(defn layout-index-paths-in-coordinates [layout parent-path x y paths]
+  (let [child-indexes (positions (fn [child] (or (in-coordinates x y child)
+                                                 (:has-higher-level-children child)))
+                                 (:children layout))]
+    (if (empty? child-indexes)
+      (if (in-coordinates (+  x (:x layout))
+                          (+  y (:y layout)) layout)
+        (conj paths parent-path)
+        paths)
+      (loop [child-indexes child-indexes
+             paths paths]
+        (if-let [child-index (first child-indexes)]
+          (let [child (get-in layout [:children child-index])]
+            (recur (rest child-indexes)
+                   (layout-index-paths-in-coordinates child
+                                                      (vec (conj parent-path child-index))
+                                                      (-  x (:x child))
+                                                      (-  y (:y child))
+                                                      paths)))
+          paths)))))
 
-#_(fact (layout-index-paths-in-coordinates {:children [{:x 0 :y 0 :width 20 :height 40
-                                                        :children [{:x 0 :y 0 :width 40 :height 40}
-                                                                   {:x 0 :y 10 :width 40 :height 40}]}
+(deftest layout-index-paths-in-coordinates-test
+  (is (= (layout-index-paths-in-coordinates {:x 0 :y 0 :width 20 :height 40
+                                             :children [{:x 0 :y 0 :width 20 :height 40
+                                                         :children [{:x 0 :y 0 :width 40 :height 40}
+                                                                    {:x 0 :y 10 :width 40 :height 40}]}
 
-                                                       {:x 10 :y 10 :width 10 :height 30
-                                                        :children [{:x 0 :y 0 :width 10 :height 10}
-                                                                   {:x 0 :y 10 :width 10 :height 10}]}]}
-                                           []
-                                           15
-                                           25)
-        => '([0 0] [0 1] [1 1]))
+                                                        {:x 10 :y 10 :width 10 :height 10
+                                                         :has-higher-level-children true
+                                                         :children [{:x 0 :y 0 :width 10 :height 10}
+                                                                    {:x 0 :y 10 :width 10 :height 10}]}]}
+                                            []
+                                            15
+                                            25
+                                            [])
+         '([0 0] [0 1] [1 1]))))
 
 (defn layout-paths-in-coordinates [layout x y]
   (map layout-index-path-to-layout-path
-       (layout-index-paths-in-coordinates layout [] x y)))
+       (layout-index-paths-in-coordinates layout [] x y [])))
 
 (defn layout-index-paths-with-keyboard-event-handlers [layout parent-path]
   (if-let [child-indexes (seq (positions #(or (:handle-keyboard-event %) (:children %))
@@ -189,23 +204,23 @@
        (layout-index-paths-with-keyboard-event-handlers layout [])))
 
 #_(defmacro deflayout [name parameters layout-implementation preferred-width-implementation preferred-height-implementation]
-  (let [[layout-name layout-parameters & layout-body] layout-implementation
-        [preferred-width-name preferred-width-parameters & preferred-width-body] preferred-width-implementation
-        [preferred-height-name preferred-height-parameters & preferred-height-body] preferred-height-implementation]
-    (assert (= layout-name 'layout) (str "invalid layout name" layout-name))
-    (assert (= preferred-width-name 'preferred-width) (str "invalid preferred width name" preferred-width-name))
-    (assert (= preferred-height-name 'preferred-height) (str "invalid preferred height name" preferred-height-name))
+    (let [[layout-name layout-parameters & layout-body] layout-implementation
+          [preferred-width-name preferred-width-parameters & preferred-width-body] preferred-width-implementation
+          [preferred-height-name preferred-height-parameters & preferred-height-body] preferred-height-implementation]
+      (assert (= layout-name 'layout) (str "invalid layout name" layout-name))
+      (assert (= preferred-width-name 'preferred-width) (str "invalid preferred width name" preferred-width-name))
+      (assert (= preferred-height-name 'preferred-height) (str "invalid preferred height name" preferred-height-name))
 
-    `(do (defrecord ~name ~parameters
-           Object
-           (toString [this#] (layoutable/describe-layoutable this#)))
+      `(do (defrecord ~name ~parameters
+             Object
+             (toString [this#] (layoutable/describe-layoutable this#)))
 
-         (extend ~name
-           Layout
-           {:layout (memoize (fn ~layout-parameters (let [{:keys ~parameters} ~(first layout-parameters)] #_(println (str "running" ~name) #_~parameters) ~@layout-body)))}
-           layoutable/Layoutable
-           {:preferred-width (memoize (fn ~preferred-width-parameters (let [{:keys ~parameters} ~(first preferred-width-parameters)] ~@preferred-width-body) ))
-            :preferred-height (memoize (fn ~preferred-height-parameters (let [{:keys ~parameters} ~(first preferred-height-parameters)] ~@preferred-height-body)))}))))
+           (extend ~name
+             Layout
+             {:layout (memoize (fn ~layout-parameters (let [{:keys ~parameters} ~(first layout-parameters)] #_(println (str "running" ~name) #_~parameters) ~@layout-body)))}
+             layoutable/Layoutable
+             {:preferred-width (memoize (fn ~preferred-width-parameters (let [{:keys ~parameters} ~(first preferred-width-parameters)] ~@preferred-width-body) ))
+              :preferred-height (memoize (fn ~preferred-height-parameters (let [{:keys ~parameters} ~(first preferred-height-parameters)] ~@preferred-height-body)))}))))
 
 (defmacro deflayout [name parameters layout-implementation preferred-width-implementation preferred-height-implementation]
   (let [[layout-name layout-parameters & layout-body] layout-implementation
@@ -245,6 +260,42 @@
 
        Object
        (toString [this#] (layoutable/describe-layoutable this#)))))
+
+
+(defn add-higher-level-hints [layout]
+  (loop [children (:children layout)
+         hinted-children []
+         has-higher-level-children false]
+    (if-let [child (first children)]
+      (let [hinted-child (add-higher-level-hints child)]
+        (recur (rest children)
+               (conj hinted-children hinted-child)
+               (or has-higher-level-children
+                   (:has-higher-level-children hinted-child)
+                   (and (:z hinted-child)
+                        (> (:z hinted-child)
+                           0)))))
+      (cond-> layout
+              has-higher-level-children (assoc :has-higher-level-children true)
+              (seq hinted-children) (assoc :children hinted-children)))))
+
+(deftest add-higher-level-hints-test
+  (is (= (add-higher-level-hints {:x 0 :y 0 :width 20 :height 40
+                                  :children [{:x 0 :y 0 :width 20 :height 40
+                                              :children [{:x 0 :y 0 :width 40 :height 40}
+                                                         {:x 0 :y 10 :width 40 :height 40}]}
+
+                                             {:x 10 :y 10 :width 10 :height 10
+                                              :children [{:x 0 :y 0 :z 1 :width 10 :height 10}
+                                                         {:x 0 :y 10  :width 10 :height 10}]}]})
+         {:x 0 :y 0 :width 20 :height 40 :has-higher-level-children true
+          :children [{:x 0 :y 0 :width 20 :height 40
+                      :children [{:x 0 :y 0 :width 40 :height 40}
+                                 {:x 0 :y 10 :width 40 :height 40}]}
+
+                     {:x 10 :y 10 :width 10 :height 10 :has-higher-level-children true
+                      :children [{:x 0 :y 0 :z 1 :width 10 :height 10}
+                                 {:x 0 :y 10  :width 10 :height 10}]}]})))
 
 ;; LAYOUTS
 
@@ -345,11 +396,14 @@
   (preferred-height [this] (apply max (conj (map layoutable/preferred-height children)
                                             0))))
 
-
 (deflayout AboveBelow [children]
   (layout [this requested-width requested-height]
-          (assoc this :children [(assoc (set-dimensions-and-layout (first children) 0 0 requested-width requested-height)
-                                   :z 1)]))
+          (assoc this :children [(-> (set-dimensions-and-layout (first children)
+                                                                0
+                                                                0
+                                                                (layoutable/preferred-width (first children))
+                                                                (layoutable/preferred-height (first children)))
+                                     (assoc :z 1))]))
 
   (preferred-width [this] (layoutable/preferred-width (first children)))
 
@@ -462,3 +516,4 @@
   (preferred-height [dock-bottom] (layoutable/preferred-height layoutable)))
 
 
+(run-tests)
