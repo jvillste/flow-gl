@@ -241,7 +241,8 @@
      (if (= (:type event)
             :mouse-clicked)
        (let [focus-path-parts (layout-path-to-state-path-parts layout layout-path-under-mouse)]
-         (let [updated-state (if (not (= focus-path-parts []))
+         (let [updated-state (if (get-in state (concat (apply concat focus-path-parts)
+                                                       [:can-gain-focus]))
                                (set-focus state focus-path-parts)
                                state)]
            (apply-mouse-event-handlers updated-state

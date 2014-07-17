@@ -99,7 +99,8 @@
 (defn crate-text-editor [state-path event-channel control-channel]
   {:text ""
    :has-focus false
-   :handle-keyboard-event handle-text-editor-event})
+   :handle-keyboard-event handle-text-editor-event
+   :can-gain-focus true})
 
 (defn text-editor-view [state]
   [state
