@@ -25,59 +25,51 @@
   (:use clojure.test))
 
 #_(defn quads-for-layout
-  ([layout]
-     (quads-for-layout layout -1 0))
+    ([layout]
+       (quads-for-layout layout -1 0))
 
-  ([layout parent next-free-id]
-     (if (satisfies? drawable/Java2DDrawable layout)
-       [{:drawable (dissoc layout :x :y)
-         :x (:x layout)
-         :y (:y layout)
-         :parent parent}]
-       (let [current-id next-free-id]
-         (loop [quads [{:x (:x layout)
-                        :y (:y layout)
-                        :parent parent}]
-                children (:children layout)
-                next-free-id (inc next-free-id)]
-           (if-let [child (first children)]
-             (let [child-quads (quads-for-layout child current-id next-free-id)]
-               (recur (concat quads
-                              child-quads)
-                      (rest children)
-                      (+ next-free-id (count child-quads))))
-             quads))))))
+    ([layout parent next-free-id]
+       (if (satisfies? drawable/Java2DDrawable layout)
+         [{:drawable (dissoc layout :x :y)
+           :x (:x layout)
+           :y (:y layout)
+           :parent parent}]
+         (let [current-id next-free-id]
+           (loop [quads [{:x (:x layout)
+                          :y (:y layout)
+                          :parent parent}]
+                  children (:children layout)
+                  next-free-id (inc next-free-id)]
+             (if-let [child (first children)]
+               (let [child-quads (quads-for-layout child current-id next-free-id)]
+                 (recur (concat quads
+                                child-quads)
+                        (rest children)
+                        (+ next-free-id (count child-quads))))
+               quads))))))
 
-(defn compare-z-and-index [[z-1 index-1] [z-2 index-2]]
-  (let [result (compare z-1 z-2)]
-    (if (= result 0)
-      (compare index-1 index-2)
-      result)))
 
 (defn quads-for-layout
   ([layout]
-     (keys (second (quads-for-layout layout 0 0 0 0 (priority-map/priority-map-by compare-z-and-index)))))
+     (keys (quads-for-layout layout 0 0 0 (priority-map/priority-map ))))
 
-  ([layout index parent-x parent-y parent-z quads]
+  ([layout parent-x parent-y parent-z quads]
      (if (satisfies? drawable/Java2DDrawable layout)
-       [(inc index)
-        (assoc quads
-          {:drawable (dissoc layout :x :y)
-           :x (+ parent-x (:x layout))
-           :y (+ parent-y (:y layout))}
-          [(+ parent-z (or (:z layout) 0)) index])]
+       (assoc quads
+         {:drawable (dissoc layout :x :y)
+          :x (+ parent-x (:x layout))
+          :y (+ parent-y (:y layout))}
+         (+ parent-z (or (:z layout) 0)))
        (let [parent-x (+ parent-x (:x layout))
              parent-y (+ parent-y (:y layout))
              parent-z (+ parent-z (or (:z layout) 0))]
          (loop [quads quads
-                index index
                 children (:children layout)]
            (if-let [child (first children)]
-             (let [[index quads] (quads-for-layout child index parent-x parent-y parent-z quads)]
+             (let [quads (quads-for-layout child parent-x parent-y parent-z quads)]
                (recur quads
-                      index
                       (rest children)))
-             [index quads]))))))
+             quads))))))
 
 (deftest quads-for-layout-test
   (is (=  (let [layout (layout/layout (layout/->HorizontalStack [(assoc (layout/->VerticalStack [(drawable/->Text "Foo1"

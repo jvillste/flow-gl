@@ -127,11 +127,10 @@
                                                {:text (:query state)
                                                 :on-change (:query-channel state)
                                                 :on-focus-lost (fn [text-editor-state]
-                                                                 (println "focus lost")
                                                                  (async/put! (:selection-channel state) :cancel)
                                                                  text-editor-state)})
 
-                           (layout/->AboveBelow [(layout/->VerticalStack (doall (map-indexed (fn [index result]
+                           (layout/->BottomOutOfLayout [(layout/->VerticalStack (doall (map-indexed (fn [index result]
                                                                                                (-> (layout/->Box 10 [(drawable/->Rectangle 0
                                                                                                                                            0
                                                                                                                                            (if (= (:selection state)
@@ -142,7 +141,6 @@
                                                                                                                                       (font/create "LiberationSans-Regular.ttf" 15)
                                                                                                                                       [0 0 0 1])])
                                                                                                    (quad-gui/on-mouse-clicked (fn [state]
-                                                                                                                                (println "clicked" index)
                                                                                                                                 (async/>!! (:selection-channel state) index)
                                                                                                                                 state))))
 
@@ -213,7 +211,6 @@
                                                                   (when (number? selection-event)
                                                                     (quad-gui/transact state-path event-channel
                                                                                        (fn [{:keys [results] :as state}]
-                                                                                         (println "query is now" selection-event results (get results selection-event))
                                                                                          (when-let [on-selection (:on-selection state)]
                                                                                            (on-selection (get results selection-event)))
                                                                                          (assoc state
@@ -253,7 +250,6 @@
                                                                                                     100
                                                                                                     [1 0 0 0.5])
                                                                               (quad-gui/on-mouse-clicked (fn [state]
-                                                                                                           (println "clicked")
                                                                                                            state)))])])
                            (drawable/->Rectangle 200
                                                  20

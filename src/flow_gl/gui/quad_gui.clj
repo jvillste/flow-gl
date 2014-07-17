@@ -238,16 +238,9 @@
       :mouse)
    (let [layout-paths-under-mouse (layout/layout-paths-in-coordinates layout (:x event) (:y event))
          layout-path-under-mouse (last layout-paths-under-mouse)]
-     (println layout-paths-under-mouse)
-     
-     (println (map (fn [path] (layout-path-to-state-path-parts layout path)) layout-paths-under-mouse))
-     (println (map (fn [path] (type (get-in layout path))) layout-paths-under-mouse) )
      (if (= (:type event)
             :mouse-clicked)
        (let [focus-path-parts (layout-path-to-state-path-parts layout layout-path-under-mouse)]
-         (println layout-path-under-mouse)
-         (println focus-path-parts)
-         
          (let [updated-state (if (get-in state (concat (apply concat focus-path-parts)
                                                        [:can-gain-focus]))
                                (set-focus state focus-path-parts)
@@ -302,7 +295,6 @@
       #_(process-starter [] event-channel (:control-channel initial-state) initial-state)
       (loop [gpu-state (window/with-gl window gl (quad-view/create gl))
              state initial-state]
-                                        ;(println "state is " state)
         (if (:close-requested state)
           (do (close-control-channels state)
               (window/close window))
@@ -312,7 +304,7 @@
                 layout (-> (layout/layout visual
                                           (window/width window)
                                           (window/height window))
-                           (layout/add-higher-level-hints))
+                           (layout/add-out-of-layout-hints))
                 new-gpu-state (render-layout window gpu-state layout)
                 event (async/<!! event-channel)
                 new-state (binding [current-event-channel event-channel]

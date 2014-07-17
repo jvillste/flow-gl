@@ -138,7 +138,7 @@
 
 (defn layout-index-paths-in-coordinates [layout parent-path x y z paths]
   (let [child-indexes (positions (fn [child] (or (in-coordinates x y child)
-                                                 (:has-higher-level-children child)))
+                                                 (:has-children-out-of-layout child)))
                                  (:children layout))]
     (if (empty? child-indexes)
       (if (in-coordinates (+  x (:x layout))
@@ -166,7 +166,7 @@
                                                                     {:x 0 :y 10 :width 40 :height 40}]}
 
                                                         {:x 10 :y 10 :width 10 :height 10
-                                                         :has-higher-level-children true
+                                                         :has-children-out-of-layout true
                                                          :children [{:x 0 :y 0 :width 10 :height 10}
                                                                     {:x 0 :y 10 :z 1 :width 10 :height 10}]}
 
@@ -183,9 +183,7 @@
 (defn layout-paths-in-coordinates [layout x y]
   (map layout-index-path-to-layout-path
        (->> (layout-index-paths-in-coordinates layout [] x y 0 [])
-            (sort (fn [path-1 path-2]
-                    (compare (or (:z path-1) 0)
-                             (or (:z path-2) 0))))
+            (sort-by :z)
             (map :path))))
 
 (defn layout-index-paths-with-keyboard-event-handlers [layout parent-path]
@@ -272,41 +270,38 @@
        Object
        (toString [this#] (layoutable/describe-layoutable this#)))))
 
-
-(defn add-higher-level-hints [layout]
+(defn add-out-of-layout-hints [layout]
   (loop [children (:children layout)
          hinted-children []
-         has-higher-level-children false]
+         has-children-out-of-layout false]
     (if-let [child (first children)]
-      (let [hinted-child (add-higher-level-hints child)]
+      (let [hinted-child (add-out-of-layout-hints child)]
         (recur (rest children)
                (conj hinted-children hinted-child)
-               (or has-higher-level-children
-                   (:has-higher-level-children hinted-child)
-                   (and (:z hinted-child)
-                        (> (:z hinted-child)
-                           0)))))
+               (or has-children-out-of-layout
+                   (:has-children-out-of-layout hinted-child)
+                   (:out-of-layout hinted-child))))
       (cond-> layout
-              has-higher-level-children (assoc :has-higher-level-children true)
+              has-children-out-of-layout (assoc :has-children-out-of-layout true)
               (seq hinted-children) (assoc :children hinted-children)))))
 
-(deftest add-higher-level-hints-test
-  (is (= (add-higher-level-hints {:x 0 :y 0 :width 20 :height 40
+(deftest add-out-of-layout-hints-test
+  (is (= (add-out-of-layout-hints {:x 0 :y 0 :width 20 :height 40
                                   :children [{:x 0 :y 0 :width 20 :height 40
                                               :children [{:x 0 :y 0 :width 40 :height 40}
                                                          {:x 0 :y 10 :width 40 :height 40}]}
 
                                              {:x 10 :y 10 :width 10 :height 10
-                                              :children [{:x 0 :y 0 :z 1 :width 10 :height 10}
-                                                         {:x 0 :y 10  :width 10 :height 10}]}]})
-         {:x 0 :y 0 :width 20 :height 40 :has-higher-level-children true
+                                              :children [{:x 0 :y 0 :width 10 :height 10}
+                                                         {:x 0 :y 10 :z 1 :width 10 :height 10 :out-of-layout true}]}]})
+         {:x 0 :y 0 :width 20 :height 40 :has-children-out-of-layout true
           :children [{:x 0 :y 0 :width 20 :height 40
                       :children [{:x 0 :y 0 :width 40 :height 40}
                                  {:x 0 :y 10 :width 40 :height 40}]}
 
-                     {:x 10 :y 10 :width 10 :height 10 :has-higher-level-children true
-                      :children [{:x 0 :y 0 :z 1 :width 10 :height 10}
-                                 {:x 0 :y 10  :width 10 :height 10}]}]})))
+                     {:x 10 :y 10 :width 10 :height 10 :has-children-out-of-layout true
+                      :children [{:x 0 :y 0  :width 10 :height 10}
+                                 {:x 0 :y 10 :z 1 :width 10 :height 10 :out-of-layout true}]}]})))
 
 ;; LAYOUTS
 
@@ -408,14 +403,15 @@
   (preferred-height [this] (apply max (conj (map layoutable/preferred-height children)
                                             0))))
 
-(deflayout AboveBelow [children]
+(deflayout BottomOutOfLayout [children]
   (layout [this requested-width requested-height]
           (assoc this :children [(-> (set-dimensions-and-layout (first children)
                                                                 0
                                                                 0
                                                                 (layoutable/preferred-width (first children))
                                                                 (layoutable/preferred-height (first children)))
-                                     (assoc :z 1))]))
+                                     (assoc :z 1
+                                            :out-of-layout true))]))
 
   (preferred-width [this] (layoutable/preferred-width (first children)))
 
