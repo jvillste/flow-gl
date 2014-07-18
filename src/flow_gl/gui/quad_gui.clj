@@ -84,16 +84,7 @@
 (def ^:dynamic current-event-channel nil)
 (def ^:dynamic current-view-state-atom)
 
-(defn apply-mouse-event-handlers [state layout layout-path-under-mouse event]
-  (reduce (fn [state layout-path]
-            (update-in state
-                       (layout-path-to-state-path layout layout-path)
-                       (get-in layout (conj layout-path :handle-mouse-event))
-                       event))
-          state
-          (filter (fn [layout-path]
-                    (:handle-mouse-event (get-in layout layout-path)))
-                  (path-prefixes layout-path-under-mouse))))
+
 
 (defn update-or-apply-in [map path function & arguments]
   (if (seq path)
@@ -252,7 +243,33 @@
   (move-hierarchical-state state focus-path-parts :focus-path-parts :child-has-focus :has-focus :on-focus-gained :on-focus-lost))
 
 (defn set-mouse-over [state mouse-over-path-parts]
-  (move-hierarchical-state state mouse-over-path-parts :mouse-over-path-parts :mouse-over-child :mouse-over :on-mouse-enter :on-mouse-leave))
+  (if (not (= mouse-over-path-parts (:mouse-over-path-parts state)))
+    (move-hierarchical-state state mouse-over-path-parts :mouse-over-path-parts :mouse-over-child :mouse-over :on-mouse-enter :on-mouse-leave)
+    state))
+
+(defn apply-layout-event-handlers [state layout layout-path handler-key & arguments]
+  (reduce (fn [state layout-path]
+            (apply update-in
+                   state
+                   (layout-path-to-state-path layout layout-path)
+                   (get-in layout (conj layout-path handler-key))
+                   arguments))
+          state
+          (filter (fn [layout-path]
+                    (handler-key (get-in layout layout-path)))
+                  (path-prefixes layout-path))))
+
+(defn apply-mouse-over-layout-event-handlers [state layout new-mouse-over-layout-path]
+  (if (not (= new-mouse-over-layout-path
+              (:mouse-over-layout-path state)))
+    (-> state
+        (apply-layout-event-handlers layout (:mouse-over-layout-path state) :on-mouse-leave)
+        (apply-layout-event-handlers layout new-mouse-over-layout-path :on-mouse-enter)
+        (assoc :mouse-over-layout-path new-mouse-over-layout-path))
+    state))
+
+(defn apply-mouse-event-handlers [state layout layout-path-under-mouse event]
+  (apply-layout-event-handlers state layout layout-path-under-mouse :handle-mouse-event event))
 
 (defn handle-event [state layout event]
   (cond
@@ -265,15 +282,15 @@
    (let [layout-paths-under-mouse (layout/layout-paths-in-coordinates layout (:x event) (:y event))
          layout-path-under-mouse (last layout-paths-under-mouse)
          state (case (:type event)
-                 :mouse-clicked (let [focus-path-parts (layout-path-to-state-path-parts layout layout-path-under-mouse)]
-                                  (if (get-in state (concat (apply concat focus-path-parts)
+                 :mouse-clicked (let [state-path-pats-under-mouse (layout-path-to-state-path-parts layout layout-path-under-mouse)]
+                                  (if (get-in state (concat (apply concat state-path-pats-under-mouse)
                                                             [:can-gain-focus]))
-                                    (set-focus state focus-path-parts)
+                                    (set-focus state state-path-pats-under-mouse)
                                     state))
-                 :mouse-moved (let [mouse-over-path-parts (layout-path-to-state-path-parts layout layout-path-under-mouse)]
-                                  (if (not (= mouse-over-path-parts (:mouse-over-path-parts state)))
-                                    (set-mouse-over state mouse-over-path-parts)
-                                    state))
+                 :mouse-moved (let [state-path-parts-under-mouse (layout-path-to-state-path-parts layout layout-path-under-mouse)]
+                                (-> state
+                                    (set-mouse-over state-path-parts-under-mouse)
+                                    (apply-mouse-over-layout-event-handlers layout layout-path-under-mouse)))
                  state)]
 
      (apply-mouse-event-handlers state

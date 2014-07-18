@@ -106,7 +106,7 @@
   [state
    (layout/->Box 10 [(drawable/->Rectangle 0
                                            0
-                                           (cond 
+                                           (cond
                                             (:has-focus state) [0 0.8 0.8 1]
                                             (:mouse-over state) [0 0.7 0.7 1]
                                             :default [0 0.5 0.5 1]))
@@ -131,21 +131,33 @@
                                                                  (async/put! (:selection-channel state) :cancel)
                                                                  text-editor-state)})
 
-                           (layout/->BottomOutOfLayout [(layout/->VerticalStack (doall (map-indexed (fn [index result]
-                                                                                               (-> (layout/->Box 10 [(drawable/->Rectangle 0
-                                                                                                                                           0
-                                                                                                                                           (if (= (:selection state)
-                                                                                                                                                  index)
-                                                                                                                                             [0 0.8 0.8 1]
-                                                                                                                                             [0 0.5 0.5 1]))
-                                                                                                                     (drawable/->Text result
-                                                                                                                                      (font/create "LiberationSans-Regular.ttf" 15)
-                                                                                                                                      [0 0 0 1])])
-                                                                                                   (quad-gui/on-mouse-clicked (fn [state]
-                                                                                                                                (async/>!! (:selection-channel state) index)
-                                                                                                                                state))))
+                           (layout/->BottomOutOfLayout [(assoc (layout/->VerticalStack (doall (map-indexed (fn [index result]
+                                                                                                       (-> (layout/->Box 10 [(drawable/->Rectangle 0
+                                                                                                                                                   0
+                                                                                                                                                   (if (= index (:mouse-over-index state))
+                                                                                                                                                     [1 1 1 1]
+                                                                                                                                                     (if (= (:selection state)
+                                                                                                                                                            index)
+                                                                                                                                                       (if (:mouse-over state)
+                                                                                                                                                         [0 1 1 1]
+                                                                                                                                                         [0 0.8 0.8 1])
+                                                                                                                                                       (if (:mouse-over state)
+                                                                                                                                                         [0 0.7 0.7 1]
+                                                                                                                                                         [0 0.5 0.5 1]))))
+                                                                                                                             (drawable/->Text result
+                                                                                                                                              (font/create "LiberationSans-Regular.ttf" 15)
+                                                                                                                                              [0 0 0 1])])
+                                                                                                           (quad-gui/on-mouse-clicked (fn [state]
+                                                                                                                                        (async/>!! (:selection-channel state) index)
+                                                                                                                                        state))
+                                                                                                           (assoc :on-mouse-enter (fn [state]
+                                                                                                                                    (assoc state
+                                                                                                                                      :mouse-over-index index)))))
 
-                                                                                             (:results state))))])]))
+                                                                                                     (:results state))))
+                                                          :on-mouse-leave (fn [state]
+                                                                            (assoc state
+                                                                              :mouse-over-index -1)))])]))
 
 (defn create-auto-completer [state-path event-channel control-channel]
   (let [state (conj {:query ""
@@ -242,19 +254,19 @@
 
 
 #_(quad-gui/def-view view [state]
-  (layout/->VerticalStack [(drawable/->Rectangle 100
-                                                 20
-                                                 [0 0.5 0.5 1])
+    (layout/->VerticalStack [(drawable/->Rectangle 100
+                                                   20
+                                                   [0 0.5 0.5 1])
 
-                           
-                           (layout/->AboveBelow [(layout/->VerticalStack [(-> (drawable/->Rectangle 100
-                                                                                                    100
-                                                                                                    [1 0 0 0.5])
-                                                                              (quad-gui/on-mouse-clicked (fn [state]
-                                                                                                           state)))])])
-                           (drawable/->Rectangle 200
-                                                 20
-                                                 [0.5 0.5 0.5 1])]))
+
+                             (layout/->AboveBelow [(layout/->VerticalStack [(-> (drawable/->Rectangle 100
+                                                                                                      100
+                                                                                                      [1 0 0 0.5])
+                                                                                (quad-gui/on-mouse-clicked (fn [state]
+                                                                                                             state)))])])
+                             (drawable/->Rectangle 200
+                                                   20
+                                                   [0.5 0.5 0.5 1])]))
 
 (defn create [state-path event-channel control-channel]
   (conj {:text-1 ""
