@@ -132,29 +132,27 @@
                                                                  text-editor-state)})
 
                            (layout/->BottomOutOfLayout [(assoc (layout/->VerticalStack (doall (map-indexed (fn [index result]
-                                                                                                       (-> (layout/->Box 10 [(drawable/->Rectangle 0
-                                                                                                                                                   0
-                                                                                                                                                   (if (= index (:mouse-over-index state))
-                                                                                                                                                     [1 1 1 1]
-                                                                                                                                                     (if (= (:selection state)
-                                                                                                                                                            index)
-                                                                                                                                                       (if (:mouse-over state)
-                                                                                                                                                         [0 1 1 1]
-                                                                                                                                                         [0 0.8 0.8 1])
-                                                                                                                                                       (if (:mouse-over state)
-                                                                                                                                                         [0 0.7 0.7 1]
-                                                                                                                                                         [0 0.5 0.5 1]))))
-                                                                                                                             (drawable/->Text result
-                                                                                                                                              (font/create "LiberationSans-Regular.ttf" 15)
-                                                                                                                                              [0 0 0 1])])
-                                                                                                           (quad-gui/on-mouse-clicked (fn [state]
-                                                                                                                                        (async/>!! (:selection-channel state) index)
-                                                                                                                                        state))
-                                                                                                           (assoc :on-mouse-enter (fn [state]
-                                                                                                                                    (assoc state
-                                                                                                                                      :mouse-over-index index)))))
+                                                                                                             (-> (layout/->Box 10 [(drawable/->Rectangle 0
+                                                                                                                                                         0
+                                                                                                                                                         (if (= index (:mouse-over-index state))
+                                                                                                                                                           [0 0.8 0.8 1]
+                                                                                                                                                           (if (= (:selection state)
+                                                                                                                                                                  index)
+                                                                                                                                                             [0 0.8 0.8 1]
+                                                                                                                                                             [0 0.5 0.5 1])))
+                                                                                                                                   (drawable/->Text result
+                                                                                                                                                    (font/create "LiberationSans-Regular.ttf" 15)
+                                                                                                                                                    [0 0 0 1])])
+                                                                                                                 (assoc :on-mouse-clicked (fn [state]
+                                                                                                                                            (println "got clicked")
+                                                                                                                                            (async/>!! (:selection-channel state) index)
+                                                                                                                                            state)
 
-                                                                                                     (:results state))))
+                                                                                                                        :on-mouse-enter (fn [state]
+                                                                                                                                          (assoc state
+                                                                                                                                            :mouse-over-index index)))))
+
+                                                                                                           (:results state))))
                                                           :on-mouse-leave (fn [state]
                                                                             (assoc state
                                                                               :mouse-over-index -1)))])]))

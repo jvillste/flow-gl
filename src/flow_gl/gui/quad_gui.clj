@@ -268,9 +268,6 @@
         (assoc :mouse-over-layout-path new-mouse-over-layout-path))
     state))
 
-(defn apply-mouse-event-handlers [state layout layout-path-under-mouse event]
-  (apply-layout-event-handlers state layout layout-path-under-mouse :handle-mouse-event event))
-
 (defn handle-event [state layout event]
   (cond
    (= (:type event)
@@ -283,20 +280,18 @@
          layout-path-under-mouse (last layout-paths-under-mouse)
          state (case (:type event)
                  :mouse-clicked (let [state-path-pats-under-mouse (layout-path-to-state-path-parts layout layout-path-under-mouse)]
-                                  (if (get-in state (concat (apply concat state-path-pats-under-mouse)
-                                                            [:can-gain-focus]))
-                                    (set-focus state state-path-pats-under-mouse)
-                                    state))
+                                  (-> state
+                                      (cond-> (get-in state (concat (apply concat state-path-pats-under-mouse)
+                                                                    [:can-gain-focus]))
+                                              (set-focus state-path-pats-under-mouse))
+                                      (apply-layout-event-handlers layout layout-path-under-mouse :on-mouse-clicked)))
                  :mouse-moved (let [state-path-parts-under-mouse (layout-path-to-state-path-parts layout layout-path-under-mouse)]
                                 (-> state
                                     (set-mouse-over state-path-parts-under-mouse)
                                     (apply-mouse-over-layout-event-handlers layout layout-path-under-mouse)))
                  state)]
 
-     (apply-mouse-event-handlers state
-                                 layout
-                                 layout-path-under-mouse
-                                 event))
+     (apply-layout-event-handlers state layout layout-path-under-mouse :handle-mouse-event event))
 
    (events/key-pressed? event :tab)
    (set-focus state (or (next-focus-path-parts state (:focus-path-parts state))
