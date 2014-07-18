@@ -100,15 +100,12 @@
 
            (.addMouseListener (proxy [MouseAdapter] []
                                 (mouseMoved [event]
-                                  ;;(event-queue/add-event event-channel (create-mouse-event event :mouse-moved))
-                                  )
+                                  (async/>!! event-channel (create-mouse-event event :mouse-moved)))
                                 (mousePressed [event]
-                                  (println "mouse pressed")
                                   (async/>!! event-channel (create-mouse-event event :mouse-pressed)))
                                 (mouseReleased [event]
                                   (async/>!! event-channel (create-mouse-event event :mouse-released)))
                                 (mouseClicked [event]
-                                  (println "mouse clicked")
                                   (async/>!! event-channel (create-mouse-event event :mouse-clicked)))))
 
            (.addWindowListener (proxy [WindowAdapter] []

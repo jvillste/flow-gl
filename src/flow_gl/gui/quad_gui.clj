@@ -151,6 +151,8 @@
                                             (assoc :has-focus has-focus)))))))
     state))
 
+
+
 (fact (set-focus-state {:foo [{:bar {:baz :foobar}}
                               {:bar {:baz {:foo :bar}}}]}
                        [[:foo 1] [:bar] [:baz]]
@@ -161,6 +163,24 @@
             :bar {:child-has-focus true
                   :baz {:has-focus true
                         :foo :bar}}}]})
+
+
+(defn set-hierarchical-state [state path-parts new-value child-state-key state-key state-gained-key state-lost-key]
+  (if (seq path-parts)
+    (loop [path (first path-parts)
+           path-parts (rest path-parts)
+           state state]
+      (if (seq path-parts)
+        (recur (concat path (first path-parts))
+               (rest path-parts)
+               (update-in state path assoc child-state-key new-value))
+        (update-in state path (fn [state]
+                                (let [focus-handler-key (if new-value state-gained-key state-lost-key)]
+                                  (-> (if-let [focus-handler (focus-handler-key state)]
+                                        (focus-handler state)
+                                        state)
+                                      (assoc state-key new-value)))))))
+    state))
 
 (defn seq-focus-handlers [child-seq-key]
   {:first-focusable-child (fn [_] [child-seq-key 0])
@@ -222,11 +242,17 @@
                            (window/height window)
                            gl)))
 
-(defn set-focus [state focus-path-parts]
+(defn move-hierarchical-state [state path-parts previous-path-parts-key child-state-key state-key state-gained-key state-lost-key]
   (-> state
-      (set-focus-state (:focus-path-parts state) false)
-      (set-focus-state focus-path-parts true)
-      (assoc :focus-path-parts focus-path-parts)))
+      (set-hierarchical-state (previous-path-parts-key state) false child-state-key state-key state-gained-key state-lost-key)
+      (set-hierarchical-state path-parts true child-state-key state-key state-gained-key state-lost-key)
+      (assoc previous-path-parts-key path-parts)))
+
+(defn set-focus [state focus-path-parts]
+  (move-hierarchical-state state focus-path-parts :focus-path-parts :child-has-focus :has-focus :on-focus-gained :on-focus-lost))
+
+(defn set-mouse-over [state mouse-over-path-parts]
+  (move-hierarchical-state state mouse-over-path-parts :mouse-over-path-parts :mouse-over-child :mouse-over :on-mouse-enter :on-mouse-leave))
 
 (defn handle-event [state layout event]
   (cond
@@ -237,22 +263,23 @@
    (= (:source event)
       :mouse)
    (let [layout-paths-under-mouse (layout/layout-paths-in-coordinates layout (:x event) (:y event))
-         layout-path-under-mouse (last layout-paths-under-mouse)]
-     (if (= (:type event)
-            :mouse-clicked)
-       (let [focus-path-parts (layout-path-to-state-path-parts layout layout-path-under-mouse)]
-         (let [updated-state (if (get-in state (concat (apply concat focus-path-parts)
-                                                       [:can-gain-focus]))
-                               (set-focus state focus-path-parts)
-                               state)]
-           (apply-mouse-event-handlers updated-state
-                                       layout
-                                       layout-path-under-mouse
-                                       event)))
-       (apply-mouse-event-handlers state
-                                   layout
-                                   layout-path-under-mouse
-                                   event)))
+         layout-path-under-mouse (last layout-paths-under-mouse)
+         state (case (:type event)
+                 :mouse-clicked (let [focus-path-parts (layout-path-to-state-path-parts layout layout-path-under-mouse)]
+                                  (if (get-in state (concat (apply concat focus-path-parts)
+                                                            [:can-gain-focus]))
+                                    (set-focus state focus-path-parts)
+                                    state))
+                 :mouse-moved (let [mouse-over-path-parts (layout-path-to-state-path-parts layout layout-path-under-mouse)]
+                                  (if (not (= mouse-over-path-parts (:mouse-over-path-parts state)))
+                                    (set-mouse-over state mouse-over-path-parts)
+                                    state))
+                 state)]
+
+     (apply-mouse-event-handlers state
+                                 layout
+                                 layout-path-under-mouse
+                                 event))
 
    (events/key-pressed? event :tab)
    (set-focus state (or (next-focus-path-parts state (:focus-path-parts state))

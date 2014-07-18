@@ -106,9 +106,10 @@
   [state
    (layout/->Box 10 [(drawable/->Rectangle 0
                                            0
-                                           (if (:has-focus state)
-                                             [0 0.8 0.8 1]
-                                             [0 0.5 0.5 1]))
+                                           (cond 
+                                            (:has-focus state) [0 0.8 0.8 1]
+                                            (:mouse-over state) [0 0.7 0.7 1]
+                                            :default [0 0.5 0.5 1]))
                      (drawable/->Text (:text state)
                                       (font/create "LiberationSans-Regular.ttf" 15)
                                       (if (:has-focus state)
