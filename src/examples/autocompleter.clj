@@ -25,13 +25,11 @@
         flow-gl.gui.layout-dsl
         clojure.test))
 
-(defn query-wikipedia [query]
-  (let [channel (async/chan)]
-    (async/put! channel (second (:body (client/get (str "http://en.wikipedia.org/w/api.php?action=opensearch&format=json&search=" query) {:as :json}))))
-    channel))
+
 
 
 ;; CSP
+
 (defn tap-new
   ([mult]
      (tap-new mult (async/chan)))
@@ -98,29 +96,32 @@
 
 (defn crate-text-editor [state-path event-channel control-channel]
   {:text ""
-   :has-focus false
    :handle-keyboard-event handle-text-editor-event
    :can-gain-focus true})
 
-(defn text-editor-view [state]
-  [state
-   (layout/->Box 10 [(drawable/->Rectangle 0
-                                           0
-                                           (cond
-                                            (:has-focus state) [0 0.8 0.8 1]
-                                            (:mouse-over state) [0 0.7 0.7 1]
-                                            :default [0 0.5 0.5 1]))
-                     (drawable/->Text (:text state)
-                                      (font/create "LiberationSans-Regular.ttf" 15)
-                                      (if (:has-focus state)
-                                        [0 0 0 1]
-                                        [0.3 0.3 0.3 1]))])])
+(quad-gui/def-view text-editor-view [state]
+  (layout/->Box 10 [(drawable/->Rectangle 0
+                                          0
+                                          (cond
+                                           (:has-focus state) [0 0.8 0.8 1]
+                                           (:mouse-over state) [0 0.7 0.7 1]
+                                           :default [0 0.5 0.5 1]))
+                    (drawable/->Text (:text state)
+                                     (font/create "LiberationSans-Regular.ttf" 15)
+                                     (if (:has-focus state)
+                                       [0 0 0 1]
+                                       [0.3 0.3 0.3 1]))]))
 
 (def text-editor {:constructor crate-text-editor
                   :view text-editor-view})
 
 
 ;; Auto completer
+
+(defn query-wikipedia [query]
+  (let [channel (async/chan)]
+    (async/put! channel (second (:body (client/get (str "http://en.wikipedia.org/w/api.php?action=opensearch&format=json&search=" query) {:as :json}))))
+    channel))
 
 (quad-gui/def-view auto-completer-view [state]
   (layout/->VerticalStack [(quad-gui/call-view :query-editor
@@ -144,7 +145,6 @@
                                                                                                                                                     (font/create "LiberationSans-Regular.ttf" 15)
                                                                                                                                                     [0 0 0 1])])
                                                                                                                  (assoc :on-mouse-clicked (fn [state]
-                                                                                                                                            (println "got clicked")
                                                                                                                                             (async/>!! (:selection-channel state) index)
                                                                                                                                             state)
 
@@ -238,6 +238,11 @@
   {:constructor create-auto-completer
    :view auto-completer-view})
 
+
+
+;; Test view
+
+
 (quad-gui/def-view view [state]
   (layout/->VerticalStack [(quad-gui/call-view :completer-1
                                                auto-completer
@@ -249,22 +254,6 @@
                                                {:query (:text-2 state)
                                                 :on-selection (quad-gui/apply-to-current-state [state new-text]
                                                                                                (assoc state :text-2 new-text))})]))
-
-
-#_(quad-gui/def-view view [state]
-    (layout/->VerticalStack [(drawable/->Rectangle 100
-                                                   20
-                                                   [0 0.5 0.5 1])
-
-
-                             (layout/->AboveBelow [(layout/->VerticalStack [(-> (drawable/->Rectangle 100
-                                                                                                      100
-                                                                                                      [1 0 0 0.5])
-                                                                                (quad-gui/on-mouse-clicked (fn [state]
-                                                                                                             state)))])])
-                             (drawable/->Rectangle 200
-                                                   20
-                                                   [0.5 0.5 0.5 1])]))
 
 (defn create [state-path event-channel control-channel]
   (conj {:text-1 ""
