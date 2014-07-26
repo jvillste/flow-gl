@@ -281,11 +281,10 @@
    (let [layout-path-under-mouse (last (layout/layout-paths-in-coordinates layout (:x event) (:y event)))
          state (case (:type event)
                  :mouse-pressed (if (get-in layout (conj (vec layout-path-under-mouse) :on-drag))
-                                  (do (println "start drag" layout-path-under-mouse)
-                                      (assoc state
-                                        :dragging-layout-path layout-path-under-mouse
-                                        :previous-drag-x (:x event)
-                                        :previous-drag-y (:y event)))
+                                  (assoc state
+                                    :dragging-layout-path layout-path-under-mouse
+                                    :previous-drag-x (:x event)
+                                    :previous-drag-y (:y event))
                                   state)
                  :mouse-released (assoc state
                                    :dragging-layout-path nil)
@@ -296,17 +295,16 @@
                                               (set-focus state-path-pats-under-mouse))
                                       (apply-layout-event-handlers layout layout-path-under-mouse :on-mouse-clicked)))
                  :mouse-dragged (if-let [dragging-layout-path (:dragging-layout-path state)]
-                                  (do (println "dragging " (layout-path-to-state-path layout dragging-layout-path))
-                                      (-> (apply update-in
-                                                 state
-                                                 (layout-path-to-state-path layout dragging-layout-path)
-                                                 (get-in layout (conj (vec dragging-layout-path) :on-drag))
-                                                 (- (:previous-drag-x state)
-                                                    (:x event))
-                                                 (- (:previous-drag-y state)
-                                                    (:y event)))
-                                          (assoc :previous-drag-x (:x event)
-                                                 :previous-drag-y (:y event))))
+                                  (-> (update-or-apply-in
+                                       state
+                                       (layout-path-to-state-path layout dragging-layout-path)
+                                       (get-in layout (conj (vec dragging-layout-path) :on-drag))
+                                       (- (:x event)
+                                          (:previous-drag-x state))
+                                       (- (:y event)
+                                          (:previous-drag-y state)))
+                                      (assoc :previous-drag-x (:x event)
+                                             :previous-drag-y (:y event)))
                                   state)
                  :mouse-moved (let [state-path-parts-under-mouse (layout-path-to-state-path-parts layout layout-path-under-mouse)]
                                 (-> state

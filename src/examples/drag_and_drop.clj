@@ -29,7 +29,6 @@
                         :x 0
                         :y (:position state)
                         :on-drag (fn [state x y]
-                                   (println "dragging" x y)
                                    (update-in state [:position] + y)))]))
 
 (defn create [state-path event-channel control-channel]
