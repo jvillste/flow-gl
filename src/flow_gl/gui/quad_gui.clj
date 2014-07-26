@@ -240,6 +240,7 @@
       (assoc previous-path-parts-key path-parts)))
 
 (defn set-focus [state focus-path-parts]
+  (println "set focus" focus-path-parts)
   (move-hierarchical-state state focus-path-parts :focus-path-parts :child-has-focus :has-focus :on-focus-gained :on-focus-lost))
 
 (defn set-mouse-over [state mouse-over-path-parts]
@@ -269,6 +270,7 @@
     state))
 
 (defn handle-event [state layout event]
+
   (cond
    (= (:type event)
       :apply-to-view-state)
@@ -276,15 +278,36 @@
 
    (= (:source event)
       :mouse)
-   (let [layout-paths-under-mouse (layout/layout-paths-in-coordinates layout (:x event) (:y event))
-         layout-path-under-mouse (last layout-paths-under-mouse)
+   (let [layout-path-under-mouse (last (layout/layout-paths-in-coordinates layout (:x event) (:y event)))
          state (case (:type event)
+                 :mouse-pressed (if (get-in layout (conj (vec layout-path-under-mouse) :on-drag))
+                                  (do (println "start drag" layout-path-under-mouse)
+                                      (assoc state
+                                        :dragging-layout-path layout-path-under-mouse
+                                        :previous-drag-x (:x event)
+                                        :previous-drag-y (:y event)))
+                                  state)
+                 :mouse-released (assoc state
+                                   :dragging-layout-path nil)
                  :mouse-clicked (let [state-path-pats-under-mouse (layout-path-to-state-path-parts layout layout-path-under-mouse)]
                                   (-> state
                                       (cond-> (get-in state (concat (apply concat state-path-pats-under-mouse)
                                                                     [:can-gain-focus]))
                                               (set-focus state-path-pats-under-mouse))
                                       (apply-layout-event-handlers layout layout-path-under-mouse :on-mouse-clicked)))
+                 :mouse-dragged (if-let [dragging-layout-path (:dragging-layout-path state)]
+                                  (do (println "dragging " (layout-path-to-state-path layout dragging-layout-path))
+                                      (-> (apply update-in
+                                                 state
+                                                 (layout-path-to-state-path layout dragging-layout-path)
+                                                 (get-in layout (conj (vec dragging-layout-path) :on-drag))
+                                                 (- (:previous-drag-x state)
+                                                    (:x event))
+                                                 (- (:previous-drag-y state)
+                                                    (:y event)))
+                                          (assoc :previous-drag-x (:x event)
+                                                 :previous-drag-y (:y event))))
+                                  state)
                  :mouse-moved (let [state-path-parts-under-mouse (layout-path-to-state-path-parts layout layout-path-under-mouse)]
                                 (-> state
                                     (set-mouse-over state-path-parts-under-mouse)
@@ -331,7 +354,6 @@
         initial-state (assoc initial-state :control-channel control-channel)]
 
     (try
-      #_(process-starter [] event-channel (:control-channel initial-state) initial-state)
       (loop [gpu-state (window/with-gl window gl (quad-view/create gl))
              state initial-state]
         (if (:close-requested state)
@@ -343,6 +365,10 @@
                 layout (-> (layout/layout visual
                                           (window/width window)
                                           (window/height window))
+                           (assoc :x 0
+                                  :y 0
+                                  :width (window/width window)
+                                  :height (window/height window))
                            (layout/add-out-of-layout-hints))
                 new-gpu-state (render-layout window gpu-state layout)
                 event (async/<!! event-channel)

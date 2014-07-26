@@ -101,6 +101,8 @@
            (.addMouseListener (proxy [MouseAdapter] []
                                 (mouseMoved [event]
                                   (async/>!! event-channel (create-mouse-event event :mouse-moved)))
+                                (mouseDragged [event]
+                                  (async/>!! event-channel (create-mouse-event event :mouse-dragged)))
                                 (mousePressed [event]
                                   (async/>!! event-channel (create-mouse-event event :mouse-pressed)))
                                 (mouseReleased [event]

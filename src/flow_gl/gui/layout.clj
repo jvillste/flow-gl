@@ -142,7 +142,8 @@
                                  (:children layout))]
     (if (empty? child-indexes)
       (if (in-coordinates (+  x (:x layout))
-                          (+  y (:y layout)) layout)
+                          (+  y (:y layout))
+                          layout)
         (conj paths {:path parent-path
                      :z z})
         paths)
