@@ -252,21 +252,37 @@
        (toString [this#] (layoutable/describe-layoutable this#)))))
 
 
-(defmacro deflayout-not-memoized [name parameters layout-implementation preferred-width-implementation preferred-height-implementation]
+#_(defmacro deflayout-not-memoized [name parameters layout-implementation preferred-width-implementation preferred-height-implementation]
+    (let [[layout-name layout-parameters & layout-body] layout-implementation
+          [preferred-width-name preferred-width-parameters & preferred-width-body] preferred-width-implementation
+          [preferred-height-name preferred-height-parameters & preferred-height-body] preferred-height-implementation]
+      (assert (= layout-name 'layout) (str "invalid layout name" layout-name))
+      (assert (= preferred-width-name 'preferred-width) (str "invalid preferred width name" preferred-width-name))
+      (assert (= preferred-height-name 'preferred-height) (str "invalid preferred height name" preferred-height-name))
+
+      `(defrecord ~name ~parameters
+         Layout
+         ~layout-implementation
+
+         layoutable/Layoutable
+         (layoutable/preferred-width ~preferred-width-parameters ~@preferred-width-body)
+         (layoutable/preferred-height ~preferred-height-parameters ~@preferred-height-body)
+
+         Object
+         (toString [this#] (layoutable/describe-layoutable this#)))))
+
+(defmacro deflayout-not-memoized [name parameters layout-implementation preferred-size-implementation]
   (let [[layout-name layout-parameters & layout-body] layout-implementation
-        [preferred-width-name preferred-width-parameters & preferred-width-body] preferred-width-implementation
-        [preferred-height-name preferred-height-parameters & preferred-height-body] preferred-height-implementation]
+        [preferred-size-name preferred-size-parameters & preferred-size-body] preferred-size-implementation]
     (assert (= layout-name 'layout) (str "invalid layout name" layout-name))
-    (assert (= preferred-width-name 'preferred-width) (str "invalid preferred width name" preferred-width-name))
-    (assert (= preferred-height-name 'preferred-height) (str "invalid preferred height name" preferred-height-name))
+    (assert (= preferred-size-name 'preferred-size) (str "invalid preferred size name" preferred-size-name))
 
     `(defrecord ~name ~parameters
        Layout
        ~layout-implementation
 
        layoutable/Layoutable
-       (layoutable/preferred-width ~preferred-width-parameters ~@preferred-width-body)
-       (layoutable/preferred-height ~preferred-height-parameters ~@preferred-height-body)
+       (layoutable/preferred-size ~preferred-size-parameters ~@preferred-size-body)
 
        Object
        (toString [this#] (layoutable/describe-layoutable this#)))))
@@ -288,13 +304,13 @@
 
 (deftest add-out-of-layout-hints-test
   (is (= (add-out-of-layout-hints {:x 0 :y 0 :width 20 :height 40
-                                  :children [{:x 0 :y 0 :width 20 :height 40
-                                              :children [{:x 0 :y 0 :width 40 :height 40}
-                                                         {:x 0 :y 10 :width 40 :height 40}]}
+                                   :children [{:x 0 :y 0 :width 20 :height 40
+                                               :children [{:x 0 :y 0 :width 40 :height 40}
+                                                          {:x 0 :y 10 :width 40 :height 40}]}
 
-                                             {:x 10 :y 10 :width 10 :height 10
-                                              :children [{:x 0 :y 0 :width 10 :height 10}
-                                                         {:x 0 :y 10 :z 1 :width 10 :height 10 :out-of-layout true}]}]})
+                                              {:x 10 :y 10 :width 10 :height 10
+                                               :children [{:x 0 :y 0 :width 10 :height 10}
+                                                          {:x 0 :y 10 :z 1 :width 10 :height 10 :out-of-layout true}]}]})
          {:x 0 :y 0 :width 20 :height 40 :has-children-out-of-layout true
           :children [{:x 0 :y 0 :width 20 :height 40
                       :children [{:x 0 :y 0 :width 40 :height 40}
@@ -306,30 +322,36 @@
 
 ;; LAYOUTS
 
-(deflayout FixedSize [width height children]
+(deflayout-not-memoized FixedSize [width height children]
   (layout [this requested-width requested-height]
           (update-in this
                      [:children 0]
                      #(set-dimensions-and-layout % 0 0 width height)))
 
-  (preferred-width [this] width)
+  (preferred-size [this available-width available-height]
+                  (let [child-size (layoutable/preferred-size (first children) width height)]
+                    {:width (max width
+                                 (:width child-size))
 
-  (preferred-height [this] height))
+                     :height (max height
+                                  (:height child-size))})))
 
-(deflayout Box [margin children]
+(deflayout-not-memoized Box [margin children]
   (layout [box requested-width requested-height]
           (-> box
               (update-in [:children]
                          (fn [[outer inner]]
-                           [(set-dimensions-and-layout outer 0 0 requested-width requested-height)
-                            (assoc (set-dimensions-and-layout inner margin margin (layoutable/preferred-width inner) (layoutable/preferred-height inner))
-                              :z 1)]))))
+                           (let [inner-size (layoutable/preferred-size inner (- requested-width (* 2 margin)) (- requested-height (* 2 margin)))]
+                             [(set-dimensions-and-layout outer 0 0 requested-width requested-height)
+                              (assoc (set-dimensions-and-layout inner margin margin (:width inner-size) (:height inner-size))
+                                :z 1)])))))
 
-  (preferred-width [box] (+ (* 2 margin)
-                            (layoutable/preferred-width (second children))))
-
-  (preferred-height [box] (+ (* 2 margin)
-                             (layoutable/preferred-height (second children)))))
+  (preferred-size [this available-width available-height]
+                  (let [child-size (layoutable/preferred-size (second children) (- available-width (* 2 margin)) (- available-height (* 2 margin)))]
+                    {:width (+ (* 2 margin)
+                               (:width child-size))
+                     :height (+ (* 2 margin)
+                                (:height child-size))})))
 
 (deflayout-not-memoized Margin [margin-top margin-right margin-bottom margin-left children]
   (layout [this requested-width requested-height]
@@ -340,11 +362,12 @@
                                                                     (layoutable/preferred-width layoutable)
                                                                     (layoutable/preferred-height layoutable))])))
 
-  (preferred-width [this] (+ margin-left margin-right
-                             (layoutable/preferred-width (first children))))
-
-  (preferred-height [this] (+ margin-top margin-bottom
-                              (layoutable/preferred-height (first children)))))
+  (preferred-size [this available-width available-height]
+                  (let [child-size (layoutable/preferred-size (first children) (- available-width margin-left margin-right) (- available-height margin-top margin-bottom))]
+                    {:width (+ margin-left margin-right
+                               (:width child-size))
+                     :height (+ margin-top margin-bottom
+                                (:height child-size))})))
 
 (deflayout Absolute [children]
 
@@ -366,22 +389,27 @@
 (deflayout-not-memoized VerticalStack [children]
   (layout [vertical-stack requested-width requested-height]
           (assoc vertical-stack :children
-                 (let [width (apply max (conj (map layoutable/preferred-width children)
-                                              0))]
-                   (loop [layouted-layoutables []
-                          y 0
-                          children children]
-                     (if (seq children)
-                       (let [height (layoutable/preferred-height (first children))]
-                         (recur (conj layouted-layoutables (set-dimensions-and-layout (first children) 0 y width height))
-                                (+ y height)
-                                (rest children)))
-                       layouted-layoutables)))))
+                 (loop [layouted-layoutables []
+                        y 0
+                        children children]
+                   (if (seq children)
+                     (let [height (:height (layoutable/preferred-size (first children) requested-width java.lang.Integer/MAX_VALUE))]
+                       (recur (conj layouted-layoutables (set-dimensions-and-layout (first children)
+                                                                                    0
+                                                                                    y
+                                                                                    requested-width
+                                                                                    height))
+                              (+ y height)
+                              (rest children)))
+                     layouted-layoutables))))
 
-  (preferred-width [vertical-stack] (apply max (conj (map layoutable/preferred-width children)
-                                                     0)))
-
-  (preferred-height [vertical-stack] (reduce + (map layoutable/preferred-height children))))
+  (preferred-size [vertical-stack available-width available-height]
+                  (let [child-sizes (map (fn [child]
+                                           (layoutable/preferred-size child available-width java.lang.Integer/MAX_VALUE))
+                                         children)]
+                    {:width (apply max (conj (map :width child-sizes)
+                                             0))
+                     :height (reduce + (map :height child-sizes))})))
 
 
 (deflayout HorizontalStack [children]
@@ -428,40 +456,40 @@
   (apply max (conj (map layoutable/preferred-height (:members @size-group))
                    0)))
 
-(deflayout-not-memoized SizeGroupMember [size-group mode children]
-  (layout [this requested-width requested-height]
-          (assoc this :children
-                 [(set-dimensions-and-layout (first children)
-                                             0
-                                             0
-                                             (layoutable/preferred-width (first children))
-                                             (layoutable/preferred-height (first children)))]))
+#_(deflayout-not-memoized SizeGroupMember [size-group mode children]
+    (layout [this requested-width requested-height]
+            (assoc this :children
+                   [(set-dimensions-and-layout (first children)
+                                               0
+                                               0
+                                               (layoutable/preferred-width (first children))
+                                               (layoutable/preferred-height (first children)))]))
 
 
-  (preferred-width [this] (if (#{:width :both} mode)
-                            (size-group-width size-group)
-                            (layoutable/preferred-width (first children))))
-  (preferred-height [this] (if (#{:height :both} mode)
-                             (size-group-height size-group)
-                             (layoutable/preferred-height (first children)))))
+    (preferred-width [this] (if (#{:width :both} mode)
+                              (size-group-width size-group)
+                              (layoutable/preferred-width (first children))))
+    (preferred-height [this] (if (#{:height :both} mode)
+                               (size-group-height size-group)
+                               (layoutable/preferred-height (first children)))))
 
-(defn create-size-group []
-  (atom {:members #{}}))
+#_(defn create-size-group []
+    (atom {:members #{}}))
 
-(defn size-group-member [size-group mode layoutable]
-  (swap! size-group #(update-in % [:members] conj layoutable))
-  (->SizeGroupMember size-group mode [layoutable]))
+#_(defn size-group-member [size-group mode layoutable]
+    (swap! size-group #(update-in % [:members] conj layoutable))
+    (->SizeGroupMember size-group mode [layoutable]))
 
 
 
-(defn grid [rows]
-  (let [size-groups (repeatedly create-size-group)]
-    (->VerticalStack
-     (for [row rows]
-       (->HorizontalStack (for [[cell size-group] (partition 2
-                                                             (interleave row
-                                                                         size-groups))]
-                            (size-group-member size-group :width cell)))))))
+#_(defn grid [rows]
+    (let [size-groups (repeatedly create-size-group)]
+      (->VerticalStack
+       (for [row rows]
+         (->HorizontalStack (for [[cell size-group] (partition 2
+                                                               (interleave row
+                                                                           size-groups))]
+                              (size-group-member size-group :width cell)))))))
 
 
 (deflayout Stack [children]

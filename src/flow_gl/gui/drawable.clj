@@ -30,8 +30,8 @@
     (graphics-text/draw graphics color font contents))
 
   layoutable/Layoutable
-  (preferred-width [text] (font/width font contents))
-  (preferred-height [text] (font/height font))
+  (preferred-size [this available-width available-height] {:width (font/width font contents)
+                                                           :height (font/height font)})
 
   Object
   (toString [this] (layoutable/describe-layoutable this "Text" :contents :font :color)))
@@ -72,8 +72,8 @@
                        color)])
 
   layoutable/Layoutable
-  (preferred-width [rectangle] width)
-  (preferred-height [rectangle] height)
+  (preferred-size [this available-width available-height] {:width width
+                                                           :height height})
 
   Java2DDrawable
   (draw [this graphics]

@@ -4,7 +4,8 @@
 
 (defprotocol Layoutable
   (preferred-width [element])
-  (preferred-height [element]))
+  (preferred-height [element])
+  (preferred-size [element available-width available-height]))
 
 
 ;; DESCRIPTION
