@@ -224,14 +224,16 @@
         (next-focus-path-parts state [[:children1 1] [:children2 2] [:children3 2]])  => nil))
 
 (defn render-layout [window gpu-state layout]
-  (window/with-gl window gl
-    (opengl/clear gl 0 0 0 1)
-    (quad-view/draw-layout gpu-state
-                           (assoc layout
-                             :x 0 :y 0)
-                           (window/width window)
-                           (window/height window)
-                           gl)))
+  (let [result (window/with-gl window gl
+                 (opengl/clear gl 0 0 0 1)
+                 (quad-view/draw-layout gpu-state
+                                        (assoc layout
+                                          :x 0 :y 0)
+                                        (window/width window)
+                                        (window/height window)
+                                        gl))]
+    (window/swap-buffers window)
+    result))
 
 (defn move-hierarchical-state [state path-parts previous-path-parts-key child-state-key state-key state-gained-key state-lost-key]
   (-> state

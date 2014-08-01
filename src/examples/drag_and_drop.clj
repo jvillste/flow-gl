@@ -29,13 +29,13 @@
                                                     state)))})
 
 
-#_(flow-gl.debug/set-active-channels :all)
+(flow-gl.debug/set-active-channels :all)
 
 (defn start []
-  #_(flow-gl.debug/reset-log)
+  (flow-gl.debug/reset-log)
   (quad-gui/start-view {:constructor create
                         :view view})
-  #_(flow-gl.debug/write-log))
+  (flow-gl.debug/write-log))
 
 
 (run-tests)

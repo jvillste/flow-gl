@@ -129,6 +129,7 @@
            (.setDefaultCloseOperation WindowClosingProtocol$WindowClosingMode/DO_NOTHING_ON_CLOSE)))
 
        (doto window
+         (.setAutoSwapBufferMode false)
          (.addGLEventListener  (gl-event-listener profile init reshape display-atom ))
 
          (.setSize width height)
@@ -153,6 +154,9 @@
 (defn render* [window renderer]
   (reset! (:display-atom window) renderer)
   (.display (:gl-window window)))
+
+(defn swap-buffers [window]
+  (.swapBuffers (:gl-window window)))
 
 (defmacro render [window gl & body]
   `(render* ~window (fn [~gl] ~@body)))
