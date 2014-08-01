@@ -57,7 +57,12 @@
   (proxy [GLEventListener] []
     (display [^javax.media.opengl.GLAutoDrawable drawable]
       (let [gl (get-gl profile drawable)]
-        (@display-atom gl)))
+        (when @display-atom
+          (@display-atom gl))
+
+        #_(when (not @display-atom)
+            (flow-gl.debug/debug :all "display called without atom" (.getId (java.lang.Thread/currentThread)) (java.util.Date.)))
+        (reset! display-atom nil)))
 
     (init [^javax.media.opengl.GLAutoDrawable drawable]
       (let [gl (get-gl profile drawable)]
@@ -94,31 +99,32 @@
          (doto window
            (.addKeyListener (proxy [KeyAdapter] []
                               (keyPressed [event]
-                                (async/>!! event-channel (create-keyboard-event event :key-pressed)))
+                                (async/put! event-channel (create-keyboard-event event :key-pressed)))
                               (keyReleased [event]
-                                (async/>!! event-channel (create-keyboard-event event :key-released)))))
+                                (async/put! event-channel (create-keyboard-event event :key-released)))))
 
            (.addMouseListener (proxy [MouseAdapter] []
                                 (mouseMoved [event]
-                                  (async/>!! event-channel (create-mouse-event event :mouse-moved)))
+                                  (async/put! event-channel (create-mouse-event event :mouse-moved)))
                                 (mouseDragged [event]
-                                  (async/>!! event-channel (create-mouse-event event :mouse-dragged)))
+                                  (async/put! event-channel (create-mouse-event event :mouse-dragged)))
                                 (mousePressed [event]
-                                  (async/>!! event-channel (create-mouse-event event :mouse-pressed)))
+                                  (async/put! event-channel (create-mouse-event event :mouse-pressed)))
                                 (mouseReleased [event]
-                                  (async/>!! event-channel (create-mouse-event event :mouse-released)))
+                                  (async/put! event-channel (create-mouse-event event :mouse-released)))
                                 (mouseClicked [event]
-                                  (async/>!! event-channel (create-mouse-event event :mouse-clicked)))))
+                                  (async/put! event-channel (create-mouse-event event :mouse-clicked)))))
 
            (.addWindowListener (proxy [WindowAdapter] []
                                  (windowDestroyNotify [event]
                                    (println "destroy notify")
-                                   (async/>!! event-channel
-                                                          (events/create-close-requested-event)))
+                                   (async/put! event-channel
+                                               (events/create-close-requested-event)))
                                  (windowResized [event]
-                                   (async/>!! event-channel
-                                                          (events/create-resize-requested-event (.getWidth window)
-                                                                                                (.getHeight window))))))
+                                   (println "sending resize requested" (.getId (java.lang.Thread/currentThread)) (java.util.Date.))
+                                   (async/go (async/>! event-channel
+                                                       (events/create-resize-requested-event (.getWidth window)
+                                                                                             (.getHeight window)))))))
 
            (.setDefaultCloseOperation WindowClosingProtocol$WindowClosingMode/DO_NOTHING_ON_CLOSE)))
 

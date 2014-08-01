@@ -352,7 +352,6 @@ void main() {
                                          (assoc-in textures-in-use [id :first-texel] texture-offset))))
 
                             textures-in-use))]
-
     (buffer/delete gl (:texture-buffer-id quad-batch))
 
     (assoc quad-batch
@@ -396,6 +395,7 @@ void main() {
     new-quad-batch))
 
 (defn add-textures [quad-batch gl images]
+  (println "add textures" (.getId (java.lang.Thread/currentThread)) (java.util.Date.))
   (let [texel-count (reduce (fn [texel-count image]
                               (+ texel-count
                                  (* (.getWidth image)
@@ -456,63 +456,63 @@ void main() {
                                  (count images))))))
 
 #_(defn add-quads [quad-batch gl quads]
-  (let [new-quad-batch (add-textures quad-batch gl (map :image quads))
+    (let [new-quad-batch (add-textures quad-batch gl (map :image quads))
 
-        quad-count (count quads)
+          quad-count (count quads)
 
-        minimum-quad-capacity (+ (:next-free-quad new-quad-batch)
-                                 quad-count)
+          minimum-quad-capacity (+ (:next-free-quad new-quad-batch)
+                                   quad-count)
 
-        new-quad-batch (if (< (:allocated-quads new-quad-batch)
-                              minimum-quad-capacity)
-                         (grow-quad-buffers gl
-                                            new-quad-batch
-                                            minimum-quad-capacity)
-                         new-quad-batch)
+          new-quad-batch (if (< (:allocated-quads new-quad-batch)
+                                minimum-quad-capacity)
+                           (grow-quad-buffers gl
+                                              new-quad-batch
+                                              minimum-quad-capacity)
+                           new-quad-batch)
 
-        ids-to-indexes (loop [count quad-count
-                              id (:next-free-id quad-batch)
-                              index (:next-free-quad quad-batch)
-                              ids-to-indexes (:ids-to-indexes quad-batch)]
-                         (if (> count 0)
-                           (recur (dec count)
-                                  (inc id)
-                                  (inc index)
-                                  (assoc ids-to-indexes id index))
-                           ids-to-indexes))]
+          ids-to-indexes (loop [count quad-count
+                                id (:next-free-id quad-batch)
+                                index (:next-free-quad quad-batch)
+                                ids-to-indexes (:ids-to-indexes quad-batch)]
+                           (if (> count 0)
+                             (recur (dec count)
+                                    (inc id)
+                                    (inc index)
+                                    (assoc ids-to-indexes id index))
+                             ids-to-indexes))]
 
-    (let [buffer (buffer/map-for-write gl
-                                       (:quad-parameters-buffer-id new-quad-batch)
-                                       :int
-                                       (* quad-parameters-size
-                                          (:next-free-quad new-quad-batch))
-                                       (* quad-parameters-size
-                                          quad-count))]
+      (let [buffer (buffer/map-for-write gl
+                                         (:quad-parameters-buffer-id new-quad-batch)
+                                         :int
+                                         (* quad-parameters-size
+                                            (:next-free-quad new-quad-batch))
+                                         (* quad-parameters-size
+                                            quad-count))]
 
-      (loop [texture-offset (:next-free-texel quad-batch)
-             quads quads]
-        (when-let [quad (first quads)]
-          (do (.put buffer
-                    (int-array [(if (= (:parent quad) -1)
-                                  -1
-                                  (get ids-to-indexes (:parent quad)))
-                                (:x quad)
-                                (:y quad)
-                                (.getWidth (:image quad))
-                                (.getHeight (:image quad))
-                                texture-offset]))
-              (recur (+ texture-offset
-                        (* (.getWidth (:image quad))
-                           (.getHeight (:image quad))))
-                     (rest quads)))))
-      (buffer/unmap-for-write gl))
+        (loop [texture-offset (:next-free-texel quad-batch)
+               quads quads]
+          (when-let [quad (first quads)]
+            (do (.put buffer
+                      (int-array [(if (= (:parent quad) -1)
+                                    -1
+                                    (get ids-to-indexes (:parent quad)))
+                                  (:x quad)
+                                  (:y quad)
+                                  (.getWidth (:image quad))
+                                  (.getHeight (:image quad))
+                                  texture-offset]))
+                (recur (+ texture-offset
+                          (* (.getWidth (:image quad))
+                             (.getHeight (:image quad))))
+                       (rest quads)))))
+        (buffer/unmap-for-write gl))
 
-    (assoc new-quad-batch
-      :next-free-id (+ (:next-free-id quad-batch)
-                       quad-count)
-      :next-free-quad (+ (:next-free-quad quad-batch)
+      (assoc new-quad-batch
+        :next-free-id (+ (:next-free-id quad-batch)
                          quad-count)
-      :ids-to-indexes ids-to-indexes)))
+        :next-free-quad (+ (:next-free-quad quad-batch)
+                           quad-count)
+        :ids-to-indexes ids-to-indexes)))
 
 (defn draw [quad-batch gl width height]
   (shader/enable-program gl

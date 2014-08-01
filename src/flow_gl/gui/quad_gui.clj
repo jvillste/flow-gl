@@ -270,7 +270,7 @@
     state))
 
 (defn handle-event [state layout event]
-
+  (println "handling event" (.getId (java.lang.Thread/currentThread)) (java.util.Date.))
   (cond
    (= (:type event)
       :apply-to-view-state)
@@ -336,7 +336,7 @@
     (close-control-channels state)))
 
 (defn start-view [view-definition]
-  (let [event-channel (async/chan 10)
+  (let [event-channel (async/chan)
         control-channel (async/chan)
         window (window/create 300
                               400
@@ -354,6 +354,7 @@
     (try
       (loop [gpu-state (window/with-gl window gl (quad-view/create gl))
              state initial-state]
+
         (if (:close-requested state)
           (do (close-control-channels state)
               (window/close window))

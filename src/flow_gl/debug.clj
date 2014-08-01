@@ -19,7 +19,7 @@
     else))
 
 (defn append-log [channel messages]
-  (swap! log conj (str (name channel) " : " (apply str messages))))
+  (swap! log conj (str (name channel) " : " (apply str (interpose " " messages)))))
 
 (defmacro debug [channel & messages]
   (if-channel-active channel
