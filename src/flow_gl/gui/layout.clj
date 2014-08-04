@@ -432,6 +432,69 @@
   (preferred-height [this] (apply max (conj (map layoutable/preferred-height children)
                                             0))))
 
+
+(defn flow-row [layoutables maximum-width]
+  (loop [height 0
+         row-width 0
+         row-layoutables []
+         remaining-layoutables layoutables]
+    (if-let [layoutable (first remaining-layoutables)]
+      (let [layoutable-size (layoutable/preferred-size layoutable java.lang.Integer/MAX_VALUE java.lang.Integer/MAX_VALUE)]
+        (if (and (> (+ row-width
+                       (:width layoutable-size))
+                    maximum-width)
+                 (not (empty? row-layoutables)))
+          {:row-layoutables row-layoutables
+           :height height
+           :unused-layoutables remaining-layoutables}
+          (recur (max height (:height layoutable-size))
+                 (+ row-width
+                    (:width layoutable-size))
+                 (conj row-layoutables layoutable)
+                 (rest remaining-layoutables))))
+      {:row-layoutables row-layoutables
+       :height height
+       :unused-layoutables remaining-layoutables})))
+
+(defn layout-row [layoutables y height]
+  (loop [x 0
+         layoutables layoutables
+         layouted-layoutables []]
+    (if-let [layoutable (first layoutables)]
+      (let [preferred-size (layoutable/preferred-size layoutable
+                                                      java.lang.Integer/MAX_VALUE
+                                                      java.lang.Integer/MAX_VALUE)]
+        (recur (+ x (:width preferred-size))
+               (rest layoutables)
+               (conj layouted-layoutables
+                     (set-dimensions-and-layout layoutable
+                                                x
+                                                y
+                                                (:width preferred-size)
+                                                height))))
+
+      layouted-layoutables)))
+
+(deflayout-not-memoized Flow [children]
+  (layout [this requested-width requested-height]
+          (assoc this :children
+                 (loop [layouted-layoutables []
+                        y 0
+                        children children]
+                   (if (seq children)
+                     (let [row (flow-row children requested-width)]
+                       (recur (concat layouted-layoutables (layout-row (:row-layoutables row)
+                                                                       y
+                                                                       (:height row)))
+                              (+ y
+                                 (:height row))
+                              (:unused-layoutables row)))
+                     layouted-layoutables))))
+
+  (preferred-size [this available-width available-height]
+                  {:width available-width
+                   :height available-height}))
+
 (deflayout BottomOutOfLayout [children]
   (layout [this requested-width requested-height]
           (assoc this :children [(-> (set-dimensions-and-layout (first children)

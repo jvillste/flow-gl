@@ -9,25 +9,17 @@
         clojure.test))
 
 (quad-gui/def-view view [state]
-  (do (println "view")
-      (assoc (layout/->Box 10
-                        [(drawable/->Rectangle 0 0 [0 1 1 1])
-                         (drawable/->Text "Bla bla bla bla bla"
-                                          (font/create "LiberationSans-Regular.ttf" 15)
-                                          [1 1 1 1])])
-     :on-drag (fn [state x y]
-                (-> state
-                    (update-in [:width] + x)
-                    (update-in [:height] + y))))))
+  (let [font (font/create "LiberationSans-Regular.ttf" 15)
+        color [1 1 1 1]]
+    (layout/->Box 10
+                  [(drawable/->Empty 0 0)
+                   (layout/->Flow (repeat 10 (drawable/->Text "Blaaaaaaaaa " font color)))])))
 
 (defn create [state-path event-channel control-channel]
-  {:width 100
-   :height 100
-   :handle-keyboard-event (fn [state event]
+  {:handle-keyboard-event (fn [state event]
                             (events/on-key state event
                                            :esc (do (quad-gui/request-close event-channel)
                                                     state)))})
-
 
 (flow-gl.debug/set-active-channels :all)
 
