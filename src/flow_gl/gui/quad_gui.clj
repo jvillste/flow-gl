@@ -223,17 +223,28 @@
         (next-focus-path-parts state [[:children1 1] [:children2 1]])  => [[:children1 1] [:children2 2] [:children3 0]]
         (next-focus-path-parts state [[:children1 1] [:children2 2] [:children3 2]])  => nil))
 
-(defn render-layout [window gpu-state layout]
-  (let [result (window/with-gl window gl
-                 (opengl/clear gl 0 0 0 1)
-                 (quad-view/draw-layout gpu-state
-                                        (assoc layout
-                                          :x 0 :y 0)
-                                        (window/width window)
-                                        (window/height window)
-                                        gl))]
-    (window/swap-buffers window)
-    result))
+(defn render-layout [window gpu-state-atom layout-atom visual]
+  (window/set-display window gl
+    (let [size (opengl/size gl)
+          layout (-> (layout/layout visual
+                                    (:width size)
+                                    (:height size))
+                     (assoc :x 0
+                            :y 0
+                            :width (:width size)
+                            :height (:height size))
+                     (layout/add-out-of-layout-hints))]
+      (flow-gl.debug/debug-timed "drawing"
+                                 (:width size)
+                                 (:height size))
+      (opengl/clear gl 0 0 0 1)
+      (reset! layout-atom layout)
+      (reset! gpu-state-atom
+              (quad-view/draw-layout @gpu-state-atom
+                                     layout
+                                     (:width size)
+                                     (:height size)
+                                     gl)))))
 
 (defn move-hierarchical-state [state path-parts previous-path-parts-key child-state-key state-key state-gained-key state-lost-key]
   (-> state
@@ -272,7 +283,7 @@
     state))
 
 (defn handle-event [state layout event]
-  (println "handling event" (.getId (java.lang.Thread/currentThread)) (java.util.Date.))
+  (flow-gl.debug/debug-timed "handle event" event)
   (cond
    (= (:type event)
       :apply-to-view-state)
@@ -351,36 +362,27 @@
                             ((:view view-definition) initial-state))
         initial-state (set-focus initial-state
                                  (initial-focus-path-parts initial-state))
-        initial-state (assoc initial-state :control-channel control-channel)]
+        initial-state (assoc initial-state :control-channel control-channel)
+        gpu-state-atom (atom (window/with-gl window gl (quad-view/create gl)))
+        layout-atom (atom nil)]
 
     (try
-      (loop [gpu-state (window/with-gl window gl (quad-view/create gl))
-             state initial-state]
-
+      (loop [state initial-state]
         (if (:close-requested state)
           (do (close-control-channels state)
               (window/close window))
 
           (let [[state visual] (binding [current-event-channel event-channel]
-                                 ((:view view-definition) state))
-                layout (-> (layout/layout visual
-                                          (window/width window)
-                                          (window/height window))
-                           (assoc :x 0
-                                  :y 0
-                                  :width (window/width window)
-                                  :height (window/height window))
-                           (layout/add-out-of-layout-hints))
-                new-gpu-state (render-layout window gpu-state layout)
-                event (async/<!! event-channel)
-                new-state (binding [current-event-channel event-channel]
-                            (handle-event state
-                                          layout
-                                          event))]
-            (if new-state
-              (recur new-gpu-state new-state)
-              (do (close-control-channels state)
-                  (window/close window))))))
+                                 ((:view view-definition) state))]
+            (render-layout window gpu-state-atom layout-atom visual)
+            (let [new-state (binding [current-event-channel event-channel]
+                              (handle-event state
+                                            @layout-atom
+                                            (async/<!! event-channel)))]
+              (if new-state
+                (recur new-state)
+                (do (close-control-channels state)
+                    (window/close window)))))))
       (catch Exception e
         (window/close window)
         (throw e)))))

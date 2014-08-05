@@ -53,28 +53,6 @@
   #_(TraceGL2. (DebugGL2. (.getGL2 (.getGL drawable)))
                System/err))
 
-(defn gl-event-listener [profile init reshape display-atom]
-  (proxy [GLEventListener] []
-    (display [^javax.media.opengl.GLAutoDrawable drawable]
-      (let [gl (get-gl profile drawable)]
-        (when @display-atom
-          (@display-atom gl))
-
-        #_(when (not @display-atom)
-            (flow-gl.debug/debug :all "display called without atom" (.getId (java.lang.Thread/currentThread)) (java.util.Date.)))
-        (reset! display-atom nil)))
-
-    (init [^javax.media.opengl.GLAutoDrawable drawable]
-      (let [gl (get-gl profile drawable)]
-        (init gl)))
-
-    (reshape [^javax.media.opengl.GLAutoDrawable drawable x y width height]
-      (let [gl (get-gl profile drawable)]
-        (reshape gl width height)))
-
-    (dispose [drawable])
-    (displayChanged [drawable mode-changed device-changed])))
-
 (defn create
   ;; ([width height]
   ;;    (create width height identity (fn [gl width height]) nil :gl2))
@@ -90,7 +68,8 @@
                                        :gl2 GLProfile/GL2
                                        :gl3 GLProfile/GL3
                                        :gl4 GLProfile/GL4))
-           gl-capabilities (GLCapabilities. gl-profile)
+           gl-capabilities (doto (GLCapabilities. gl-profile)
+                             (.setDoubleBuffered true))
            display-atom (atom (fn [gl]))
            window (GLWindow/create gl-capabilities)]
 
@@ -117,25 +96,70 @@
 
            (.addWindowListener (proxy [WindowAdapter] []
                                  (windowDestroyNotify [event]
-                                   (println "destroy notify")
                                    (async/put! event-channel
                                                (events/create-close-requested-event)))
                                  (windowResized [event]
-                                   (println "sending resize requested" (.getId (java.lang.Thread/currentThread)) (java.util.Date.))
-                                   (async/go (async/>! event-channel
-                                                       (events/create-resize-requested-event (.getWidth window)
-                                                                                             (.getHeight window)))))))
+                                   #_(flow-gl.debug/debug-timed "window resized"
+                                                                (.getWidth window)
+                                                                (.getHeight window))
 
-           (.setDefaultCloseOperation WindowClosingProtocol$WindowClosingMode/DO_NOTHING_ON_CLOSE)))
+                                   #_(async/go (async/>! event-channel
+                                                         (events/create-resize-requested-event (.getWidth window)
+                                                                                               (.getHeight window)))))))))
 
        (doto window
-         (.setAutoSwapBufferMode false)
-         (.addGLEventListener  (gl-event-listener profile init reshape display-atom ))
+         (.addGLEventListener (proxy [GLEventListener] []
+                                (display [^javax.media.opengl.GLAutoDrawable drawable]
+                                  #_(flow-gl.debug/debug-timed "display")
+                                  (let [gl (get-gl profile drawable)]
+                                    #_(doto (get-gl :gl3 drawable)
+                                      (.glClearColor 1 0 0 1)
+                                      (.glClear GL2/GL_COLOR_BUFFER_BIT))
+                                    
+                                    (when @display-atom
+                                      (@display-atom gl))
+
+                                    #_(when (not @display-atom)
+                                        (flow-gl.debug/debug :all "display called without atom" (.getId (java.lang.Thread/currentThread)) (java.util.Date.)))
+                                    #_(reset! display-atom nil)))
+
+                                (init [^javax.media.opengl.GLAutoDrawable drawable]
+                                  (let [gl (get-gl profile drawable)]
+                                    (init gl)))
+
+                                (reshape [^javax.media.opengl.GLAutoDrawable drawable x y width height]
+                                  #_(doto (get-gl :gl3 drawable)
+                                      (.glClearColor 1 0 0 1)
+                                      (.glClear GL2/GL_COLOR_BUFFER_BIT))
+                                  #_(.swapBuffers drawable)
+
+                                  (flow-gl.debug/debug-timed "reshape" width height)
+
+                                  #_(async/go (async/>! event-channel
+                                                        (events/create-resize-requested-event (.getWidth window)
+                                                                                              (.getHeight window))))
+                                  #_(async/>!!  event-channel
+                                                (events/create-resize-requested-event (.getWidth window)
+                                                                                      (.getHeight window)))
+                                  #_(flow-gl.debug/debug-timed "")
+                                  #_(flow-gl.debug/debug-timed "")
+
+
+                                  #_(Thread/sleep 500)
+                                  #_(println "reshape ready")
+                                  #_(.swapBuffers drawable)
+
+                                  #_(let [gl (get-gl profile drawable)]
+                                      (reshape gl width height)))
+
+                                (dispose [drawable])
+                                (displayChanged [drawable mode-changed device-changed])))
+
+         (.setDefaultCloseOperation WindowClosingProtocol$WindowClosingMode/DO_NOTHING_ON_CLOSE)
+         (.setAutoSwapBufferMode true)
 
          (.setSize width height)
-
          (.setVisible true))
-
 
        {:gl-window  window
         :display-atom display-atom
@@ -156,10 +180,20 @@
   (.display (:gl-window window)))
 
 (defn swap-buffers [window]
+  (flow-gl.debug/debug-timed "swap buffers")
   (.swapBuffers (:gl-window window)))
 
 (defmacro render [window gl & body]
   `(render* ~window (fn [~gl] ~@body)))
+
+(defmacro set-display [window gl & body]
+  (flow-gl.debug/debug-timed "with-gl")
+  `(let [value-atom# (atom {})]
+     (render* ~window
+              (fn [~gl]
+                (reset! value-atom#
+                        (do ~@body))))
+     @value-atom#))
 
 (defmacro with-gl [window gl & body]
   `(let [value-atom# (atom {})]
@@ -167,4 +201,5 @@
               (fn [~gl]
                 (reset! value-atom#
                         (do ~@body))))
+     (reset! (:display-atom ~window) nil)
      @value-atom#))

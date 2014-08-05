@@ -61,11 +61,29 @@
                         (last messages#))
                      (last messages)))
 
+(defn debug-timed [& messages]
+  (println "debug timed " messages)
+  (swap! log conj {:time (.getTime (java.util.Date.))
+                   :message (apply str (interpose " " messages))}))
+
 (defn write-log []
   (with-open [writer (io/writer "debug-log.txt")]
     (doseq [line @log]
       (.write writer line)
       (.write writer "\n"))))
+
+(defn write-timed-log []
+  (with-open [writer (io/writer "debug-log.txt")]
+    (let [log @log]
+      (loop [log log
+             last-time (:time (first log))]
+        (when-let [line (first log)]
+          (.write writer (str (- (:time line) last-time)))
+          (.write writer " : ")
+          (.write writer (str (:message line)))
+          (.write writer "\n")
+          (recur (rest log)
+                 (:time line)))))))
 
 
 (defn debug-println [& values]

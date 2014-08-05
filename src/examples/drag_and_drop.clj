@@ -9,17 +9,13 @@
         clojure.test))
 
 (quad-gui/def-view view [state]
-  (let [font (font/create "LiberationSans-Regular.ttf" 15)
-        color [1 1 1 1]]
-    (layout/->Box 10
-                  [(drawable/->Empty 0 0)
-                   (layout/->Flow (repeat 10 (drawable/->Text "Blaaaaaaaaa " font color)))])))
+  (layout/->Flow (repeat 10
+                         (drawable/->Text "Blaaaaaaaaa "
+                                          (font/create "LiberationSans-Regular.ttf" 15)
+                                          [1 1 1 1]))))
 
 (defn create [state-path event-channel control-channel]
-  {:handle-keyboard-event (fn [state event]
-                            (events/on-key state event
-                                           :esc (do (quad-gui/request-close event-channel)
-                                                    state)))})
+  {})
 
 (flow-gl.debug/set-active-channels :all)
 
@@ -27,7 +23,7 @@
   (flow-gl.debug/reset-log)
   (quad-gui/start-view {:constructor create
                         :view view})
-  (flow-gl.debug/write-log))
+  (flow-gl.debug/write-timed-log))
 
 
 (run-tests)

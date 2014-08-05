@@ -464,7 +464,8 @@
       (let [preferred-size (layoutable/preferred-size layoutable
                                                       java.lang.Integer/MAX_VALUE
                                                       java.lang.Integer/MAX_VALUE)]
-        (recur (+ x (:width preferred-size))
+        (recur (+ x
+                  (:width preferred-size))
                (rest layoutables)
                (conj layouted-layoutables
                      (set-dimensions-and-layout layoutable
@@ -472,7 +473,6 @@
                                                 y
                                                 (:width preferred-size)
                                                 height))))
-
       layouted-layoutables)))
 
 (deflayout-not-memoized Flow [children]
@@ -493,7 +493,14 @@
 
   (preferred-size [this available-width available-height]
                   {:width available-width
-                   :height available-height}))
+                   :height (loop [y 0
+                                  children children]
+                             (if (seq children)
+                               (let [row (flow-row children available-width)]
+                                 (recur (+ y
+                                           (:height row))
+                                        (:unused-layoutables row)))
+                               y))}))
 
 (deflayout BottomOutOfLayout [children]
   (layout [this requested-width requested-height]
