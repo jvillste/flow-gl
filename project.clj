@@ -14,7 +14,8 @@
                  [midje "1.6.3"]
                  [clj-http "0.9.2"]
                  ;;[org.clojars.toxi/jogl "2.0.0-rc11"]
-                 [org.clojars.jvillste/jogl-all "2.1.3-rc-20131212"]
+                 ;;[org.clojars.jvillste/jogl-all "2.1.3-rc-20131212"]
+                 [org.clojars.jvillste/jogl-all "2.1.5"]
                  ;;[gui-diff "0.6.6"]
                  ]
 
