@@ -26,5 +26,6 @@
               "-Xms40m"
               "-client"
               ;; "-XX:MinHeapFreeRatio=20"
-              "-XX:MaxHeapFreeRatio=50"]
+              "-XX:MaxHeapFreeRatio=50"
+              "-Dsun.awt.noerasebackground=true"]
   :plugins [[lein-midje "3.0.0"]])

@@ -32,12 +32,12 @@
 
 (defn set-dimensions-and-layout [layout-instance x y width height]
   (-> layout-instance
+      (layout width
+              height)
       (assoc :x x
              :y y
              :width width
-             :height height)
-      (layout width
-              height)))
+             :height height)))
 
 (defn layout-drawing-commands [layout]
   (let [drawables (:children layout)]
@@ -336,6 +336,26 @@
                      :height (max height
                                   (:height child-size))})))
 
+(deflayout-not-memoized FloatRight [children]
+  (layout [this requested-width requested-height]
+          (update-in this
+                     [:children]
+                     (fn [[left right]]
+                       (let [right-width (:width (layoutable/preferred-size right java.lang.Integer/MAX_VALUE requested-height))
+                             left-width (- requested-width right-width)]
+                         [(set-dimensions-and-layout left 0 0 left-width requested-height)
+                          (set-dimensions-and-layout right left-width 0 right-width requested-height)]))))
+
+  (preferred-size [this available-width available-height]
+                  (let [[left right] children
+                        right-size (layoutable/preferred-size right available-width available-height)
+                        left-size (layoutable/preferred-size left (- available-width (:width right-size)) available-height)]
+                    {:width (+ (:width left-size)
+                               (:width right-size))
+
+                     :height (max (:height left-size)
+                                  (:height right-size))})))
+
 (deflayout-not-memoized Box [margin children]
   (layout [box requested-width requested-height]
           (-> box
@@ -353,14 +373,26 @@
                      :height (+ (* 2 margin)
                                 (:height child-size))})))
 
+(deflayout-not-memoized Preferred [child]
+  (layout [this requested-width requested-height]
+          (assoc this :children (let [preferred-size (layoutable/preferred-size child requested-width requested-height)]
+                                  [(set-dimensions-and-layout child
+                                                              0
+                                                              0
+                                                              (:width preferred-size)
+                                                              (:height preferred-size))])))
+
+  (preferred-size [this available-width available-height]
+                  (layoutable/preferred-size child #_(first children) available-width available-height)))
+
 (deflayout-not-memoized Margin [margin-top margin-right margin-bottom margin-left children]
   (layout [this requested-width requested-height]
           (update-in this [:children] (fn [[layoutable]]
                                         [(set-dimensions-and-layout layoutable
                                                                     margin-left
                                                                     margin-top
-                                                                    (layoutable/preferred-width layoutable)
-                                                                    (layoutable/preferred-height layoutable))])))
+                                                                    (- requested-width margin-left margin-right)
+                                                                    (- requested-height margin-top margin-bottom))])))
 
   (preferred-size [this available-width available-height]
                   (let [child-size (layoutable/preferred-size (first children) (- available-width margin-left margin-right) (- available-height margin-top margin-bottom))]
@@ -412,25 +444,30 @@
                      :height (reduce + (map :height child-sizes))})))
 
 
-(deflayout HorizontalStack [children]
+(deflayout-not-memoized HorizontalStack [children]
   (layout [this requested-width requested-height]
           (assoc this :children
-                 (let [height (apply max (conj (map layoutable/preferred-height children)
-                                               0))]
-                   (loop [layouted-layoutables []
-                          x 0
-                          children children]
-                     (if (seq children)
-                       (let [width (layoutable/preferred-width (first children))]
-                         (recur (conj layouted-layoutables (set-dimensions-and-layout (first children) x 0 width height))
-                                (+ x width)
-                                (rest children)))
-                       layouted-layoutables)))))
+                 (loop [layouted-layoutables []
+                        x 0
+                        children children]
+                   (if (seq children)
+                     (let [width (:width (layoutable/preferred-size (first children) java.lang.Integer/MAX_VALUE requested-height))]
+                       (recur (conj layouted-layoutables (set-dimensions-and-layout (first children)
+                                                                                    x
+                                                                                    0
+                                                                                    width
+                                                                                    requested-height))
+                              (+ x width)
+                              (rest children)))
+                     layouted-layoutables))))
 
-  (preferred-width [this] (reduce + (map layoutable/preferred-width children)))
-
-  (preferred-height [this] (apply max (conj (map layoutable/preferred-height children)
-                                            0))))
+  (preferred-size [this available-width available-height]
+                  (let [child-sizes (map (fn [child]
+                                           (layoutable/preferred-size child java.lang.Integer/MAX_VALUE available-height))
+                                         children)]
+                    {:height (apply max (conj (map :height child-sizes)
+                                              0))
+                     :width (reduce + (map :width child-sizes))})))
 
 
 (defn flow-row [layoutables maximum-width]
@@ -576,18 +613,32 @@
                     (apply max (conj (map layoutable/preferred-height children)
                                      0))))
 
-(deflayout Superimpose [layoutables]
+(deflayout-not-memoized Superimpose [children]
+  (layout [this requested-width requested-height]
+          (-> this
+              (update-in [:children]
+                         (fn [[under over]]
+                           [(set-dimensions-and-layout under 0 0 requested-width requested-height)
+                            (assoc (set-dimensions-and-layout over 0 0 requested-width requested-height)
+                              :z 1)]))))
 
-  (layout [this requested-width requested-height  ]
-          (assoc this :layoutables
-                 (vec (map #(set-dimensions-and-layout % 0 0 requested-width requested-height)
-                           layoutables))))
+  (preferred-size [this available-width available-height]
+                  (let [[under over] children
+                        under-size (layoutable/preferred-size under available-width available-height)
+                        over-size (layoutable/preferred-size over available-width available-height)]
+                    {:width (max (:width under-size)
+                                 (:width over-size))
+                     :height (max (:height under-size)
+                                  (:height over-size))})))
 
-  (preferred-width [this]
-                   (layoutable/preferred-width (first layoutables)))
+(deflayout-not-memoized SizeDependent [preferred-size-function child-function]
+  (layout [this requested-width requested-height]
+          (assoc this :children [(set-dimensions-and-layout (child-function requested-width requested-height)
+                                                            0 0 requested-width requested-height)]))
 
-  (preferred-height [this]
-                    (layoutable/preferred-height (first layoutables))))
+  (preferred-size [this available-width available-height]
+                  (preferred-size-function available-width available-height)))
+
 
 (deflayout Translation [translate-x translate-y layoutable]
 
