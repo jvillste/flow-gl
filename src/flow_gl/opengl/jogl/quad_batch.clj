@@ -395,7 +395,6 @@ void main() {
     new-quad-batch))
 
 (defn add-textures [quad-batch gl images]
-  (println "add textures" (.getId (java.lang.Thread/currentThread)) (java.util.Date.))
   (let [texel-count (reduce (fn [texel-count image]
                               (+ texel-count
                                  (* (.getWidth image)

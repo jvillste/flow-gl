@@ -62,7 +62,6 @@
                      (last messages)))
 
 (defn debug-timed [& messages]
-  (println "debug timed " messages)
   (swap! log conj {:time (.getTime (java.util.Date.))
                    :message (apply str (interpose " " messages))}))
 

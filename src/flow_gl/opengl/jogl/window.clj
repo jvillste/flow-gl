@@ -150,9 +150,8 @@
 
                                   #_(flow-gl.debug/debug-timed "reshape" width height)
 
-                                  #_(async/go (async/>! event-channel
-                                                        (events/create-resize-requested-event (.getWidth window)
-                                                                                              (.getHeight window))))
+                                  (async/go (async/>! event-channel
+                                                        (events/create-resize-requested-event width height)))
 
                                   #_(let [gl (get-gl profile drawable)]
                                       (reshape gl width height)))

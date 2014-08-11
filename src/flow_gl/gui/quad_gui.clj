@@ -225,26 +225,23 @@
 
 (defn render-layout [window gpu-state-atom layout-atom visual]
   (window/set-display window gl
-    (let [size (opengl/size gl)
-          layout (-> (layout/layout visual
-                                    (:width size)
-                                    (:height size))
-                     (assoc :x 0
-                            :y 0
-                            :width (:width size)
-                            :height (:height size))
-                     (layout/add-out-of-layout-hints))]
-      (flow-gl.debug/debug-timed "drawing"
-                                 (:width size)
-                                 (:height size))
-      (opengl/clear gl 0 0 0 1)
-      (reset! layout-atom layout)
-      (reset! gpu-state-atom
-              (quad-view/draw-layout @gpu-state-atom
-                                     layout
-                                     (:width size)
-                                     (:height size)
-                                     gl)))))
+                      (let [size (opengl/size gl)
+                            layout (-> (layout/layout visual
+                                                      (:width size)
+                                                      (:height size))
+                                       (assoc :x 0
+                                              :y 0
+                                              :width (:width size)
+                                              :height (:height size))
+                                       (layout/add-out-of-layout-hints))]
+                        (opengl/clear gl 0 0 0 1)
+                        (reset! layout-atom layout)
+                        (reset! gpu-state-atom
+                                (quad-view/draw-layout @gpu-state-atom
+                                                       layout
+                                                       (:width size)
+                                                       (:height size)
+                                                       gl)))))
 
 (defn move-hierarchical-state [state path-parts previous-path-parts-key child-state-key state-key state-gained-key state-lost-key]
   (-> state
@@ -253,7 +250,6 @@
       (assoc previous-path-parts-key path-parts)))
 
 (defn set-focus [state focus-path-parts]
-  (println "set focus" focus-path-parts)
   (move-hierarchical-state state focus-path-parts :focus-path-parts :child-has-focus :has-focus :on-focus-gained :on-focus-lost))
 
 (defn set-mouse-over [state mouse-over-path-parts]
@@ -283,8 +279,12 @@
     state))
 
 (defn handle-event [state layout event]
-  (flow-gl.debug/debug-timed "handle event" event)
+  (println "handling" event)
   (cond
+
+   (= event nil)
+   state
+
    (= (:type event)
       :apply-to-view-state)
    ((:function event) state)
@@ -376,9 +376,14 @@
                                  ((:view view-definition) state))]
             (render-layout window gpu-state-atom layout-atom visual)
             (let [new-state (binding [current-event-channel event-channel]
-                              (handle-event state
-                                            @layout-atom
-                                            (async/<!! event-channel)))]
+                              (loop [state state
+                                     [event _] (async/alts!! [event-channel (async/timeout 0)] :priority true)]
+                                (if event
+                                  (recur (handle-event state
+                                                       @layout-atom
+                                                       event)
+                                         (async/alts!! [event-channel (async/timeout 0)] :priority true))
+                                  state)))]
               (if new-state
                 (recur new-state)
                 (do (close-control-channels state)
@@ -506,8 +511,7 @@
 
 (defmacro def-view [name parameters visual]
   `(defn ~name ~parameters
-     (with-children ~(first parameters)
-       ~visual)))
+     (with-children ~(first parameters) ~visual)))
 
 (defn apply-to-state [state-path function]
   (async/go (async/>! current-event-channel
@@ -519,11 +523,11 @@
                       (create-apply-to-view-state-event (fn [state]
                                                           (update-or-apply-in state state-path function))))))
 
-(defmacro apply-to-current-state [[state-parameter & parameters] body]
+(defmacro apply-to-current-state [[state-parameter & parameters] & body]
   `(let [state-path# current-state-path]
      (fn [~@parameters]
        (apply-to-state state-path# (fn [~state-parameter]
-                                     ~body)))))
+                                     ~@body)))))
 
 (defmacro with-view-context [[state-path-parameter event-channel-parameter & parameters] & body]
   `(let [~state-path-parameter current-state-path

@@ -157,6 +157,7 @@
                                                                             (assoc state
                                                                               :mouse-over-index -1)))])]))
 
+
 (defn create-auto-completer [state-path event-channel control-channel]
   (let [state (conj {:query ""
                      :results []

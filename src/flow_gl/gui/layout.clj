@@ -383,7 +383,7 @@
                                                               (:height preferred-size))])))
 
   (preferred-size [this available-width available-height]
-                  (layoutable/preferred-size child #_(first children) available-width available-height)))
+                  (layoutable/preferred-size child available-width available-height)))
 
 (deflayout-not-memoized Margin [margin-top margin-right margin-bottom margin-left children]
   (layout [this requested-width requested-height]
