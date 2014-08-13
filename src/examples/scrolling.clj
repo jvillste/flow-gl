@@ -8,6 +8,7 @@
             (flow-gl.graphics [font :as font]))
   (:use flow-gl.utils
         clojure.test))
+
 (quad-gui/def-view scroll-bar-view [state]
   (let [width 30
         margin 5]

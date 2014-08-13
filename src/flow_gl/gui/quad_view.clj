@@ -71,7 +71,7 @@
                       (rest children)))
              quads))))))
 
-(deftest quads-for-layout-test
+#_(deftest quads-for-layout-test
   (is (=  (let [layout (layout/layout (layout/->HorizontalStack [(assoc (layout/->VerticalStack [(drawable/->Text "Foo1"
                                                                                                                   (font/create "LiberationSans-Regular.ttf" 14)
                                                                                                                   [1 1 1 1])

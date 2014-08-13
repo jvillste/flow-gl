@@ -1,6 +1,6 @@
 (ns flow-gl.gui.quad-gui
   (:require [clojure.core.async :as async]
-            [flow-gl.tools.layoutable-inspector :as layoutable-inspector]
+            #_[flow-gl.tools.layoutable-inspector :as layoutable-inspector]
             [flow-gl.utils :as utils]
             (flow-gl.gui [drawable :as drawable]
                          [layout :as layout]
@@ -20,7 +20,6 @@
                                  [quad-batch :as quad-batch]))
   (:use flow-gl.utils
         midje.sweet
-        flow-gl.gui.layout-dsl
         clojure.test))
 
 (defn path-prefixes [path]
@@ -82,9 +81,6 @@
       => [[:foo 1] [:bar]])
 
 (def ^:dynamic current-event-channel nil)
-(def ^:dynamic current-view-state-atom)
-
-
 
 (defn update-or-apply-in [map path function & arguments]
   (if (seq path)
@@ -223,19 +219,10 @@
         (next-focus-path-parts state [[:children1 1] [:children2 1]])  => [[:children1 1] [:children2 2] [:children3 0]]
         (next-focus-path-parts state [[:children1 1] [:children2 2] [:children3 2]])  => nil))
 
-(defn render-layout [window gpu-state-atom layout-atom visual]
+(defn render-layout [window gpu-state-atom layout]
   (window/set-display window gl
-                      (let [size (opengl/size gl)
-                            layout (-> (layout/layout visual
-                                                      (:width size)
-                                                      (:height size))
-                                       (assoc :x 0
-                                              :y 0
-                                              :width (:width size)
-                                              :height (:height size))
-                                       (layout/add-out-of-layout-hints))]
+                      (let [size (opengl/size gl)]
                         (opengl/clear gl 0 0 0 1)
-                        (reset! layout-atom layout)
                         (reset! gpu-state-atom
                                 (quad-view/draw-layout @gpu-state-atom
                                                        layout
@@ -279,7 +266,6 @@
     state))
 
 (defn handle-event [state layout event]
-  (println "handling" event)
   (cond
 
    (= event nil)
@@ -363,8 +349,7 @@
         initial-state (set-focus initial-state
                                  (initial-focus-path-parts initial-state))
         initial-state (assoc initial-state :control-channel control-channel)
-        gpu-state-atom (atom (window/with-gl window gl (quad-view/create gl)))
-        layout-atom (atom nil)]
+        gpu-state-atom (atom (window/with-gl window gl (quad-view/create gl)))]
 
     (try
       (loop [state initial-state]
@@ -373,14 +358,26 @@
               (window/close window))
 
           (let [[state visual] (binding [current-event-channel event-channel]
-                                 ((:view view-definition) state))]
-            (render-layout window gpu-state-atom layout-atom visual)
+                                 ((:view view-definition) state))
+                width (window/width window)
+                height (window/height window)
+                [state layout] (layout/layout visual
+                                              state
+                                              width
+                                              height)
+                layout (-> layout
+                           (assoc :x 0
+                                  :y 0
+                                  :width width
+                                  :height height)
+                           (layout/add-out-of-layout-hints))]
+            (render-layout window gpu-state-atom layout)
             (let [new-state (binding [current-event-channel event-channel]
                               (loop [state state
                                      [event _] (async/alts!! [event-channel (async/timeout 0)] :priority true)]
                                 (if event
                                   (recur (handle-event state
-                                                       @layout-atom
+                                                       layout
                                                        event)
                                          (async/alts!! [event-channel (async/timeout 0)] :priority true))
                                   state)))]
@@ -412,7 +409,7 @@
                                nil
                                [child-seq-key (inc child-index)])))})
 
-(def ^:dynamic current-state-path [])
+
 
 (defn call-view-for-sequence [parent-state view-function key]
   (map-indexed (fn [index child-state]
@@ -480,6 +477,9 @@
 
 (fact (update-or-apply-in {:foo {:baz :bar}} [] assoc :x :y) => {:foo {:baz :bar}, :x :y}
       (update-or-apply-in {:foo {:baz :bar}} [:foo] assoc :x :y) => {:foo {:baz :bar, :x :y}})
+
+(def ^:dynamic current-state-path [])
+(def ^:dynamic current-view-state-atom)
 
 (defn call-view
   ([view-specification state-override]

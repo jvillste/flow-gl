@@ -1,6 +1,7 @@
 (ns flow-gl.tools.layoutable-inspector
   (:require (flow-gl.gui [event-queue :as event-queue]
                          [layout :as layout]
+                         [layouts :as layouts]
                          [drawable :as drawable]
                          [layoutable :as layoutable]
                          [quad-view :as quad-view])
@@ -32,9 +33,8 @@
         height (min (layoutable/preferred-height layoutable)
                     2000)
         window (window/create width height :profile :gl3)
-        layout (-> layoutable
-                   (layout/layout width height)
-                   (assoc :x 0 :y 0))]
+        [state layout] (-> (layout/layout {} layoutable width height)
+                           (assoc :x 0 :y 0))]
 
     (try
       (window/with-gl window gl
@@ -62,18 +62,18 @@
       (clojure.string/replace  "flow_gl.gui.drawable." "")))
 
 (defn draw-layoutable [layoutable]
-  (layout/->VerticalStack [(if (:state-path-part layoutable)
+  (layouts/->VerticalStack [(if (:state-path-part layoutable)
                              (text (str (:state-path-part layoutable)) :size 12 :color [0.6 0.6 0.6 1.0])
                              (drawable/->Empty 0 0))
 
-                           (layout/->HorizontalStack [(text (layoutable-name layoutable) :color (if (:different layoutable)
+                           (layouts/->HorizontalStack [(text (layoutable-name layoutable) :color (if (:different layoutable)
                                                                                                   [1 0.5 0.5 1.0]
                                                                                                   [1 1 1 1.0]))
                                                       (if (instance? flow_gl.gui.drawable.Text layoutable)
                                                         (text (str " " (:contents layoutable)) :color [0.7 0.7 0.7 1.0])
                                                         (drawable/->Empty 0 0))])
 
-                           (layout/->Margin 0 0 0 10 [(layout/->VerticalStack (map draw-layoutable (:children layoutable)))])]))
+                           (layouts/->Margin 0 0 0 10 [(layouts/->VerticalStack (map draw-layoutable (:children layoutable)))])]))
 
 (defn inspect-layoutable [layoutable]
   (show-layoutable (draw-layoutable layoutable)))
@@ -91,14 +91,14 @@
                       (diff child-1 child-2))))))
 
 (defn diff-layoutables [layoutable-1 layoutable-2]
-  (show-layoutable (layout/->Margin 10 10 10 10
-                                    [(layout/->HorizontalStack [(draw-layoutable (diff layoutable-1 layoutable-2))
-                                                                (layout/->Margin 0 0 0 10
+  (show-layoutable (layouts/->Margin 10 10 10 10
+                                    [(layouts/->HorizontalStack [(draw-layoutable (diff layoutable-1 layoutable-2))
+                                                                (layouts/->Margin 0 0 0 10
                                                                                  [(draw-layoutable (diff layoutable-2 layoutable-1))])])])))
 
 #_(diff-layoutables (layout/->VerticalStack [(drawable/->Text "Foo" (font/create "LiberationSans-Regular.ttf" 20) [1 1 1 1])
-                                           (drawable/->Text "Foo" (font/create "LiberationSans-Regular.ttf" 20) [1 1 1 1])
-                                           (drawable/->Text "Foo" (font/create "LiberationSans-Regular.ttf" 20) [1 1 1 1])])
-                  (layout/->VerticalStack [(drawable/->Text "Foo" (font/create "LiberationSans-Regular.ttf" 20) [1 1 1 1])
-                                           (drawable/->Text "Foo" (font/create "LiberationSans-Regular.ttf" 20) [1 1 1 1])
-                                           (drawable/->Text "Bar" (font/create "LiberationSans-Regular.ttf" 20) [1 1 1 1])]))
+                                             (drawable/->Text "Foo" (font/create "LiberationSans-Regular.ttf" 20) [1 1 1 1])
+                                             (drawable/->Text "Foo" (font/create "LiberationSans-Regular.ttf" 20) [1 1 1 1])])
+                    (layout/->VerticalStack [(drawable/->Text "Foo" (font/create "LiberationSans-Regular.ttf" 20) [1 1 1 1])
+                                             (drawable/->Text "Foo" (font/create "LiberationSans-Regular.ttf" 20) [1 1 1 1])
+                                             (drawable/->Text "Bar" (font/create "LiberationSans-Regular.ttf" 20) [1 1 1 1])]))
