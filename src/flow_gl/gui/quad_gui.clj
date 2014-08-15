@@ -220,6 +220,7 @@
         (next-focus-path-parts state [[:children1 1] [:children2 2] [:children3 2]])  => nil))
 
 (defn render-layout [window gpu-state-atom layout]
+
   (window/set-display window gl
                       (let [size (opengl/size gl)]
                         (opengl/clear gl 0 0 0 1)
@@ -334,7 +335,7 @@
   (doseq [state (vals (:child-states state))]
     (close-control-channels state)))
 
-(defn start-view [view-definition]
+(defn start-view [{:keys [view constructor]}]
   (let [event-channel (async/chan)
         control-channel (async/chan)
         window (window/create 300
@@ -343,9 +344,9 @@
                               :init opengl/initialize
                               :reshape opengl/resize
                               :event-channel event-channel)
-        initial-state ((:constructor view-definition) [] event-channel control-channel)
+        initial-state (constructor [] event-channel control-channel)
         [initial-state _] (binding [current-event-channel event-channel]
-                            ((:view view-definition) initial-state))
+                            (view initial-state))
         initial-state (set-focus initial-state
                                  (initial-focus-path-parts initial-state))
         initial-state (assoc initial-state :control-channel control-channel)
@@ -358,7 +359,7 @@
               (window/close window))
 
           (let [[state visual] (binding [current-event-channel event-channel]
-                                 ((:view view-definition) state))
+                                 (view state))
                 width (window/width window)
                 height (window/height window)
                 [state layout] (layout/layout visual
@@ -371,6 +372,7 @@
                                   :width width
                                   :height height)
                            (layout/add-out-of-layout-hints))]
+            
             (render-layout window gpu-state-atom layout)
             (let [new-state (binding [current-event-channel event-channel]
                               (loop [state state

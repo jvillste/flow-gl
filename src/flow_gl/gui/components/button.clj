@@ -9,7 +9,7 @@
   
   (:use midje.sweet))
 
-(def initial-button-state
+#_(def initial-button-state
   {:text ""
    :has-focus false
    :on-click nil
@@ -23,7 +23,7 @@
                              :default
                              state))})
 
-(defn button-view [state]
+#_(defn button-view [state]
   [state
    (view/on-mouse-clicked (layout/->Box 10 [(drawable/->FilledRoundedRectangle 0
                                                                           0
@@ -41,5 +41,5 @@
                          ((:on-click state)))
                        state))])
 
-(def button {:initial-state initial-button-state
+#_(def button {:initial-state initial-button-state
              :view button-view})

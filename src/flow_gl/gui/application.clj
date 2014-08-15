@@ -9,6 +9,7 @@
             [flow-gl.gui.event-queue :as event-queue])
   (:import [java.io PrintWriter StringWriter]))
 
+(comment 
 (defn wait-for-frame-end-time [frame-start-time framerate]
   (let [frame-length (/ 1E9
                         framerate)
@@ -127,3 +128,5 @@
   (-> view-state
       ::triple-dataflow/dataflow
       :event-queue))
+)
+

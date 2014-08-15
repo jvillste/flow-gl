@@ -18,9 +18,8 @@
         midje.sweet
         flow-gl.gui.layout-dsl))
 
-
-
-(defn path-prefixes [path]
+(comment
+  (defn path-prefixes [path]
   (loop [prefixes []
          prefix []
          xs path]
@@ -386,3 +385,5 @@
      (fn [~@parameters]
        (apply-to-state state-path# (fn [~state-parameter]
                                      ~body)))) )
+)
+

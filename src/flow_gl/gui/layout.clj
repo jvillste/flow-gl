@@ -3,6 +3,7 @@
                                        [scale :as scale]
                                        [push-modelview :as push-modelview]
                                        [pop-modelview :as pop-modelview])
+             flow-gl.debug
              (flow-gl.gui [layoutable :as layoutable]
                           [drawable :as drawable]))
   (:use clojure.test))
@@ -30,13 +31,14 @@
 
                                              (+ (:y child)
                                                 global-y)))))))
-(def ^:dynamic current-state-atom (atom {}))
+(def ^:dynamic current-state-atom)
 #_(def ^:dynamic current-state-path [])
 
 (defn layout-with-current-state [layout-instance width height]
   (let [state-path-part (or (:state-path-part layout-instance) [])
         local-state (get-in @current-state-atom state-path-part)
         [local-state layout] (layout layout-instance local-state width height)]
+    
     (if (= state-path-part [])
       (reset! current-state-atom local-state)
       (swap! current-state-atom assoc-in state-path-part local-state))
@@ -44,6 +46,7 @@
 
 (defn set-dimensions-and-layout
   ([layout-instance x y width height]
+     #_(println "layouting " (type layout-instance))
      (-> layout-instance
          (layout-with-current-state width
                                     height)
@@ -305,7 +308,6 @@
            (let [layout# (do ~@layout-body)]
              [@current-state-atom
               layout#])))
-       #_~layout-implementation
 
        layoutable/Layoutable
        (layoutable/preferred-size ~preferred-size-parameters ~@preferred-size-body)

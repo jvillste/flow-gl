@@ -34,7 +34,7 @@
                                                            :height (font/height font)})
 
   Object
-  (toString [this] (layoutable/describe-layoutable this "Text" :contents :font :color)))
+  (toString [this] (layoutable/describe-layoutable this)))
 
 (defrecord Image [file-name]
   Drawable
@@ -83,7 +83,7 @@
         (.fill (Rectangle2D$Float. 0 0 width height)))))
 
   Object
-  (toString [this] (layoutable/describe-layoutable this "Rectangle" :color)))
+  (toString [this] (layoutable/describe-layoutable this)))
 
 (defrecord Triangle [color x1 y1 x2 y2 x3 y3]
   Drawable

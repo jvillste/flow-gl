@@ -7,8 +7,7 @@
             (flow-gl.graphics [font :as font]))
   
   (:use midje.sweet))
-
-(defn append-character [string character]
+(comment (defn append-character [string character]
   (apply str (vec (concat string
                           (str character)))))
 
@@ -79,3 +78,4 @@
 
 (def text-editor {:initial-state initial-text-editor-state
                   :view text-editor-view})
+)
