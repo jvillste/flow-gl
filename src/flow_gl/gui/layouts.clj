@@ -17,12 +17,7 @@
                      #(layout/set-dimensions-and-layout % 0 0 width height)))
 
   (preferred-size [this available-width available-height]
-                  (let [child-size (layoutable/preferred-size (first children) width height)]
-                    {:width (max width
-                                 (:width child-size))
-
-                     :height (max height
-                                  (:height child-size))})))
+                  {:width width :height height}))
 
 (layout/deflayout-not-memoized FloatRight [children]
   (layout [this requested-width requested-height]

@@ -372,7 +372,7 @@
                                   :width width
                                   :height height)
                            (layout/add-out-of-layout-hints))]
-            
+
             (render-layout window gpu-state-atom layout)
             (let [new-state (binding [current-event-channel event-channel]
                               (loop [state state
