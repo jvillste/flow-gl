@@ -149,7 +149,6 @@
    :constructor create-scroll-panel})
 
 
-
 (quad-gui/def-view view [state]
   (quad-gui/call-view horizontal-split
                       {:left (quad-gui/call-view scroll-panel

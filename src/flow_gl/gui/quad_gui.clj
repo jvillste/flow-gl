@@ -39,7 +39,9 @@
           [[1 2] [3] [4]]])
 
 (defn layout-path-to-state-path [root-layout child-path]
-  (loop [state-path []
+  (loop [state-path (if-let [state-path-part (:state-path-part root-layout)]
+                      state-path-part
+                      [])
          rest-of-child-path child-path
          child-path []]
     (if-let [child-path-part (first rest-of-child-path)]
@@ -60,7 +62,9 @@
       => '(:foo 1 :bar))
 
 (defn layout-path-to-state-path-parts [root-layout whole-layout-path]
-  (loop [state-path-parts []
+  (loop [state-path-parts (if-let [state-path-part (:state-path-part root-layout)]
+                            [state-path-part]
+                            [])
          remaining-layout-path whole-layout-path
          layout-path []]
     (if-let [layout-path-part (first remaining-layout-path)]
