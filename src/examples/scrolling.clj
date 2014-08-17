@@ -27,8 +27,6 @@
                                                                                                                                   maximum))
                                                                                                                             [0.5 0.5 0.5 1])
                                                                                                  :on-drag (fn [state x y]
-                                                                                                            (flow-gl.debug/debug-timed "requested-height" requested-height "maximum" maximum "value" value "state" state)
-                                                                                                            (println state)
                                                                                                             (let [change (* y
                                                                                                                             (/ maximum
                                                                                                                                requested-height))
@@ -91,7 +89,6 @@
                                                                           available-height))})
 
                            (fn [state requested-width requested-height]
-                             (flow-gl.debug/debug-timed "scroll panel state" (:scroll-position state))
                              (layouts/->FloatRight [(layouts/->Margin (- (:scroll-position state)) 0 0 0
                                                                       [(:content state)] )
                                                     (scroll-bar-view-function (:scroll-position state)
@@ -100,11 +97,9 @@
                                                                                                                   requested-height))
                                                                               requested-height
                                                                               (fn [state new-value]
-                                                                                (flow-gl.debug/debug-timed "scroll dragged" state)
                                                                                 (assoc state :scroll-position new-value)))]))))
 
 (defn create-scroll-panel [state-path event-channel control-channel]
-  (flow-gl.debug/debug-timed "creating scroll panel")
   {:scroll-position 0})
 
 (def scroll-panel
@@ -139,3 +134,5 @@
 
 
 #_(run-tests)
+
+;; flow-gl.debug/debug-timed

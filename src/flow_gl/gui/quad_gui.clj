@@ -39,15 +39,13 @@
           [[1 2] [3] [4]]])
 
 (defn layout-path-to-state-path [root-layout child-path]
-  (loop [state-path (if-let [state-path-part (:state-path-part root-layout)]
-                      state-path-part
-                      [])
+  (loop [state-path (or (:state-path root-layout) [])
          rest-of-child-path child-path
          child-path []]
     (if-let [child-path-part (first rest-of-child-path)]
       (let [child-path (conj child-path child-path-part)]
-        (if-let [state-path-part (get-in root-layout (conj child-path :state-path-part))]
-          (recur (concat state-path state-path-part)
+        (if-let [new-state-path (get-in root-layout (conj child-path :state-path))]
+          (recur new-state-path
                  (rest rest-of-child-path)
                  child-path)
           (recur state-path
@@ -61,33 +59,26 @@
                                  [:children 0 :child :child :child])
       => '(:foo 1 :bar))
 
-(defn layout-path-to-state-path-parts [root-layout whole-layout-path]
-  (loop [state-path-parts (if-let [state-path-part (:state-path-part root-layout)]
-                            [state-path-part]
-                            [])
-         remaining-layout-path whole-layout-path
-         layout-path []]
-    (if-let [layout-path-part (first remaining-layout-path)]
-      (let [new-layout-path (conj layout-path layout-path-part)]
-        (if-let [state-path-part (get-in root-layout (conj new-layout-path :state-path-part))]
-          (recur (conj state-path-parts state-path-part)
-                 (rest remaining-layout-path)
-                 new-layout-path)
-          (recur state-path-parts
-                 (rest remaining-layout-path)
-                 new-layout-path)))
-      state-path-parts)))
-
-(fact (layout-path-to-state-path-parts {:children [{:state-path-part [:foo 1]
-                                                    :child {:child {:state-path-part [:bar]
-                                                                    :child {}}}}]}
-                                       [:children 0 :child :child :child])
-      => [[:foo 1] [:bar]])
+(defn layout-path-to-state-paths [root-layout child-path]
+  (loop [state-paths (if-let [state-path (:state-path root-layout)]
+                       [state-path]
+                       [])
+         rest-of-child-path child-path
+         child-path []]
+    (if-let [child-path-part (first rest-of-child-path)]
+      (let [child-path (conj child-path child-path-part)]
+        (if-let [new-state-path (get-in root-layout (conj child-path :state-path))]
+          (recur (conj state-paths new-state-path)
+                 (rest rest-of-child-path)
+                 child-path)
+          (recur state-paths
+                 (rest rest-of-child-path)
+                 child-path)))
+      state-paths)))
 
 (def ^:dynamic current-event-channel nil)
 
 (defn update-or-apply-in [map path function & arguments]
-  (flow-gl.debug/debug-timed "update-or-apply-in" (vec path))
   (if (seq path)
     (apply update-in map path function arguments)
     (apply function map arguments)))
@@ -157,21 +148,19 @@
                         :foo :bar}}}]})
 
 
-(defn set-hierarchical-state [state path-parts new-value child-state-key state-key state-gained-key state-lost-key]
-  (if (seq path-parts)
-    (loop [path (first path-parts)
-           path-parts (rest path-parts)
+(defn set-hierarchical-state [state paths new-value child-state-key state-key state-gained-key state-lost-key]
+  (if (seq paths)
+    (loop [paths paths
            state state]
-      (if (seq path-parts)
-        (recur (concat path (first path-parts))
-               (rest path-parts)
-               (update-in state path assoc child-state-key new-value))
-        (update-in state path (fn [state]
-                                (let [focus-handler-key (if new-value state-gained-key state-lost-key)]
-                                  (-> (if-let [focus-handler (focus-handler-key state)]
-                                        (focus-handler state)
-                                        state)
-                                      (assoc state-key new-value)))))))
+      (if (seq (rest paths))
+        (recur (rest paths)
+               (update-in state (first paths) assoc child-state-key new-value))
+        (update-in state (first paths) (fn [state]
+                                        (let [focus-handler-key (if new-value state-gained-key state-lost-key)]
+                                          (-> (if-let [focus-handler (focus-handler-key state)]
+                                                (focus-handler state)
+                                                state)
+                                              (assoc state-key new-value)))))))
     state))
 
 (defn seq-focus-handlers [child-seq-key]
@@ -236,18 +225,18 @@
                                                        (:height size)
                                                        gl)))))
 
-(defn move-hierarchical-state [state path-parts previous-path-parts-key child-state-key state-key state-gained-key state-lost-key]
+(defn move-hierarchical-state [state paths previous-path-parts-key child-state-key state-key state-gained-key state-lost-key]
   (-> state
       (set-hierarchical-state (previous-path-parts-key state) false child-state-key state-key state-gained-key state-lost-key)
-      (set-hierarchical-state path-parts true child-state-key state-key state-gained-key state-lost-key)
-      (assoc previous-path-parts-key path-parts)))
+      (set-hierarchical-state paths true child-state-key state-key state-gained-key state-lost-key)
+      (assoc previous-path-parts-key paths)))
 
-(defn set-focus [state focus-path-parts]
-  (move-hierarchical-state state focus-path-parts :focus-path-parts :child-has-focus :has-focus :on-focus-gained :on-focus-lost))
+(defn set-focus [state focus-paths]
+  (move-hierarchical-state state focus-paths :focus-path-parts :child-has-focus :has-focus :on-focus-gained :on-focus-lost))
 
-(defn set-mouse-over [state mouse-over-path-parts]
-  (if (not (= mouse-over-path-parts (:mouse-over-path-parts state)))
-    (move-hierarchical-state state mouse-over-path-parts :mouse-over-path-parts :mouse-over-child :mouse-over :on-mouse-enter :on-mouse-leave)
+(defn set-mouse-over [state mouse-over-paths]
+  (if (not (= mouse-over-paths (:mouse-over-paths state)))
+    (move-hierarchical-state state mouse-over-paths :mouse-over-paths :mouse-over-child :mouse-over :on-mouse-enter :on-mouse-leave)
     state))
 
 (defn apply-layout-event-handlers [state layout layout-path handler-key & arguments]
@@ -293,11 +282,11 @@
                                   state)
                  :mouse-released (assoc state
                                    :dragging-layout-path nil)
-                 :mouse-clicked (let [state-path-pats-under-mouse (layout-path-to-state-path-parts layout layout-path-under-mouse)]
+                 :mouse-clicked (let [state-paths-under-mouse (layout-path-to-state-paths layout layout-path-under-mouse)]
                                   (-> state
-                                      (cond-> (get-in state (concat (apply concat state-path-pats-under-mouse)
+                                      (cond-> (get-in state (concat (last state-paths-under-mouse)
                                                                     [:can-gain-focus]))
-                                              (set-focus state-path-pats-under-mouse))
+                                              (set-focus state-paths-under-mouse))
                                       (apply-layout-event-handlers layout layout-path-under-mouse :on-mouse-clicked)))
                  :mouse-dragged (if-let [dragging-layout-path (:dragging-layout-path state)]
                                   (-> (update-or-apply-in
@@ -311,9 +300,9 @@
                                       (assoc :previous-drag-x (:x event)
                                              :previous-drag-y (:y event)))
                                   state)
-                 :mouse-moved (let [state-path-parts-under-mouse (layout-path-to-state-path-parts layout layout-path-under-mouse)]
+                 :mouse-moved (let [state-paths-under-mouse (layout-path-to-state-paths layout layout-path-under-mouse)]
                                 (-> state
-                                    (set-mouse-over state-path-parts-under-mouse)
+                                    (set-mouse-over state-paths-under-mouse)
                                     (apply-mouse-over-layout-event-handlers layout layout-path-under-mouse)))
                  state)]
 
