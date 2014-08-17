@@ -27,6 +27,8 @@
                                                                                                                                   maximum))
                                                                                                                             [0.5 0.5 0.5 1])
                                                                                                  :on-drag (fn [state x y]
+                                                                                                            (flow-gl.debug/debug-timed "requested-height" requested-height "maximum" maximum "value" value "state" state)
+                                                                                                            (println state)
                                                                                                             (let [change (* y
                                                                                                                             (/ maximum
                                                                                                                                requested-height))
@@ -36,47 +38,6 @@
                                                                                                                                              (+ value
                                                                                                                                                 change))))]
                                                                                                               (on-drag state new-value))))]))])))))
-
-(quad-gui/def-view scroll-bar-view [state]
-  (let [width 30
-        margin 5]
-    (layouts/->SizeDependent (fn [available-width available-height]
-                               {:width width :height 0})
-                             (fn [state requested-width requested-height]
-                               (layouts/->Superimpose [(drawable/->Rectangle 30 50 [1 1 1 1])
-                                                       (layouts/->Preferred (layouts/->Margin (* requested-height (/ (:value state) (:maximum state)))
-                                                                                              margin
-                                                                                              0
-                                                                                              margin
-                                                                                              [(assoc (drawable/->Rectangle (- width (* 2 margin))
-                                                                                                                            (* requested-height
-                                                                                                                               (/ (:size state)
-                                                                                                                                  (:maximum state)))
-                                                                                                                            [0.5 0.5 0.5 1])
-                                                                                                 :on-drag (fn [state x y]
-                                                                                                            (let [change (* y
-                                                                                                                            (/ (:maximum state)
-                                                                                                                               requested-height))
-                                                                                                                  new-value (float (min (- (:maximum state)
-                                                                                                                                           (:size state))
-                                                                                                                                        (max 0
-                                                                                                                                             (+ (:value state)
-                                                                                                                                                change))))]
-                                                                                                              (when (:on-drag state)
-                                                                                                                ((:on-drag state) new-value))
-                                                                                                              (assoc state
-                                                                                                                :value new-value))))]))])))))
-
-(defn create-scroll-bar [state-path event-channel control-channel]
-  {:value 0
-   :size 1
-   :maximum 1})
-
-(def scroll-bar
-  {:view scroll-bar-view
-   :constructor create-scroll-bar})
-
-
 
 (layout/deflayout-not-memoized HorizontalSplit [left-width left middle right]
   (layout [this requested-width requested-height]
@@ -111,7 +72,6 @@
 
                      (assoc (drawable/->Rectangle 15 0 [0 0 1 1])
                        :on-drag (fn [state x y]
-                                  (println "drag state" (:left-width state))
                                   (update-in state [:left-width] + x)))
 
                      (:right state)))
@@ -131,6 +91,7 @@
                                                                           available-height))})
 
                            (fn [state requested-width requested-height]
+                             (flow-gl.debug/debug-timed "scroll panel state" (:scroll-position state))
                              (layouts/->FloatRight [(layouts/->Margin (- (:scroll-position state)) 0 0 0
                                                                       [(:content state)] )
                                                     (scroll-bar-view-function (:scroll-position state)
@@ -139,9 +100,11 @@
                                                                                                                   requested-height))
                                                                               requested-height
                                                                               (fn [state new-value]
+                                                                                (flow-gl.debug/debug-timed "scroll dragged" state)
                                                                                 (assoc state :scroll-position new-value)))]))))
 
 (defn create-scroll-panel [state-path event-channel control-channel]
+  (flow-gl.debug/debug-timed "creating scroll panel")
   {:scroll-position 0})
 
 (def scroll-panel
@@ -150,6 +113,7 @@
 
 
 (quad-gui/def-view view [state]
+  ;; Nämä state path partit tulkitaan sisäkkäisinä vaikka niiden pitäisi olla samalla tasolla
   (quad-gui/call-view horizontal-split
                       {:left (quad-gui/call-view scroll-panel
                                                  {:content (layouts/->Flow (for [i (range 10000 10030)]
@@ -169,9 +133,9 @@
 
 (defn start []
   (flow-gl.debug/reset-log)
-  (quad-gui/start-view {:constructor create
+  (try (quad-gui/start-view {:constructor create
                         :view view})
-  (flow-gl.debug/write-timed-log))
+       (finally (flow-gl.debug/write-timed-log))))
 
 
 #_(run-tests)

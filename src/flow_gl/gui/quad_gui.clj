@@ -87,6 +87,7 @@
 (def ^:dynamic current-event-channel nil)
 
 (defn update-or-apply-in [map path function & arguments]
+  (flow-gl.debug/debug-timed "update-or-apply-in" (vec path))
   (if (seq path)
     (apply update-in map path function arguments)
     (apply function map arguments)))
@@ -495,19 +496,21 @@
 
   ([child-id {:keys [constructor view]} state-override]
      (let [state-path-part [:child-states child-id]
+           state-path (concat current-state-path state-path-part)
            old-state (or (get-in @current-view-state-atom state-path-part)
                          (let [control-channel (async/chan)]
-                           (-> (constructor (concat current-state-path state-path-part)
+                           (-> (constructor state-path
                                             current-event-channel
                                             control-channel)
                                (assoc :control-channel control-channel))))
            new-state (conj old-state state-override)
-           [new-state child-visual] (binding [current-state-path (concat current-state-path state-path-part)]
+           [new-state child-visual] (binding [current-state-path state-path]
                                       (view new-state))]
        (swap! current-view-state-atom assoc-in state-path-part new-state)
        (swap! current-view-state-atom add-child child-id)
        (assoc child-visual
-         :state-path-part state-path-part))))
+         :state-path-part state-path-part
+         :state-path state-path))))
 
 (defmacro with-children [state visual]
   `(binding [current-view-state-atom (atom (reset-children ~state))]
