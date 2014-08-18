@@ -156,11 +156,11 @@
         (recur (rest paths)
                (update-in state (first paths) assoc child-state-key new-value))
         (update-in state (first paths) (fn [state]
-                                        (let [focus-handler-key (if new-value state-gained-key state-lost-key)]
-                                          (-> (if-let [focus-handler (focus-handler-key state)]
-                                                (focus-handler state)
-                                                state)
-                                              (assoc state-key new-value)))))))
+                                         (let [focus-handler-key (if new-value state-gained-key state-lost-key)]
+                                           (-> (if-let [focus-handler (focus-handler-key state)]
+                                                 (focus-handler state)
+                                                 state)
+                                               (assoc state-key new-value)))))))
     state))
 
 (defn seq-focus-handlers [child-seq-key]
@@ -329,7 +329,7 @@
   (doseq [state (vals (:child-states state))]
     (close-control-channels state)))
 
-(defn start-view [{:keys [view constructor]}]
+(defn start-view [constructor view]
   (let [event-channel (async/chan)
         control-channel (async/chan)
         window (window/create 300
@@ -501,6 +501,25 @@
          :state-path-part state-path-part
          :state-path state-path))))
 
+
+(defn call-view-2 [view constructor & parameters]
+  (let [child-id [:child (count (:children @current-view-state-atom))]
+        state-path-part [:child-states child-id]
+        state-path (concat current-state-path state-path-part)
+        state (or (get-in @current-view-state-atom state-path-part)
+                  (let [control-channel (async/chan)]
+                    (-> (constructor state-path
+                                     current-event-channel
+                                     control-channel)
+                        (assoc :control-channel control-channel))))
+        [state child-visual] (binding [current-state-path state-path]
+                               (apply view state parameters))]
+    (swap! current-view-state-atom assoc-in state-path-part state)
+    (swap! current-view-state-atom add-child child-id)
+    (assoc child-visual
+      :state-path-part state-path-part
+      :state-path state-path)))
+
 (defmacro with-children [state visual]
   `(binding [current-view-state-atom (atom (reset-children ~state))]
      (let [visual-value# ~visual]
@@ -511,6 +530,15 @@
   `(defn ~name ~parameters
      (with-children ~(first parameters) ~visual)))
 
+(defmacro def-control [name constructor view]
+    (let [view-parameters (-> view first rest vec)
+          view-name (symbol (str name "-view"))
+          constructor-name (symbol (str "create-" name))]
+      `(do (def-view ~view-name ~@view)
+           (defn ~constructor-name ~@constructor)
+           (defn ~name ~view-parameters
+             (call-view-2 ~view-name ~constructor-name ~@view-parameters)))))
+ 
 (defn apply-to-state [state-path function]
   (async/go (async/>! current-event-channel
                       (create-apply-to-view-state-event (fn [state]
