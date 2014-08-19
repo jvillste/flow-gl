@@ -261,6 +261,7 @@
     state))
 
 (defn handle-event [state layout event]
+  (println "handling " event)
   (cond
 
    (= event nil)
@@ -329,6 +330,14 @@
   (doseq [state (vals (:child-states state))]
     (close-control-channels state)))
 
+(defn drain [channel]
+  (let [value (async/<!! channel)]
+    (loop [values [value]]
+      (let [[value _] (async/alts!! [channel (async/timeout 0)] :priority true)]
+        (if value
+          (recur (conj values value))
+          values)))))
+
 (defn start-view [constructor view]
   (let [event-channel (async/chan)
         control-channel (async/chan)
@@ -368,15 +377,11 @@
                            (layout/add-out-of-layout-hints))]
 
             (render-layout window gpu-state-atom layout)
+            (println "getting events")
             (let [new-state (binding [current-event-channel event-channel]
-                              (loop [state state
-                                     [event _] (async/alts!! [event-channel (async/timeout 0)] :priority true)]
-                                (if event
-                                  (recur (handle-event state
-                                                       layout
-                                                       event)
-                                         (async/alts!! [event-channel (async/timeout 0)] :priority true))
-                                  state)))]
+                              (reduce #(handle-event %1 layout %2)
+                                      state
+                                      (drain event-channel)))]
               (if new-state
                 (recur new-state)
                 (do (close-control-channels state)
@@ -531,14 +536,14 @@
      (with-children ~(first parameters) ~visual)))
 
 (defmacro def-control [name constructor view]
-    (let [view-parameters (-> view first rest vec)
-          view-name (symbol (str name "-view"))
-          constructor-name (symbol (str "create-" name))]
-      `(do (def-view ~view-name ~@view)
-           (defn ~constructor-name ~@constructor)
-           (defn ~name ~view-parameters
-             (call-view-2 ~view-name ~constructor-name ~@view-parameters)))))
- 
+  (let [view-parameters (-> view first rest vec)
+        view-name (symbol (str name "-view"))
+        constructor-name (symbol (str "create-" name))]
+    `(do (def-view ~view-name ~@view)
+         (defn ~constructor-name ~@constructor)
+         (defn ~name ~view-parameters
+           (call-view-2 ~view-name ~constructor-name ~@view-parameters)))))
+
 (defn apply-to-state [state-path function]
   (async/go (async/>! current-event-channel
                       (create-apply-to-view-state-event (fn [state]

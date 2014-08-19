@@ -15,20 +15,46 @@
           (assoc this
             :children
             (let [middle-size (layoutable/preferred-size middle requested-width requested-height)
-                  left-width (max 0 (min (- requested-width
-                                            (:width middle-size))
-                                         left-width))]
-              [(layout/set-dimensions-and-layout left 0 0 left-width requested-height)
-               (layout/set-dimensions-and-layout middle left-width 0 (:width middle-size) requested-height)
-               (layout/set-dimensions-and-layout right (+ left-width (:width middle-size)) 0 (max 0 (- requested-width left-width (:width middle-size))) requested-height)])))
+                  left-width (max 0
+                                  (min (- requested-width
+                                          (:width middle-size))
+                                       left-width))]
+              [(layout/set-dimensions-and-layout left
+                                                 0
+                                                 0
+                                                 left-width
+                                                 requested-height)
+               (layout/set-dimensions-and-layout middle
+                                                 left-width
+                                                 0
+                                                 (:width middle-size)
+                                                 requested-height)
+               (layout/set-dimensions-and-layout right
+                                                 (+ left-width
+                                                    (:width middle-size))
+                                                 0
+                                                 (max 0
+                                                      (- requested-width
+                                                         left-width
+                                                         (:width middle-size)))
+                                                 requested-height)])))
 
   (preferred-size [this available-width available-height]
-                  (let [middle-size (layoutable/preferred-size middle available-width available-height)
-                        left-size (layoutable/preferred-size left (max 0 (min (- available-width
-                                                                                 (:width middle-size))
-                                                                              left-width))
+                  (let [middle-size (layoutable/preferred-size middle
+                                                               available-width
+                                                               available-height)
+                        left-size (layoutable/preferred-size left
+                                                             (max 0
+                                                                  (min (- available-width
+                                                                          (:width middle-size))
+                                                                       left-width))
                                                              available-height)
-                        right-size (layoutable/preferred-size right (max 0 (- available-width left-width (:width middle-size))) available-height)]
+                        right-size (layoutable/preferred-size right
+                                                              (max 0
+                                                                   (- available-width
+                                                                      left-width
+                                                                      (:width middle-size)))
+                                                              available-height)]
                     {:width (+ (:width left-size)
                                (:width middle-size)
                                (:width right-size))
@@ -106,20 +132,22 @@
                                                                        (fn [state new-value]
                                                                          (assoc state :scroll-position new-value)))])))))))
 
+(defn text [value]
+  (layouts/->Margin 2 2 0 0
+                    [(drawable/->Text (str value)
+                                      (font/create "LiberationSans-Regular.ttf" 15)
+                                      [1 1 1 1])]))
+
 (quad-gui/def-control root
   ([state-path event-channel control-channel]
      {})
 
   ([state]
      (horizontal-split (scroll-panel (layouts/->Flow (for [i (range 10000 10030)]
-                                                       (drawable/->Text (str i)
-                                                                        (font/create "LiberationSans-Regular.ttf" 15)
-                                                                        [1 1 1 1]))))
+                                                       (text i))))
 
                        (scroll-panel (layouts/->Flow (for [i (range 20000 20030)]
-                                                                       (drawable/->Text (str i)
-                                                                                        (font/create "LiberationSans-Regular.ttf" 15)
-                                                                                        [1 1 1 1])))))))
+                                                       (text i)))))))
 
 (flow-gl.debug/set-active-channels :all)
 
