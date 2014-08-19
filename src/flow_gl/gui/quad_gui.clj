@@ -531,6 +531,9 @@
        [(remove-unused-children @current-view-state-atom)
         visual-value#])))
 
+(defn apply-to-current-view-state [function & parameters]
+  (apply swap! current-view-state-atom function parameters))
+
 (defmacro def-view [name parameters visual]
   `(defn ~name ~parameters
      (with-children ~(first parameters) ~visual)))
@@ -559,6 +562,8 @@
      (fn [~@parameters]
        (apply-to-state state-path# (fn [~state-parameter]
                                      ~@body)))))
+
+
 
 (defmacro with-view-context [[state-path-parameter event-channel-parameter & parameters] & body]
   `(let [~state-path-parameter current-state-path

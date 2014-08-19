@@ -38,7 +38,7 @@
   (let [state-path-part (or (:state-path-part layout-instance) [])
         local-state (get-in @current-state-atom state-path-part)
         [local-state layout] (layout layout-instance local-state width height)]
-    
+
     (if (= state-path-part [])
       (reset! current-state-atom local-state)
       (swap! current-state-atom assoc-in state-path-part local-state))
@@ -295,17 +295,16 @@
 
 (defmacro deflayout-not-memoized [name parameters layout-implementation preferred-size-implementation]
   (let [[layout-name layout-parameters & layout-body] layout-implementation
-        state-symbol (gensym)
-        augmented-layout-parameters (vec (concat [(first layout-parameters)] [state-symbol] (rest layout-parameters)))
         [preferred-size-name preferred-size-parameters & preferred-size-body] preferred-size-implementation]
     (assert (= layout-name 'layout) (str "invalid layout name" layout-name))
     (assert (= preferred-size-name 'preferred-size) (str "invalid preferred size name" preferred-size-name))
 
     `(defrecord ~name ~parameters
        Layout
-       (layout ~augmented-layout-parameters
-         (binding [current-state-atom (atom ~state-symbol)]
-           (let [layout# (do ~@layout-body)]
+       (layout [layoutable# state# width# height#]
+         (binding [current-state-atom (atom state#)]
+           (let [layout# ((fn ~layout-parameters ~@layout-body)
+                          layoutable# width# height#)]
              [@current-state-atom
               layout#])))
 
