@@ -133,47 +133,6 @@
                                                                          (assoc state :scroll-position new-value)))])))))))
 
 
-#_(quad-gui/def-control scroll-panel
-  ([state-path event-channel control-channel]
-     {:scroll-position 0
-      :on-size-change (fn [state width height]
-                        (let [maximum (:height (layoutable/preferred-size (:content state)
-                                                                          (- width 30)
-                                                                          height))]
-                          (assoc state
-                            :maximum maximum
-                            :scroll-position (max 0
-                                                   (min (:scroll-position state)
-                                                        (- maximum height))))))})
-
-  ([state content]
-     (let [scroll-bar-width 30]
-       (layouts/->SizeDependent (fn [available-width available-height]
-                                  {:width available-width
-                                   :height (:height (layoutable/preferred-size content
-                                                                               (- available-width scroll-bar-width)
-                                                                               available-height))})
-
-                                (fn [state requested-width requested-height]
-                                  (let [maximum (:height (layoutable/preferred-size content
-                                                                                    (- requested-width 30)
-                                                                                    requested-height))
-                                        scroll-position (max 0
-                                                             (min (:scroll-position state)
-                                                                  (- maximum requested-height)))]
-
-                                    (quad-gui/apply-to-current-view-state assoc :scroll-position scroll-position)
-
-                                    (layouts/->FloatRight [(layouts/->Margin (- (:scroll-position state)) 0 0 0
-                                                                             [content])
-                                                           (scroll-bar scroll-position
-                                                                       (:maximum state)
-                                                                       requested-height
-                                                                       scroll-bar-width
-                                                                       requested-height
-                                                                       (fn [state new-value]
-                                                                         (assoc state :scroll-position new-value)))])))))))
-
 (defn text [value]
   (layouts/->Margin 2 2 0 0
                     [(drawable/->Text (str value)
