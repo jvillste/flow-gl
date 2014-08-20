@@ -94,11 +94,13 @@
                 [])))
 
 (defn apply-keyboard-event-handlers-2 [state event]
+  (println "handling " event)
   (loop [state state
          focus-path-prefixes (concat [[]]
                                      (path-prefixes (:focus-path-parts state)))]
     (if-let [focus-prefix (first focus-path-prefixes)]
       (let [focus-path (apply concat focus-prefix)]
+        (println "focus-path" focus-path)
         (if-let [keyboard-event-handler (get-in state (conj (vec focus-path) :handle-keyboard-event))]
           (if (seq focus-path)
             (let [[child-state continue] (keyboard-event-handler (get-in state focus-path)
@@ -261,7 +263,6 @@
     state))
 
 (defn handle-event [state layout event]
-  (println "handling " event)
   (cond
 
    (= event nil)
@@ -317,6 +318,10 @@
       :close-requested)
    (do (println "got :close-requested event, returning nil as view state")
        nil)
+
+   (= (:type event)
+      :resize-requested)
+   state
 
    :default
    (apply-keyboard-event-handlers-2 state
@@ -377,7 +382,6 @@
                            (layout/add-out-of-layout-hints))]
 
             (render-layout window gpu-state-atom layout)
-            (println "getting events")
             (let [new-state (binding [current-event-channel event-channel]
                               (reduce #(handle-event %1 layout %2)
                                       state
@@ -482,48 +486,55 @@
 (def ^:dynamic current-state-path [])
 (def ^:dynamic current-view-state-atom)
 
-(defn call-view
-  ([view-specification state-override]
-     (call-view [:child (count (:children @current-view-state-atom))]
-                view-specification
-                state-override))
+#_(defn call-view
+    ([view-specification state-override]
+       (call-view [:child (count (:children @current-view-state-atom))]
+                  view-specification
+                  state-override))
 
-  ([child-id {:keys [constructor view]} state-override]
-     (let [state-path-part [:child-states child-id]
-           state-path (concat current-state-path state-path-part)
-           old-state (or (get-in @current-view-state-atom state-path-part)
-                         (let [control-channel (async/chan)]
-                           (-> (constructor state-path
-                                            current-event-channel
-                                            control-channel)
-                               (assoc :control-channel control-channel))))
-           new-state (conj old-state state-override)
-           [new-state child-visual] (binding [current-state-path state-path]
-                                      (view new-state))]
-       (swap! current-view-state-atom assoc-in state-path-part new-state)
-       (swap! current-view-state-atom add-child child-id)
-       (assoc child-visual
-         :state-path-part state-path-part
-         :state-path state-path))))
+    ([child-id {:keys [constructor view]} state-override]
+       (let [state-path-part [:child-states child-id]
+             state-path (concat current-state-path state-path-part)
+             old-state (or (get-in @current-view-state-atom state-path-part)
+                           (let [control-channel (async/chan)]
+                             (-> (constructor state-path
+                                              current-event-channel
+                                              control-channel)
+                                 (assoc :control-channel control-channel))))
+             new-state (conj old-state state-override)
+             [new-state child-visual] (binding [current-state-path state-path]
+                                        (view new-state))]
+         (swap! current-view-state-atom assoc-in state-path-part new-state)
+         (swap! current-view-state-atom add-child child-id)
+         (assoc child-visual
+           :state-path-part state-path-part
+           :state-path state-path))))
 
 
-(defn call-view-2 [view constructor & parameters]
-  (let [child-id [:child (count (:children @current-view-state-atom))]
-        state-path-part [:child-states child-id]
+(defn call-named-view [view constructor child-id state-overrides]
+
+  (let [state-path-part [:child-states child-id]
         state-path (concat current-state-path state-path-part)
-        state (or (get-in @current-view-state-atom state-path-part)
-                  (let [control-channel (async/chan)]
-                    (-> (constructor state-path
-                                     current-event-channel
-                                     control-channel)
-                        (assoc :control-channel control-channel))))
+        state (-> (or (get-in @current-view-state-atom state-path-part)
+                      (let [control-channel (async/chan)]
+                        (-> (constructor state-path
+                                         current-event-channel
+                                         control-channel)
+                            (assoc :control-channel control-channel))))
+                  (conj (apply hash-map state-overrides)))
         [state child-visual] (binding [current-state-path state-path]
-                               (apply view state parameters))]
+                               (view state))]
     (swap! current-view-state-atom assoc-in state-path-part state)
     (swap! current-view-state-atom add-child child-id)
     (assoc child-visual
       :state-path-part state-path-part
       :state-path state-path)))
+
+(defn call-anonymous-view [view constructor state-overrides]
+  (call-named-view view
+                   constructor
+                   [:child (count (:children @current-view-state-atom))]
+                   state-overrides))
 
 (defmacro with-children [state visual]
   `(binding [current-view-state-atom (atom (reset-children ~state))]
@@ -539,13 +550,12 @@
      (with-children ~(first parameters) ~visual)))
 
 (defmacro def-control [name constructor view]
-  (let [view-parameters (-> view first rest vec)
-        view-name (symbol (str name "-view"))
+  (let [view-name (symbol (str name "-view"))
         constructor-name (symbol (str "create-" name))]
     `(do (def-view ~view-name ~@view)
          (defn ~constructor-name ~@constructor)
-         (defn ~name ~view-parameters
-           (call-view-2 ~view-name ~constructor-name ~@view-parameters)))))
+         (defn ~name [& state-overrides#]
+           (call-anonymous-view ~view-name ~constructor-name state-overrides#)))))
 
 (defn apply-to-state [state-path function]
   (async/go (async/>! current-event-channel

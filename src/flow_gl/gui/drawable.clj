@@ -53,6 +53,8 @@
   (drawing-commands [empty] [])
 
   layoutable/Layoutable
+  (preferred-size [this available-width available-height] {:width width
+                                                           :height height})
   (preferred-width [empty] width)
   (preferred-height [empty] height)
 
