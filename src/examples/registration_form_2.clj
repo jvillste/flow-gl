@@ -75,6 +75,32 @@
                       (font/create "LiberationSans-Regular.ttf" 15)
                       color)))
 
+(quad-gui/def-control button
+  ([state-path event-channel control-channel]
+     {:text text
+      :has-focus false
+      :on-pressed nil
+      :handle-keyboard-event (fn [state event]
+                               (events/on-key state event
+                                              :enter (if (not (:disabled state))
+                                                       (do (if-let [on-pressed (:on-pressed state)]
+                                                             (on-pressed))
+                                                           state)
+                                                       state)))})
+
+  ([state]
+     (layouts/->Box 10 [(drawable/->FilledRoundedRectangle 0
+                                                           0
+                                                           10
+                                                           (if (:has-focus state)
+                                                             [0 0.8 0.8 1]
+                                                             [0 0.5 0.5 1]))
+                        (drawable/->Text (:text state)
+                                         (font/create "LiberationSans-Regular.ttf" 15)
+                                         (if (:disabled state)
+                                           [0.5 0.5 0.5 1]
+                                           [0 0 0 1]))])))
+
 
 (quad-gui/def-control form
   ([state-path event-channel control-channel]
@@ -139,7 +165,13 @@
                                             :on-change (quad-gui/apply-to-current-state [state new-text]
                                                                                         (assoc state :full-name new-text)))
 
-                               #_(button-view (:submit-button state))])))
+                               (button :text "Send"
+                                       :on-pressed (fn [] (println "send pressed"))
+                                       :disabled (or (= "" (:full-name state))
+                                                     (= "" (:user-name state))
+                                                     (:querying? state)
+                                                     (= :unavailable (:user-name-available? state))
+                                                     (= :unknown (:user-name-available? state))))])))
 
 
 
