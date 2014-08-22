@@ -6,6 +6,7 @@
                          [quad-gui :as quad-gui]
                          [events :as events]
                          [layoutable :as layoutable])
+            [flow-gl.csp :as csp]
 
             (flow-gl.graphics [font :as font]))
   (:use flow-gl.utils
@@ -39,43 +40,99 @@
 (quad-gui/def-control text-editor
   ([state-path event-channel control-channel]
      {:text ""
-      :edited-text ""
-      :editing? false
-      :has-focus false
-      :handle-keyboard-event handle-text-editor-event})
+      :handle-keyboard-event handle-text-editor-event
+      :can-gain-focus true})
 
   ([state]
      (layouts/->Box 10 [(drawable/->Rectangle 0
                                               0
-                                              (if (:has-focus state)
-                                                [0 0.8 0.8 1]
-                                                [0 0.5 0.5 1]))
-                        (drawable/->Text (if (:editing? state)
-                                           (:edited-text state)
-                                           (:text state))
+                                              (cond
+                                               (:has-focus state) [0 0.8 0.8 1]
+                                               (:mouse-over state) [0 0.7 0.7 1]
+                                               :default [0 0.5 0.5 1]))
+                        (drawable/->Text (:text state)
                                          (font/create "LiberationSans-Regular.ttf" 15)
                                          (if (:has-focus state)
-                                           (if (:editing? state)
-                                             [0 0 1 1]
-                                             [0 0 0 1])
+                                           [0 0 0 1]
                                            [0.3 0.3 0.3 1]))])))
+
+
+(defn user-name-available? [user-name]
+  (let [channel (async/chan)]
+    (async/thread (async/put! channel (do (Thread/sleep (+ 1000
+                                                           (rand 2000)))
+                                          (println "sending result for" user-name)
+                                          (not (= "foo" user-name)))))
+
+    channel))
+
+(defn text
+  ([value]
+     (text value [1 1 1 1]))
+
+  ([value color]
+     (drawable/->Text (str value)
+                      (font/create "LiberationSans-Regular.ttf" 15)
+                      color)))
 
 
 (quad-gui/def-control form
   ([state-path event-channel control-channel]
-     (conj {:user-name "foo"
-            :full-name ""}
-           quad-gui/child-focus-handlers))
+     (let [state (conj {:user-name ""
+                        :querying? false
+                        :user-name-available? :unknown
+                        :user-name-channel (async/chan)
+                        :full-name ""}
+                       quad-gui/child-focus-handlers)]
+
+       (async/go (let [[throttled-query unthrottled-query] (csp/throttle (:user-name-channel state) 500)]
+                   (loop [query-control-channel nil]
+                     (async/alt! control-channel ([_] (println "exiting user-name process"))
+                                 throttled-query ([user-name]
+                                                    (if (= user-name "")
+                                                      (recur nil)
+                                                      (let [new-query-control-channel (async/chan)]
+                                                        (quad-gui/transact state-path event-channel
+                                                                           (fn [state]
+                                                                             (assoc state :querying? true)))
+                                                        (async/go (let [result-channel (user-name-available? user-name)]
+                                                                    (async/alt! new-query-control-channel ([_])
+                                                                                result-channel ([result]
+                                                                                                  (quad-gui/transact state-path event-channel
+                                                                                                                     (fn [state]
+                                                                                                                       (assoc state
+                                                                                                                         :user-name-available? (if result :available :unavailable)
+                                                                                                                         :querying? false)))))))
+                                                        (recur new-query-control-channel))))
+
+
+                                 unthrottled-query ([user-name]
+                                                      (if query-control-channel
+                                                        (async/close! query-control-channel))
+
+                                                      (quad-gui/transact state-path event-channel
+                                                                         (fn [state]
+
+                                                                           (assoc state
+                                                                             :querying? false
+                                                                             :user-name user-name
+                                                                             :user-name-available? :unknown)))
+                                                      (recur nil))))))
+       state))
 
   ([state]
 
      (layouts/->VerticalStack [(layouts/->HorizontalStack [(text-editor :text (:user-name state)
-                                                                        :on-change (quad-gui/apply-to-current-state [state new-text]
-                                                                                                                    (assoc state :user-name new-text)))
-                                                           (if (:user-name-in-use state)
-                                                             (text "Not available")
+                                                                        :on-change (fn [new-text]
+                                                                                     (async/go (async/>! (:user-name-channel state) new-text))))
+                                                           (if (and (not= (:user-name-available? state) :unknown)
+                                                                    (not (:querying? state)))
+                                                             (if (= (:user-name-available? state)
+                                                                    :available)
+                                                               (text "Available" [0 1 0 1])
+                                                               (text "Not available" [1 0 0 1]))
                                                              (drawable/->Empty 0 0))
-                                                           (if (:checking-availability state)
+                                                           (if (:querying? state)
                                                              (text "Checking availability")
                                                              (drawable/->Empty 0 0))])
                                (text-editor :text (:full-name state)

@@ -94,13 +94,11 @@
                 [])))
 
 (defn apply-keyboard-event-handlers-2 [state event]
-  (println "handling " event)
   (loop [state state
          focus-path-prefixes (concat [[]]
                                      (path-prefixes (:focus-path-parts state)))]
     (if-let [focus-prefix (first focus-path-prefixes)]
       (let [focus-path (apply concat focus-prefix)]
-        (println "focus-path" focus-path)
         (if-let [keyboard-event-handler (get-in state (conj (vec focus-path) :handle-keyboard-event))]
           (if (seq focus-path)
             (let [[child-state continue] (keyboard-event-handler (get-in state focus-path)
