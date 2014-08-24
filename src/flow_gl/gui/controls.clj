@@ -38,12 +38,13 @@
 
 
 (quad-gui/def-control text-editor
-  ([state-path event-channel control-channel]
+  ([view-context control-channel]
      {:text ""
       :handle-keyboard-event handle-text-editor-event
       :can-gain-focus true})
 
-  ([state]
+  ([view-context state]
+     (println "text editor state" state)
      (layouts/->Box 10 [(drawable/->Rectangle 0
                                               0
                                               (cond
@@ -75,7 +76,7 @@
     state))
 
 (quad-gui/def-control button
-  ([state-path event-channel control-channel]
+  ([view-context  control-channel]
      {:text text
       :has-focus false
       :on-pressed nil
@@ -84,7 +85,7 @@
                                (events/on-key state event
                                               :enter (handle-button-click state)))})
 
-  ([state]
+  ([view-context state]
      (-> (layouts/->Box 10 [(drawable/->FilledRoundedRectangle 0
                                                             0
                                                             10

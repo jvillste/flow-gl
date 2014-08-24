@@ -30,8 +30,9 @@
     (graphics-text/draw graphics color font contents))
 
   layoutable/Layoutable
-  (preferred-size [this available-width available-height] {:width (font/width font contents)
-                                                           :height (font/height font)})
+  (preferred-size [this available-width available-height] (println "size of" this)
+    {:width (font/width font contents)
+     :height (font/height font)})
 
   Object
   (toString [this] (layoutable/describe-layoutable this)))

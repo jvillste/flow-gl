@@ -350,9 +350,13 @@
                               :init opengl/initialize
                               :reshape opengl/resize
                               :event-channel event-channel)
-        initial-state (constructor [] event-channel control-channel)
+        initial-state (constructor {:state-path []
+                                    :event-channel event-channel}
+                                   control-channel)
         [initial-state _] (binding [current-event-channel event-channel]
-                            (view initial-state))
+                            (view {:state-path []
+                                   :event-channel event-channel}
+                                  initial-state))
         initial-state (set-focus initial-state
                                  (initial-focus-path-parts initial-state))
         initial-state (assoc initial-state :control-channel control-channel)
@@ -365,7 +369,9 @@
               (window/close window))
 
           (let [[state visual] (binding [current-event-channel event-channel]
-                                 (view state))
+                                 (view {:state-path []
+                                        :event-channel event-channel}
+                                       state))
                 width (window/width window)
                 height (window/height window)
                 [state layout] (layout/layout visual
@@ -510,18 +516,19 @@
 
 
 (defn call-named-view [view constructor child-id state-overrides]
-
   (let [state-path-part [:child-states child-id]
         state-path (concat current-state-path state-path-part)
         state (-> (or (get-in @current-view-state-atom state-path-part)
                       (let [control-channel (async/chan)]
-                        (-> (constructor state-path
-                                         current-event-channel
+                        (-> (constructor {:state-path state-path
+                                          :event-channel current-event-channel}
                                          control-channel)
                             (assoc :control-channel control-channel))))
                   (conj (apply hash-map state-overrides)))
         [state child-visual] (binding [current-state-path state-path]
-                               (view state))]
+                               (view {:state-path state-path
+                                      :event-channel current-event-channel}
+                                     state))]
     (swap! current-view-state-atom assoc-in state-path-part state)
     (swap! current-view-state-atom add-child child-id)
     (assoc child-visual
@@ -543,9 +550,9 @@
 (defn apply-to-current-view-state [function & parameters]
   (apply swap! current-view-state-atom function parameters))
 
-(defmacro def-view [name parameters visual]
+(defmacro def-view [name parameters & visual]
   `(defn ~name ~parameters
-     (with-children ~(first parameters) ~visual)))
+     (with-children ~(second parameters) (do ~@visual))))
 
 (defmacro def-control [name constructor view]
   (let [view-name (symbol (str name "-view"))
@@ -555,7 +562,14 @@
          (defn ~name [& state-overrides#]
            (call-anonymous-view ~view-name ~constructor-name state-overrides#)))))
 
-(defn apply-to-state [state-path function]
+
+(defn apply-to-state [view-context function & arguments]
+  (async/go (async/>! (:event-channel view-context)
+                      (create-apply-to-view-state-event (fn [state]
+                                                          (apply update-or-apply-in state (:state-path view-context) function arguments))))))
+
+
+(defn apply-to-state-2 [state-path function]
   (async/go (async/>! current-event-channel
                       (create-apply-to-view-state-event (fn [state]
                                                           (update-or-apply-in state state-path function))))))
@@ -568,8 +582,8 @@
 (defmacro apply-to-current-state [[state-parameter & parameters] & body]
   `(let [state-path# current-state-path]
      (fn [~@parameters]
-       (apply-to-state state-path# (fn [~state-parameter]
-                                     ~@body)))))
+       (apply-to-state-2 state-path# (fn [~state-parameter]
+                                       ~@body)))))
 
 
 
