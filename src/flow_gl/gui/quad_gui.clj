@@ -22,6 +22,8 @@
         midje.sweet
         clojure.test))
 
+(def ^:dynamic last-event-channel-atom (atom nil))
+
 (defn path-prefixes [path]
   (loop [prefixes []
          prefix []
@@ -352,6 +354,8 @@
                               :event-channel event-channel)
         root-view-context {:state-path []
                            :event-channel event-channel}]
+
+    (reset! last-event-channel-atom event-channel)
 
 
     (try

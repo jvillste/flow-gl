@@ -16,7 +16,6 @@
 
 
 (defn files-in-directory [directory-path]
-  (println "file in " directory-path)
   (.listFiles (File. directory-path)))
 
 (defn years [archive-path]
@@ -67,7 +66,7 @@
      {})
 
   ([view-context state]
-     (controls/text "foo")))
+     (controls/text "foo2")))
 
 (quad-gui/def-control photo-archive-browser
   ([view-context control-channel]
@@ -80,7 +79,6 @@
         :selected-month month}))
 
   ([view-context {:keys [selected-year archive-path]}]
-
      (layouts/->VerticalStack (doall (for [year (years archive-path)]
                                        (controls/text year (if (= selected-year
                                                                   year)
@@ -90,6 +88,9 @@
 
 
 (defn start []
-  (quad-gui/start-view #'create-photo-archive-browser #'photo-archive-browser-view))
+  (.start (Thread. (fn [] (quad-gui/start-view #'create-photo-archive-browser #'photo-archive-browser-view)))))
+
+(when-let [last-event-channel-atom @quad-gui/last-event-channel-atom] 
+  (async/put! last-event-channel-atom {:type :request-redraw}))
 
 #_(println (months (str archive-path "/2014")))
