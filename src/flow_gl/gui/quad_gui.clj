@@ -349,16 +349,16 @@
                               :profile :gl3
                               :init opengl/initialize
                               :reshape opengl/resize
-                              :event-channel event-channel)]
+                              :event-channel event-channel)
+        root-view-context {:state-path []
+                           :event-channel event-channel}]
 
 
     (try
-      (let [initial-state (constructor {:state-path []
-                                        :event-channel event-channel}
+      (let [initial-state (constructor root-view-context
                                        control-channel)
             [initial-state _] (binding [current-event-channel event-channel]
-                                (view {:state-path []
-                                       :event-channel event-channel}
+                                (view root-view-context
                                       initial-state))
             initial-state (set-focus initial-state
                                      (initial-focus-path-parts initial-state))
@@ -371,8 +371,7 @@
                 (window/close window))
 
             (let [[state visual] (binding [current-event-channel event-channel]
-                                   (view {:state-path []
-                                          :event-channel event-channel}
+                                   (view root-view-context
                                          state))
                   width (window/width window)
                   height (window/height window)
@@ -493,30 +492,6 @@
 (def ^:dynamic current-state-path [])
 (def ^:dynamic current-view-state-atom)
 
-#_(defn call-view
-    ([view-specification state-override]
-       (call-view [:child (count (:children @current-view-state-atom))]
-                  view-specification
-                  state-override))
-
-    ([child-id {:keys [constructor view]} state-override]
-       (let [state-path-part [:child-states child-id]
-             state-path (concat current-state-path state-path-part)
-             old-state (or (get-in @current-view-state-atom state-path-part)
-                           (let [control-channel (async/chan)]
-                             (-> (constructor state-path
-                                              current-event-channel
-                                              control-channel)
-                                 (assoc :control-channel control-channel))))
-             new-state (conj old-state state-override)
-             [new-state child-visual] (binding [current-state-path state-path]
-                                        (view new-state))]
-         (swap! current-view-state-atom assoc-in state-path-part new-state)
-         (swap! current-view-state-atom add-child child-id)
-         (assoc child-visual
-           :state-path-part state-path-part
-           :state-path state-path))))
-
 
 (defn call-named-view [view constructor child-id state-overrides]
   (let [state-path-part [:child-states child-id]
@@ -553,9 +528,13 @@
 (defn apply-to-current-view-state [function & parameters]
   (apply swap! current-view-state-atom function parameters))
 
-(defmacro def-view [name parameters & visual]
-  `(defn ~name ~parameters
-     (with-children ~(second parameters) (do ~@visual))))
+(defmacro def-view [name parameters & body]
+  (let [[view-context-parameter state-parameter] parameters]
+    `(defn ~name [view-context# state#]
+       (with-children state#
+         (let [~view-context-parameter view-context#
+               ~state-parameter state#]
+           ~@body)))))
 
 (defmacro def-control [name constructor view]
   (let [view-name (symbol (str name "-view"))

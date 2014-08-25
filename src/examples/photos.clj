@@ -16,10 +16,10 @@
 
 
 (defn files-in-directory [directory-path]
+  (println "file in " directory-path)
   (.listFiles (File. directory-path)))
 
 (defn years [archive-path]
-  (println "archive-path" archive-path)
   (->> (files-in-directory archive-path)
        (map #(.getName %))
        (filter #(number? (read-string %)))))
@@ -62,6 +62,13 @@
 
 (def archive-path "/Users/jukka/Downloads/arkisto_mini/")
 
+(quad-gui/def-control foo
+  ([view-context control-channel]
+     {})
+
+  ([view-context state]
+     (controls/text "foo")))
+
 (quad-gui/def-control photo-archive-browser
   ([view-context control-channel]
      (let [archive-path "/Users/jukka/Downloads/arkisto_mini/"
@@ -69,18 +76,20 @@
            year-path (str archive-path "/" year)
            month (first (months year-path))]
        {:archive-path archive-path
-        :year year
-        :month month}))
+        :selected-year year
+        :selected-month month}))
 
-  ([view-context state]
-     (layouts/->VerticalStack (doall (for [year (years (:archive-path state))]
-                                       (controls/text year (if (= (:year state)
+  ([view-context {:keys [selected-year archive-path]}]
+
+     (layouts/->VerticalStack (doall (for [year (years archive-path)]
+                                       (controls/text year (if (= selected-year
                                                                   year)
                                                              [1 1 1 1]
-                                                             (vec (map (partial * 0.4) [1 1 1 1])))))))))
+                                                             (vec (map (partial * 0.8)
+                                                                       [1 1 1 1])))))))))
 
 
 (defn start []
-  (quad-gui/start-view create-photo-archive-browser photo-archive-browser-view))
+  (quad-gui/start-view #'create-photo-archive-browser #'photo-archive-browser-view))
 
 #_(println (months (str archive-path "/2014")))
