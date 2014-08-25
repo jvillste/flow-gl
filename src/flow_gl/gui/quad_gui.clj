@@ -349,51 +349,54 @@
                               :profile :gl3
                               :init opengl/initialize
                               :reshape opengl/resize
-                              :event-channel event-channel)
-        initial-state (constructor {:state-path []
-                                    :event-channel event-channel}
-                                   control-channel)
-        [initial-state _] (binding [current-event-channel event-channel]
-                            (view {:state-path []
-                                   :event-channel event-channel}
-                                  initial-state))
-        initial-state (set-focus initial-state
-                                 (initial-focus-path-parts initial-state))
-        initial-state (assoc initial-state :control-channel control-channel)
-        gpu-state-atom (atom (window/with-gl window gl (quad-view/create gl)))]
+                              :event-channel event-channel)]
+
 
     (try
-      (loop [state initial-state]
-        (if (:close-requested state)
-          (do (close-control-channels state)
-              (window/close window))
-
-          (let [[state visual] (binding [current-event-channel event-channel]
-                                 (view {:state-path []
+      (let [initial-state (constructor {:state-path []
                                         :event-channel event-channel}
-                                       state))
-                width (window/width window)
-                height (window/height window)
-                [state layout] (layout/layout visual
-                                              state
-                                              width
-                                              height)
-                layout (-> layout
-                           (assoc :x 0
-                                  :y 0
-                                  :width width
-                                  :height height)
-                           (layout/add-out-of-layout-hints))]
+                                       control-channel)
+            [initial-state _] (binding [current-event-channel event-channel]
+                                (view {:state-path []
+                                       :event-channel event-channel}
+                                      initial-state))
+            initial-state (set-focus initial-state
+                                     (initial-focus-path-parts initial-state))
+            initial-state (assoc initial-state :control-channel control-channel)
+            gpu-state-atom (atom (window/with-gl window gl (quad-view/create gl)))]
 
-            (render-layout window gpu-state-atom layout)
-            (let [new-state (binding [current-event-channel event-channel]
-                              (reduce #(handle-event %1 layout %2)
-                                      state
-                                      (drain event-channel)))]
-              (if new-state
-                (recur new-state)
-                (do (close-control-channels state)
-                    (window/close window)))))))
+        (loop [state initial-state]
+          (if (:close-requested state)
+            (do (close-control-channels state)
+                (window/close window))
+
+            (let [[state visual] (binding [current-event-channel event-channel]
+                                   (view {:state-path []
+                                          :event-channel event-channel}
+                                         state))
+                  width (window/width window)
+                  height (window/height window)
+                  [state layout] (layout/layout visual
+                                                state
+                                                width
+                                                height)
+                  layout (-> layout
+                             (assoc :x 0
+                                    :y 0
+                                    :width width
+                                    :height height)
+                             (layout/add-out-of-layout-hints))]
+
+              (render-layout window gpu-state-atom layout)
+              (let [new-state (binding [current-event-channel event-channel]
+                                (reduce #(handle-event %1 layout %2)
+                                        state
+                                        (drain event-channel)))]
+                (if new-state
+                  (recur new-state)
+                  (do (close-control-channels state)
+                      (window/close window))))))))
+
       (catch Exception e
         (window/close window)
         (throw e)))))

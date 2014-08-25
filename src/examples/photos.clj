@@ -74,7 +74,10 @@
 
   ([view-context state]
      (layouts/->VerticalStack (doall (for [year (years (:archive-path state))]
-                                       (controls/text year))))))
+                                       (controls/text year (if (= (:year state)
+                                                                  year)
+                                                             [1 1 1 1]
+                                                             (vec (map (partial * 0.4) [1 1 1 1])))))))))
 
 
 (defn start []
