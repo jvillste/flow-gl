@@ -5,7 +5,7 @@
              (flow-gl.graphics [font :as font]
                                [vector :as vector]
                                [text :as graphics-text]
-                               )
+                               [buffered-image :as buffered-image])
              (flow-gl.gui [layoutable :as layoutable]))
   (:import [java.awt.geom Rectangle2D$Float RoundRectangle2D$Float]
            [java.awt Color RenderingHints]))
@@ -42,7 +42,16 @@
   (drawing-commands [this]
     [(image/create file-name)])
 
+  Java2DDrawable
+  (draw [this graphics]
+    (let [buffered-image (buffered-image/create-from-file file-name)]
+      (doto graphics
+        (.drawImage buffered-image (int 0) (int 0) nil))))
+
   layoutable/Layoutable
+  (preferred-size [this available-width available-height]
+    {:width 100
+     :height 100})
   (preferred-width [this] 100)
   (preferred-height [this] 100)
 

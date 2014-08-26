@@ -243,7 +243,7 @@
 
 (defn apply-layout-event-handlers [state layout layout-path handler-key & arguments]
   (reduce (fn [state layout-path]
-            (apply update-in
+            (apply update-or-apply-in
                    state
                    (layout-path-to-state-path layout layout-path)
                    (get-in layout (conj layout-path handler-key))
@@ -408,11 +408,11 @@
   {:type :apply-to-view-state
    :function function})
 
-(defn on-mouse-clicked [layoutable handler]
+(defn on-mouse-clicked [layoutable handler & arguments]
   (assoc layoutable
     :handle-mouse-event (fn [state event]
                           (if (= :mouse-clicked (:type event))
-                            (handler state)
+                            (apply handler state arguments)
                             state))))
 
 (defn seq-focus-handlers [child-seq-key]

@@ -39,6 +39,24 @@
                      :height (max (:height left-size)
                                   (:height right-size))})))
 
+(layout/deflayout-not-memoized FloatLeft [left right]
+
+  (layout [this requested-width requested-height]
+          (let [left-width (:width (layoutable/preferred-size left java.lang.Integer/MAX_VALUE requested-height))
+                right-width (- requested-width left-width)]
+            (assoc this :children
+                   [(layout/set-dimensions-and-layout left 0 0 left-width requested-height)
+                    (layout/set-dimensions-and-layout right left-width 0 right-width requested-height)])))
+
+  (preferred-size [this available-width available-height]
+                  (let [left-size (layoutable/preferred-size left available-width available-height)
+                        right-size (layoutable/preferred-size right (- available-width (:width left-size)) available-height)]
+                    {:width (+ (:width left-size)
+                               (:width right-size))
+
+                     :height (max (:height left-size)
+                                  (:height right-size))})))
+
 (layout/deflayout-not-memoized Box [margin children]
   (layout [box requested-width requested-height]
           (-> box
