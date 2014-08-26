@@ -497,25 +497,30 @@
 (def ^:dynamic current-view-state-atom)
 
 
-(defn call-named-view [view constructor child-id state-overrides]
-  (let [state-path-part [:child-states child-id]
-        state-path (concat current-state-path state-path-part)
-        state (-> (or (get-in @current-view-state-atom state-path-part)
-                      (let [control-channel (async/chan)]
-                        (-> (constructor {:state-path state-path
-                                          :event-channel current-event-channel}
-                                         control-channel)
-                            (assoc :control-channel control-channel))))
-                  (conj (apply hash-map state-overrides)))
-        [state child-visual] (binding [current-state-path state-path]
-                               (view {:state-path state-path
-                                      :event-channel current-event-channel}
-                                     state))]
-    (swap! current-view-state-atom assoc-in state-path-part state)
-    (swap! current-view-state-atom add-child child-id)
-    (assoc child-visual
-      :state-path-part state-path-part
-      :state-path state-path)))
+(defn call-named-view
+  ([view constructor child-id state-overrides]
+     (call-named-view view constructor child-id [] state-overrides))
+  
+  ([view constructor child-id constructor-parameters state-overrides]
+     (let [state-path-part [:child-states child-id]
+           state-path (concat current-state-path state-path-part)
+           state (-> (or (get-in @current-view-state-atom state-path-part)
+                         (let [control-channel (async/chan)]
+                           (-> (apply constructor {:state-path state-path
+                                             :event-channel current-event-channel}
+                                            control-channel
+                                            constructor-parameters)
+                               (assoc :control-channel control-channel))))
+                     (conj (apply hash-map state-overrides)))
+           [state child-visual] (binding [current-state-path state-path]
+                                  (view {:state-path state-path
+                                         :event-channel current-event-channel}
+                                        state))]
+       (swap! current-view-state-atom assoc-in state-path-part state)
+       (swap! current-view-state-atom add-child child-id)
+       (assoc child-visual
+         :state-path-part state-path-part
+         :state-path state-path))))
 
 (defn call-anonymous-view [view constructor state-overrides]
   (call-named-view view

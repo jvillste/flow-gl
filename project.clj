@@ -17,6 +17,7 @@
                  ;;[org.clojars.jvillste/jogl-all "2.1.3-rc-20131212"]
                  [org.clojars.jvillste/jogl-all "2.1.5"]
                  ;;[gui-diff "0.6.6"]
+                 [com.climate/claypoole "0.3"]
                  ]
 
   ;; :java-cmd "/usr/lib/jvm/java-6-sun/bin/java"

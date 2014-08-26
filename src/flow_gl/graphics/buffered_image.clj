@@ -30,10 +30,10 @@
 (defn create [width height]
   (BufferedImage. width height BufferedImage/TYPE_INT_ARGB)
   #_(create-from-raster (Raster/createInterleavedRaster DataBuffer/TYPE_BYTE
-                                                      width
-                                                      height
-                                                      4
-                                                      nil)))
+                                                        width
+                                                        height
+                                                        4
+                                                        nil)))
 
 (defn get-graphics [buffered-image]
   (.createGraphics buffered-image))
@@ -52,6 +52,19 @@
                 nil
                 0
                 0)
+    new-image))
+
+(defn create-resized-from-file [file-name width height]
+  (let [original-image (ImageIO/read (File. file-name))
+        new-image (create width
+                          height)]
+    (.drawImage (get-graphics new-image)
+                original-image
+                0 0
+                width height
+                0 0
+                (.getWidth original-image) (.getHeight original-image)
+                nil)
     new-image))
 
 

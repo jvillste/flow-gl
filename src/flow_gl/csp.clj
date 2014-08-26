@@ -23,9 +23,7 @@
     [throttled-channel unthrottled-channel]))
 
 
-#_(defn latest [input-channel cancel-channel]
-  (async/go-loop [value (async/<! unthrottled-channel-2)]
-                 (when value
-                   (async/alt! (async/timeout interval) (do (>! throttled-channel value)
-                                                            (recur (async/<! unthrottled-channel-2)))
-                               unthrottled-channel-2 ([value] (recur value)))))) 
+(defn result-as-channel [function]
+  (let [channel (async/chan)]
+    (async/thread (async/put! channel (function)))
+    channel))

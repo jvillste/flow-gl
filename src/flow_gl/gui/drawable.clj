@@ -37,21 +37,16 @@
   Object
   (toString [this] (layoutable/describe-layoutable this)))
 
-(defrecord Image [file-name]
-  Drawable
-  (drawing-commands [this]
-    [(image/create file-name)])
-
+(defrecord Image [buffered-image]
   Java2DDrawable
   (draw [this graphics]
-    (let [buffered-image (buffered-image/create-from-file file-name)]
-      (doto graphics
-        (.drawImage buffered-image (int 0) (int 0) nil))))
+    (doto graphics
+      (.drawImage buffered-image (int 0) (int 0) nil)))
 
   layoutable/Layoutable
   (preferred-size [this available-width available-height]
-    {:width 100
-     :height 100})
+    {:width (.getWidth buffered-image)
+     :height (.getHeight buffered-image)})
   (preferred-width [this] 100)
   (preferred-height [this] 100)
 
