@@ -438,12 +438,12 @@ void main() {
                                      (rest images))
                               textures-in-use))]
 
-      (doseq [image images]
-        (.put buffer
-              (-> image
-                  (.getRaster)
-                  (.getDataBuffer)
-                  (.getData))))
+      (flow-gl.debug/debug-timed-and-return "put images " (doseq [image images]
+         (.put buffer
+               (-> image
+                   (.getRaster)
+                   (.getDataBuffer)
+                   (.getData)))))
 
       (buffer/unmap-for-write gl)
 

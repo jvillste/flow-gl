@@ -61,9 +61,21 @@
                         (last messages#))
                      (last messages)))
 
+(defn add-timed-entry [& values]
+  (swap! log conj (conj {:time (.getTime (java.util.Date.))
+                         :thread (.getId (Thread/currentThread))}
+                        (apply hash-map values))))
 (defn debug-timed [& messages]
-  (swap! log conj {:time (.getTime (java.util.Date.))
-                   :message (apply str (interpose " " messages))}))
+  (add-timed-entry :message (apply str (interpose " " messages))))
+
+
+(defmacro debug-timed-and-return [message value]
+  `(do (add-timed-entry :message ~message
+                        :block :start)
+       (let [value# ~value]
+         (add-timed-entry :message ~message
+                          :block :end)
+         value#)))
 
 (defn write-log []
   (with-open [writer (io/writer "debug-log.txt")]

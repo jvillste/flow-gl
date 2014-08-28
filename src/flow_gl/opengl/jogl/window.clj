@@ -114,8 +114,8 @@
                                   (let [gl (get-gl profile drawable)]
                                     #_(flow-gl.debug/debug-timed "display start" (flow-gl.opengl.jogl.opengl/size gl))
                                     #_(doto (get-gl :gl3 drawable)
-                                      (.glClearColor 0 1 0 1)
-                                      (.glClear GL2/GL_COLOR_BUFFER_BIT))
+                                        (.glClearColor 0 1 0 1)
+                                        (.glClear GL2/GL_COLOR_BUFFER_BIT))
                                     #_(Thread/sleep 5)
                                     #_(.swapBuffers drawable)
                                     #_(flow-gl.debug/debug-timed "display end" (flow-gl.opengl.jogl.opengl/size gl))
@@ -136,22 +136,22 @@
 
                                 (reshape [^javax.media.opengl.GLAutoDrawable drawable x y width height]
                                   #_(let [gl (get-gl profile drawable)]
-                                    #_(when @display-atom
-                                        (do (@display-atom gl)
-                                            (.swapBuffers drawable)))
+                                      #_(when @display-atom
+                                          (do (@display-atom gl)
+                                              (.swapBuffers drawable)))
 
-                                    #_(flow-gl.debug/debug-timed "resize start" (flow-gl.opengl.jogl.opengl/size gl))
-                                    #_(doto gl
-                                        (.glClearColor 1 0 0 1)
-                                        (.glClear GL2/GL_COLOR_BUFFER_BIT))
-                                    #_(.swapBuffers drawable)
-                                    #_(flow-gl.debug/debug-timed "resize end" (flow-gl.opengl.jogl.opengl/size gl)))
+                                      #_(flow-gl.debug/debug-timed "resize start" (flow-gl.opengl.jogl.opengl/size gl))
+                                      #_(doto gl
+                                          (.glClearColor 1 0 0 1)
+                                          (.glClear GL2/GL_COLOR_BUFFER_BIT))
+                                      #_(.swapBuffers drawable)
+                                      #_(flow-gl.debug/debug-timed "resize end" (flow-gl.opengl.jogl.opengl/size gl)))
 
 
                                   #_(flow-gl.debug/debug-timed "reshape" width height)
 
                                   (async/go (async/>! event-channel
-                                                        (events/create-resize-requested-event width height)))
+                                                      (events/create-resize-requested-event width height)))
 
                                   #_(let [gl (get-gl profile drawable)]
                                       (reshape gl width height)))

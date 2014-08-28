@@ -33,6 +33,7 @@
   {:type :close-requested})
 
 (defn create-resize-requested-event [width height]
+  (flow-gl.debug/debug-timed "create resize requested" width height)
   {:type :resize-requested
    :width width
    :height height})

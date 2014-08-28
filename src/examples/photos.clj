@@ -14,7 +14,8 @@
             (flow-gl.graphics [font :as font]
                               [buffered-image :as buffered-image]))
   (:import [java.io File]
-           [java.util.concurrent Executors])
+           [java.util.concurrent Executors]
+           [java.lang Runnable])
   (:use flow-gl.utils
         clojure.test))
 
@@ -70,24 +71,45 @@
 
 (quad-gui/def-control image
   ([view-context control-channel file-name thread-pool]
-     (async/go (let [buffered-image (async/<! (let [channel (async/chan)]
-                                                (.execute thread-pool
-                                                          #(do
-                                                             (println "starting to load " file-name)
-                                                             (async/put! channel
-                                                                         (buffered-image/create-resized-from-file file-name
-                                                                                                                  100
-                                                                                                                  100))
-                                                             (println "ready " file-name)))
-                                                channel))]
-                 (quad-gui/apply-to-state view-context assoc
-                                          :buffered-image buffered-image)))
-     {})
+     (let [buffered-image-channel (async/chan)
+           buffered-image-future (.execute thread-pool
+                                           #(do
+                                              (flow-gl.debug/debug-timed "starting to load " file-name)
+                                              (let [buffered-image (buffered-image/create-resized-from-file file-name
+                                                                                                            100
+                                                                                                            100)]
+                                                (flow-gl.debug/debug-timed "ready " file-name)
+                                                (async/put! buffered-image-channel buffered-image)
+                                                (flow-gl.debug/debug-timed "sent buffered image " file-name))))]
 
-  ([view-context {:keys [buffered-image]}]
+       (async/go (async/alt! control-channel ([_]
+                                                (flow-gl.debug/debug-timed "canceling " file-name)
+                                                (.cancel buffered-image-future true))
+
+                             buffered-image-channel ([buffered-image]
+                                                       (flow-gl.debug/debug-timed "got buffered image for " file-name)
+                                                       (quad-gui/apply-to-state view-context (fn [state]
+                                                                                               (flow-gl.debug/debug-timed "applying " file-name)
+                                                                                               (assoc state :buffered-image buffered-image)))))))
+
+     {:file-name file-name})
+
+  ([view-context {:keys [buffered-image file-name]}]
      (if buffered-image
        (drawable/->Image buffered-image)
        (drawable/->Rectangle 100 100 [1 1 1 1]))))
+
+(quad-gui/def-control date-box
+  ([view-context control-channel]
+     {})
+
+  ([view-context {:keys [text selected mouse-over]}]
+     (controls/text text (if selected
+                           [0.3 0.8 0.4 1]
+                           (if mouse-over
+                             [1 0 0 1]
+                             [0.8 0.8 0.8 1])))))
+
 
 (defn date-navigation [selected-year selected-month selected-day archive-path]
   (let [selected-color [0.3 0.8 0.4 1]]
@@ -103,10 +125,8 @@
                                                           :month (first (months (str archive-path "/" year)))))))
 
      (l/margin 0 0 0 10 (apply l/vertically (doall (for [month (months (str archive-path "/" selected-year))]
-                                                     (-> (controls/text month (if (= selected-month
-                                                                                     month)
-                                                                                selected-color
-                                                                                [0.8 0.8 0.8 1]))
+                                                     (-> (date-box :text month :selected (= selected-month
+                                                                                            month))
                                                          (quad-gui/on-mouse-clicked assoc
                                                                                     :selected-month month
                                                                                     :selected-day (first (days (str archive-path "/" selected-year) month))))))))
@@ -120,9 +140,9 @@
 
 (quad-gui/def-control photo-archive-browser
   ([view-context control-channel]
-     (let [thread-pool (Executors/newFixedThreadPool (.. Runtime getRuntime availableProcessors))]
+     (let [thread-pool (Executors/newFixedThreadPool 1 #_(.. Runtime getRuntime availableProcessors))]
        (async/go (<! control-channel)
-                 (println "shutting down the threadpool")
+                 (flow-gl.debug/debug-timed "shutting down the threadpool")
                  (.shutdown thread-pool))
 
        (let [archive-path "/Users/jukka/Pictures/arkisto_mini"
@@ -136,6 +156,7 @@
           :thread-pool thread-pool})))
 
   ([view-context {:keys [selected-year selected-month selected-day archive-path thread-pool]}]
+     (flow-gl.debug/debug-timed "view")
 
      #_(quad-gui/call-named-view image-view
                                  create-image
@@ -152,31 +173,58 @@
                                                                                "-" (format "%02d" selected-month)
                                                                                "-" (format "%02d" selected-day)))]
 
-                                              #_(drawable/->Image (buffered-image/create-from-file image))
-                                              #_(l/margin 2 2 2 2 (drawable/->Rectangle 100 100 [1 1 1 1]))
                                               (l/margin 2 2 2 2 (quad-gui/call-named-view image-view
                                                                                           create-image
                                                                                           image-file-name
                                                                                           [image-file-name thread-pool]
-                                                                                          []))
-                                              #_(controls/text image))))))))
+                                                                                          [])))))))))
+
 
 (defn start []
-  (.start (Thread. (fn [] (quad-gui/start-view #'create-photo-archive-browser #'photo-archive-browser-view)))))
+  (.start (Thread. (fn []
+                     (flow-gl.debug/reset-log)
+                     (try (quad-gui/start-view #'create-photo-archive-browser #'photo-archive-browser-view)
+                          (finally (flow-gl.debug/write-timed-log)))))))
 
 (when-let [last-event-channel-atom @quad-gui/last-event-channel-atom]
   (async/put! last-event-channel-atom {:type :request-redraw}))
 
-#_(println)
-#_(let [file-name "/Users/jukka/Pictures/arkisto_mini/2011/2011-12-28/2011-12-28.19.44.39_ac66709411ae6c2948d95bd90199cccc.jpg"]
-    (let [pool (Executors/newFixedThreadPool 4)]
-      (dotimes [i 30]
-        (.execute pool #(do (buffered-image/create-resized-from-file file-name
-                                                                     100
-                                                                     100)
-                            (println "ready" i))))
 
-      (.shutdown pool))
+#_(let [file-name "/Users/jukka/Pictures/arkisto_mini/2011/2011-12-28/2011-12-28.19.44.39_ac66709411ae6c2948d95bd90199cccc.jpg"
+        control-channel (async/chan)
+        event-channel (async/chan)
+        pool (Executors/newFixedThreadPool 1)]
+    (flow-gl.debug/reset-log)
+    (dotimes [i 10]
+      (create-image {:state-path []
+                     :event-channel event-channel}
+                    control-channel
+                    file-name
+                    pool))
+
+    (async/go-loop []
+                   (async/alt! control-channel ([])
+                               event-channel ([message]
+                                                (println message)
+                                                (recur))))
+
+    (Thread/sleep 4000)
+    (.shutdown pool)
+    (async/close! control-channel)
+    (async/close! event-channel)
+    (flow-gl.debug/write-timed-log)
+
+    #_(let [pool (Executors/newFixedThreadPool 1)
+            futures (doall (for [i (range 30)]
+                             (.submit pool (cast Runnable #(do (buffered-image/create-resized-from-file file-name
+                                                                                                        100
+                                                                                                        100)
+                                                               (println "ready" i))))))]
+        (Thread/sleep 1000)
+        (doseq [f futures]
+          (.cancel f true))
+
+        (.shutdown pool))
 
     #_(let [futures (doall (for [i (range 5)]
                              (future (buffered-image/create-resized-from-file file-name

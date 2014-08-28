@@ -72,26 +72,26 @@
              quads))))))
 
 #_(deftest quads-for-layout-test
-  (is (=  (let [layout (layout/layout (layout/->HorizontalStack [(assoc (layout/->VerticalStack [(drawable/->Text "Foo1"
-                                                                                                                  (font/create "LiberationSans-Regular.ttf" 14)
-                                                                                                                  [1 1 1 1])
-                                                                                                 (assoc (drawable/->Text "Bar1"
-                                                                                                                         (font/create "LiberationSans-Regular.ttf" 14)
-                                                                                                                         [1 1 1 1])
-                                                                                                   :state-path-part [:bar] )])
-                                                                   :state-path-part [:child-states 0]
-                                                                   :z 1)
-                                                                 (assoc (layout/->VerticalStack [(drawable/->Text "Foo2"
-                                                                                                                  (font/create "LiberationSans-Regular.ttf" 14)
-                                                                                                                  [1 1 1 1])
-                                                                                                 (drawable/->Text "Bar2"
-                                                                                                                  (font/create "LiberationSans-Regular.ttf" 14)
-                                                                                                                  [1 1 1 1])])
-                                                                   :state-path-part [:child-states 1])] )
-                                      100 100)]
-            (seq (quads-for-layout (assoc layout :x 0 :y 0))))
+    (is (=  (let [layout (layout/layout (layout/->HorizontalStack [(assoc (layout/->VerticalStack [(drawable/->Text "Foo1"
+                                                                                                                    (font/create "LiberationSans-Regular.ttf" 14)
+                                                                                                                    [1 1 1 1])
+                                                                                                   (assoc (drawable/->Text "Bar1"
+                                                                                                                           (font/create "LiberationSans-Regular.ttf" 14)
+                                                                                                                           [1 1 1 1])
+                                                                                                     :state-path-part [:bar] )])
+                                                                     :state-path-part [:child-states 0]
+                                                                     :z 1)
+                                                                   (assoc (layout/->VerticalStack [(drawable/->Text "Foo2"
+                                                                                                                    (font/create "LiberationSans-Regular.ttf" 14)
+                                                                                                                    [1 1 1 1])
+                                                                                                   (drawable/->Text "Bar2"
+                                                                                                                    (font/create "LiberationSans-Regular.ttf" 14)
+                                                                                                                    [1 1 1 1])])
+                                                                     :state-path-part [:child-states 1])] )
+                                        100 100)]
+              (seq (quads-for-layout (assoc layout :x 0 :y 0))))
 
-          nil)))
+            nil)))
 
 (defn unused-drawable-textures [drawable-textures quads]
   (->> quads
@@ -134,8 +134,8 @@
     (if (empty? new-textures)
       quad-view
       (assoc quad-view
-        :quad-batch (quad-batch/add-textures (:quad-batch quad-view) gl new-textures)
-        :drawable-textures (add-new-textures (:drawable-textures quad-view) drawables (:next-free-texture-id (:quad-batch quad-view)))))))
+        :quad-batch (flow-gl.debug/debug-timed-and-return "add-textures " (quad-batch/add-textures (:quad-batch quad-view) gl new-textures))
+        :drawable-textures (flow-gl.debug/debug-timed-and-return "add-new-textures " (add-new-textures (:drawable-textures quad-view) drawables (:next-free-texture-id (:quad-batch quad-view))))))))
 
 (defn add-texture-ids [quads drawable-textures]
   (map (fn [quad]
@@ -169,21 +169,21 @@
   (let [quad-view (load-new-textures quad-view
                                      quads
                                      gl)
-        quad-view (unload-unused-textures quad-view quads)
+        quad-view (flow-gl.debug/debug-timed-and-return "unload-unused-textures" (unload-unused-textures quad-view quads))
         quads (add-texture-ids quads
                                (:drawable-textures quad-view))]
     (assoc quad-view :quad-batch
-           (quad-batch/draw-quads (:quad-batch quad-view)
-                                  gl
-                                  quads
-                                  width height))))
+           (flow-gl.debug/debug-timed-and-return "quad-batch-draw " (quad-batch/draw-quads (:quad-batch quad-view)
+                                                                                           gl
+                                                                                           quads
+                                                                                           width height)))))
 
 (defn draw-layout [quad-view layout width height gl]
-  (draw-quads quad-view
-              (quads-for-layout (assoc layout :x 0 :y 0))
-              width
-              height
-              gl))
+  (flow-gl.debug/debug-timed-and-return "draw-quads" (draw-quads quad-view
+                                                                 (flow-gl.debug/debug-timed-and-return "quad-for-layout" (quads-for-layout (assoc layout :x 0 :y 0)))
+                                                                 width
+                                                                 height
+                                                                 gl)))
 
 (defn create [gl]
   {:drawable-textures {}

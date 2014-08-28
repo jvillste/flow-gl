@@ -263,6 +263,7 @@
     state))
 
 (defn handle-event [state layout event]
+  
   (cond
 
    (= event nil)
@@ -337,14 +338,17 @@
 
 (defn drain [channel]
   (let [value (async/<!! channel)]
+    (flow-gl.debug/debug-timed "drained event" (:type value))
     (loop [values [value]]
+
       (let [[value _] (async/alts!! [channel (async/timeout 0)] :priority true)]
+        (flow-gl.debug/debug-timed "drained event" (:type value))
         (if value
           (recur (conj values value))
           values)))))
 
 (defn start-view [constructor view]
-  (let [event-channel (async/chan)
+  (let [event-channel (async/chan 50)
         control-channel (async/chan)
         window (window/create 300
                               400
@@ -369,7 +373,10 @@
             initial-state (assoc initial-state :control-channel control-channel)
             gpu-state-atom (atom (window/with-gl window gl (quad-view/create gl)))]
 
+
         (loop [state initial-state]
+          (flow-gl.debug/debug-timed "got new state")
+
           (if (:close-requested state)
             (do (close-control-channels state)
                 (window/close window))
@@ -390,7 +397,11 @@
                                     :height height)
                              (layout/add-out-of-layout-hints))]
 
+              #_(flow-gl.debug/debug-timed "waiting")
+              #_(Thread/sleep 500)
+              (flow-gl.debug/debug-timed "rendering")
               (render-layout window gpu-state-atom layout)
+              (flow-gl.debug/debug-timed "render ready")
               (let [new-state (binding [current-event-channel event-channel]
                                 (reduce #(handle-event %1 layout %2)
                                         state
@@ -500,16 +511,16 @@
 (defn call-named-view
   ([view constructor child-id state-overrides]
      (call-named-view view constructor child-id [] state-overrides))
-  
+
   ([view constructor child-id constructor-parameters state-overrides]
      (let [state-path-part [:child-states child-id]
            state-path (concat current-state-path state-path-part)
            state (-> (or (get-in @current-view-state-atom state-path-part)
                          (let [control-channel (async/chan)]
                            (-> (apply constructor {:state-path state-path
-                                             :event-channel current-event-channel}
-                                            control-channel
-                                            constructor-parameters)
+                                                   :event-channel current-event-channel}
+                                      control-channel
+                                      constructor-parameters)
                                (assoc :control-channel control-channel))))
                      (conj (apply hash-map state-overrides)))
            [state child-visual] (binding [current-state-path state-path]
@@ -557,7 +568,9 @@
 (defn apply-to-state [view-context function & arguments]
   (async/go (async/>! (:event-channel view-context)
                       (create-apply-to-view-state-event (fn [state]
-                                                          (apply update-or-apply-in state (:state-path view-context) function arguments))))))
+                                                          (if (get-in state (:state-path view-context))
+                                                            (apply update-or-apply-in state (:state-path view-context) function arguments)
+                                                            (flow-gl.debug/debug-timed "tried to apply to empty state" (vec (:state-path view-context)))))))))
 
 
 (defn apply-to-state-2 [state-path function]
