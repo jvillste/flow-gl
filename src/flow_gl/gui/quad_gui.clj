@@ -254,16 +254,18 @@
                   (path-prefixes layout-path))))
 
 (defn apply-mouse-over-layout-event-handlers [state layout new-mouse-over-layout-path]
+
   (if (not (= new-mouse-over-layout-path
               (:mouse-over-layout-path state)))
-    (-> state
-        (apply-layout-event-handlers layout (:mouse-over-layout-path state) :on-mouse-leave)
-        (apply-layout-event-handlers layout new-mouse-over-layout-path :on-mouse-enter)
-        (assoc :mouse-over-layout-path new-mouse-over-layout-path))
+    (do (println "mouse over" new-mouse-over-layout-path)
+        (-> state
+            (apply-layout-event-handlers layout (:mouse-over-layout-path state) :on-mouse-leave)
+            (apply-layout-event-handlers layout new-mouse-over-layout-path :on-mouse-enter)
+            (assoc :mouse-over-layout-path new-mouse-over-layout-path)))
     state))
 
 (defn handle-event [state layout event]
-  
+
   (cond
 
    (= event nil)
@@ -338,11 +340,8 @@
 
 (defn drain [channel]
   (let [value (async/<!! channel)]
-    (flow-gl.debug/debug-timed "drained event" (:type value))
     (loop [values [value]]
-
       (let [[value _] (async/alts!! [channel (async/timeout 0)] :priority true)]
-        (flow-gl.debug/debug-timed "drained event" (:type value))
         (if value
           (recur (conj values value))
           values)))))
@@ -399,9 +398,9 @@
 
               #_(flow-gl.debug/debug-timed "waiting")
               #_(Thread/sleep 500)
-              (flow-gl.debug/debug-timed "rendering")
-              (render-layout window gpu-state-atom layout)
-              (flow-gl.debug/debug-timed "render ready")
+              (flow-gl.debug/debug-timed-and-return "render"
+                                                    (render-layout window gpu-state-atom layout))
+
               (let [new-state (binding [current-event-channel event-channel]
                                 (reduce #(handle-event %1 layout %2)
                                         state

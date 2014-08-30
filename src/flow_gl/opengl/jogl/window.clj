@@ -92,7 +92,14 @@
                                 (mouseReleased [event]
                                   (async/put! event-channel (create-mouse-event event :mouse-released)))
                                 (mouseClicked [event]
-                                  (async/put! event-channel (create-mouse-event event :mouse-clicked)))))
+                                  (async/put! event-channel (create-mouse-event event :mouse-clicked)))
+                                (mouseWheelMoved [event]
+                                  (async/put! event-channel (let [[x-distance y-distance z-distance] (.getRotation event)]
+                                                              (assoc (create-mouse-event event :mouse-wheel-moved)
+                                                                      :x-distance x-distance
+                                                                      :y-distance y-distance
+                                                                      :z-distance z-distance
+                                                                      :rotation-scael (.getRotationScale event)))))))
 
            (.addWindowListener (proxy [WindowAdapter] []
                                  (windowDestroyNotify [event]

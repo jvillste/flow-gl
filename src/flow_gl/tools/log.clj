@@ -39,7 +39,7 @@
         (let [parent-block (last open-blocks)]
           (recur (pop open-blocks)
                  (update-in parent-block [:children] conj (assoc open-block
-                                                                  :end-time (:time entry)))
+                                                            :end-time (:time entry)))
                  (rest entries)))
 
         nil
@@ -52,22 +52,24 @@
 
       (:children open-block))))
 
-(println (create-blocks [{:time 1
-                          :message "1"}
-                         {:time 2
-                          :message "2"
-                          :block :start}
-                         {:time 3
-                          :message "3"
-                          :block :start}
-                         {:time 4
-                          :message "4"}
-                         {:time 5
-                          :message "3"
-                          :block :end}
-                         {:time 6
-                          :message "2"
-                          :block :end}]))
+(def log [{:time 1
+           :message "1"}
+          {:time 2
+           :message "2"
+           :block :start}
+          {:time 3
+           :message "3"
+           :block :start}
+          {:time 4
+           :message "4"}
+          {:time 5
+           :message "3"
+           :block :end}
+          {:time 6
+           :message "2"
+           :block :end}])
+
+#_(println (create-blocks log))
 
 (defn color [message]
   (let [random (Random. (reduce + (map int (seq message))))]
@@ -76,19 +78,75 @@
      (.nextFloat random)
      1]))
 
+(defn block-view [block depth height-factor]
+  (let [width 34
+        indent (* 0.2 width)]
+    (-> (layouts/->Superimpose [(drawable/->Rectangle (- width (* indent depth))
+                                                      (* height-factor (max 1 (- (:end-time block)
+                                                                                 (:start-time block))))
+                                                      (color (:message block)))
+
+                                (apply l/vertically (loop [previous-child-end-time (:start-time block)
+                                                           children (:children block)
+                                                           child-block-views []]
+                                                      (if-let [child (first children)]
+                                                        (recur (:end-time child)
+                                                               (rest children)
+                                                               (conj child-block-views
+                                                                     (l/margin (* height-factor (- (:start-time child)
+                                                                                                   previous-child-end-time))
+                                                                               0
+                                                                               0
+                                                                               indent
+                                                                               (layouts/->Preferred (block-view child (inc depth) height-factor)))))
+                                                        child-block-views)))])
+        (assoc :on-mouse-enter (fn [state]
+                                 (assoc state
+                                   :message (str (:message block) " : " (- (:end-time block) (:start-time block)))))))))
+
+(defn text-block-view [block depth]
+  (let [indent 10]
+    (apply l/vertically (concat [(controls/text (:message block))]
+                                (for [child (:children block)]
+                                  (l/margin 0
+                                            0
+                                            0
+                                            indent
+                                            (layouts/->Preferred (text-block-view child (inc depth)))))))))
+
+#_(defn block-list [blocks]
+    (apply l/vertically (for [block blocks]
+                          ))
+    (layouts/->Abso))
+
 (quad-gui/def-control log-browser
   ([view-context control-channel]
-     {:log (take 30 @debug/log)})
+     {:log log #_(take 100 @debug/log)
+      :message ""
+      :height-factor 10})
 
-  ([view-context {:keys [log]}]
-     (let [threads (reduce  conj #{} (map :thread log))]
-       (apply l/horizontally (for [thread threads]
-                               (apply l/vertically (for [{:keys [message time thread block]} (filter #(= (:thread %) thread) log)]
-                                                     (layouts/->Box 3 [(drawable/->Rectangle 0 0 (color message))
-                                                                       (controls/text (str message " : " block))])))))
+  ([view-context {:keys [log message height-factor]}]
+     (let [threads (->> (reduce conj #{} (map :thread log))
+                        (vec)
+                        (sort-by (fn [thread-number] (-> (filter #(= (:thread %) thread-number) log)
+                                                         (count))))
+                        (reverse))]
+       (l/vertically (controls/text message)
+                     (assoc (apply l/horizontally (for [thread threads]
+                                                    (let [blocks (-> (filter #(= (:thread %) thread) log)
+                                                                     (create-blocks))]
+                                                      (l/margin 0 0 0 2
+                                                                (l/horizontally (apply l/vertically (for [block blocks]
+                                                                                                      (block-view block 0 height-factor)
+                                                                                                      ))
+                                                                                #_(apply l/vertically (for [block blocks]
+                                                                                                        (text-block-view block 0))))))))
+                       :handle-mouse-event (fn [state event]
+                                             (if (= :mouse-wheel-moved (:type event))
+                                               (update-in state [:height-factor] + (:y-distance event))
+                                               state)))))))
 
-       )))
-
+#_(def log @debug/log)
 #_(debug/reset-log)
 (defn start []
   (.start (Thread. (fn []
