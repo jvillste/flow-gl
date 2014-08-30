@@ -86,23 +86,29 @@
                                                                                  (:start-time block))))
                                                       (color (:message block)))
 
-                                (apply l/vertically (loop [previous-child-end-time (:start-time block)
-                                                           children (:children block)
-                                                           child-block-views []]
-                                                      (if-let [child (first children)]
-                                                        (recur (:end-time child)
-                                                               (rest children)
-                                                               (conj child-block-views
-                                                                     (l/margin (* height-factor (- (:start-time child)
-                                                                                                   previous-child-end-time))
-                                                                               0
-                                                                               0
-                                                                               indent
-                                                                               (layouts/->Preferred (block-view child (inc depth) height-factor)))))
-                                                        child-block-views)))])
+                                (assoc (apply l/vertically (loop [previous-child-end-time (:start-time block)
+                                                                  children (:children block)
+                                                                  child-block-views []]
+                                                             (if-let [child (first children)]
+                                                               (recur (:end-time child)
+                                                                      (rest children)
+                                                                      (conj child-block-views
+                                                                            (l/margin (* height-factor (- (:start-time child)
+                                                                                                          previous-child-end-time))
+                                                                                      0
+                                                                                      0
+                                                                                      indent
+                                                                                      (layouts/->Preferred (block-view child (inc depth) height-factor)))))
+                                                               child-block-views)))
+                                  :on-drag (fn [state x y]
+                                             (println "on drag"  x y)
+                                             (-> state
+                                                 (update-in [:translate-x] + x)
+                                                 (update-in [:translate-y] + y))))])
         (assoc :on-mouse-enter (fn [state]
                                  (assoc state
-                                   :message (str (:message block) " : " (- (:end-time block) (:start-time block)))))))))
+                                   :message (str (:message block) " : " (- (:end-time block) (:start-time block)))))
+               ))))
 
 (defn text-block-view [block depth]
   (let [indent 10]
@@ -123,28 +129,31 @@
   ([view-context control-channel]
      {:log log #_(take 100 @debug/log)
       :message ""
-      :height-factor 10})
+      :height-factor 10
+      :translate-x 0
+      :translate-y 0})
 
-  ([view-context {:keys [log message height-factor]}]
+  ([view-context {:keys [log message height-factor translate-x translate-y]}]
      (let [threads (->> (reduce conj #{} (map :thread log))
                         (vec)
                         (sort-by (fn [thread-number] (-> (filter #(= (:thread %) thread-number) log)
                                                          (count))))
                         (reverse))]
        (l/vertically (controls/text message)
-                     (assoc (apply l/horizontally (for [thread threads]
-                                                    (let [blocks (-> (filter #(= (:thread %) thread) log)
-                                                                     (create-blocks))]
-                                                      (l/margin 0 0 0 2
-                                                                (l/horizontally (apply l/vertically (for [block blocks]
-                                                                                                      (block-view block 0 height-factor)
-                                                                                                      ))
-                                                                                #_(apply l/vertically (for [block blocks]
-                                                                                                        (text-block-view block 0))))))))
-                       :handle-mouse-event (fn [state event]
-                                             (if (= :mouse-wheel-moved (:type event))
-                                               (update-in state [:height-factor] + (:y-distance event))
-                                               state)))))))
+                     (layouts/->Translate translate-x translate-y
+                                          (assoc (apply l/horizontally (for [thread threads]
+                                                                         (let [blocks (-> (filter #(= (:thread %) thread) log)
+                                                                                          (create-blocks))]
+                                                                           (l/margin 0 0 0 2
+                                                                                     (l/horizontally (apply l/vertically (for [block blocks]
+                                                                                                                           (block-view block 0 height-factor)
+                                                                                                                           ))
+                                                                                                     #_(apply l/vertically (for [block blocks]
+                                                                                                                             (text-block-view block 0))))))))
+                                            :handle-mouse-event (fn [state event]
+                                                                  (case (:type event)
+                                                                    :mouse-wheel-moved (update-in state [:height-factor] + (:y-distance event))
+                                                                    state))))))))
 
 #_(def log @debug/log)
 #_(debug/reset-log)

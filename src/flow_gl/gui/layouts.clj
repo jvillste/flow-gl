@@ -344,19 +344,21 @@
                   (preferred-size-function available-width available-height)))
 
 
-#_(deflayout Translation [translate-x translate-y layoutable]
+(layout/deflayout-not-memoized Translate [translate-x translate-y child]
 
-    (layout [translation requested-width requested-height  ]
-            (assoc translation :layoutable
-                   (layout/set-dimensions-and-layout layoutable
-                                                     translate-x
-                                                     translate-y
-                                                     (layoutable/preferred-width layoutable)
-                                                     (layoutable/preferred-height layoutable))))
+  (layout [this requested-width requested-height]
+          (let [preferred-child-size (layoutable/preferred-size child requested-width requested-height)]
+            (assoc this :children
+                   [(layout/set-dimensions-and-layout child
+                                                      translate-x
+                                                      translate-y
+                                                      (:width preferred-child-size)
+                                                      (:height preferred-child-size))])))
 
-    (preferred-width [translation] (+ translate-x (layoutable/preferred-width layoutable)))
-
-    (preferred-height [translation] (+ translate-y (layoutable/preferred-height layoutable))))
+  (preferred-size [this available-width available-height]
+                  (let [preferred-child-size (layoutable/preferred-size child available-width available-height)]
+                    {:width (+ translate-x (:width preferred-child-size))
+                     :height (+ translate-y (:height preferred-child-size))})))
 
 
 #_(deflayout DockBottom [layoutable]

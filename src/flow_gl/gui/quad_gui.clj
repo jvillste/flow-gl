@@ -257,7 +257,7 @@
 
   (if (not (= new-mouse-over-layout-path
               (:mouse-over-layout-path state)))
-    (do (println "mouse over" new-mouse-over-layout-path)
+    (do (println "mouse over" new-mouse-over-layout-path (type (get-in layout new-mouse-over-layout-path)))
         (-> state
             (apply-layout-event-handlers layout (:mouse-over-layout-path state) :on-mouse-leave)
             (apply-layout-event-handlers layout new-mouse-over-layout-path :on-mouse-enter)
