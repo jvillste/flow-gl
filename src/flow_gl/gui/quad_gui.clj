@@ -253,6 +253,19 @@
                     (handler-key (get-in layout layout-path)))
                   (path-prefixes layout-path))))
 
+(defn apply-layout-event-handlers-2 [state layout layout-path handler-key & arguments]
+  (reduce (fn [state layout-path]
+            (reduce (fn [state handler]
+                      (apply handler
+                             state
+                             arguments))
+                    state
+                    (get-in layout (conj layout-path handler-key))))
+          state
+          (filter (fn [layout-path]
+                    (handler-key (get-in layout layout-path)))
+                  (path-prefixes layout-path))))
+
 (defn apply-mouse-over-layout-event-handlers [state layout new-mouse-over-layout-path]
 
   (if (not (= new-mouse-over-layout-path
@@ -261,6 +274,8 @@
         (-> state
             (apply-layout-event-handlers layout (:mouse-over-layout-path state) :on-mouse-leave)
             (apply-layout-event-handlers layout new-mouse-over-layout-path :on-mouse-enter)
+            (apply-layout-event-handlers-2 layout (:mouse-over-layout-path state) :handle-mouse-event-2 {:type :mouse-leave})
+            (apply-layout-event-handlers-2 layout new-mouse-over-layout-path :handle-mouse-event-2 {:type :mouse-enter})
             (assoc :mouse-over-layout-path new-mouse-over-layout-path)))
     state))
 
@@ -311,7 +326,9 @@
                                     (apply-mouse-over-layout-event-handlers layout layout-path-under-mouse)))
                  state)]
 
-     (apply-layout-event-handlers state layout layout-path-under-mouse :handle-mouse-event event))
+     (-> state
+         (apply-layout-event-handlers layout layout-path-under-mouse :handle-mouse-event event)
+         (apply-layout-event-handlers-2 layout layout-path-under-mouse :handle-mouse-event-2 event)))
 
    (events/key-pressed? event :tab)
    (set-focus state (or (next-focus-path-parts state (:focus-path-parts state))
@@ -424,6 +441,14 @@
                           (if (= :mouse-clicked (:type event))
                             (apply handler state arguments)
                             state))))
+
+(defn add-mouse-event-handler-with-context [layoutable view-context handler]
+  (assoc layoutable
+    :handle-mouse-event-2 (conj (or (:handle-mouse-event-2 layoutable)
+                                    [])
+                                (fn [state event]
+                                  (update-or-apply-in state (:state-path view-context) handler event)))))
+
 
 (defn seq-focus-handlers [child-seq-key]
   {:first-focusable-child (fn [_] [child-seq-key 0])
