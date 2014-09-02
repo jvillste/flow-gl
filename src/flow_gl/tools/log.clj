@@ -158,7 +158,7 @@
                                           (max 0 (- y-translation))
                                           (max 0 (- requested-width
                                                     x-translation))
-                                          (max 0 (- (- requested-height 100)
+                                          (max 0 (- requested-height
                                                     y-translation))))))
 
          (quad-gui/add-mouse-event-handler-with-context view-context
@@ -190,56 +190,53 @@
 
 (quad-gui/def-control log-browser
   ([view-context control-channel]
-     {:log log #_(take 100 @debug/log)
+     {:thread-blocks (let [threads (->> (reduce conj #{} (map :thread log))
+                                        (vec)
+                                        (sort-by (fn [thread-number] (-> (filter #(= (:thread %) thread-number) log)
+                                                                         (count))))
+                                        (reverse))]
+                       (for [thread threads]
+                         (create-blocks (filter #(= (:thread %) thread) log))))
       :message ""
       :height-factor 10
       :thread-width 200
       :translate-x 0
       :y-translation 0})
 
-  ([view-context {:keys [log message height-factor thread-width translate-x translate-y]}]
-     (let [threads (->> (reduce conj #{} (map :thread log))
-                        (vec)
-                        (sort-by (fn [thread-number] (-> (filter #(= (:thread %) thread-number) log)
-                                                         (count))))
-                        (reverse))]
-       (layouts/->FloatTop (controls/text message)
-                           (-> (scroll-pane :content
-                                            (fn [x1 y1 x2 y2]
-                                              (apply l/horizontally (for [thread threads]
-                                                                      (let [thread-log (filter #(= (:thread %) thread) log)]
-                                                                        (if (empty? thread-log)
-                                                                          (drawable/->Empty thread-width 0)
-                                                                          (let [root-block (create-blocks thread-log)
-                                                                                blocks (:children root-block)
-                                                                                first-block-start-time (:start-time root-block)
-                                                                                first-visible-time (+ first-block-start-time
-                                                                                                      (/ y1 height-factor))
-                                                                                last-visible-time (+ first-block-start-time
-                                                                                                     (/ y2 height-factor))
-                                                                                visible-blocks (filter (fn [{:keys [start-time end-time]}]
-                                                                                                         (and (< start-time
-                                                                                                                 last-visible-time)
-                                                                                                              (> end-time
-                                                                                                                 first-visible-time)))
-                                                                                                       blocks)]
-                                                                            (if (empty? visible-blocks)
-                                                                              (drawable/->Empty thread-width 0)
-                                                                              (let [root-block (assoc root-block
-                                                                                                 :children visible-blocks
-                                                                                                 :start-time (:start-time (first visible-blocks))
-                                                                                                 :end-time (:end-time (last visible-blocks)))]
-                                                                                (l/margin (* height-factor (:start-time root-block)) 0 0 2
-                                                                                          (block-view view-context root-block 0 height-factor thread-width)))))))))))
-                               (quad-gui/add-mouse-event-handler-with-context
-                                view-context
-                                (fn [state event]
-                                  (cond
-                                   (and (= (:type event) :mouse-wheel-moved)
-                                        (:control event))
-                                   (update-in state [:height-factor] + (* 0.5 (:y-distance event)))
+  ([view-context {:keys [thread-blocks message height-factor thread-width translate-x translate-y]}]
+     (layouts/->FloatTop (controls/text message)
+                         (-> (scroll-pane :content
+                                          (fn [x1 y1 x2 y2]
+                                            (apply l/horizontally (for [root-block thread-blocks]
+                                                                    (let [blocks (:children root-block)
+                                                                          first-block-start-time (:start-time root-block)
+                                                                          first-visible-time (+ first-block-start-time
+                                                                                                (/ y1 height-factor))
+                                                                          last-visible-time (+ first-block-start-time
+                                                                                               (/ y2 height-factor))
+                                                                          visible-blocks (filter (fn [{:keys [start-time end-time]}]
+                                                                                                   (and (< start-time
+                                                                                                           last-visible-time)
+                                                                                                        (> end-time
+                                                                                                           first-visible-time)))
+                                                                                                 blocks)]
+                                                                      (if (empty? visible-blocks)
+                                                                        (drawable/->Empty thread-width 0)
+                                                                        (let [root-block (assoc root-block
+                                                                                           :children visible-blocks
+                                                                                           :start-time (:start-time (first visible-blocks))
+                                                                                           :end-time (:end-time (last visible-blocks)))]
+                                                                          (l/margin (* height-factor (:start-time root-block)) 0 0 2
+                                                                                    (block-view view-context root-block 0 height-factor thread-width)))))))))
+                             (quad-gui/add-mouse-event-handler-with-context
+                              view-context
+                              (fn [state event]
+                                (cond
+                                 (and (= (:type event) :mouse-wheel-moved)
+                                      (:control event))
+                                 (update-in state [:height-factor] + (* 0.5 (:y-distance event)))
 
-                                   :default state))))))))
+                                 :default state)))))))
 
 
 #_(layouts/->SizeDependent
