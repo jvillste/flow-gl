@@ -29,6 +29,13 @@
       key
       :unknown)))
 
+(defn create-event [event type]
+  {:type type
+   :time (.getWhen event)
+   :shift (.isShiftDown event)
+   :control (.isControlDown event)
+   :alt (.isAltDown event)})
+
 (defn create-keyboard-event [event type]
   (events/create-keyboard-event type
                                 (key-code-to-key (.getKeyCode event) keyboard-keys)
@@ -38,11 +45,11 @@
                                 (.getWhen event)))
 
 (defn create-mouse-event [event type]
-  (events/create-mouse-event type
-                             (.getX event)
-                             (.getY event)
-                             (key-code-to-key (.getButton event) mouse-keys)
-                             (.getWhen event)))
+  (conj (create-event event type)
+        {:x (.getX event)
+         :y (.getY event)
+         :key (key-code-to-key (.getButton event) mouse-keys)
+         :source :mouse}))
 
 (defn get-gl [profile ^javax.media.opengl.GLAutoDrawable drawable]
   (case profile
@@ -96,10 +103,10 @@
                                 (mouseWheelMoved [event]
                                   (async/put! event-channel (let [[x-distance y-distance z-distance] (.getRotation event)]
                                                               (assoc (create-mouse-event event :mouse-wheel-moved)
-                                                                      :x-distance x-distance
-                                                                      :y-distance y-distance
-                                                                      :z-distance z-distance
-                                                                      :rotation-scael (.getRotationScale event)))))))
+                                                                :x-distance x-distance
+                                                                :y-distance y-distance
+                                                                :z-distance z-distance
+                                                                :rotation-scale (.getRotationScale event)))))))
 
            (.addWindowListener (proxy [WindowAdapter] []
                                  (windowDestroyNotify [event]

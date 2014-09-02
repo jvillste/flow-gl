@@ -122,26 +122,21 @@
       :y-translation 0})
 
   ([view-context {:keys [content x-translation y-translation]}]
-     (layouts/->Translate x-translation y-translation
-                          (assoc content
-                            :handle-mouse-event (fn [state event]
-                                                  (case (:type event)
-                                                    :mouse-pressed (assoc state
-                                                                     :previous-drag-x (:x event)
-                                                                     :previous-drag-y (:y event))
-                                                    :mouse-released (assoc state
-                                                                      :previous-drag-x nil
-                                                                      :previous-drag-y nil)
-                                                    :mouse-dragged (assoc state
-                                                                     :x-translation (+ (:x-translation state)
-                                                                                       (- (:x event)
-                                                                                          (:previous-drag-x state)))
-                                                                     :y-translation (+ (:y-translation state)
-                                                                                       (- (:y event)
-                                                                                          (:previous-drag-y state)))
-                                                                     :previous-drag-x (:x event)
-                                                                     :previous-drag-y (:y event))
-                                                    state))))))
+     (-> (layouts/->Translate x-translation y-translation content)
+         (quad-gui/add-mouse-event-handler-with-context view-context
+                                                        (fn [state event]
+                                                          (cond
+                                                           (and (= (:type event) :mouse-wheel-moved)
+                                                                (not (:control event)))
+                                                           (-> state
+                                                               (update-in [:x-translation] + (:x-distance event))
+                                                               (update-in [:y-translation] + (:y-distance event)))
+
+                                                           :default state))))))
+
+
+#_(def log @debug/log)
+(def log test-log)
 
 (quad-gui/def-control log-browser
   ([view-context control-channel]
@@ -157,28 +152,42 @@
                         (sort-by (fn [thread-number] (-> (filter #(= (:thread %) thread-number) log)
                                                          (count))))
                         (reverse))]
-       (l/vertically (controls/text message)
-                     (scroll-pane :content
-                                  (-> (apply l/horizontally (for [thread threads]
-                                                              (let [blocks (-> (filter #(= (:thread %) thread) log)
-                                                                               (create-blocks))]
-                                                                (l/margin 0 0 0 2
-                                                                          (l/horizontally (apply l/vertically (for [block blocks]
-                                                                                                                (block-view view-context block 0 height-factor)
-                                                                                                                ))
-                                                                                          #_(apply l/vertically (for [block blocks]
-                                                                                                                  (text-block-view block 0))))))))
-                                      (quad-gui/add-mouse-event-handler-with-context
-                                       view-context
-                                       (fn [state event]
+       (layouts/->FloatTop (controls/text message)
+                           (-> (scroll-pane :content
+                                            (apply l/horizontally (for [thread threads]
+                                                                    (let [blocks (-> (filter #(= (:thread %) thread) log)
+                                                                                     (create-blocks))]
+                                                                      (l/margin 0 0 0 2
+                                                                                (l/horizontally (apply l/vertically (for [block blocks]
+                                                                                                                      (block-view view-context block 0 height-factor)))
+                                                                                                #_(apply l/vertically (for [block blocks]
+                                                                                                                        (text-block-view block 0)))))))))
+                               (quad-gui/add-mouse-event-handler-with-context
+                                view-context
+                                (fn [state event]
+                                  (cond
+                                   (and (= (:type event) :mouse-wheel-moved)
+                                        (:control event))
+                                   (update-in state [:height-factor] + (* 0.5 (:y-distance event)))
 
-                                         (case (:type event)
-                                           :mouse-wheel-moved (update-in state [:height-factor] + (:y-distance event))
-                                           state)))) )
-                     ))))
+                                   :default state))))))))
 
-#_(def log @debug/log)
-(def log test-log)
+
+#_(layouts/->SizeDependent
+ (fn [available-width available-height]
+   {:width available-width
+    :height available-height})
+
+ (fn [state requested-width requested-height]
+   (apply l/horizontally (loop [threads threads]
+                           (let [blocks (-> (filter #(= (:thread %) thread) log)
+                                            (create-blocks))]
+                             (l/margin 0 0 0 2
+                                       (l/horizontally (apply l/vertically (for [block blocks]
+                                                                             (block-view view-context block 0 height-factor)))
+                                                       #_(apply l/vertically (for [block blocks]
+                                                                               (text-block-view block 0))))))))))
+
 #_(debug/reset-log)
 (defn start []
   (.start (Thread. (fn []
