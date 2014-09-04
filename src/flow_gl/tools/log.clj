@@ -102,11 +102,11 @@
      (.nextFloat random)
      1]))
 
-(defn block-view [view-context block depth height-factor width]
+(defn block-view [view-context block depth y-scale width]
   (let [indent (* 0.2 width)]
     (-> (layouts/->Superimpose [(drawable/->Rectangle (- width (* indent depth))
-                                                      (* height-factor (max 1 (- (:end-time block)
-                                                                                 (:start-time block))))
+                                                      (* y-scale (max 1 (- (:end-time block)
+                                                                           (:start-time block))))
                                                       (color (:message block)))
 
                                 (apply l/vertically (loop [previous-child-end-time (:start-time block)
@@ -116,12 +116,12 @@
                                                         (recur (:end-time child)
                                                                (rest children)
                                                                (conj child-block-views
-                                                                     (l/margin (* height-factor (- (:start-time child)
-                                                                                                   previous-child-end-time))
+                                                                     (l/margin (* y-scale (- (:start-time child)
+                                                                                             previous-child-end-time))
                                                                                0
                                                                                0
                                                                                indent
-                                                                               (layouts/->Preferred (block-view view-context child (inc depth) height-factor width)))))
+                                                                               (layouts/->Preferred (block-view view-context child (inc depth) y-scale width)))))
                                                         child-block-views)))])
         (quad-gui/add-mouse-event-handler-with-context view-context
                                                        (fn [state event]
@@ -172,48 +172,51 @@
 
                                                            :default state))))))
 
-
+#_(debug/reset-log)
 #_(def log @debug/log)
-(def log test-log)
+#_(def log test-log)
 
-#_(defn filter-blocks-by-rectangle [blocks start-time x1 y1 x2 y2]
-    (loop [blocks blocks
-           filtered-blocks []]
-      (if-let [block (first blocks)]
-        (recur (rest blocks)
-               (if []))
-        filtered-blocks)))
+(def thread-blocks (let [start-time (:time (first log))
+                         log (map (fn [entry]
+                                    (update-in entry [:time] - start-time))
+                                  log)
+                         threads (->> (reduce conj #{} (map :thread log))
+                                      (vec)
+                                      (sort-by (fn [thread-number] (-> (filter #(= (:thread %) thread-number) log)
+                                                                       (count))))
+                                      (reverse))]
+                     (for [thread threads]
+                       (create-blocks (filter #(= (:thread %) thread) log)))))
+
 
 (defn print-and-return [message value]
   (println message value)
   value)
 
+(defn new-y-translation [mouse-y old-y-scale new-y-scale y-translation]
+  (let [mouse-distance-to-top (- mouse-y y-translation)]
+    (+ y-translation
+       (* (/ mouse-distance-to-top old-y-scale)
+          (- old-y-scale new-y-scale)))))
+
 (quad-gui/def-control log-browser
   ([view-context control-channel]
-     {:thread-blocks (let [threads (->> (reduce conj #{} (map :thread log))
-                                        (vec)
-                                        (sort-by (fn [thread-number] (-> (filter #(= (:thread %) thread-number) log)
-                                                                         (count))))
-                                        (reverse))]
-                       (for [thread threads]
-                         (create-blocks (filter #(= (:thread %) thread) log))))
+     {:thread-blocks thread-blocks
       :message ""
-      :height-factor 10
-      :thread-width 200
+      :y-scale 1
+      :thread-width 100
       :translate-x 0
       :y-translation 0})
 
-  ([view-context {:keys [thread-blocks message height-factor thread-width translate-x translate-y]}]
+  ([view-context {:keys [thread-blocks message y-scale thread-width translate-x translate-y]}]
      (layouts/->FloatTop (controls/text message)
-                         (-> (scroll-pane :content
+                         (-> (scroll-pane :scroll-pane
+                                          :content
                                           (fn [x1 y1 x2 y2]
                                             (apply l/horizontally (for [root-block thread-blocks]
                                                                     (let [blocks (:children root-block)
-                                                                          first-block-start-time (:start-time root-block)
-                                                                          first-visible-time (+ first-block-start-time
-                                                                                                (/ y1 height-factor))
-                                                                          last-visible-time (+ first-block-start-time
-                                                                                               (/ y2 height-factor))
+                                                                          first-visible-time (/ y1 y-scale)
+                                                                          last-visible-time (/ y2 y-scale)
                                                                           visible-blocks (filter (fn [{:keys [start-time end-time]}]
                                                                                                    (and (< start-time
                                                                                                            last-visible-time)
@@ -224,35 +227,38 @@
                                                                         (drawable/->Empty thread-width 0)
                                                                         (let [root-block (assoc root-block
                                                                                            :children visible-blocks
-                                                                                           :start-time (:start-time (first visible-blocks))
-                                                                                           :end-time (:end-time (last visible-blocks)))]
-                                                                          (l/margin (* height-factor (:start-time root-block)) 0 0 2
-                                                                                    (block-view view-context root-block 0 height-factor thread-width)))))))))
+                                                                                           :start-time (max first-visible-time
+                                                                                                            (:start-time (first blocks)))
+                                                                                           :end-time (max (:end-time (last visible-blocks))
+                                                                                                          (min last-visible-time
+                                                                                                               (:end-time (last blocks)))))]
+                                                                          (l/margin (* y-scale (:start-time root-block)) 0 0 2
+                                                                                    (block-view view-context root-block 0 y-scale thread-width)))))))))
                              (quad-gui/add-mouse-event-handler-with-context
                               view-context
                               (fn [state event]
                                 (cond
                                  (and (= (:type event) :mouse-wheel-moved)
                                       (:control event))
-                                 (update-in state [:height-factor] + (* 0.5 (:y-distance event)))
+                                 (let [new-y-scale (+ (:y-scale state)
+                                                      (* 0.1 (:y-distance event)))]
+
+                                   (-> state
+                                       (assoc :y-scale new-y-scale)
+                                       (update-in [:thread-width] + (* 0.1 (:x-distance event)))
+                                       (update-in [:child-states :scroll-pane :y-translation] (fn [y-translation]
+                                                                                                (new-y-translation (- (:y event) 20)
+                                                                                                                   (:y-scale state)
+                                                                                                                   new-y-scale
+                                                                                                                   y-translation)))))
+
+
+
 
                                  :default state)))))))
 
 
-#_(layouts/->SizeDependent
-   (fn [available-width available-height]
-     {:width available-width
-      :height available-height})
 
-   (fn [state requested-width requested-height]
-     (apply l/horizontally (loop [threads threads]
-                             (let [blocks (-> (filter #(= (:thread %) thread) log)
-                                              (create-blocks))]
-                               (l/margin 0 0 0 2
-                                         (l/horizontally (apply l/vertically (for [block blocks]
-                                                                               (block-view view-context block 0 height-factor)))
-                                                         #_(apply l/vertically (for [block blocks]
-                                                                                 (text-block-view block 0))))))))))
 
 #_(debug/reset-log)
 (defn start []

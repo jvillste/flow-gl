@@ -585,8 +585,8 @@
         constructor-name (symbol (str "create-" name))]
     `(do (def-view ~view-name ~@view)
          (defn ~constructor-name ~@constructor)
-         (defn ~name [& state-overrides#]
-           (call-anonymous-view ~view-name ~constructor-name state-overrides#)))))
+         (defn ~name [id# & state-overrides#]
+           (call-named-view ~view-name ~constructor-name id# state-overrides#)))))
 
 
 (defn apply-to-state [view-context function & arguments]
