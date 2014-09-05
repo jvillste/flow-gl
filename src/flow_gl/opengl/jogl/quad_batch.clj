@@ -61,13 +61,13 @@ uniform mat4 projection_matrix;
 
 uniform int use_quad_index_buffer;
 
-uniform usamplerBuffer quad_parameters;
+uniform isamplerBuffer quad_parameters;
 
 uniform isamplerBuffer quad_index_sampler;
 
 out vec2 texture_coordinate;
-flat out uint texture_offset;
-flat out uint texture_width;
+flat out int texture_offset;
+flat out int texture_width;
 
 const int quad_parameters_size = 6;
 
@@ -86,8 +86,8 @@ void main() {
     else
       quad_index = gl_InstanceID;
 
-    uvec2 texture_size = uvec2(texelFetch(quad_parameters, quad_index * quad_parameters_size + 3).x,
-                               texelFetch(quad_parameters, quad_index * quad_parameters_size + 4).x);
+    ivec2 texture_size = ivec2(texelFetch(quad_parameters, quad_index * quad_parameters_size + 3).x,
+                             texelFetch(quad_parameters, quad_index * quad_parameters_size + 4).x);
 
     switch(gl_VertexID) {
       case 0:
@@ -109,15 +109,15 @@ void main() {
     vec2 offset = vec2(0,0);
     while(parent >= 0)
     {
-       uvec2 parent_offset = uvec2(texelFetch(quad_parameters, parent * quad_parameters_size + 1).x,
+       vec2 parent_offset = vec2(texelFetch(quad_parameters, parent * quad_parameters_size + 1).x,
                                    texelFetch(quad_parameters, parent * quad_parameters_size + 2).x);
 
        offset = vec2(offset.x + parent_offset.x, offset.y + parent_offset.y);
        parent = int(texelFetch(quad_parameters, parent * quad_parameters_size).x);
     }
 
-    uvec2 quad_coordinates = uvec2(texelFetch(quad_parameters, quad_index * quad_parameters_size + 1).x,
-                                   texelFetch(quad_parameters, quad_index * quad_parameters_size + 2).x);
+    vec2 quad_coordinates = vec2(texelFetch(quad_parameters, quad_index * quad_parameters_size + 1).x,
+                                 texelFetch(quad_parameters, quad_index * quad_parameters_size + 2).x);
 
     gl_Position = projection_matrix * vec4(offset.x + texture_coordinate.x + quad_coordinates.x, offset.y +  texture_coordinate.y + quad_coordinates.y, 0.0, 1.0);
 
@@ -132,8 +132,8 @@ void main() {
 uniform samplerBuffer texture;
 
 in vec2 texture_coordinate;
-flat in uint texture_offset;
-flat in uint texture_width;
+flat in int texture_offset;
+flat in int texture_width;
 
 out vec4 outColor;
 
@@ -564,6 +564,7 @@ void main() {
                                        (* quad-parameters-size
                                           quad-count))]
       (loop [quads quads]
+
         (when-let [quad (first quads)]
           (let [texture (if (contains? quad :texture-id)
                           (get (:textures-in-use quad-batch)

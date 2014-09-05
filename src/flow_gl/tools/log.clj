@@ -105,8 +105,8 @@
 (defn block-view [view-context block depth y-scale width]
   (let [indent (* 0.2 width)]
     (-> (layouts/->Superimpose [(drawable/->Rectangle (- width (* indent depth))
-                                                      (* y-scale (max 1 (- (:end-time block)
-                                                                           (:start-time block))))
+                                                      (* y-scale (max 0.1 (- (:end-time block)
+                                                                             (:start-time block))))
                                                       (color (:message block)))
 
                                 (apply l/vertically (loop [previous-child-end-time (:start-time block)
@@ -172,7 +172,7 @@
 
                                                            :default state))))))
 
-#_(debug/reset-log)
+(debug/reset-log)
 #_(def log @debug/log)
 #_(def log test-log)
 
@@ -223,17 +223,15 @@
                                                                                                         (> end-time
                                                                                                            first-visible-time)))
                                                                                                  blocks)]
-                                                                      (if (empty? visible-blocks)
-                                                                        (drawable/->Empty thread-width 0)
-                                                                        (let [root-block (assoc root-block
-                                                                                           :children visible-blocks
-                                                                                           :start-time (max first-visible-time
-                                                                                                            (:start-time (first blocks)))
-                                                                                           :end-time (max (:end-time (last visible-blocks))
-                                                                                                          (min last-visible-time
-                                                                                                               (:end-time (last blocks)))))]
-                                                                          (l/margin (* y-scale (:start-time root-block)) 0 0 2
-                                                                                    (block-view view-context root-block 0 y-scale thread-width)))))))))
+                                                                      (let [root-block (assoc root-block
+                                                                                         :children visible-blocks
+                                                                                         :start-time (max first-visible-time
+                                                                                                          (:start-time (first blocks)))
+                                                                                         :end-time (min last-visible-time
+                                                                                                        (:end-time (last blocks))))]
+
+                                                                        (l/margin (* y-scale (:start-time root-block)) 0 0 2
+                                                                                  (block-view view-context root-block 0 y-scale thread-width))))))))
                              (quad-gui/add-mouse-event-handler-with-context
                               view-context
                               (fn [state event]
@@ -241,7 +239,9 @@
                                  (and (= (:type event) :mouse-wheel-moved)
                                       (:control event))
                                  (let [new-y-scale (+ (:y-scale state)
-                                                      (* 0.1 (:y-distance event)))]
+                                                      (* (:y-scale state)
+                                                         0.01
+                                                         (:y-distance event)))]
 
                                    (-> state
                                        (assoc :y-scale new-y-scale)
