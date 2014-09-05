@@ -1,4 +1,4 @@
-(ns examples.registration-form-2
+(ns examples.photos
   (:require [clojure.core.async :as async]
             [com.climate.claypoole :as claypoole]
             (flow-gl.gui [drawable :as drawable]
@@ -12,7 +12,8 @@
             [flow-gl.csp :as csp]
             [clojure.string :as string]
             (flow-gl.graphics [font :as font]
-                              [buffered-image :as buffered-image]))
+                              [buffered-image :as buffered-image])
+            [flow-gl.debug :as debug])
   (:import [java.io File]
            [java.util.concurrent Executors]
            [java.lang Runnable])
@@ -125,8 +126,9 @@
                                                           :month (first (months (str archive-path "/" year)))))))
 
      (l/margin 0 0 0 10 (apply l/vertically (doall (for [month (months (str archive-path "/" selected-year))]
-                                                     (-> (date-box :text month :selected (= selected-month
-                                                                                            month))
+                                                     (-> (date-box {:text month
+                                                                    :selected (= selected-month
+                                                                                 month)})
                                                          (quad-gui/on-mouse-clicked assoc
                                                                                     :selected-month month
                                                                                     :selected-day (first (days (str archive-path "/" selected-year) month))))))))
@@ -173,21 +175,22 @@
                                                                                "-" (format "%02d" selected-month)
                                                                                "-" (format "%02d" selected-day)))]
 
-                                              (l/margin 2 2 2 2 (quad-gui/call-named-view image-view
-                                                                                          create-image
-                                                                                          image-file-name
-                                                                                          [image-file-name thread-pool]
-                                                                                          [])))))))))
+                                              (l/margin 2 2 2 2 (image image-file-name
+                                                                       {}
+                                                                       [image-file-name thread-pool])))))))))
 
+(defonce debug-log (debug/create-log))
+
+#_(debug/with-log debug-log (debug/reset-log))
 
 (defn start []
-  (.start (Thread. (fn []
-                     (flow-gl.debug/reset-log)
-                     (try (quad-gui/start-view #'create-photo-archive-browser #'photo-archive-browser-view)
-                          (finally (flow-gl.debug/write-timed-log)))))))
+  (debug/with-log debug-log
+    (.start (Thread. (fn []
+                       (flow-gl.debug/reset-log)
+                       (try (quad-gui/start-view #'create-photo-archive-browser #'photo-archive-browser-view)
+                            #_(finally (flow-gl.debug/write-timed-log))))))))
 
-(when-let [last-event-channel-atom @quad-gui/last-event-channel-atom]
-  (async/put! last-event-channel-atom {:type :request-redraw}))
+(quad-gui/redraw-last-started-view)
 
 
 #_(let [file-name "/Users/jukka/Pictures/arkisto_mini/2011/2011-12-28/2011-12-28.19.44.39_ac66709411ae6c2948d95bd90199cccc.jpg"

@@ -172,9 +172,10 @@
 
                                                            :default state))))))
 
-(debug/reset-log)
+#_(debug/reset-log)
 #_(def log @debug/log)
 #_(def log test-log)
+(def log @examples.photos/debug-log)
 
 (def thread-blocks (let [start-time (:time (first log))
                          log (map (fn [entry]
@@ -211,27 +212,27 @@
   ([view-context {:keys [thread-blocks message y-scale thread-width translate-x translate-y]}]
      (layouts/->FloatTop (controls/text message)
                          (-> (scroll-pane :scroll-pane
-                                          :content
-                                          (fn [x1 y1 x2 y2]
-                                            (apply l/horizontally (for [root-block thread-blocks]
-                                                                    (let [blocks (:children root-block)
-                                                                          first-visible-time (/ y1 y-scale)
-                                                                          last-visible-time (/ y2 y-scale)
-                                                                          visible-blocks (filter (fn [{:keys [start-time end-time]}]
-                                                                                                   (and (< start-time
-                                                                                                           last-visible-time)
-                                                                                                        (> end-time
-                                                                                                           first-visible-time)))
-                                                                                                 blocks)]
-                                                                      (let [root-block (assoc root-block
-                                                                                         :children visible-blocks
-                                                                                         :start-time (max first-visible-time
-                                                                                                          (:start-time (first blocks)))
-                                                                                         :end-time (min last-visible-time
-                                                                                                        (:end-time (last blocks))))]
+                                          {:content
+                                           (fn [x1 y1 x2 y2]
+                                             (apply l/horizontally (for [root-block thread-blocks]
+                                                                     (let [blocks (:children root-block)
+                                                                           first-visible-time (/ y1 y-scale)
+                                                                           last-visible-time (/ y2 y-scale)
+                                                                           visible-blocks (filter (fn [{:keys [start-time end-time]}]
+                                                                                                    (and (< start-time
+                                                                                                            last-visible-time)
+                                                                                                         (> end-time
+                                                                                                            first-visible-time)))
+                                                                                                  blocks)]
+                                                                       (let [root-block (assoc root-block
+                                                                                          :children visible-blocks
+                                                                                          :start-time (max first-visible-time
+                                                                                                           (:start-time (first blocks)))
+                                                                                          :end-time (min last-visible-time
+                                                                                                         (:end-time (last blocks))))]
 
-                                                                        (l/margin (* y-scale (:start-time root-block)) 0 0 2
-                                                                                  (block-view view-context root-block 0 y-scale thread-width))))))))
+                                                                         (l/margin (* y-scale (:start-time root-block)) 0 0 2
+                                                                                   (block-view view-context root-block 0 y-scale thread-width)))))))})
                              (quad-gui/add-mouse-event-handler-with-context
                               view-context
                               (fn [state event]

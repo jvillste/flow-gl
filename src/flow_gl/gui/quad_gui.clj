@@ -24,6 +24,11 @@
 
 (def ^:dynamic last-event-channel-atom (atom nil))
 
+(defn redraw-last-started-view []
+  (when-let [last-event-channel-atom @last-event-channel-atom]
+    (async/put! last-event-channel-atom {:type :request-redraw})))
+
+
 (defn path-prefixes [path]
   (loop [prefixes []
          prefix []
@@ -546,7 +551,7 @@
                                       control-channel
                                       constructor-parameters)
                                (assoc :control-channel control-channel))))
-                     (conj (apply hash-map state-overrides)))
+                     (conj state-overrides))
            [state child-visual] (binding [current-state-path state-path]
                                   (view {:state-path state-path
                                          :event-channel current-event-channel}
@@ -585,8 +590,13 @@
         constructor-name (symbol (str "create-" name))]
     `(do (def-view ~view-name ~@view)
          (defn ~constructor-name ~@constructor)
-         (defn ~name [id# & state-overrides#]
-           (call-named-view ~view-name ~constructor-name id# state-overrides#)))))
+         (defn ~name
+           ([state-overrides#]
+              (call-anonymous-view ~view-name ~constructor-name state-overrides#))
+           ([id# state-overrides#]
+              (call-named-view ~view-name ~constructor-name id# state-overrides#))
+           ([id# state-overrides# constructor-parameters#]
+              (call-named-view ~view-name ~constructor-name id# constructor-parameters# state-overrides#))))))
 
 
 (defn apply-to-state [view-context function & arguments]
