@@ -4,6 +4,10 @@
 
 ;; DEBUG
 
+(defn print-and-return [message value]
+  (println message value)
+  value)
+
 (def log (thread-inheritable/thread-inheritable (atom nil)))
 (defonce active-channels (atom #{}))
 

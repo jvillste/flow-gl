@@ -2,6 +2,7 @@
   (:require [clojure.core.async :as async]
             #_[flow-gl.tools.layoutable-inspector :as layoutable-inspector]
             [flow-gl.utils :as utils]
+            [flow-gl.debug :as debug]
             (flow-gl.gui [drawable :as drawable]
                          [layout :as layout]
                          [event-queue :as event-queue]
@@ -84,6 +85,7 @@
       state-paths)))
 
 (def ^:dynamic current-event-channel nil)
+(def ^:dynamic current-frame-time)
 
 (defn update-or-apply-in [map path function & arguments]
   (if (seq path)
@@ -360,13 +362,14 @@
   (doseq [state (vals (:child-states state))]
     (close-control-channels state)))
 
-(defn drain [channel]
-  (let [value (async/<!! channel)]
-    (loop [values [value]]
-      (let [[value _] (async/alts!! [channel (async/timeout 0)] :priority true)]
-        (if value
-          (recur (conj values value))
-          values)))))
+(defn drain [channel timeout]
+  (loop [values (if (not timeout)
+                  [(async/<!! channel)]
+                  (async/alt!! (async/timeout timeout) ([_] [])
+                               channel ([value] [value])))]
+    (async/alt!! (async/timeout 0) ([_] values)
+                 channel ([value] (recur (conj values value)))
+                 :priority true)))
 
 (defn start-view [constructor view]
   (let [event-channel (async/chan 50)
@@ -386,51 +389,66 @@
     (try
       (let [initial-state (constructor root-view-context
                                        control-channel)
-            [initial-state _] (binding [current-event-channel event-channel]
-                                (view root-view-context
-                                      initial-state))
+            initial-state (binding [current-event-channel event-channel
+                                    current-frame-time (System/currentTimeMillis)]
+                            (-> (view root-view-context
+                                      initial-state
+                                      nil)
+                                :state))
             initial-state (set-focus initial-state
                                      (initial-focus-path-parts initial-state))
             initial-state (assoc initial-state :control-channel control-channel)
             gpu-state-atom (atom (window/with-gl window gl (quad-view/create gl)))]
 
 
-        (loop [state initial-state]
-          (flow-gl.debug/debug-timed "got new state")
+        (loop [state initial-state
+               last-frame-started (System/currentTimeMillis)]
 
-          (if (:close-requested state)
-            (do (close-control-channels state)
-                (window/close window))
+          (let [target-frames-per-second 60]
+            (Thread/sleep (max 0
+                               (- (/ 1000 target-frames-per-second)
+                                  (- (System/currentTimeMillis)
+                                     last-frame-started)))))
 
-            (let [[state visual] (binding [current-event-channel event-channel]
-                                   (view root-view-context
-                                         state))
-                  width (window/width window)
-                  height (window/height window)
-                  [state layout] (layout/layout visual
-                                                state
-                                                width
-                                                height)
-                  layout (-> layout
-                             (assoc :x 0
-                                    :y 0
-                                    :width width
-                                    :height height)
-                             (layout/add-out-of-layout-hints))]
+          (let [frame-started (System/currentTimeMillis)]
+            (flow-gl.debug/debug-timed "got new state")
 
-              #_(flow-gl.debug/debug-timed "waiting")
-              #_(Thread/sleep 500)
-              (flow-gl.debug/debug-timed-and-return "render"
-                                                    (render-layout window gpu-state-atom layout))
+            (if (:close-requested state)
+              (do (close-control-channels state)
+                  (window/close window))
 
-              (let [new-state (binding [current-event-channel event-channel]
-                                (reduce #(handle-event %1 layout %2)
-                                        state
-                                        (drain event-channel)))]
-                (if new-state
-                  (recur new-state)
-                  (do (close-control-channels state)
-                      (window/close window))))))))
+              (let [{:keys [state layoutable sleep-time]} (binding [current-event-channel event-channel
+                                                                    current-frame-time frame-started]
+                                                            (view root-view-context
+                                                                  state
+                                                                  nil))
+                    width (window/width window)
+                    height (window/height window)
+                    [state layout] (layout/layout layoutable
+                                                  state
+                                                  width
+                                                  height)
+                    layout (-> layout
+                               (assoc :x 0
+                                      :y 0
+                                      :width width
+                                      :height height)
+                               (layout/add-out-of-layout-hints))]
+
+                #_(flow-gl.debug/debug-timed "waiting")
+                #_(Thread/sleep 500)
+                (flow-gl.debug/debug-timed-and-return "render"
+                                                      (render-layout window gpu-state-atom layout))
+
+                (let [new-state (binding [current-event-channel event-channel]
+                                  (reduce #(handle-event %1 layout %2)
+                                          state
+                                          (drain event-channel sleep-time)))]
+                  (if new-state
+                    (recur new-state
+                           frame-started)
+                    (do (close-control-channels state)
+                        (window/close window)))))))))
 
       (catch Exception e
         (window/close window)
@@ -535,7 +553,7 @@
 
 (def ^:dynamic current-state-path [])
 (def ^:dynamic current-view-state-atom)
-
+(def ^:dynamic sleep-time-atom)
 
 (defn call-named-view
   ([view constructor child-id state-overrides]
@@ -552,13 +570,15 @@
                                       constructor-parameters)
                                (assoc :control-channel control-channel))))
                      (conj state-overrides))
-           [state child-visual] (binding [current-state-path state-path]
-                                  (view {:state-path state-path
-                                         :event-channel current-event-channel}
-                                        state))]
+
+           {:keys [state layoutable]} (binding [current-state-path state-path]
+                                        (view {:state-path state-path
+                                               :event-channel current-event-channel}
+                                              state
+                                              @sleep-time-atom))]
        (swap! current-view-state-atom assoc-in state-path-part state)
        (swap! current-view-state-atom add-child child-id)
-       (assoc child-visual
+       (assoc layoutable
          :state-path-part state-path-part
          :state-path state-path))))
 
@@ -571,19 +591,33 @@
 (defmacro with-children [state visual]
   `(binding [current-view-state-atom (atom (reset-children ~state))]
      (let [visual-value# ~visual]
-       [(remove-unused-children @current-view-state-atom)
-        visual-value#])))
+       {:state (remove-unused-children @current-view-state-atom)
+        :layoutable visual-value#})))
+
+(defmacro with-animation [sleep-time & body]
+  `(binding [sleep-time-atom (atom ~sleep-time)]
+     (let [value# (do ~@body)]
+       (assoc value# :sleep-time @sleep-time-atom))))
+
+(defn set-wake-up [sleep-time]
+  (swap! sleep-time-atom (fn [old-sleep-time]
+                           (if old-sleep-time
+                             (if sleep-time
+                               (min old-sleep-time sleep-time)
+                               old-sleep-time)
+                             sleep-time))))
 
 (defn apply-to-current-view-state [function & parameters]
   (apply swap! current-view-state-atom function parameters))
 
 (defmacro def-view [name parameters & body]
   (let [[view-context-parameter state-parameter] parameters]
-    `(defn ~name [view-context# state#]
-       (with-children state#
-         (let [~view-context-parameter view-context#
-               ~state-parameter state#]
-           ~@body)))))
+    `(defn ~name [view-context# state# sleep-time#]
+       (with-animation sleep-time#
+         (with-children state#
+           (let [~view-context-parameter view-context#
+                 ~state-parameter state#]
+             ~@body))))))
 
 (defmacro def-control [name constructor view]
   (let [view-name (symbol (str name "-view"))
