@@ -21,25 +21,32 @@
   (:use flow-gl.utils
         clojure.test))
 
-(defn once [time start-time duration]
+(defn once [runtime duration]
   (let [phase (min 1
-                   (/ (- time start-time)
+                   (/ runtime
                       duration))]
-    {:phase phase
-     :sleep-time (if (< phase 1)
-                   0
-                   nil)}))
 
-(defn repeat [time start-time cycle-time]
-  {:phase (/ (mod (- time start-time)
+    (quad-gui/set-wake-up (if (< phase 1)
+                            0
+                            nil))
+    phase))
+
+(defn repeat [runtime cycle-time]
+  {:phase (/ (mod runtime
                   cycle-time)
              cycle-time)
-   :sleep-time 0})
+   :sleep 0})
 
 (defn linear [phase from to]
   (+ from
      (* (- to from)
         phase )))
+
+(defn call-phaser [phaser & phaser-arguments]
+  (let [{:keys [phase sleep-time]} (apply phaser
+                                          phaser-arguments)]
+    (quad-gui/set-wake-up sleep-time)
+    phase))
 
 (defn call-animation [state key phaser phaser-arguments animation animation-arguments]
   (let [{:keys [phase sleep-time]} (apply phaser
@@ -57,56 +64,42 @@
      {})
 
   ([view-context state]
-     (drawable/->Rectangle 100 100 (:color state))))
+     ))
 
 (quad-gui/def-control animation
   ([view-context control-channel]
      {:target-position :left
-      :animation (System/currentTimeMillis)})
+      :animation-started (System/currentTimeMillis)
+      :animation-running false})
 
   ([view-context {:keys [target-position] :as state}]
-     (let [value (float (call-animation state :animation
-                                        once [2000]
-                                        linear [0 1]))]
-       (l/vertically (controls/text value)
-                     (-> (other {:color [value 0 1 1]})
-                         (quad-gui/add-mouse-event-handler-with-context
-                          view-context (fn [state event]
-                                         (case (:type event)
-                                           :mouse-clicked (assoc state :animation (:time event))
-                                           state))))))
-
-
-     #_(let [left-position 0
-             right-position 200
-             x-position (call-animation view-context
-                                        :move-animation
-                                        linear-animation
-                                        2000
-                                        (case target-position
-                                          :left right-positon
-                                          :right left-position)
-                                        (case target-position
-                                          :left left-position
-                                          :right right-positon))
-             color (call-animation view-context
-                                   :color-animation
-                                   linear-animation
-                                   0
-                                   1)
-             size (call-animation view-context
-                                  :size-animation
-                                  linear-animation
-                                  500
-                                  100
-                                  200)]
-
-         (-> (l/margin 0 0 0 x-position
-                       (drawable/->Rectangle size size [1 1 1 1]))
-             (quad-gui/add-mouse-event-handler-with-context
-              view-context (fn [state event]
-                             (assoc state :size-animation (:time event)
-                                    state :move-animation (:time event))))))))
+     (let [value (float (let [runtime (if (:animation-running state)
+                                        (- quad-gui/current-frame-time
+                                           (:animation-started state))
+                                        (or (:animation-runtime state)
+                                            0))
+                              {:keys [phase sleep]} (repeat runtime 1000)]
+                          (when (:animation-running state)
+                            (quad-gui/set-wake-up sleep))
+                          (linear phase 100 200)))]
+       (layouts/->Preferred (-> (drawable/->Rectangle value value [(if (:animation-running state)
+                                                                     0
+                                                                     1) 1 1 1])
+                                (quad-gui/add-mouse-event-handler-with-context
+                                 view-context
+                                 (fn [state event]
+                                   (case (:type event)
+                                     :mouse-clicked (if (:animation-running state)
+                                                      (-> state
+                                                          (assoc :animation-running false)
+                                                          (assoc :animation-runtime (- (:time event)
+                                                                                       (:animation-started state))))
+                                                      (-> state
+                                                          (assoc :animation-running true)
+                                                          (assoc :animation-started  (- (:time event)
+                                                                                        (or (:animation-runtime state)
+                                                                                            0)))))
+                                     state))))))))
 
 
 #_(debug/reset-log)
