@@ -223,8 +223,12 @@
         (next-focus-path-parts state [[:children1 1] [:children2 2] [:children3 2]])  => nil))
 
 (defn render-layout [window gpu-state-atom layout]
-  (println (float (/ (get-in @gpu-state-atom [:quad-batch :removed-texels])
-                     (get-in @gpu-state-atom [:quad-batch :allocated-texels]))))
+  (let [removed-texels (get-in @gpu-state-atom [:quad-batch :removed-texels])
+        allocated-texels (get-in @gpu-state-atom [:quad-batch :allocated-texels])]
+    (debug/set-metric :texel-fill-ratio (/ removed-texels allocated-texels) :ratio? true)
+    (debug/set-metric :removed-texels removed-texels)
+    (debug/set-metric :allocated-texels allocated-texels))
+
 
   (window/set-display window gl
                       (let [size (opengl/size gl)]

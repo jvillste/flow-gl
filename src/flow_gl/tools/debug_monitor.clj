@@ -21,10 +21,16 @@
   (:use flow-gl.utils
         clojure.test))
 
-
 (quad-gui/def-view debug-monitor-view [view-context {:keys [values]}]
-  (apply l/vertically (for [key (keys values)]
-                        (controls/text (str key " : " (get values key))))))
+  (if (not (empty? (keys values)))
+    (apply l/vertically (for [key (keys values)]
+                          (let [value (get values key)]
+                            (if (:ratio? value)
+                              (l/horizontally (controls/text (str (name key) " : "))
+                                              (drawable/->Rectangle (* (:value value) 200) 0  [1 0 0 1])
+                                              (drawable/->Rectangle (* (- 1 (:value value)) 200) 0  [0 0 1 1]))
+                              (controls/text (str (name key) " : " (:value value)))))))
+    (drawable/->Empty 0 0)))
 
 (defn create-debug-monitor [channel view-context control-channel]
   (async/go-loop []
@@ -35,19 +41,30 @@
                                           (quad-gui/apply-to-state view-context
                                                                    assoc-in
                                                                    [:values (:key entry)]
-                                                                   (:value entry)))
+                                                                   {:value (:value entry)
+                                                                    :ratio? (:ratio? entry)}))
                                         (recur))))
-  {:values {:foo 10}})
+  {})
 
-(def channel (async/chan))
-#_(debug/reset-log)
+#_(def channel (async/chan))
 
 (defn start-monitor [channel]
   (.start (Thread. (fn []
                      (quad-gui/start-view (partial create-debug-monitor channel)
                                           #'debug-monitor-view)))))
 
+(defn start-monitor-with-new-channel []
+  (let [channel (async/chan)]
+    (start-monitor channel)
+    channel))
+
+(defmacro with-debug-monitor [& body]
+  `(debug/with-debug-channel (start-monitor-with-new-channel)
+     ~@body))
+
 (defn start []
-  (start-monitor channel))
+  (with-debug-monitor
+    (Thread/sleep 1000)
+    (debug/set-metric :bar 1000)))
 
 (quad-gui/redraw-last-started-view)

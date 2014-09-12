@@ -40,10 +40,11 @@
                           :block :end)
          value#)))
 
-(defn set-metric [key value]
-  (add-timed-entry :type :metric
-                   :key key
-                   :value value))
+(defn set-metric [key value & metadata]
+  (apply add-timed-entry :type :metric
+         :key key
+         :value value
+         metadata))
 
 #_(defn write-timed-log []
     (when @@log

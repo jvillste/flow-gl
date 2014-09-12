@@ -10,6 +10,7 @@
                          [controls :as controls]
                          [layout-dsl :as l])
             [flow-gl.debug :as debug]
+            [flow-gl.tools.debug-monitor :as debug-monitor]
             [flow-gl.csp :as csp]
             [clojure.string :as string]
             (flow-gl.graphics [font :as font]
@@ -102,7 +103,7 @@
 
 #_(debug/reset-log)
 (defn start []
-  (debug/with-log (debug/create-log)
+  (debug-monitor/with-debug-monitor
     (.start (Thread. (fn []
                        (quad-gui/start-view #'create-animation #'animation-view))))))
 
