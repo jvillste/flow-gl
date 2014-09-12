@@ -25,11 +25,10 @@
   (let [phase (min 1
                    (/ runtime
                       duration))]
-
-    (quad-gui/set-wake-up (if (< phase 1)
-                            0
-                            nil))
-    phase))
+    {:sleep (if (< phase 1)
+              0
+              nil)
+     :phase phase}))
 
 (defn repeat [runtime cycle-time]
   {:phase (/ (mod runtime
@@ -48,58 +47,57 @@
     (quad-gui/set-wake-up sleep-time)
     phase))
 
-(defn call-animation [state key phaser phaser-arguments animation animation-arguments]
-  (let [{:keys [phase sleep-time]} (apply phaser
-                                          quad-gui/current-frame-time
-                                          (or (key state)
-                                              quad-gui/current-frame-time)
-                                          phaser-arguments)]
-    (quad-gui/set-wake-up sleep-time)
-    (apply animation
-           phase
-           animation-arguments)))
+(defn start-stoppable-animation [state key time]
+  (-> state
+      (assoc [key :running] true)
+      (assoc [key :started] (- time
+                               (or (get state [key :runtime])
+                                   0)))))
 
-(quad-gui/def-control other
-  ([view-context control-channel]
-     {})
+(defn stop-stoppable-animation [state key time]
+  (-> state
+      (assoc [key :running] false)
+      (assoc [key :runtime] (- time
+                               (get state [key :started])))))
 
-  ([view-context state]
-     ))
+(defn toggle-stoppable-animation [state key time]
+  (if (get state [key :running])
+    (stop-stoppable-animation state key time)
+    (start-stoppable-animation state key time)))
+
+(defn stoppable-animation-runtime [state key]
+  (if (get state [key :running])
+    (- quad-gui/current-frame-time
+       (get state [key :started]))
+    (or (get state [key :runtime])
+        0)))
+
+(defn stoppable-animation-running [state key]
+  (get state [:animation :running]))
+
+(defn stoppable-animation-phase [state key phaser & phaser-arguments]
+  (let [{:keys [phase sleep]} (apply phaser
+                                     (stoppable-animation-runtime state :animation)
+                                     phaser-arguments)]
+    (when (stoppable-animation-running state :animation)
+      (quad-gui/set-wake-up sleep))
+    phase))
+
 
 (quad-gui/def-control animation
   ([view-context control-channel]
-     {:target-position :left
-      :animation-started (System/currentTimeMillis)
-      :animation-running false})
+     {:target-position :left})
 
   ([view-context {:keys [target-position] :as state}]
-     (let [value (float (let [runtime (if (:animation-running state)
-                                        (- quad-gui/current-frame-time
-                                           (:animation-started state))
-                                        (or (:animation-runtime state)
-                                            0))
-                              {:keys [phase sleep]} (repeat runtime 1000)]
-                          (when (:animation-running state)
-                            (quad-gui/set-wake-up sleep))
-                          (linear phase 100 200)))]
-       (layouts/->Preferred (-> (drawable/->Rectangle value value [(if (:animation-running state)
+     (let [value (-> (stoppable-animation-phase state :animation repeat 6000)
+                     (linear 100 200)
+                     (float))]
+       (layouts/->Preferred (-> (drawable/->Rectangle value value [(if (stoppable-animation-running state :animation)
                                                                      0
                                                                      1) 1 1 1])
-                                (quad-gui/add-mouse-event-handler-with-context
-                                 view-context
-                                 (fn [state event]
-                                   (case (:type event)
-                                     :mouse-clicked (if (:animation-running state)
-                                                      (-> state
-                                                          (assoc :animation-running false)
-                                                          (assoc :animation-runtime (- (:time event)
-                                                                                       (:animation-started state))))
-                                                      (-> state
-                                                          (assoc :animation-running true)
-                                                          (assoc :animation-started  (- (:time event)
-                                                                                        (or (:animation-runtime state)
-                                                                                            0)))))
-                                     state))))))))
+                                (quad-gui/on-mouse-clicked view-context
+                                                           (fn [state time]
+                                                             (toggle-stoppable-animation state :animation time))))))))
 
 
 #_(debug/reset-log)

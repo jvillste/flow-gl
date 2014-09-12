@@ -223,6 +223,8 @@
         (next-focus-path-parts state [[:children1 1] [:children2 2] [:children3 2]])  => nil))
 
 (defn render-layout [window gpu-state-atom layout]
+  (println (float (/ (get-in @gpu-state-atom [:quad-batch :removed-texels])
+                     (get-in @gpu-state-atom [:quad-batch :allocated-texels]))))
 
   (window/set-display window gl
                       (let [size (opengl/size gl)]
@@ -458,12 +460,7 @@
   {:type :apply-to-view-state
    :function function})
 
-(defn on-mouse-clicked [layoutable handler & arguments]
-  (assoc layoutable
-    :handle-mouse-event (fn [state event]
-                          (if (= :mouse-clicked (:type event))
-                            (apply handler state arguments)
-                            state))))
+
 
 (defn add-mouse-event-handler-with-context [layoutable view-context handler]
   (assoc layoutable
@@ -472,6 +469,11 @@
                                 (fn [state event]
                                   (update-or-apply-in state (:state-path view-context) handler event)))))
 
+(defn on-mouse-clicked [layoutable view-context handler & arguments]
+  (add-mouse-event-handler-with-context layoutable view-context (fn [state event]
+                                                                  (if (= :mouse-clicked (:type event))
+                                                                    (apply handler state (:time event) arguments)
+                                                                    state))))
 
 (defn seq-focus-handlers [child-seq-key]
   {:first-focusable-child (fn [_] [child-seq-key 0])
