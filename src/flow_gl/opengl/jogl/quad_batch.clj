@@ -395,6 +395,7 @@ void main() {
     new-quad-batch))
 
 (defn add-textures [quad-batch gl images]
+  (flow-gl.debug/set-metric :add-textures (System/currentTimeMillis))
   (let [texel-count (reduce (fn [texel-count image]
                               (+ texel-count
                                  (* (.getWidth image)
@@ -548,6 +549,10 @@ void main() {
   quad-batch)
 
 (defn draw-quads [quad-batch gl quads width height]
+  (flow-gl.debug/set-metric :draw-quads (System/currentTimeMillis))
+  (flow-gl.debug/set-metric :allocated-quads (:allocated-quads quad-batch))
+  (flow-gl.debug/set-metric :quad-count (count quads))
+
   (let [quad-count (count quads)
 
         quad-batch (if (< (:allocated-quads quad-batch)
@@ -557,14 +562,11 @@ void main() {
                                         quad-count)
                      quad-batch)]
 
-    (let [buffer (buffer/map-for-write gl
-                                       (:quad-parameters-buffer-id quad-batch)
-                                       :int
-                                       0
-                                       (* quad-parameters-size
-                                          quad-count))]
-      (loop [quads quads]
+    (let [count (* quad-parameters-size
+                   quad-count)
+          buffer (native-buffer/native-buffer :int count)]
 
+      (loop [quads quads]
         (when-let [quad (first quads)]
           (let [texture (if (contains? quad :texture-id)
                           (get (:textures-in-use quad-batch)
@@ -580,7 +582,15 @@ void main() {
                                   (:height texture)
                                   (:first-texel texture)]))
                 (recur (rest quads))))))
-      (buffer/unmap-for-write gl))
+      
+      (.rewind buffer)
+
+      (buffer/update-from-native-buffer gl
+                                        (:quad-parameters-buffer-id quad-batch)
+                                        :int
+                                        0
+                                        count
+                                        buffer))
 
     (draw (assoc quad-batch
             :next-free-quad quad-count) gl width height)))

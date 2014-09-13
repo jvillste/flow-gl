@@ -22,15 +22,19 @@
         clojure.test))
 
 (quad-gui/def-view debug-monitor-view [view-context {:keys [values]}]
+  #_(drawable/->Path 2 [1 1 1 1] [0 0
+                                100 100
+                                110 10])
+
   (if (not (empty? (keys values)))
-    (apply l/vertically (for [key (keys values)]
-                          (let [value (get values key)]
-                            (if (:ratio? value)
-                              (l/horizontally (controls/text (str (name key) " : "))
-                                              (drawable/->Rectangle (* (:value value) 200) 0  [1 0 0 1])
-                                              (drawable/->Rectangle (* (- 1 (:value value)) 200) 0  [0 0 1 1]))
-                              (controls/text (str (name key) " : " (:value value)))))))
-    (drawable/->Empty 0 0)))
+      (apply l/vertically (for [key (keys values)]
+                            (let [value (get values key)]
+                              (if (:ratio? value)
+                                (l/horizontally (controls/text (str (name key) " : "))
+                                                (drawable/->Rectangle (* (:value value) 200) 0  [1 0 0 1])
+                                                (drawable/->Rectangle (* (- 1 (:value value)) 200) 0  [0 0 1 1]))
+                                (controls/text (str (name key) " : " (:value value)))))))
+      (drawable/->Empty 0 0)))
 
 (defn create-debug-monitor [channel view-context control-channel]
   (async/go-loop []

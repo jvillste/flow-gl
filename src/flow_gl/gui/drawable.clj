@@ -7,8 +7,8 @@
                                [text :as graphics-text]
                                [buffered-image :as buffered-image])
              (flow-gl.gui [layoutable :as layoutable]))
-  (:import [java.awt.geom Rectangle2D$Float RoundRectangle2D$Float]
-           [java.awt Color RenderingHints]))
+  (:import [java.awt.geom Rectangle2D$Float RoundRectangle2D$Float GeneralPath]
+           [java.awt Color RenderingHints BasicStroke]))
 
 (defprotocol Drawable
   (drawing-commands [drawable]))
@@ -88,6 +88,32 @@
       (doto graphics
         (.setColor (Color. r g b a))
         (.fill (Rectangle2D$Float. 0 0 width height)))))
+
+  Object
+  (toString [this] (layoutable/describe-layoutable this)))
+
+(defrecord Path [width2 color points]
+  layoutable/Layoutable
+  (preferred-size [this available-width available-height] (let [pairs (partition 2 points)]
+                                                            {:width (max (map first points))
+                                                             :height (max (map second points))}))
+
+  Java2DDrawable
+  (draw [this graphics]
+    (let [[r g b a] (map float color)
+          general-path (GeneralPath. GeneralPath/WIND_EVEN_ODD
+                                     (/ (count points)
+                                        2))]
+      (doto graphics
+        (.setColor (Color. r g b a))
+        (.setStroke (BasicStroke. #_(float 1.0) (float width2)))
+        (.setRenderingHint RenderingHints/KEY_ANTIALIASING RenderingHints/VALUE_ANTIALIAS_ON))
+
+      (.moveTo general-path (float (first points)) (float (second points)))
+      (doseq [[x y] (partition 2 (drop 2 points))]
+        (.lineTo general-path (float x) (float y)))
+
+      (.draw graphics general-path)))
 
   Object
   (toString [this] (layoutable/describe-layoutable this)))

@@ -27,3 +27,12 @@
   (let [channel (async/chan)]
     (async/thread (async/put! channel (function)))
     channel))
+
+(defn drain [channel timeout]
+  (loop [values (if (not timeout)
+                  [(async/<!! channel)]
+                  (async/alt!! (async/timeout timeout) ([_] [])
+                               channel ([value] [value])))]
+    (async/alt!! (async/timeout 0) ([_] values)
+                 channel ([value] (recur (conj values value)))
+                 :priority true)))
