@@ -179,16 +179,14 @@
                                                                        {}
                                                                        [image-file-name thread-pool])))))))))
 
-(defonce debug-log (debug/create-log))
-
-#_(debug/with-log debug-log (debug/reset-log))
+(def log (atom []))
 
 (defn start []
-  (debug/with-log debug-log
-    (.start (Thread. (fn []
-                       (flow-gl.debug/reset-log)
-                       (try (quad-gui/start-view #'create-photo-archive-browser #'photo-archive-browser-view)
-                            #_(finally (flow-gl.debug/write-timed-log))))))))
+  (debug/with-log log
+    (quad-gui/start-view #'create-photo-archive-browser #'photo-archive-browser-view))
+
+  #_(.start (Thread. (fn []
+                     (quad-gui/start-view #'create-photo-archive-browser #'photo-archive-browser-view)))))
 
 (quad-gui/redraw-last-started-view)
 

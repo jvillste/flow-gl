@@ -350,8 +350,9 @@
 
 (layout/deflayout-with-state SizeDependent [preferred-size-function child-function]
   (layout [this state requested-width requested-height]
-          (let [[state child-visual] (quad-gui/with-children state (child-function state requested-width requested-height))]
-            (let [[state child-layout] (layout/set-dimensions-and-layout child-visual state
+          (println "layout " )
+          (let [{:keys [state layoutable]} (quad-gui/with-children state (child-function state requested-width requested-height))]
+            (let [[state child-layout] (layout/set-dimensions-and-layout layoutable state
                                                                          0 0 requested-width requested-height)]
               [state
                (assoc this :children [child-layout])])))

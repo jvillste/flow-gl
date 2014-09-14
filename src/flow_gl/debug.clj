@@ -21,12 +21,28 @@
   `(thread-inheritable/inheritable-binding [debug-channel ~channel]
                                            ~@body))
 
+
+(defn start-log-reading-process [log-atom channel]
+  (async/go-loop []
+                 (let [entry (async/<! channel)]
+                   (when entry
+                     (do (swap! log-atom conj entry)
+                         (recur))))))
+
+(defmacro with-log [log-atom & body]
+  `(let [channel# (async/chan)]
+     (start-log-reading-process ~log-atom channel#)
+     (with-debug-channel channel# ~@body)
+     (async/close! channel#)))
+
 (defn add-timed-entry [& values]
   (when @debug-channel
-    (async/put! @debug-channel
-                (conj {:time (.getTime (java.util.Date.))
-                       :thread (.getId (Thread/currentThread))}
-                      (apply hash-map values)))))
+    (async/>!! @debug-channel
+               (conj {:time (.getTime (java.util.Date.))
+                      :thread (.getId (Thread/currentThread))}
+                     (apply hash-map values)))))
+
+#_(println (with-log (add-timed-entry :message "foo")))
 
 (defn debug-timed [& messages]
   (add-timed-entry :type :log
