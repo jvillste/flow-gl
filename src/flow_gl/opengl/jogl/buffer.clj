@@ -69,7 +69,6 @@
   (load-buffer gl id :int GL2/GL_ELEMENT_ARRAY_BUFFER GL2/GL_STATIC_DRAW values))
 
 (defn update-from-native-buffer [gl id type offset count native-buffer]
-  (println "update-from-native-buffer" id count)
   (.glBindBuffer gl GL2/GL_COPY_WRITE_BUFFER id)
   (.glBufferSubData gl
                     GL2/GL_COPY_WRITE_BUFFER
@@ -80,7 +79,6 @@
                     native-buffer))
 
 (defn update [gl id type offset values]
-  (println "update" id)
   (update-from-native-buffer gl id type offset (count values) (native-buffer/native-buffer-with-values type values)))
 
 (defn map-for-write [gl id type offset length]

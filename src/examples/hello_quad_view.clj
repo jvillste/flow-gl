@@ -19,13 +19,14 @@
 
 
 (defn render-layout [window gpu-state-atom layout]
-  (let [removed-texels (get-in @gpu-state-atom [:quad-batch :removed-texels])
+  #_(let [removed-texels (get-in @gpu-state-atom [:quad-batch :removed-texels])
         allocated-texels (get-in @gpu-state-atom [:quad-batch :allocated-texels])]
     (debug/set-metric :texel-fill-ratio (/ removed-texels allocated-texels) :ratio? true)
     (debug/set-metric :removed-texels removed-texels)
     (debug/set-metric :allocated-texels allocated-texels))
 
-  (debug/set-metric :render-time (System/currentTimeMillis))
+  #_(debug/set-metric :render-time (System/currentTimeMillis))
+
   (window/set-display window gl
                       (let [size (opengl/size gl)]
                         (opengl/clear gl 0 0 0 1)
@@ -42,7 +43,12 @@
 (defn layout [frame-time]
   {:x 0
    :y 0
-   :children [(assoc (drawable/->Rectangle 100 100 [1 1 1 1])
+   :children [(assoc (drawable/->Rectangle (* (/ (mod frame-time 1000)
+                                                 1000)
+                                              100)
+                                           100
+                                           [(float (/ (mod frame-time 1000)
+                                                      1000)) 0 0 1])
                 :x (* (/ (mod frame-time 1000)
                          1000)
                       100)
@@ -72,13 +78,14 @@
     (reset! last-event-channel-atom event-channel)
 
     (try
-      (let [gpu-state-atom (atom (window/with-gl window gl (quad-view/create gl)))]
+      (let [gpu-state-atom (atom (window/with-gl window gl (quad-view/create gl)))
+            layout-to-be-rendered (layout 1000)]
 
         (loop []
           (let [frame-started (System/currentTimeMillis)]
             (let [layout (layout frame-started)]
               (flow-gl.debug/debug-timed-and-return "render"
-                                                    (render-layout window gpu-state-atom layout))
+                                                    (render-layout window gpu-state-atom layout #_layout-to-be-rendered))
 
               (let [continue (reduce (fn [continue event]
                                        (if (= (:type event)
@@ -101,7 +108,7 @@
 (defn start []
   #_(start-view)
   (debug-monitor/with-debug-monitor
-    (.start (Thread. (fn []
-                       (start-view)))))
+      (.start (Thread. (fn []
+                         (start-view)))))
   #_(.start (Thread. (fn []
-                       (start-view)))))
+                     (start-view)))))

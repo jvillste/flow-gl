@@ -175,13 +175,13 @@ void main() {
   (or (keys (:ids-to-indexes quad-batch))
       []))
 
-(defn bind-texture-buffer [gl buffer-id texture-unit program uniform-name type]
+(defn bind-texture-buffer [gl buffer-id texture-id texture-unit program uniform-name type]
   (shader/set-int-uniform gl
                           program
                           uniform-name
                           texture-unit)
   (.glActiveTexture gl (+ texture-unit GL2/GL_TEXTURE0))
-  (.glBindTexture gl GL2/GL_TEXTURE_BUFFER (texture/create-gl-texture gl))
+  (.glBindTexture gl GL2/GL_TEXTURE_BUFFER texture-id)
   (.glTexBuffer gl GL2/GL_TEXTURE_BUFFER type buffer-id))
 
 (defn allocate-quads [gl number-of-quads]
@@ -229,6 +229,9 @@ void main() {
      :quad-parameters-buffer-id (allocate-quads gl initial-number-of-quads)
 
      :texture-buffer-id (allocate-texture gl initial-number-of-texels)
+     :texture-buffer-texture-id (texture/create-gl-texture gl)
+     :quad-parameters-buffer-texture-id (texture/create-gl-texture gl)
+     
      :allocated-texels initial-number-of-texels}))
 
 (defn collect-garbage [quad-batch gl]
@@ -395,7 +398,6 @@ void main() {
     new-quad-batch))
 
 (defn add-textures [quad-batch gl images]
-  (flow-gl.debug/set-metric :add-textures (System/currentTimeMillis))
   (let [texel-count (reduce (fn [texel-count image]
                               (+ texel-count
                                  (* (.getWidth image)
@@ -520,6 +522,7 @@ void main() {
 
   (bind-texture-buffer gl
                        (:texture-buffer-id quad-batch)
+                       (:texture-buffer-texture-id quad-batch)
                        0
                        (:program quad-batch)
                        "texture"
@@ -527,6 +530,7 @@ void main() {
 
   (bind-texture-buffer gl
                        (:quad-parameters-buffer-id quad-batch)
+                       (:quad-parameters-buffer-texture-id quad-batch)
                        1
                        (:program quad-batch)
                        "quad_parameters"
@@ -549,9 +553,9 @@ void main() {
   quad-batch)
 
 (defn draw-quads [quad-batch gl quads width height]
-  (flow-gl.debug/set-metric :draw-quads (System/currentTimeMillis))
-  (flow-gl.debug/set-metric :allocated-quads (:allocated-quads quad-batch))
-  (flow-gl.debug/set-metric :quad-count (count quads))
+  #_(flow-gl.debug/set-metric :draw-quads (System/currentTimeMillis))
+  #_(flow-gl.debug/set-metric :allocated-quads (:allocated-quads quad-batch))
+  #_(flow-gl.debug/set-metric :quad-count (count quads))
 
   (let [quad-count (count quads)
 
@@ -595,7 +599,7 @@ void main() {
     (draw (assoc quad-batch
             :next-free-quad quad-count) gl width height)))
 
-(defn draw-indexes [quad-batch gl width height indexes]
+#_(defn draw-indexes [quad-batch gl width height indexes]
   (let [quad-index-buffer (buffer/create-gl-buffer gl)]
     (shader/enable-program gl
                            (:program quad-batch))
