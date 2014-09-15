@@ -94,8 +94,7 @@ void main() {
                                     @shader-program-atom
                                     "projection_matrix"
                                     (math/projection-matrix-2d width
-                                                               height
-                                                               1.0))
+                                                               height))
 
 
   (.glBindBuffer gl GL2/GL_ARRAY_BUFFER (:vertex-coordinate-buffer-id triangle-list))

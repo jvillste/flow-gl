@@ -70,7 +70,7 @@
   ;; ([width height init reshape event-channel]
   ;;    (create width height init reshape event-channel :gl2))
 
-  ([width height & {:keys [init reshape event-channel profile] :or {init identity reshape (fn [gl width height]) event-channel nil profile :gl2}}]
+  ([width height & {:keys [init reshape event-channel profile close-automatically] :or {init identity reshape (fn [gl width height]) event-channel nil profile :gl2 close-automatically false}}]
      (let [gl-profile (GLProfile/get (case profile
                                        :gl2 GLProfile/GL2
                                        :gl3 GLProfile/GL3
@@ -173,11 +173,14 @@
                                 (dispose [drawable])
                                 (displayChanged [drawable mode-changed device-changed])))
 
-         (.setDefaultCloseOperation WindowClosingProtocol$WindowClosingMode/DO_NOTHING_ON_CLOSE)
+         
          (.setAutoSwapBufferMode false)
 
          (.setSize width height)
          (.setVisible true))
+
+       (when (not close-automatically)
+         (.setDefaultCloseOperation window WindowClosingProtocol$WindowClosingMode/DO_NOTHING_ON_CLOSE))
 
        {:gl-window  window
         :display-atom display-atom

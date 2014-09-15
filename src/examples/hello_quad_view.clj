@@ -20,10 +20,10 @@
 
 (defn render-layout [window gpu-state-atom layout]
   #_(let [removed-texels (get-in @gpu-state-atom [:quad-batch :removed-texels])
-        allocated-texels (get-in @gpu-state-atom [:quad-batch :allocated-texels])]
-    (debug/set-metric :texel-fill-ratio (/ removed-texels allocated-texels) :ratio? true)
-    (debug/set-metric :removed-texels removed-texels)
-    (debug/set-metric :allocated-texels allocated-texels))
+          allocated-texels (get-in @gpu-state-atom [:quad-batch :allocated-texels])]
+      (debug/set-metric :texel-fill-ratio (/ removed-texels allocated-texels) :ratio? true)
+      (debug/set-metric :removed-texels removed-texels)
+      (debug/set-metric :allocated-texels allocated-texels))
 
   #_(debug/set-metric :render-time (System/currentTimeMillis))
 
@@ -43,21 +43,18 @@
 (defn layout [frame-time]
   {:x 0
    :y 0
-   :children [(assoc (drawable/->Rectangle (* (/ (mod frame-time 1000)
-                                                 1000)
-                                              100)
-                                           100
-                                           [(float (/ (mod frame-time 1000)
-                                                      1000)) 0 0 1])
-                :x (* (/ (mod frame-time 1000)
-                         1000)
-                      100)
-                :y 100
-                :z 1)
-              (assoc (drawable/->Rectangle 100 100 [0 1 1 1])
-                :x 10
-                :y 10
-                :z 0)]})
+   :children (for [i (range 1 2)]
+               (let [round-time (* i 1000)
+                     phase (/ (mod frame-time round-time)
+                              round-time)]
+                 (assoc (drawable/->Rectangle 600 #_(* phase
+                                                 600)
+                                              700
+                                              [1 #_(float phase) 1 0 1])
+                   :x (* phase
+                         100)
+                   :y (* i 40)
+                   :z i)))})
 
 (defn wait-for-next-frame [frame-started]
   (let [target-frames-per-second 60]
@@ -84,8 +81,7 @@
         (loop []
           (let [frame-started (System/currentTimeMillis)]
             (let [layout (layout frame-started)]
-              (flow-gl.debug/debug-timed-and-return "render"
-                                                    (render-layout window gpu-state-atom layout #_layout-to-be-rendered))
+              (render-layout window gpu-state-atom layout #_layout-to-be-rendered)
 
               (let [continue (reduce (fn [continue event]
                                        (if (= (:type event)
@@ -107,8 +103,8 @@
 
 (defn start []
   #_(start-view)
-  (debug-monitor/with-debug-monitor
+  #_(debug-monitor/with-debug-monitor
       (.start (Thread. (fn []
                          (start-view)))))
-  #_(.start (Thread. (fn []
+  (.start (Thread. (fn []
                      (start-view)))))

@@ -12,12 +12,12 @@
         triangle-height (- height (* 2 margin))
         window (window/create width
                               height
-                              opengl/initialize
-                              opengl/resize)]
+                              :profile :gl3
+                              :close-automatically true)]
 
     (window/render window gl
-                   (.glMatrixMode gl GL2/GL_MODELVIEW)
-                   (.glTranslatef gl margin margin 0)
+                   (opengl/initialize gl)
+                   (triangle-list/create-shared-resources gl)
 
                    (-> (triangle-list/create-for-coordinates gl
                                                              :triangles
@@ -27,7 +27,9 @@
                                                              [1 0 0 1
                                                               0 1 0 1
                                                               0 0 1 1])
-                       (triangle-list/render gl)
-                       (triangle-list/delete gl)))))
+                       (triangle-list/render gl width height)
+                       (triangle-list/delete gl))
+
+                   (triangle-list/delete-shared-resources gl))))
 
 (comment (start))

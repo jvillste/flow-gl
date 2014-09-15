@@ -131,6 +131,7 @@
   (let [first-texture-id (:next-free-texture-id (:quad-batch quad-view))
         drawables (new-drawables (:drawable-textures quad-view) quads)
         new-textures (create-textures drawables)]
+    (println "new " (count drawables))
     (if (empty? new-textures)
       quad-view
       (assoc quad-view
