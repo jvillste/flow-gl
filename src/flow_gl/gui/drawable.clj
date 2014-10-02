@@ -8,13 +8,17 @@
                                [buffered-image :as buffered-image])
              (flow-gl.gui [layoutable :as layoutable]))
   (:import [java.awt.geom Rectangle2D$Float RoundRectangle2D$Float GeneralPath]
-           [java.awt Color RenderingHints BasicStroke]))
+           [java.awt Color RenderingHints BasicStroke]
+           [nanovg NanoVG]))
 
 (defprotocol Drawable
   (drawing-commands [drawable]))
 
 (defprotocol Java2DDrawable
   (draw [this graphics]))
+
+(defprotocol NanoVGDrawable
+  (draw-nanovg [this nanovg]))
 
 ;; DRAWABLES
 
@@ -88,6 +92,15 @@
       (doto graphics
         (.setColor (Color. r g b a))
         (.fill (Rectangle2D$Float. 0 0 width height)))))
+
+  NanoVGDrawable
+  (draw-nanovg [this nanovg]
+    (let [[r g b a] color]
+      (doto nanovg
+        (NanoVG/fillColor (char r) (char g) (char b) (char a))
+        (NanoVG/beginPath)
+        (NanoVG/rect 100 100 100 100)
+        (NanoVG/fill))))
 
   Object
   (toString [this] (layoutable/describe-layoutable this)))

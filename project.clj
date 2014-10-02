@@ -1,7 +1,7 @@
 (defproject flow-gl "1.0.0-SNAPSHOT"
   :description "FIXME: write description"
   :repositories {"sonatype-oss-public" "https://oss.sonatype.org/content/groups/public/"} ;; for priority-map
-  :dependencies [[org.clojure/clojure "1.5.1"]
+  :dependencies [[org.clojure/clojure "1.6.0"]
                  [org.clojure/tools.trace "0.7.6"]
                  [org.lwjgl/lwjgl "2.7.1"]
                  [org.lwjgl/lwjgl-util "2.7.1"]
@@ -18,12 +18,12 @@
                  [org.clojars.jvillste/jogl-all "2.1.5"]
                  ;;[gui-diff "0.6.6"]
                  [com.climate/claypoole "0.3"]
-                 ]
+                 [org.clojars.jvillste/nanovg "1.0.0"]]
 
   ;; :java-cmd "/usr/lib/jvm/java-6-sun/bin/java"
    ;;/Library/Internet\ Plug-Ins/JavaAppletPlugin.plugin/Contents/Home/bin/java
-  :javac-target "1.7"
-  :java-opts ["-Xmx60m"
+  ;;:javac-target "1.7"
+  #_:java-opts #_["-Xmx60m"
               "-Xms40m"
               "-client"
               ;; "-XX:MinHeapFreeRatio=20"

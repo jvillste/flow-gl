@@ -12,9 +12,9 @@
   (layout [layout state requested-width requested-height]))
 
 
-(extend Object
-  Layout {:layout (fn [this state requested-width requsested-height]
-                    [state this])})
+#_(extend Object
+    Layout {:layout (fn [this state requested-width requsested-height]
+                      [state this])})
 
 ;; UTILITIES
 
@@ -46,10 +46,10 @@
 
 (defn set-dimensions-and-layout
   ([layout-instance x y width height]
-     #_(println "layouting " (type layout-instance))
      (-> layout-instance
-         (layout-with-current-state width
-                                    height)
+         (cond-> (satisfies? Layout layout-instance)
+                 (layout-with-current-state width
+                                            height))
          (assoc :x x
                 :y y
                 :width width
@@ -130,7 +130,7 @@
 
 (defn positions
   "Returns a lazy sequence containing the positions at which pred
-   is true for items in coll."
+  is true for items in coll."
   [pred coll]
   (for [[idx elt] (indexed coll) :when (pred elt)] idx))
 
