@@ -18,7 +18,7 @@
                  [org.clojars.jvillste/jogl-all "2.1.5"]
                  ;;[gui-diff "0.6.6"]
                  [com.climate/claypoole "0.3"]
-                 [org.clojars.jvillste/nanovg "1.0.0"]]
+                 [org.clojars.jvillste/nanovg "1.0.0-SNAPSHOT"]]
 
   ;; :java-cmd "/usr/lib/jvm/java-6-sun/bin/java"
    ;;/Library/Internet\ Plug-Ins/JavaAppletPlugin.plugin/Contents/Home/bin/java

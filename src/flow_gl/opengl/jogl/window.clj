@@ -173,7 +173,7 @@
                                 (dispose [drawable])
                                 (displayChanged [drawable mode-changed device-changed])))
 
-         
+
          (.setAutoSwapBufferMode false)
 
          (.setSize width height)
@@ -186,6 +186,9 @@
         :display-atom display-atom
         :profile profile
         :event-channel event-channel})))
+
+(defn visible? [window]
+  (.isVisible (:gl-window window)))
 
 (defn width [window]
   (.getWidth (:gl-window window)))

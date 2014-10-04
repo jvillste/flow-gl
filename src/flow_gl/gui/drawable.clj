@@ -99,7 +99,7 @@
       (doto nanovg
         (NanoVG/fillColor (char r) (char g) (char b) (char a))
         (NanoVG/beginPath)
-        (NanoVG/rect 100 100 100 100)
+        (NanoVG/rect 0 0 width height)
         (NanoVG/fill))))
 
   Object

@@ -3,49 +3,49 @@
             [flow-gl.gui.layout :as layout]
             [flow-gl.gui.drawable :as drawable]
             [clojure.data.priority-map :as priority-map]
-            [flow-gl.opengl.jogl.opengl :as opengl]
+            (flow-gl.opengl.jogl [opengl :as opengl]
+                                 [window :as window]
+                                 [quad-batch :as quad-batch])
             (flow-gl.graphics [font :as font]))
   (:use clojure.test)
   (:import [nanovg NanoVG]))
 
 (defprotocol Renderer
-  (add-drawable [this drawable])
+  (can-draw? [this drawable])
+
+  (draw-drawables [this drawables gl])
 
   (start-frame [this gl])
-  (end-frame [this gl])
 
-  (start-batch [this gl])
-  (end-batch [this gl])
+  (end-frame [this gl])
 
   (delete [this gl]))
 
-(defrecord NanoVGRenderer []
+(defrecord NanoVGRenderer [nanovg]
   Renderer
-  
-  (add-drawable [this drawable]
-    (if (satisfies? drawable/NanoVGDrawable drawable)
-      [(update-in this [:drawables] conj drawable)
-       true]
-      [this
-       false]))
+  (can-draw? [this drawable]
+    (satisfies? drawable/NanoVGDrawable drawable))
 
-  (start-batch [this gl] (assoc this :drawables []))
-  
-  (end-batch [this gl]
-    (let [nanovg (:nanovg this)
-          {:keys [width height]} (opengl/size gl)]
+  (draw-drawables [this drawables gl]
+    (let [{:keys [width height]} (opengl/size gl)]
       (NanoVG/beginFrame nanovg width height)
-      (doseq [drawable (:drawables this)]
+      (doseq [drawable drawables]
+        #_(NanoVG/resetTransform nanovg)
+        (NanoVG/translate nanovg
+                          (:x drawable)
+                          (:y drawable))
         (drawable/draw-nanovg drawable nanovg))
-      (NanoVG/endFrame nanovg)))
+      (NanoVG/endFrame nanovg))
+    this)
 
   (start-frame [this gl] this)
 
-  (end-frame [this gl] this))
+  (end-frame [this gl] this)
+
+  (delete [this gl] this))
 
 (defn create-nanovg-renderer []
-  {:drawables []
-   :nanovg (NanoVG/init)})
+  (->NanoVGRenderer (NanoVG/init)))
 
 (defn drawables-for-layout
   ([layout]
@@ -97,44 +97,81 @@
   (doall (map #(function % gl)
               renderers)))
 
-(defn add-drawable [drawable renderers]
-  (loop [renderers renderers
-         tried-renderers []]
-    (if-let [renderer (first renderers)]
-      (let [[renderer accepted] (add-drawable renderer drawable)]
-        (if accepted
-          (concat tried-renderers [renderer] (rest renderers))
-          (recur (rest renderers)
-                 (conj tried-renderers renderer)))))))
+(defn select-renderer [renderers drawable]
+  (first (filter #(can-draw? % drawable) renderers)))
 
-(defn add-drawables [drawables renderers]
-  (loop [drawables drawables
-         renderers renderers]
-    (if-let [drawable (first drawables)]
-      (recur (rest drawables)
-             (add-drawable drawable renderers))
-      renderers)))
+(defn render-drawables-with-renderers [drawables gl renderers]
+  (let [batches (group-by (partial select-renderer renderers) drawables)]
+    (loop [renderers renderers
+           rendered-renderers []]
+      (if-let [renderer (first renderers)]
+        (recur (rest renderers)
+               (conj rendered-renderers
+                     (draw-drawables renderer
+                                     (or (get batches renderer)
+                                         [])
+                                     gl)))
+        rendered-renderers))))
 
 (defn render-layers [layers gl renderers]
   (loop [renderers renderers
          layers layers]
     (if-let [layer-drawables (first layers)]
-      (recur (->> renderers
-                  (map-for-renderers start-batch gl)
-                  (add-drawables layer-drawables)
-                  (map-for-renderers end-batch gl))
+      (recur (render-drawables-with-renderers layer-drawables gl renderers)
              (rest layers))
       renderers)))
 
 (defn render-frame [drawables gl renderers]
   (->> renderers
-       (map-for-renderers start-frame gl renderers)
+       (map-for-renderers start-frame gl)
        (render-layers (->> drawables
                            (sort-by :z)
                            (partition-by :z))
                       gl)
        (map-for-renderers end-frame gl)))
 
+(defn wait-for-next-frame [frame-started]
+  (let [target-frames-per-second 5]
+    (Thread/sleep (max 0
+                       (- (/ 1000 target-frames-per-second)
+                          (- (System/currentTimeMillis)
+                             frame-started))))))
 
+(defn start-view [drawables-for-time]
+  (let [window (window/create 300
+                              400
+                              :profile :gl3
+                              :close-automatically true)]
+
+
+    (try
+      (let [renderers-atom (atom (window/with-gl window gl [(create-nanovg-renderer)]))]
+        (loop []
+          (let [frame-started (System/currentTimeMillis)]
+            (let [drawables (drawables-for-time frame-started)]
+              (window/set-display window gl
+                                  (opengl/clear gl 0 0 0 1)
+                                  (reset! renderers-atom
+                                          (render-frame drawables gl @renderers-atom))))
+
+            (when (window/visible? window)
+              (do (wait-for-next-frame frame-started)
+                  (recur))))))
+
+      (println "exiting")
+      (catch Exception e
+        (println "exception")
+        (window/close window)
+        (throw e)))))
+
+(defn drawables-for-time [time]
+  (let [phase (/ (mod time 1000)
+                 1000)]
+    [(assoc (drawable/->Rectangle 100 100 [255 0 0 255])
+       :x (* 100 phase)
+       :y 0)]))
+
+(defn start []
+  (start-view drawables-for-time))
 
 (run-tests)
