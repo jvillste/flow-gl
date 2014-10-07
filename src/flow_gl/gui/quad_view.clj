@@ -93,20 +93,28 @@
 
             nil)))
 
-(defn unused-drawable-textures [drawable-textures quads]
-  (->> quads
-       (map :drawable)
-       (reduce dissoc drawable-textures)))
+(defn texture-key [drawable]
+  (dissoc drawable :x :y :texture-id))
 
-(defn new-drawables [drawable-textures quads]
-  (reduce (fn [new-drawables quad]
-            (if (contains? quad :drawable)
-              (if (contains? drawable-textures (:drawable quad))
-                new-drawables
-                (conj new-drawables (:drawable quad)))
-              new-drawables ))
-          #{}
-          quads))
+(defn unused-drawable-textures [drawable-textures drawables]
+  (reduce dissoc drawable-textures (map texture-key drawables)))
+
+(defn has-texture? [drawable-textures drawable]
+  (contains? drawable-textures (texture-key drawable)))
+
+(defn set-texture [drawable-textures drawable texture-id]
+  (assoc drawable-textures (texture-key drawable) texture-id))
+
+(defn unset-texture [drawable-textures drawable]
+  (dissoc drawable-textures (texture-key drawable)))
+
+(defn texture [drawable-textures drawable]
+  (get drawable-textures (texture-key drawable)))
+
+(defn new-drawables [drawable-textures drawables]
+  (->> drawables
+       (filter #(not (has-texture? drawable-textures %)))
+       (apply hash-set)))
 
 (defn create-textures [drawables]
   (map (fn [drawable]
@@ -123,69 +131,67 @@
          drawables drawables]
     (if-let [drawable (first drawables)]
       (recur (inc texture-id)
-             (assoc drawable-textures drawable texture-id)
+             (set-texture drawable-textures drawable texture-id)
              (rest drawables))
       drawable-textures)))
 
-(defn load-new-textures [quad-view quads gl]
+(defn load-new-textures [quad-view drawables gl]
   (let [first-texture-id (:next-free-texture-id (:quad-batch quad-view))
-        drawables (new-drawables (:drawable-textures quad-view) quads)
+        drawables (new-drawables (:drawable-textures quad-view) drawables)
         new-textures (create-textures drawables)]
-    (println "new " (count drawables))
     (if (empty? new-textures)
       quad-view
       (assoc quad-view
         :quad-batch (flow-gl.debug/debug-timed-and-return "add-textures " (quad-batch/add-textures (:quad-batch quad-view) gl new-textures))
         :drawable-textures (flow-gl.debug/debug-timed-and-return "add-new-textures " (add-new-textures (:drawable-textures quad-view) drawables (:next-free-texture-id (:quad-batch quad-view))))))))
 
-(defn add-texture-ids [quads drawable-textures]
-  (map (fn [quad]
-         (if (contains? quad :drawable)
-           (assoc quad
-             :texture-id (get drawable-textures
-                              (:drawable quad)))
+(defn add-texture-ids [drawables drawable-textures]
+  (map (fn [drawable]
+         (assoc drawable
+           :texture-id (texture drawable-textures
+                                drawable)))
+       drawables))
 
-           quad))
-       quads))
-
-(defn unload-unused-textures [quad-view quads]
+(defn unload-unused-textures [quad-view]
   (let [unused-drawable-textures (unused-drawable-textures (:drawable-textures quad-view)
-                                                           quads)
+                                                           (:drawn-drawables quad-view))
         new-quad-batch (reduce quad-batch/remove-texture
                                (:quad-batch quad-view)
                                (vals unused-drawable-textures))
-        new-drawable-textures (apply dissoc
-                                     (:drawable-textures quad-view)
-                                     (keys unused-drawable-textures))]
+        new-drawable-textures (reduce unset-texture
+                                      (:drawable-textures quad-view)
+                                      (keys unused-drawable-textures))]
 
     (assoc quad-view
+      :drawn-drawables []
       :quad-batch new-quad-batch
       :drawable-textures new-drawable-textures)))
 
-(defn draw-quads [quad-view quads width height gl]
-  #_(println (select-keys (:quad-batch quad-view)
-                          [:allocated-texels
-                           :next-free-texel
-                           :removed-texels]))
+(defn draw-drawables [quad-view drawables width height gl]
   (let [quad-view (load-new-textures quad-view
-                                     quads
+                                     drawables
                                      gl)
-        quad-view (flow-gl.debug/debug-timed-and-return "unload-unused-textures" (unload-unused-textures quad-view quads))
-        quads (add-texture-ids quads
-                               (:drawable-textures quad-view))]
-    (assoc quad-view :quad-batch
-           (flow-gl.debug/debug-timed-and-return "quad-batch-draw " (quad-batch/draw-quads (:quad-batch quad-view)
-                                                                                           gl
-                                                                                           quads
-                                                                                           width height)))))
+        drawables (add-texture-ids drawables
+                                   (:drawable-textures quad-view))]
 
-(defn draw-layout [quad-view layout width height gl]
-  (flow-gl.debug/debug-timed-and-return "draw-quads" (draw-quads quad-view
-                                                                 (flow-gl.debug/debug-timed-and-return "quad-for-layout" (quads-for-layout (assoc layout :x 0 :y 0)))
-                                                                 width
-                                                                 height
-                                                                 gl)))
+    (assoc quad-view
+      :drawn-drawables (concat (:drawn-drawables quad-view)
+                               drawables)
+      :quad-batch (quad-batch/draw-quads (:quad-batch quad-view)
+                                         gl
+                                         drawables
+                                         width height))))
+
+
+
+#_(defn draw-layout [quad-view layout width height gl]
+    (flow-gl.debug/debug-timed-and-return "draw-quads" (draw-quads quad-view
+                                                                   (flow-gl.debug/debug-timed-and-return "quad-for-layout" (quads-for-layout (assoc layout :x 0 :y 0)))
+                                                                   width
+                                                                   height
+                                                                   gl)))
 
 (defn create [gl]
   {:drawable-textures {}
+   :drawn-drawables []
    :quad-batch (quad-batch/create gl)})

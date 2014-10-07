@@ -40,6 +40,9 @@
                  nil
                  usage))
 
+(defn bind-buffer [gl target id]
+  (.glBindBuffer gl target id))
+
 (defn load-buffer-from-native-buffer [gl id type target usage native-buffer]
   (.glBindBuffer gl target id)
   (.glBufferData gl

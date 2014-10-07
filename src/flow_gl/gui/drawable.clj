@@ -86,8 +86,8 @@
   (preferred-size [this available-width available-height] {:width width
                                                            :height height})
 
-  Java2DDrawable
-  (draw [this graphics]
+  #_Java2DDrawable
+  #_(draw [this graphics]
     (let [[r g b a] (map float color)]
       (doto graphics
         (.setColor (Color. r g b a))

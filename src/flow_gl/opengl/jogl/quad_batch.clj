@@ -6,7 +6,8 @@
                                  [textured-quad :as textured-quad]
                                  [texture :as texture]
                                  [shader :as shader]
-                                 [buffer :as buffer])
+                                 [buffer :as buffer]
+                                 [vertex-array-object :as vertex-array-object])
             [flow-gl.opengl.math :as math]
             (flow-gl.graphics [buffered-image :as buffered-image]
                               [font :as font]
@@ -54,93 +55,93 @@
                   (:texture-offset quad-parameters)])
   quad-batch)
 
-(def vertex-shader-source "
-#version 140
+  (def vertex-shader-source "
+  #version 140
 
-uniform mat4 projection_matrix;
+  uniform mat4 projection_matrix;
 
-uniform int use_quad_index_buffer;
+  uniform int use_quad_index_buffer;
 
-uniform isamplerBuffer quad_parameters;
+  uniform isamplerBuffer quad_parameters;
 
-uniform isamplerBuffer quad_index_sampler;
+  uniform isamplerBuffer quad_index_sampler;
 
-out vec2 texture_coordinate;
-flat out int texture_offset;
-flat out int texture_width;
+  out vec2 texture_coordinate;
+  flat out int texture_offset;
+  flat out int texture_width;
 
-const int quad_parameters_size = 6;
+  const int quad_parameters_size = 6;
 
-void main() {
+  void main() {
 
-    // 0 parent
-    // 1 x
-    // 2 y
-    // 3 texture width
-    // 4 texture height
-    // 5 texel index
+  // 0 parent
+  // 1 x
+  // 2 y
+  // 3 texture width
+  // 4 texture height
+  // 5 texel index
 
-    int quad_index;
-    if(use_quad_index_buffer == 1)
-      quad_index = texelFetch(quad_index_sampler, gl_InstanceID).x;
-    else
-      quad_index = gl_InstanceID;
+  int quad_index;
+  if(use_quad_index_buffer == 1)
+  quad_index = texelFetch(quad_index_sampler, gl_InstanceID).x;
+  else
+  quad_index = gl_InstanceID;
 
-    ivec2 texture_size = ivec2(texelFetch(quad_parameters, quad_index * quad_parameters_size + 3).x,
-                             texelFetch(quad_parameters, quad_index * quad_parameters_size + 4).x);
+  ivec2 texture_size = ivec2(texelFetch(quad_parameters, quad_index * quad_parameters_size + 3).x,
+  texelFetch(quad_parameters, quad_index * quad_parameters_size + 4).x);
 
-    switch(gl_VertexID) {
-      case 0:
-          texture_coordinate = vec2(0.0, 0.0);
-        break;
-      case 1:
-          texture_coordinate = vec2(0.0, texture_size.y);
-        break;
-      case 2:
-          texture_coordinate = vec2(texture_size.x, 0.0);
-        break;
-      case 3:
-          texture_coordinate = vec2(texture_size.x, texture_size.y);
-        break;
-    }
+  switch(gl_VertexID) {
+  case 0:
+  texture_coordinate = vec2(0.0, 0.0);
+  break;
+  case 1:
+  texture_coordinate = vec2(0.0, texture_size.y);
+  break;
+  case 2:
+  texture_coordinate = vec2(texture_size.x, 0.0);
+  break;
+  case 3:
+  texture_coordinate = vec2(texture_size.x, texture_size.y);
+  break;
+  }
 
-    int parent = int(texelFetch(quad_parameters, quad_index * quad_parameters_size).x);
+  int parent = int(texelFetch(quad_parameters, quad_index * quad_parameters_size).x);
 
-    vec2 offset = vec2(0,0);
-    while(parent >= 0)
-    {
-       vec2 parent_offset = vec2(texelFetch(quad_parameters, parent * quad_parameters_size + 1).x,
-                                   texelFetch(quad_parameters, parent * quad_parameters_size + 2).x);
+  vec2 offset = vec2(0,0);
+  while(parent >= 0)
+  {
+  vec2 parent_offset = vec2(texelFetch(quad_parameters, parent * quad_parameters_size + 1).x,
+  texelFetch(quad_parameters, parent * quad_parameters_size + 2).x);
 
-       offset = vec2(offset.x + parent_offset.x, offset.y + parent_offset.y);
-       parent = int(texelFetch(quad_parameters, parent * quad_parameters_size).x);
-    }
+  offset = vec2(offset.x + parent_offset.x, offset.y + parent_offset.y);
+  parent = int(texelFetch(quad_parameters, parent * quad_parameters_size).x);
+  }
 
-    vec2 quad_coordinates = vec2(texelFetch(quad_parameters, quad_index * quad_parameters_size + 1).x,
-                                 texelFetch(quad_parameters, quad_index * quad_parameters_size + 2).x);
+  vec2 quad_coordinates = vec2(texelFetch(quad_parameters, quad_index * quad_parameters_size + 1).x,
+  texelFetch(quad_parameters, quad_index * quad_parameters_size + 2).x);
 
-    gl_Position = projection_matrix * vec4(offset.x + texture_coordinate.x + quad_coordinates.x, offset.y +  texture_coordinate.y + quad_coordinates.y, 0.0, 1.0);
+  gl_Position = projection_matrix * vec4(offset.x + texture_coordinate.x + quad_coordinates.x, offset.y +  texture_coordinate.y + quad_coordinates.y, 0.0, 1.0);
 
-    texture_offset = texelFetch(quad_parameters, quad_index * quad_parameters_size + 5).x;
-    texture_width = texture_size.x;
-}
+  texture_offset = texelFetch(quad_parameters, quad_index * quad_parameters_size + 5).x;
+  texture_width = texture_size.x;
+  }
 ")
 
-(def fragment-shader-source "
-#version 140
+  (def fragment-shader-source "
+  #version 140
 
-uniform samplerBuffer texture;
+  uniform samplerBuffer texture;
 
-in vec2 texture_coordinate;
-flat in int texture_offset;
-flat in int texture_width;
+  in vec2 texture_coordinate;
+  flat in int texture_offset;
+  flat in int texture_width;
 
-out vec4 outColor;
+  out vec4 outColor;
 
-void main() {
-    vec4 color = texelFetch(texture, int(texture_offset + texture_coordinate.y * texture_width + texture_coordinate.x - int(texture_width) / 2));
-    outColor = vec4(color.b, color.g, color.r, color.a);
-}
+  void main() {
+  vec4 color = texelFetch(texture, int(texture_offset + texture_coordinate.y * texture_width + texture_coordinate.x - int(texture_width) / 2));
+  outColor = vec4(color.b, color.g, color.r, color.a);
+  }
 ")
 
 (defn create-vertex-attribute-array [gl name program buffer-id type size divisor]
@@ -209,30 +210,68 @@ void main() {
   ;;(opengl/initialize gl)
 
   (let [initial-number-of-texels 10000
-        initial-number-of-quads 100]
+        initial-number-of-quads 100
+        quad-batch {:program (shader/compile-program gl
+                                                     vertex-shader-source
+                                                     fragment-shader-source)
 
-    {:program (shader/compile-program gl
-                                      vertex-shader-source
-                                      fragment-shader-source)
+                    :next-free-texel 0
+                    :next-free-quad 0
+                    :removed-quads 0
+                    :removed-texels 0
+                    :ids-to-indexes {}
+                    :next-free-id 0
 
-     :next-free-texel 0
-     :next-free-quad 0
-     :removed-quads 0
-     :removed-texels 0
-     :ids-to-indexes {}
-     :next-free-id 0
+                    :textures-in-use {}
+                    :next-free-texture-id 0
 
-     :textures-in-use {}
-     :next-free-texture-id 0
+                    :vertex-array-object (vertex-array-object/create gl)
 
-     :allocated-quads initial-number-of-quads
-     :quad-parameters-buffer-id (allocate-quads gl initial-number-of-quads)
+                    :allocated-quads initial-number-of-quads
+                    :quad-parameters-buffer-id (allocate-quads gl initial-number-of-quads)
 
-     :texture-buffer-id (allocate-texture gl initial-number-of-texels)
-     :texture-buffer-texture-id (texture/create-gl-texture gl)
-     :quad-parameters-buffer-texture-id (texture/create-gl-texture gl)
-     
-     :allocated-texels initial-number-of-texels}))
+                    :texture-buffer-id (allocate-texture gl initial-number-of-texels)
+                    :texture-buffer-texture-id (texture/create-gl-texture gl)
+                    :quad-parameters-buffer-texture-id (texture/create-gl-texture gl)
+
+                    :allocated-texels initial-number-of-texels}]
+
+
+    (vertex-array-object/bind gl (:vertex-array-object quad-batch))
+
+    (shader/enable-program gl
+                           (:program quad-batch))
+
+    (bind-texture-buffer gl
+                         (:texture-buffer-id quad-batch)
+                         (:texture-buffer-texture-id quad-batch)
+                         0
+                         (:program quad-batch)
+                         "texture"
+                         GL2/GL_RGBA8)
+
+    (bind-texture-buffer gl
+                         (:quad-parameters-buffer-id quad-batch)
+                         (:quad-parameters-buffer-texture-id quad-batch)
+                         1
+                         (:program quad-batch)
+                         "quad_parameters"
+                         GL2/GL_R32UI)
+
+    (shader/set-int-uniform gl
+                            (:program quad-batch)
+                            "use_quad_index_buffer"
+                            0)
+    
+    (shader/set-float4-matrix-uniform gl
+                                      (:program quad-batch)
+                                      "projection_matrix"
+                                      (math/projection-matrix-2d 100
+                                                                 100))
+    
+    #_(vertex-array-object/bind gl 0)
+
+    quad-batch))
 
 (defn collect-garbage [quad-batch gl]
   (if (= (:next-free-quad quad-batch)
@@ -457,98 +496,22 @@ void main() {
         :next-free-texture-id (+ (:next-free-texture-id quad-batch)
                                  (count images))))))
 
-#_(defn add-quads [quad-batch gl quads]
-    (let [new-quad-batch (add-textures quad-batch gl (map :image quads))
-
-          quad-count (count quads)
-
-          minimum-quad-capacity (+ (:next-free-quad new-quad-batch)
-                                   quad-count)
-
-          new-quad-batch (if (< (:allocated-quads new-quad-batch)
-                                minimum-quad-capacity)
-                           (grow-quad-buffers gl
-                                              new-quad-batch
-                                              minimum-quad-capacity)
-                           new-quad-batch)
-
-          ids-to-indexes (loop [count quad-count
-                                id (:next-free-id quad-batch)
-                                index (:next-free-quad quad-batch)
-                                ids-to-indexes (:ids-to-indexes quad-batch)]
-                           (if (> count 0)
-                             (recur (dec count)
-                                    (inc id)
-                                    (inc index)
-                                    (assoc ids-to-indexes id index))
-                             ids-to-indexes))]
-
-      (let [buffer (buffer/map-for-write gl
-                                         (:quad-parameters-buffer-id new-quad-batch)
-                                         :int
-                                         (* quad-parameters-size
-                                            (:next-free-quad new-quad-batch))
-                                         (* quad-parameters-size
-                                            quad-count))]
-
-        (loop [texture-offset (:next-free-texel quad-batch)
-               quads quads]
-          (when-let [quad (first quads)]
-            (do (.put buffer
-                      (int-array [(if (= (:parent quad) -1)
-                                    -1
-                                    (get ids-to-indexes (:parent quad)))
-                                  (:x quad)
-                                  (:y quad)
-                                  (.getWidth (:image quad))
-                                  (.getHeight (:image quad))
-                                  texture-offset]))
-                (recur (+ texture-offset
-                          (* (.getWidth (:image quad))
-                             (.getHeight (:image quad))))
-                       (rest quads)))))
-        (buffer/unmap-for-write gl))
-
-      (assoc new-quad-batch
-        :next-free-id (+ (:next-free-id quad-batch)
-                         quad-count)
-        :next-free-quad (+ (:next-free-quad quad-batch)
-                           quad-count)
-        :ids-to-indexes ids-to-indexes)))
-
 (defn draw [quad-batch gl width height]
-  (shader/enable-program gl
-                         (:program quad-batch))
+  (println "drawing" quad-batch)
 
-  (bind-texture-buffer gl
-                       (:texture-buffer-id quad-batch)
-                       (:texture-buffer-texture-id quad-batch)
-                       0
-                       (:program quad-batch)
-                       "texture"
-                       GL2/GL_RGBA8)
-
-  (bind-texture-buffer gl
-                       (:quad-parameters-buffer-id quad-batch)
-                       (:quad-parameters-buffer-texture-id quad-batch)
-                       1
-                       (:program quad-batch)
-                       "quad_parameters"
-                       GL2/GL_R32UI)
+  (vertex-array-object/bind gl (:vertex-array-object quad-batch))
 
   (shader/set-float4-matrix-uniform gl
                                     (:program quad-batch)
                                     "projection_matrix"
                                     (math/projection-matrix-2d width
                                                                height))
-  (shader/set-int-uniform gl
-                          (:program quad-batch)
-                          "use_quad_index_buffer"
-                          0)
 
   (shader/validate-program gl (:program quad-batch))
 
   (.glDrawArraysInstanced gl GL2/GL_TRIANGLE_STRIP 0 4 (:next-free-quad quad-batch))
+
+  #_(vertex-array-object/bind gl 0)
 
   quad-batch)
 
@@ -586,7 +549,7 @@ void main() {
                                   (:height texture)
                                   (:first-texel texture)]))
                 (recur (rest quads))))))
-      
+
       (.rewind buffer)
 
       (buffer/update-from-native-buffer gl
@@ -600,53 +563,53 @@ void main() {
             :next-free-quad quad-count) gl width height)))
 
 #_(defn draw-indexes [quad-batch gl width height indexes]
-  (let [quad-index-buffer (buffer/create-gl-buffer gl)]
-    (shader/enable-program gl
-                           (:program quad-batch))
+    (let [quad-index-buffer (buffer/create-gl-buffer gl)]
+      (shader/enable-program gl
+                             (:program quad-batch))
 
-    (buffer/load-buffer gl
-                        quad-index-buffer
-                        :int
-                        GL2/GL_ARRAY_BUFFER
-                        GL2/GL_STATIC_DRAW
-                        indexes)
+      (buffer/load-buffer gl
+                          quad-index-buffer
+                          :int
+                          GL2/GL_ARRAY_BUFFER
+                          GL2/GL_STATIC_DRAW
+                          indexes)
 
-    (bind-texture-buffer gl
-                         quad-index-buffer
-                         0
-                         (:program quad-batch)
-                         "quad_index_sampler"
-                         GL2/GL_R32I)
+      (bind-texture-buffer gl
+                           quad-index-buffer
+                           0
+                           (:program quad-batch)
+                           "quad_index_sampler"
+                           GL2/GL_R32I)
 
-    (bind-texture-buffer gl
-                         (:texture-buffer-id quad-batch)
-                         1
-                         (:program quad-batch)
-                         "texture"
-                         GL2/GL_RGBA8)
+      (bind-texture-buffer gl
+                           (:texture-buffer-id quad-batch)
+                           1
+                           (:program quad-batch)
+                           "texture"
+                           GL2/GL_RGBA8)
 
-    (bind-texture-buffer gl
-                         (:quad-parameters-buffer-id quad-batch)
-                         2
-                         (:program quad-batch)
-                         "quad_parameters"
-                         GL2/GL_R32UI)
+      (bind-texture-buffer gl
+                           (:quad-parameters-buffer-id quad-batch)
+                           2
+                           (:program quad-batch)
+                           "quad_parameters"
+                           GL2/GL_R32UI)
 
-    (shader/set-float4-matrix-uniform gl
-                                      (:program quad-batch)
-                                      "projection_matrix"
-                                      (math/projection-matrix-2d width
-                                                                 height))
-    (shader/set-int-uniform gl
-                            (:program quad-batch)
-                            "use_quad_index_buffer"
-                            1)
+      (shader/set-float4-matrix-uniform gl
+                                        (:program quad-batch)
+                                        "projection_matrix"
+                                        (math/projection-matrix-2d width
+                                                                   height))
+      (shader/set-int-uniform gl
+                              (:program quad-batch)
+                              "use_quad_index_buffer"
+                              1)
 
-    (shader/validate-program gl (:program quad-batch))
+      (shader/validate-program gl (:program quad-batch))
 
-    (.glDrawArraysInstanced gl GL2/GL_TRIANGLE_STRIP 0 4 (count indexes))
+      (.glDrawArraysInstanced gl GL2/GL_TRIANGLE_STRIP 0 4 (count indexes))
 
-    quad-batch))
+      quad-batch))
 
 (defn remove-index [quad-batch gl index]
   (let [[width height] (buffer/read gl

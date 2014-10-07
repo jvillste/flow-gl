@@ -39,7 +39,6 @@
 
 (def ^:dynamic last-event-channel-atom (atom nil))
 
-
 (defn layout [frame-time]
   {:x 0
    :y 0

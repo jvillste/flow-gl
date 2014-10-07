@@ -1,12 +1,14 @@
 (ns examples.nanovg
-  (:require [flow-gl.gui.layouts :as layouts]
-            [flow-gl.gui.layout :as layout]
-            [flow-gl.gui.drawable :as drawable]
-            [clojure.data.priority-map :as priority-map]
+  (:require [clojure.data.priority-map :as priority-map]
             (flow-gl.opengl.jogl [opengl :as opengl]
                                  [window :as window]
                                  [quad-batch :as quad-batch])
-            (flow-gl.graphics [font :as font]))
+            (flow-gl.graphics [font :as font])
+            (flow-gl.gui [drawable :as drawable]
+                         [layout :as layout]
+                         [layouts :as layouts]
+                         [layoutable :as layoutable]
+                         [quad-view :as quad-view]))
   (:use clojure.test)
   (:import [nanovg NanoVG]))
 
@@ -30,7 +32,7 @@
     (let [{:keys [width height]} (opengl/size gl)]
       (NanoVG/beginFrame nanovg width height)
       (doseq [drawable drawables]
-        #_(NanoVG/resetTransform nanovg)
+        (NanoVG/resetTransform nanovg)
         (NanoVG/translate nanovg
                           (:x drawable)
                           (:y drawable))
@@ -46,6 +48,27 @@
 
 (defn create-nanovg-renderer []
   (->NanoVGRenderer (NanoVG/init)))
+
+(defrecord QuadViewRenderer [quad-view]
+  Renderer
+  (can-draw? [this drawable]
+    (satisfies? drawable/Java2DDrawable drawable))
+
+  (draw-drawables [this drawables gl]
+    (let [{:keys [width height]} (opengl/size gl)]
+      (assoc this :quad-view (quad-view/draw-drawables quad-view drawables width height gl))))
+
+  (start-frame [this gl]
+    this)
+
+  (end-frame [this gl]
+    (assoc this :quad-view (quad-view/unload-unused-textures quad-view)))
+
+  (delete [this gl]
+    this))
+
+(defn create-quad-view-renderer [gl]
+  (->QuadViewRenderer (quad-view/create gl)))
 
 (defn drawables-for-layout
   ([layout]
@@ -145,7 +168,8 @@
 
 
     (try
-      (let [renderers-atom (atom (window/with-gl window gl [(create-nanovg-renderer)]))]
+      (let [renderers-atom (atom (window/with-gl window gl [#_(create-nanovg-renderer)
+                                                            (create-quad-view-renderer gl)]))]
         (loop []
           (let [frame-started (System/currentTimeMillis)]
             (let [drawables (drawables-for-time frame-started)]
@@ -169,7 +193,17 @@
                  1000)]
     [(assoc (drawable/->Rectangle 100 100 [255 0 0 255])
        :x (* 100 phase)
-       :y 0)]))
+       :y 0)
+     (let [text (drawable/->Text "Foo"
+                                 (font/create "LiberationSans-Regular.ttf" 14)
+                                 [1 1 1 1])
+           preferred-size (layoutable/preferred-size text 1000 1000)]
+       (assoc text
+         :width (:width preferred-size)
+         :height (:height preferred-size)
+         :x (* 100 phase)
+         :y 0))
+     ]))
 
 (defn start []
   (start-view drawables-for-time))
