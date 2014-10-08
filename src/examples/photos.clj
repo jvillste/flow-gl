@@ -4,7 +4,7 @@
             (flow-gl.gui [drawable :as drawable]
                          [layout :as layout]
                          [layouts :as layouts]
-                         [quad-gui :as quad-gui]
+                         [gui :as gui]
                          [events :as events]
                          [layoutable :as layoutable]
                          [controls :as controls]
@@ -70,7 +70,7 @@
        (map #(.getPath %))
        (filter #(.endsWith % ".jpg"))))
 
-(quad-gui/def-control image
+(gui/def-control image
   ([view-context control-channel file-name thread-pool]
      (let [buffered-image-channel (async/chan)
            buffered-image-future (.execute thread-pool
@@ -89,7 +89,7 @@
 
                              buffered-image-channel ([buffered-image]
                                                        (flow-gl.debug/debug-timed "got buffered image for " file-name)
-                                                       (quad-gui/apply-to-state view-context (fn [state]
+                                                       (gui/apply-to-state view-context (fn [state]
                                                                                                (flow-gl.debug/debug-timed "applying " file-name)
                                                                                                (assoc state :buffered-image buffered-image)))))))
 
@@ -98,9 +98,9 @@
   ([view-context {:keys [buffered-image file-name]}]
      (if buffered-image
        (drawable/->Image buffered-image)
-       (drawable/->Rectangle 100 100 [1 1 1 1]))))
+       (drawable/->Rectangle 100 100 [255 255 255 255]))))
 
-(quad-gui/def-control date-box
+(gui/def-control date-box
   ([view-context control-channel]
      {})
 
@@ -121,7 +121,7 @@
                                                      selected-color
                                                      [0.8 0.8 0.8 1]))
 
-                               (quad-gui/on-mouse-clicked assoc
+                               (gui/on-mouse-clicked assoc
                                                           :selected-year year
                                                           :month (first (months (str archive-path "/" year)))))))
 
@@ -129,7 +129,7 @@
                                                      (-> (date-box {:text month
                                                                     :selected (= selected-month
                                                                                  month)})
-                                                         (quad-gui/on-mouse-clicked assoc
+                                                         (gui/on-mouse-clicked assoc
                                                                                     :selected-month month
                                                                                     :selected-day (first (days (str archive-path "/" selected-year) month))))))))
 
@@ -138,9 +138,9 @@
                                                                                    day)
                                                                               selected-color
                                                                               [0.8 0.8 0.8 1]))
-                                                         (quad-gui/on-mouse-clicked assoc :selected-day day)))))))))
+                                                         (gui/on-mouse-clicked assoc :selected-day day)))))))))
 
-(quad-gui/def-control photo-archive-browser
+(gui/def-control photo-archive-browser
   ([view-context control-channel]
      (let [thread-pool (Executors/newFixedThreadPool 1 #_(.. Runtime getRuntime availableProcessors))]
        (async/go (<! control-channel)
@@ -160,7 +160,7 @@
   ([view-context {:keys [selected-year selected-month selected-day archive-path thread-pool]}]
      (flow-gl.debug/debug-timed "view")
 
-     #_(quad-gui/call-named-view image-view
+     #_(gui/call-named-view image-view
                                  create-image
                                  :image
                                  ["/Users/jukka/Pictures/arkisto_mini/2011/2011-12-28/2011-12-28.19.44.39_ac66709411ae6c2948d95bd90199cccc.jpg"]
@@ -183,12 +183,12 @@
 
 (defn start []
   (debug/with-log log
-    (quad-gui/start-view #'create-photo-archive-browser #'photo-archive-browser-view))
+    (gui/start-view #'create-photo-archive-browser #'photo-archive-browser-view))
 
   #_(.start (Thread. (fn []
-                     (quad-gui/start-view #'create-photo-archive-browser #'photo-archive-browser-view)))))
+                     (gui/start-view #'create-photo-archive-browser #'photo-archive-browser-view)))))
 
-(quad-gui/redraw-last-started-view)
+(gui/redraw-last-started-view)
 
 
 #_(let [file-name "/Users/jukka/Pictures/arkisto_mini/2011/2011-12-28/2011-12-28.19.44.39_ac66709411ae6c2948d95bd90199cccc.jpg"

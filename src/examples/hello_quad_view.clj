@@ -59,8 +59,8 @@
   (let [target-frames-per-second 60]
     (Thread/sleep (max 0
                        (- (/ 1000 target-frames-per-second)
-                          (- (System/currentTimeMillis)
-                             frame-started))))))
+                          (- (System/currentTimeMillis) 
+                            frame-started))))))
 
 (defn start-view []
   (let [event-channel (async/chan 50)

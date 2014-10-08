@@ -3,7 +3,7 @@
             (flow-gl.gui [drawable :as drawable]
                          [layout :as layout]
                          [layouts :as layouts]
-                         [quad-gui :as quad-gui]
+                         [gui :as gui]
                          [events :as events]
                          [layoutable :as layoutable])
             [flow-gl.csp :as csp]
@@ -37,7 +37,7 @@
    [state true]))
 
 
-(quad-gui/def-control text-editor
+(gui/def-control text-editor
   ([view-context control-channel]
      {:text ""
       :handle-keyboard-event handle-text-editor-event
@@ -75,7 +75,7 @@
         state)
     state))
 
-(quad-gui/def-control button
+(gui/def-control button
   ([view-context  control-channel]
      {:text text
       :has-focus false
@@ -97,6 +97,6 @@
                                           (if (:disabled state)
                                             [0.5 0.5 0.5 1]
                                             [0 0 0 1]))])
-         (quad-gui/on-mouse-clicked handle-button-click))))
+         (gui/on-mouse-clicked handle-button-click))))
 
 

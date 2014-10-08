@@ -4,7 +4,7 @@
             (flow-gl.gui [drawable :as drawable]
                          [layout :as layout]
                          [layouts :as layouts]
-                         [quad-gui :as quad-gui]
+                         [gui :as gui]
                          [events :as events]
                          [layoutable :as layoutable]
                          [controls :as controls]
@@ -45,7 +45,7 @@
 (defn call-phaser [phaser & phaser-arguments]
   (let [{:keys [phase sleep-time]} (apply phaser
                                           phaser-arguments)]
-    (quad-gui/set-wake-up sleep-time)
+    (gui/set-wake-up sleep-time)
     phase))
 
 (defn start-stoppable-animation [state key time]
@@ -68,7 +68,7 @@
 
 (defn stoppable-animation-runtime [state key]
   (if (get state [key :running])
-    (- quad-gui/current-frame-time
+    (- gui/current-frame-time
        (get state [key :started]))
     (or (get state [key :runtime])
         0)))
@@ -81,11 +81,11 @@
                                      (stoppable-animation-runtime state :animation)
                                      phaser-arguments)]
     (when (stoppable-animation-running state :animation)
-      (quad-gui/set-wake-up sleep))
+      (gui/set-wake-up sleep))
     phase))
 
 
-(quad-gui/def-control animation
+(gui/def-control animation
   ([view-context control-channel]
      {:target-position :left})
 
@@ -96,7 +96,7 @@
        (layouts/->Preferred (-> (drawable/->Rectangle value value [(if (stoppable-animation-running state :animation)
                                                                      0
                                                                      1) 1 1 1])
-                                (quad-gui/on-mouse-clicked view-context
+                                (gui/on-mouse-clicked view-context
                                                            (fn [state time]
                                                              (toggle-stoppable-animation state :animation time))))))))
 
@@ -105,6 +105,6 @@
 (defn start []
   (debug-monitor/with-debug-monitor
     (.start (Thread. (fn []
-                       (quad-gui/start-view #'create-animation #'animation-view))))))
+                       (gui/start-view #'create-animation #'animation-view))))))
 
-(quad-gui/redraw-last-started-view)
+(gui/redraw-last-started-view)

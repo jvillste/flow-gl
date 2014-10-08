@@ -4,7 +4,7 @@
             (flow-gl.gui [drawable :as drawable]
                          [layout :as layout]
                          [layouts :as layouts]
-                         [quad-gui :as quad-gui]
+                         [gui :as gui]
                          [events :as events]
                          [layoutable :as layoutable]
                          [controls :as controls]
@@ -21,7 +21,7 @@
   (:use flow-gl.utils
         clojure.test))
 
-(quad-gui/def-view debug-monitor-view [view-context {:keys [values]}]
+(gui/def-view debug-monitor-view [view-context {:keys [values]}]
   #_(drawable/->Path 2 [1 1 1 1] [0 0
                                 100 100
                                 110 10])
@@ -42,7 +42,7 @@
                              channel ([entry]
                                         (when (= :metric
                                                  (:type entry))
-                                          (quad-gui/apply-to-state view-context
+                                          (gui/apply-to-state view-context
                                                                    assoc-in
                                                                    [:values (:key entry)]
                                                                    {:value (:value entry)
@@ -54,7 +54,7 @@
 
 (defn start-monitor [channel]
   (.start (Thread. (fn []
-                     (quad-gui/start-view (partial create-debug-monitor channel)
+                     (gui/start-view (partial create-debug-monitor channel)
                                           #'debug-monitor-view)))))
 
 (defn start-monitor-with-new-channel []
@@ -71,4 +71,4 @@
     (Thread/sleep 1000)
     (debug/set-metric :bar 1000)))
 
-(quad-gui/redraw-last-started-view)
+(gui/redraw-last-started-view)

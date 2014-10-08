@@ -4,7 +4,7 @@
             (flow-gl.gui [drawable :as drawable]
                          [layout :as layout]
                          [layouts :as layouts]
-                         [quad-gui :as quad-gui]
+                         [gui :as gui]
                          [events :as events]
                          [layoutable :as layoutable]
                          [controls :as controls]
@@ -123,7 +123,7 @@
                                                                                indent
                                                                                (layouts/->Preferred (block-view view-context child (inc depth) y-scale width)))))
                                                         child-block-views)))])
-        (quad-gui/add-mouse-event-handler-with-context view-context
+        (gui/add-mouse-event-handler-with-context view-context
                                                        (fn [state event]
                                                          (if (= (:type event)
                                                                 :mouse-enter)
@@ -141,7 +141,7 @@
                                             indent
                                             (layouts/->Preferred (text-block-view child (inc depth)))))))))
 
-(quad-gui/def-control scroll-pane
+(gui/def-control scroll-pane
   ([view-context control-channel]
      {:x-translation 0
       :y-translation 0})
@@ -161,7 +161,7 @@
                                           (max 0 (- requested-height
                                                     y-translation))))))
 
-         (quad-gui/add-mouse-event-handler-with-context view-context
+         (gui/add-mouse-event-handler-with-context view-context
                                                         (fn [state event]
                                                           (cond
                                                            (and (= (:type event) :mouse-wheel-moved)
@@ -200,7 +200,7 @@
        (* (/ mouse-distance-to-top old-y-scale)
           (- old-y-scale new-y-scale)))))
 
-(quad-gui/def-control log-browser
+(gui/def-control log-browser
   ([view-context control-channel]
      {:thread-blocks thread-blocks
       :message ""
@@ -254,7 +254,7 @@
 
                                                                            (l/margin (* y-scale (:start-time root-block)) 0 0 2
                                                                                      (block-view view-context root-block 0 y-scale thread-width)))))))})
-                               (quad-gui/add-mouse-event-handler-with-context
+                               (gui/add-mouse-event-handler-with-context
                                 view-context
                                 (fn [state event]
                                   (cond
@@ -285,7 +285,7 @@
 #_(debug/reset-log)
 (defn start []
   (.start (Thread. (fn []
-                     (quad-gui/start-view #'create-log-browser #'log-browser-view)))))
+                     (gui/start-view #'create-log-browser #'log-browser-view)))))
 
-(when-let [last-event-channel-atom @quad-gui/last-event-channel-atom]
+(when-let [last-event-channel-atom @gui/last-event-channel-atom]
   (async/put! last-event-channel-atom {:type :request-redraw}))
