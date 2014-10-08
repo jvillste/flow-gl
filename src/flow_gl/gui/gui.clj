@@ -464,7 +464,7 @@
         (loop [state initial-state
                last-frame-started (System/currentTimeMillis)]
 
-          (let [target-frames-per-second 2]
+          (let [target-frames-per-second 60]
             (Thread/sleep (max 0
                                (- (/ 1000 target-frames-per-second)
                                   (- (System/currentTimeMillis)

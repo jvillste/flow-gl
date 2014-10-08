@@ -4,7 +4,8 @@
                          [quad-view :as quad-view])
 
             (flow-gl.opengl.jogl [opengl :as opengl]))
-  (:import [nanovg NanoVG]))
+  (:import [nanovg NanoVG]
+           [javax.media.opengl GL2]))
 
 (defprotocol Renderer
   (can-draw? [this drawable])
@@ -49,6 +50,9 @@
     (satisfies? drawable/Java2DDrawable drawable))
 
   (draw-drawables [this drawables gl]
+    (doto gl
+      (.glEnable GL2/GL_BLEND)
+      (.glBlendFunc GL2/GL_SRC_ALPHA GL2/GL_ONE_MINUS_SRC_ALPHA))
     (let [{:keys [width height]} (opengl/size gl)]
       (assoc this :quad-view (quad-view/draw-drawables quad-view drawables width height gl))))
 

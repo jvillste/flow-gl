@@ -86,8 +86,8 @@
   (preferred-size [this available-width available-height] {:width width
                                                            :height height})
 
-  Java2DDrawable
-  (draw [this graphics]
+  #_Java2DDrawable
+  #_(draw [this graphics]
     (println "drawing rectangle")
     (let [[r g b a] (map float color)]
       (doto graphics

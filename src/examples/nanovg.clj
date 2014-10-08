@@ -31,7 +31,7 @@
 
 
     (try
-      (let [renderers-atom (atom (window/with-gl window gl [#_(renderer/create-nanovg-renderer)
+      (let [renderers-atom (atom (window/with-gl window gl [(renderer/create-nanovg-renderer)
                                                             (renderer/create-quad-view-renderer gl)]))]
         (loop []
           (let [frame-started (System/currentTimeMillis)]
@@ -67,11 +67,11 @@
 (defn drawables-for-time [time]
   (let [phase (/ (mod time 1000)
                  1000)]
-    [(assoc (text "foo 1")
+    [#_(assoc (text "foo 1")
          :x (* 100 phase)
          :y 0)
 
-     (assoc (text "foo 2")
+     #_(assoc (text "foo 2")
        :x (* 100 phase)
        :y 40)
 
@@ -79,15 +79,15 @@
        :x (* 100 phase)
        :y 140)
 
-     (assoc (set-size (drawable/->Image image))
+     #_(assoc (set-size (drawable/->Image image))
             :x (* 100 phase)
             :y 40)
 
-     (assoc (drawable/->Rectangle 10 100 [1 0 0 1] #_[255 0 0 255])
+     (assoc (drawable/->Rectangle 10 100 #_[1 0 0 1] [255 0 0 255])
        :x (* 100 phase)
        :y 0)
 
-     (assoc (drawable/->Rectangle 100 100 [1 1 0 1] #_[255 0 0 255])
+     #_(assoc (drawable/->Rectangle 100 100 #_[1 1 0 1] [255 255 0 255])
        :x (* 100 phase)
        :y 100)]))
 

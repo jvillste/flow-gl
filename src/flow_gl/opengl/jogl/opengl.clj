@@ -9,7 +9,6 @@
 (defn initialize-gl [gl]
   (doto gl
     (.glEnable GL2/GL_BLEND)
-
     (.glColorMask true, true, true, true)
     (.glBlendFunc GL2/GL_SRC_ALPHA GL2/GL_ONE_MINUS_SRC_ALPHA)
     ))
