@@ -58,6 +58,7 @@
   (->> (day-directory-names year-path)
        (map month)
        (apply hash-set)
+       (sort)
        (vec)))
 
 (defn days [year-path month-number]
@@ -90,8 +91,8 @@
                              buffered-image-channel ([buffered-image]
                                                        (flow-gl.debug/debug-timed "got buffered image for " file-name)
                                                        (gui/apply-to-state view-context (fn [state]
-                                                                                               (flow-gl.debug/debug-timed "applying " file-name)
-                                                                                               (assoc state :buffered-image buffered-image)))))))
+                                                                                          (flow-gl.debug/debug-timed "applying " file-name)
+                                                                                          (assoc state :buffered-image buffered-image)))))))
 
      {:file-name file-name})
 
@@ -112,7 +113,7 @@
                              [0.8 0.8 0.8 1])))))
 
 
-(defn date-navigation [selected-year selected-month selected-day archive-path]
+(defn date-navigation [view-context selected-year selected-month selected-day archive-path]
   (let [selected-color [0.3 0.8 0.4 1]]
     (l/horizontally
      (apply l/vertically (for [year (years archive-path)]
@@ -121,28 +122,34 @@
                                                      selected-color
                                                      [0.8 0.8 0.8 1]))
 
-                               (gui/on-mouse-clicked assoc
-                                                          :selected-year year
-                                                          :month (first (months (str archive-path "/" year)))))))
+                               (gui/on-mouse-clicked view-context
+                                                     (fn [state time]
+                                                       (assoc state
+                                                         :selected-year year
+                                                         :month (first (months (str archive-path "/" year))))) ))))
 
      (l/margin 0 0 0 10 (apply l/vertically (doall (for [month (months (str archive-path "/" selected-year))]
                                                      (-> (date-box {:text month
                                                                     :selected (= selected-month
                                                                                  month)})
-                                                         (gui/on-mouse-clicked assoc
-                                                                                    :selected-month month
-                                                                                    :selected-day (first (days (str archive-path "/" selected-year) month))))))))
+                                                         (gui/on-mouse-clicked view-context
+                                                                               (fn [state time]
+                                                                                 (assoc state
+                                                                                     :selected-month month
+                                                                                     :selected-day (first (days (str archive-path "/" selected-year) month)))) ))))))
 
      (l/margin 0 0 0 10 (apply l/vertically (doall (for [day (days (str archive-path "/" selected-year) selected-month)]
                                                      (-> (controls/text day (if (= selected-day
                                                                                    day)
                                                                               selected-color
                                                                               [0.8 0.8 0.8 1]))
-                                                         (gui/on-mouse-clicked assoc :selected-day day)))))))))
+                                                         (gui/on-mouse-clicked view-context 
+                                                                               (fn [state time]
+                                                                                 (assoc state :selected-day day)))))))))))
 
 (gui/def-control photo-archive-browser
   ([view-context control-channel]
-     (let [thread-pool (Executors/newFixedThreadPool 1 #_(.. Runtime getRuntime availableProcessors))]
+     (let [thread-pool (Executors/newFixedThreadPool (.. Runtime getRuntime availableProcessors))]
        (async/go (<! control-channel)
                  (flow-gl.debug/debug-timed "shutting down the threadpool")
                  (.shutdown thread-pool))
@@ -161,12 +168,12 @@
      (flow-gl.debug/debug-timed "view")
 
      #_(gui/call-named-view image-view
-                                 create-image
-                                 :image
-                                 ["/Users/jukka/Pictures/arkisto_mini/2011/2011-12-28/2011-12-28.19.44.39_ac66709411ae6c2948d95bd90199cccc.jpg"]
-                                 [])
+                            create-image
+                            :image
+                            ["/Users/jukka/Pictures/arkisto_mini/2011/2011-12-28/2011-12-28.19.44.39_ac66709411ae6c2948d95bd90199cccc.jpg"]
+                            [])
 
-     (layouts/->FloatLeft (date-navigation selected-year selected-month selected-day archive-path)
+     (layouts/->FloatLeft (date-navigation view-context selected-year selected-month selected-day archive-path)
                           (l/margin 0 0 0 10
                                     (layouts/->Flow
                                      (doall (for [image-file-name (images (str archive-path
@@ -186,7 +193,7 @@
     (gui/start-view #'create-photo-archive-browser #'photo-archive-browser-view))
 
   #_(.start (Thread. (fn []
-                     (gui/start-view #'create-photo-archive-browser #'photo-archive-browser-view)))))
+                       (gui/start-view #'create-photo-archive-browser #'photo-archive-browser-view)))))
 
 (gui/redraw-last-started-view)
 
@@ -204,10 +211,10 @@
                     pool))
 
     (async/go-loop []
-                   (async/alt! control-channel ([])
-                               event-channel ([message]
-                                                (println message)
-                                                (recur))))
+      (async/alt! control-channel ([])
+                  event-channel ([message]
+                                   (println message)
+                                   (recur))))
 
     (Thread/sleep 4000)
     (.shutdown pool)
