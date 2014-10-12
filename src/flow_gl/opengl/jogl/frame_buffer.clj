@@ -6,13 +6,13 @@
     (.glGenFramebuffers gl (int 1) result-buffer (int 0))
     (aget result-buffer 0)))
 
-(defn bind [gl id]
+(defn bind [id gl]
   (.glBindFramebuffer gl GL2/GL_FRAMEBUFFER id))
 
-(defn delete [gl id]
-  (.glDeleteFrameBuffers gl 1 (int-array [id]) 0))
+(defn delete [id gl]
+  (.glDeleteFramebuffers gl (int 1) (int-array [id]) (int 0)))
 
-(defn bind-texture [gl texture-id]
+(defn bind-texture [texture-id gl]
   (.glFramebufferTexture2D gl
                            GL2/GL_FRAMEBUFFER
                            GL2/GL_COLOR_ATTACHMENT0

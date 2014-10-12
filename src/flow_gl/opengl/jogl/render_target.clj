@@ -1,4 +1,4 @@
-(ns examples.frame-buffers
+(ns flow-gl.opengl.jogl.render-target
   (:require [flow-gl.gui.event-queue :as event-queue]
             (flow-gl.opengl.jogl [frame-buffer :as frame-buffer]
                                  [opengl :as opengl]
@@ -21,94 +21,96 @@
            [java.awt Color]))
 
 
-(def vertex-shader-source "
+  (def vertex-shader-source "
 #version 140
-uniform mat4 projection_matrix;
+  uniform mat4 projection_matrix;
 
-in vec2 vertex_coordinate_attribute;
+  in vec2 vertex_coordinate_attribute;
 
-out vec2 texture_coordinate;
+  out vec2 texture_coordinate;
 
-void main() {
-    gl_Position = projection_matrix * vec4(vertex_coordinate_attribute[0], vertex_coordinate_attribute[1], 0.0, 1.0);
+  void main() {
+  gl_Position = projection_matrix * vec4(vertex_coordinate_attribute[0], vertex_coordinate_attribute[1], 0.0, 1.0);
 
-    switch(gl_VertexID) {
-      case 0:
-          texture_coordinate = vec2(0.0, 0.0);
-        break;
-      case 1:
-          texture_coordinate = vec2(0.0, 1.0);
-        break;
-      case 2:
-          texture_coordinate = vec2(1.0, 0.0);
-        break;
-      case 3:
-          texture_coordinate = vec2(1.0, 1.0);
-        break;
-    }
+  switch(gl_VertexID) {
+  case 0:
+  texture_coordinate = vec2(0.0, 0.0);
+  break;
+  case 1:
+  texture_coordinate = vec2(0.0, 1.0);
+  break;
+  case 2:
+  texture_coordinate = vec2(1.0, 0.0);
+  break;
+  case 3:
+  texture_coordinate = vec2(1.0, 1.0);
+  break;
+  }
 
-}
-
-")
-
-(def fragment-shader-source "
-#version 140
-
-uniform sampler2D texture;
-in vec2 texture_coordinate;
-out vec4 outColor;
-
-void main() {
-    outColor = texture(texture, texture_coordinate);
-    //outColor = texture(texture, vec2(0.5, 0.5));
-    //outColor = vec4(1.0, 0.0, 0.0, 1.0);
-}
-")
-
-(def single-color-vertex-shader-source "
-#version 140
-uniform mat4 projection_matrix;
-
-in vec2 vertex_coordinate_attribute;
-out vec3 color;
-
-void main() {
-
-    switch(gl_VertexID) {
-      case 0:
-          color = vec3(1.0, 0.0, 0.0);
-        break;
-      case 1:
-          color = vec3(0.0, 1.0, 0.0);
-        break;
-      case 2:
-          color = vec3(0.0, 0.0, 1.0);
-        break;
-      case 3:
-          color = vec3(1.0, 1.0, 0.0);
-        break;
-    }
-
-
-   // gl_Position = projection_matrix * vec4(vertex_coordinate_attribute[0], vertex_coordinate_attribute[1], 0.0, 1.0);
-   gl_Position = vec4(vertex_coordinate_attribute[0], vertex_coordinate_attribute[1], 0.0, 1.0);
-}
+  }
 
 ")
 
-(def single-color-fragment-shader-source "
-#version 330
+  (def fragment-shader-source "
+  #version 140
 
-layout(location = 0) out vec4 outColor;
+  uniform sampler2D texture;
+  in vec2 texture_coordinate;
+  out vec4 outColor;
 
-in vec3 color;
-
-void main() {
-    //outColor = vec4(0.0, 0.0, 1.0, 1.0);
-    outColor = vec4(color[0], color[1], color[2], 1.0);
-    //gl_FragColor.rgb = vec3(1.0, 0.0, 0.0);
-}
+  void main() {
+  outColor = texture(texture, texture_coordinate);
+  //outColor = texture(texture, vec2(0.5, 0.5));
+  //outColor = vec4(1.0, 0.0, 0.0, 1.0);
+  }
 ")
+
+  (def single-color-vertex-shader-source "
+  #version 140
+  uniform mat4 projection_matrix;
+
+  in vec2 vertex_coordinate_attribute;
+  out vec3 color;
+
+  void main() {
+
+  switch(gl_VertexID) {
+  case 0:
+  color = vec3(1.0, 0.0, 0.0);
+  break;
+  case 1:
+  color = vec3(0.0, 1.0, 0.0);
+  break;
+  case 2:
+  color = vec3(0.0, 0.0, 1.0);
+  break;
+  case 3:
+  color = vec3(1.0, 1.0, 0.0);
+  break;
+  }
+
+
+  // gl_Position = projection_matrix * vec4(vertex_coordinate_attribute[0], vertex_coordinate_attribute[1], 0.0, 1.0);
+  gl_Position = vec4(vertex_coordinate_attribute[0], vertex_coordinate_attribute[1], 0.0, 1.0);
+  }
+
+")
+
+  (def single-color-fragment-shader-source "
+  #version 330
+
+  layout(location = 0) out vec4 outColor;
+
+  in vec3 color;
+
+  void main() {
+  float foo = color[0];
+  outColor = vec4(0.0, 0.0, 1.0, 1.0);
+  //outColor = vec4(color[0], color[1], color[2], 1.0);
+  //gl_FragColor.rgb = vec3(1.0, 0.0, 0.0);
+  }
+")
+
 
 
 (defn text-image [text]
@@ -163,7 +165,7 @@ void main() {
                             (long 0))
 
     (.glDrawArrays gl GL2/GL_TRIANGLE_STRIP 0 4)
-    
+
 
     (.glBindTexture gl GL2/GL_TEXTURE_2D 0)
     (buffer/delete gl vertex-coordinate-buffer-id)
@@ -262,6 +264,54 @@ void main() {
   (load-texture gl texture  (.getWidth image) (.getHeight image)
                 (native-buffer/native-buffer-with-values :int (-> image (.getRaster) (.getDataBuffer) (.getData)))))
 
+(defn create [width height gl]
+  (let [frame-buffer (frame-buffer/create gl)
+        frame-buffer-texture (texture/create-gl-texture gl)]
+
+    (.glBindTexture gl GL2/GL_TEXTURE_2D frame-buffer-texture)
+
+    (.glTexParameteri gl GL2/GL_TEXTURE_2D GL2/GL_TEXTURE_MAG_FILTER GL2/GL_LINEAR)
+    (.glTexParameteri gl GL2/GL_TEXTURE_2D GL2/GL_TEXTURE_MIN_FILTER GL2/GL_LINEAR)
+    (.glTexParameteri gl GL2/GL_TEXTURE_2D GL2/GL_TEXTURE_WRAP_S GL2/GL_CLAMP_TO_EDGE)
+    (.glTexParameteri gl GL2/GL_TEXTURE_2D GL2/GL_TEXTURE_WRAP_T GL2/GL_CLAMP_TO_EDGE)
+
+    (.glTexImage2D gl GL2/GL_TEXTURE_2D 0 GL2/GL_RGBA width height 0 GL2/GL_RGBA GL2/GL_UNSIGNED_BYTE nil)
+
+
+    (frame-buffer/bind frame-buffer gl)
+
+    (frame-buffer/bind-texture frame-buffer-texture
+                               gl)
+
+    (.glDrawBuffers gl 1 (int-array [GL2/GL_COLOR_ATTACHMENT0]) 0)
+
+    (assert GL2/GL_FRAMEBUFFER_COMPLETE (.glCheckFramebufferStatus gl GL2/GL_FRAMEBUFFER))
+
+    {:frame-buffer frame-buffer
+     :texture frame-buffer-texture
+     :width width
+     :height height}))
+
+(defn start-rendering [render-target gl]
+  (frame-buffer/bind (:frame-buffer render-target)
+                     gl))
+
+(defn end-rendering [render-target gl]
+  (frame-buffer/bind 0
+                     gl))
+
+(defn draw [render-target width height gl]
+  (draw-quad gl
+             (:texture render-target)
+             (:width render-target)
+             (:height render-target)
+             width
+             height))
+
+(defn delete [render-target gl]
+  (frame-buffer/delete (:frame-buffer render-target) gl)
+  (texture/delete-gl-texture (:texture render-target) gl))
+
 (defn start []
   (let [window-width 600
         window-height 600
@@ -271,83 +321,25 @@ void main() {
       (window/with-gl window gl
         (opengl/initialize gl)
 
-        #_(-> (buffered-image/create-from-file "pumpkin.png")
-              (texture/create-for-buffered-image gl)
-              (textured-quad/create gl)
-              (textured-quad/render gl 256 256))
+        (let [render-target-width 200
+              render-target-height 200
+              render-target (create render-target-width
+                                    render-target-height
+                                    gl)]
 
-        (let [texture (create-texture gl)
-              ;;frame-buffer-texture (create-texture gl)
-              frame-buffer (frame-buffer/create gl)
-              frame-buffer-width 500
-              frame-buffer-height 500
-              image (buffered-image/create-from-file "pumpkin.png")
+          (start-rendering render-target gl)
 
-              shader-program (shader/compile-program gl
-                                                     vertex-shader-source
-                                                     fragment-shader-source)]
-          ;;(frame-buffer/bind gl frame-buffer)
-          (.glBindFramebuffer gl GL2/GL_FRAMEBUFFER frame-buffer)
+          (opengl/clear gl 0 0 0 1)
 
-          (load-texture-from-buffered-image gl texture image)
+          (draw-single-color-quad gl 10 10 render-target-width render-target-height)
 
-          ;;(.glDisable gl GL2/GL_DEPTH_TEST)
-          ;;(.glDepthMask gl false)
+          (end-rendering render-target gl)
 
-          (let [frame-buffer-texture (texture/create-gl-texture gl)]
-            ;;(.glActiveTexture gl GL2/GL_TEXTURE0)
-            (.glBindTexture gl GL2/GL_TEXTURE_2D frame-buffer-texture)
+          (opengl/clear gl 0 0 0 1)
 
-            (.glTexParameteri gl GL2/GL_TEXTURE_2D GL2/GL_TEXTURE_MAG_FILTER GL2/GL_LINEAR)
-            (.glTexParameteri gl GL2/GL_TEXTURE_2D GL2/GL_TEXTURE_MIN_FILTER GL2/GL_LINEAR)
-            (.glTexParameteri gl GL2/GL_TEXTURE_2D GL2/GL_TEXTURE_WRAP_S GL2/GL_CLAMP_TO_EDGE)
-            (.glTexParameteri gl GL2/GL_TEXTURE_2D GL2/GL_TEXTURE_WRAP_T GL2/GL_CLAMP_TO_EDGE)
+          (draw render-target window-width window-height gl)
 
-            ;;(load-texture gl frame-buffer-texture frame-buffer-width frame-buffer-height nil)
-            (.glTexImage2D gl GL2/GL_TEXTURE_2D 0 GL2/GL_RGBA frame-buffer-width frame-buffer-height 0 GL2/GL_RGBA GL2/GL_UNSIGNED_BYTE nil)
-            ;;            (.glBindTexture gl GL2/GL_TEXTURE_2D 0)
-
-
-            ;;(frame-buffer/bind-texture gl frame-buffer-texture)
-            (.glFramebufferTexture gl
-                                   GL2/GL_FRAMEBUFFER
-                                   GL2/GL_COLOR_ATTACHMENT0
-                                   ;;                                   GL2/GL_TEXTURE_2D
-                                   frame-buffer-texture
-                                   0)
-
-            (.glDrawBuffers gl 1 (int-array [GL2/GL_COLOR_ATTACHMENT0]) 0)
-
-            ;;(.glDrawBuffer gl GL2/GL_COLOR_ATTACHMENT0)
-            (println "status ok" (= GL2/GL_FRAMEBUFFER_COMPLETE (.glCheckFramebufferStatus gl GL2/GL_FRAMEBUFFER)))
-
-            (.glBindFramebuffer gl GL2/GL_FRAMEBUFFER frame-buffer)
-
-            ;;(.glViewport gl 0 0 frame-buffer-width frame-buffer-height)
-
-            (opengl/clear gl 1 0 0 0.7)
-
-            ;; (.glBegin gl GL2/GL_TRIANGLES)
-            ;; (.glVertex2f gl 0 0)
-            ;; (.glVertex2f gl 10 0)
-            ;; (.glVertex2f gl 1 10)
-            ;; (.glEnd gl)
-
-            ;;(.glClear gl GL2/GL_COLOR_BUFFER_BIT)
-            ;;(draw-quad gl texture (.getWidth image) (.getHeight image) frame-buffer-width frame-buffer-height)
-            (draw-single-color-quad gl 10 10 frame-buffer-width frame-buffer-height)
-            ;;(draw-quad gl texture (.getWidth image) (.getHeight image) window-width window-height)
-
-            ;;(frame-buffer/bind gl 0)
-            (.glBindFramebuffer gl GL2/GL_DRAW_FRAMEBUFFER 0)
-
-
-            (opengl/clear gl 0 0 0 1)
-            ;;(draw-quad gl texture (.getWidth image) (.getHeight image) window-width window-height)
-            (draw-quad gl frame-buffer-texture frame-buffer-width frame-buffer-height window-width window-height)
-            ;;(draw-single-color-quad gl 10 10 window-width window-height)
-            )
-          ))
+          (delete render-target gl)))
 
       (println "exiting")
 
@@ -355,8 +347,3 @@ void main() {
         (window/close window)
         (throw e)))))
 
-;; TODO
-;; optimize updating the same quads constantly. generational GC?
-;; share texture
-;; group quads to tiles and draw given tiles only
-;; load new quads asynchronously in small batches. Ready made byte buffers to be loaded to the GPU

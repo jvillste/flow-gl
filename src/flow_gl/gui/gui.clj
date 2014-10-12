@@ -5,7 +5,9 @@
             [flow-gl.debug :as debug]
             (flow-gl.gui [drawable :as drawable]
                          [layout :as layout]
+                         [layouts :as layouts]
                          [event-queue :as event-queue]
+                         [drawable :as drawable]
                          [events :as events]
                          [quad-view :as quad-view]
                          [renderer :as renderer])
@@ -223,6 +225,25 @@
         (next-focus-path-parts state [[:children1 1] [:children2 1]])  => [[:children1 1] [:children2 2] [:children3 0]]
         (next-focus-path-parts state [[:children1 1] [:children2 2] [:children3 2]])  => nil))
 
+(defn set-layout-coordinates [layout parent-x parent-y parent-z]
+  (assoc layout
+    :x (+ parent-x (:x layout))
+    :y (+ parent-y (:y layout))
+    :z (+ parent-z (or (:z layout) 0))))
+
+(def drawables-for-layout)
+
+(defn child-drawables [layout parent-x parent-y parent-z]
+  (let [parent-x (+ parent-x (:x layout))
+        parent-y (+ parent-y (:y layout))
+        parent-z (+ parent-z (or (:z layout) 0))]
+    (loop [quads []
+           children (:children layout)]
+      (if-let [child (first children)]
+        (let [quads (drawables-for-layout child parent-x parent-y parent-z quads)]
+          (recur quads
+                 (rest children)))
+        quads))))
 
 (defn drawables-for-layout
   ([layout]
@@ -230,58 +251,49 @@
 
   ([layout parent-x parent-y parent-z quads]
      (if (:children layout)
-       (let [parent-x (+ parent-x (:x layout))
-             parent-y (+ parent-y (:y layout))
-             parent-z (+ parent-z (or (:z layout) 0))]
-         (loop [quads quads
-                children (:children layout)]
-           (if-let [child (first children)]
-             (let [quads (drawables-for-layout child parent-x parent-y parent-z quads)]
-               (recur quads
-                      (rest children)))
-             quads)))
+       (if (:render-target? layout)
+         (conj quads
+               (-> layout
+                   (set-layout-coordinates parent-x
+                                           parent-y
+                                           parent-z)
+                   (assoc :child-drawables (child-drawables layout parent-x parent-y parent-z))
+                   (dissoc :children)))
+
+         (concat quads
+                 (child-drawables layout parent-x parent-y parent-z)))
        (conj quads
-             (assoc layout
-               :x (+ parent-x (:x layout))
-               :y (+ parent-y (:y layout))
-               :z (+ parent-z (or (:z layout) 0)))))))
+             (set-layout-coordinates layout
+                                     parent-x
+                                     parent-y
+                                     parent-z)))))
 
-(defn map-for-renderers [function gl renderers]
-  (doall (map #(function % gl)
-              renderers)))
+(deftest drawables-for-layout-test
+  (let [result (let [[state layout] (layout/layout (assoc (layouts/->HorizontalStack [(assoc (layouts/->VerticalStack [(drawable/->Text "Foo1"
+                                                                                                                                  (font/create "LiberationSans-Regular.ttf" 14)
+                                                                                                                                  [1 1 1 1])
+                                                                                                                 (assoc (drawable/->Text "Bar1"
+                                                                                                                                         (font/create "LiberationSans-Regular.ttf" 14)
+                                                                                                                                         [1 1 1 1])
+                                                                                                                   :state-path-part [:bar] )])
+                                                                                  :state-path-part [:child-states 0]
+                                                                                  :z 1
+                                                                                  :render-target? true)
+                                                                                (assoc (layouts/->VerticalStack [(drawable/->Text "Foo2"
+                                                                                                                                  (font/create "LiberationSans-Regular.ttf" 14)
+                                                                                                                                  [1 1 1 1])
+                                                                                                                 (drawable/->Text "Bar2"
+                                                                                                                                  (font/create "LiberationSans-Regular.ttf" 14)
+                                                                                                                                  [1 1 1 1])])
+                                                                                  :state-path-part [:child-states 1])] )
+                                                     :render-target? true)
+                                                   {}
+                                                   100 100)]
+                 (drawables-for-layout (assoc layout :x 0 :y 0)))]
+    (is (= result
+           nil))))
 
-(defn select-renderer [renderers drawable]
-  (first (filter #(renderer/can-draw? % drawable) renderers)))
-
-(defn render-drawables-with-renderers [drawables gl renderers]
-  (let [batches (group-by (partial select-renderer renderers) drawables)]
-    (loop [renderers renderers
-           rendered-renderers []]
-      (if-let [renderer (first renderers)]
-        (recur (rest renderers)
-               (conj rendered-renderers
-                     (renderer/draw-drawables renderer
-                                     (or (get batches renderer)
-                                         [])
-                                     gl)))
-        rendered-renderers))))
-
-(defn render-layers [layers gl renderers]
-  (loop [renderers renderers
-         layers layers]
-    (if-let [layer-drawables (first layers)]
-      (recur (render-drawables-with-renderers layer-drawables gl renderers)
-             (rest layers))
-      renderers)))
-
-(defn render-frame [drawables gl renderers]
-  (->> renderers
-       (map-for-renderers renderer/start-frame gl)
-       (render-layers (->> drawables
-                           (sort-by :z)
-                           (partition-by :z))
-                      gl)
-       (map-for-renderers renderer/end-frame gl)))
+(run-all-tests)
 
 
 (defn render-layout [window gpu-state-atom layout]
@@ -289,7 +301,7 @@
     (window/set-display window gl
                         (opengl/clear gl 0 0 0 1)
                         (reset! gpu-state-atom
-                                (render-frame drawables
+                                (renderer/render-frame drawables
                                               gl
                                               @gpu-state-atom)))))
 

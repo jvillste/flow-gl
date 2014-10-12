@@ -102,6 +102,7 @@
   (preferred-size [this available-width available-height]
                   (layoutable/preferred-size child available-width available-height)))
 
+
 (layout/deflayout-not-memoized Margin [margin-top margin-right margin-bottom margin-left children]
   (layout [this requested-width requested-height]
           (update-in this [:children] (fn [[layoutable]]
@@ -185,6 +186,7 @@
                     {:height (apply max (conj (map :height child-sizes)
                                               0))
                      :width (reduce + (map :width child-sizes))})))
+
 
 
 (defn flow-row [layoutables maximum-width]

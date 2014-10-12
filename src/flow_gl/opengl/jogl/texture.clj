@@ -14,6 +14,9 @@
       (.glGenTextures gl 1 result 0)
       (first result)))
 
+(defn delete-gl-texture [texture gl]
+  (.glDeleteTextures gl 1 (int-array [texture]) 0))
+
 (defrecord Texture [texture width height buffered-image])
 
 (defn delete [texture gl]
