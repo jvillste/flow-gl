@@ -5,7 +5,6 @@
             [flow-gl.debug :as debug]
             (flow-gl.gui [drawable :as drawable]
                          [layout :as layout]
-                         [layouts :as layouts]
                          [event-queue :as event-queue]
                          [drawable :as drawable]
                          [events :as events]
@@ -268,30 +267,7 @@
                                      parent-y
                                      parent-z)))))
 
-(deftest drawables-for-layout-test
-  (let [result (let [[state layout] (layout/layout (assoc (layouts/->HorizontalStack [(assoc (layouts/->VerticalStack [(drawable/->Text "Foo1"
-                                                                                                                                  (font/create "LiberationSans-Regular.ttf" 14)
-                                                                                                                                  [1 1 1 1])
-                                                                                                                 (assoc (drawable/->Text "Bar1"
-                                                                                                                                         (font/create "LiberationSans-Regular.ttf" 14)
-                                                                                                                                         [1 1 1 1])
-                                                                                                                   :state-path-part [:bar] )])
-                                                                                  :state-path-part [:child-states 0]
-                                                                                  :z 1
-                                                                                  :render-target? true)
-                                                                                (assoc (layouts/->VerticalStack [(drawable/->Text "Foo2"
-                                                                                                                                  (font/create "LiberationSans-Regular.ttf" 14)
-                                                                                                                                  [1 1 1 1])
-                                                                                                                 (drawable/->Text "Bar2"
-                                                                                                                                  (font/create "LiberationSans-Regular.ttf" 14)
-                                                                                                                                  [1 1 1 1])])
-                                                                                  :state-path-part [:child-states 1])] )
-                                                     :render-target? true)
-                                                   {}
-                                                   100 100)]
-                 (drawables-for-layout (assoc layout :x 0 :y 0)))]
-    (is (= result
-           nil))))
+
 
 (run-all-tests)
 

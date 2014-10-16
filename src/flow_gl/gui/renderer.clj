@@ -124,10 +124,28 @@
 
   (draw-drawables [this render-targets gl]
     (assoc this :renderers
-           (reduce (fn [renderers render-target]
-                     (render-frame-drawables (:child-drawables render-target)
+           (reduce (fn [renderers render-target-drawable]
+                     #_(render-frame-drawables (:child-drawables render-target-drawable)
                                              gl
-                                             renderers))
+                                             renderers)
+                     (let [render-target (render-target/create (:width render-target-drawable)
+                                                               (:height render-target-drawable)
+                                                               gl)]
+
+                       
+
+                       (render-target/start-rendering render-target gl)
+
+                       (render-frame-drawables (:child-drawables render-target-drawable)
+                                               gl
+                                               renderers)
+                       (opengl/clear gl 1 0 0 1)
+                       (render-target/end-rendering render-target gl)
+
+                       (let [{:keys [width height]} (opengl/size gl)]
+                         (render-target/draw render-target width height gl))
+
+                       (render-target/delete render-target gl)))
                    renderers
                    render-targets)))
 
