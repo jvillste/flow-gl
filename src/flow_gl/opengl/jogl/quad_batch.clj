@@ -19,13 +19,15 @@
            [java.nio IntBuffer]
            [java.awt Color]))
 
-(def quad-parameters-size (+ 2 1 1 2))
+(def quad-parameters-size (+ 2 1 1 2 2))
 (def parent-offset 0)
 (def x-offset 1)
 (def y-offset 2)
 (def width-offset 3)
 (def height-offset 4)
 (def texture-offset-offset 5)
+(def quad-width-offset 6)
+(def quad-height-offset 7)
 
 (defn read-quad-parameters [quad-batch gl id]
   (let [[parent x y width height texture-offset] (buffer/read gl
@@ -70,7 +72,7 @@
   flat out int texture_offset;
   flat out int texture_width;
 
-  const int quad_parameters_size = 6;
+  const int quad_parameters_size = 8;
 
   void main() {
 
@@ -80,6 +82,8 @@
   // 3 texture width
   // 4 texture height
   // 5 texel index
+  // 6 quad width
+  // 7 quad height
 
   int quad_index;
   if(use_quad_index_buffer == 1)
@@ -87,42 +91,45 @@
   else
   quad_index = gl_InstanceID;
 
-  ivec2 texture_size = ivec2(texelFetch(quad_parameters, quad_index * quad_parameters_size + 3).x,
-  texelFetch(quad_parameters, quad_index * quad_parameters_size + 4).x);
+  ivec2 texture_size = ivec2(128,128);// ivec2(texelFetch(quad_parameters, quad_index * quad_parameters_size + 3).x,
+  //texelFetch(quad_parameters, quad_index * quad_parameters_size + 4).x);
+
+  ivec2 quad_size = ivec2(texelFetch(quad_parameters, quad_index * quad_parameters_size + 6).x,
+  texelFetch(quad_parameters, quad_index * quad_parameters_size + 7).x);
+
+  vec2 vertex_coordinates;
 
   switch(gl_VertexID) {
   case 0:
   texture_coordinate = vec2(0.0, 0.0);
+  vertex_coordinates = vec2(0.0, 0.0);
   break;
   case 1:
   texture_coordinate = vec2(0.0, texture_size.y);
+  vertex_coordinates = vec2(0.0, quad_size.y);
   break;
   case 2:
   texture_coordinate = vec2(texture_size.x, 0.0);
+  vertex_coordinates = vec2(quad_size.x, 0.0);
   break;
   case 3:
   texture_coordinate = vec2(texture_size.x, texture_size.y);
+  vertex_coordinates = vec2(quad_size.x, quad_size.y);
   break;
   }
 
-  int parent = int(texelFetch(quad_parameters, quad_index * quad_parameters_size).x);
-
-  vec2 offset = vec2(0,0);
-  while(parent >= 0)
-  {
-  vec2 parent_offset = vec2(texelFetch(quad_parameters, parent * quad_parameters_size + 1).x,
-  texelFetch(quad_parameters, parent * quad_parameters_size + 2).x);
-
-  offset = vec2(offset.x + parent_offset.x, offset.y + parent_offset.y);
-  parent = int(texelFetch(quad_parameters, parent * quad_parameters_size).x);
-  }
-
+  
   vec2 quad_coordinates = vec2(texelFetch(quad_parameters, quad_index * quad_parameters_size + 1).x,
   texelFetch(quad_parameters, quad_index * quad_parameters_size + 2).x);
 
-  gl_Position = projection_matrix * vec4(offset.x + texture_coordinate.x + quad_coordinates.x, offset.y +  texture_coordinate.y + quad_coordinates.y, 0.0, 1.0);
+  
+  //gl_Position = projection_matrix * vec4(texture_coordinate.x + quad_coordinates.x,
+//                                           texture_coordinate.y + quad_coordinates.y, 0.0, 1.0);
 
-  texture_offset = texelFetch(quad_parameters, quad_index * quad_parameters_size + 5).x;
+  gl_Position = projection_matrix * vec4(vertex_coordinates.x + quad_coordinates.x,
+                                         vertex_coordinates.y + quad_coordinates.y, 0.0, 1.0);
+
+  texture_offset = 0; //texelFetch(quad_parameters, quad_index * quad_parameters_size + 5).x;
   texture_width = texture_size.x;
   }
 ")
@@ -139,7 +146,12 @@
   out vec4 outColor;
 
   void main() {
-  vec4 color = texelFetch(texture, int(texture_offset + texture_coordinate.y * texture_width + texture_coordinate.x - int(texture_width) / 2));
+  ivec2 texture_int_coordinate;
+  texture_int_coordinate = ivec2(int(texture_coordinate.x), int(texture_coordinate.y));
+
+  //vec4 color = texelFetch(texture, int(texture_offset + texture_coordinate.y * texture_width + texture_coordinate.x - int(texture_width) / 2));
+  //vec4 color = texelFetch(texture, int(texture_offset + texture_coordinate.y * texture_width + texture_coordinate.x));
+  vec4 color = texelFetch(texture, int(texture_offset + texture_int_coordinate.y * texture_width + texture_int_coordinate.x));
   outColor = vec4(color.b, color.g, color.r, color.a);
   }
 ")
@@ -545,7 +557,11 @@
                                   (:y quad)
                                   (:width texture)
                                   (:height texture)
-                                  (:first-texel texture)]))
+                                  (:first-texel texture)
+                                  (or (:width quad)
+                                      (:width texture))
+                                  (or (:height quad)
+                                      (:height texture))]))
                 (recur (rest quads))))))
 
       (.rewind buffer)
