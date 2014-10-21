@@ -58,62 +58,19 @@
   uniform sampler2D texture;
   in vec2 texture_coordinate;
   out vec4 outColor;
+  
 
   void main() {
-  //vec4 textureColor = texture(texture, texture_coordinate);
   outColor = texture(texture, texture_coordinate);
+  //outColor = texture(texture, vec2(texture_coordinate[0], texture_coordinate[1]));
+  //outColor = vec4(texture(texture, texture_coordinate)[2], 0.0, 0.0, 1.0);
+  
   //outColor = texture(texture, vec2(0.5, 0.5));
-  //outColor = vec4(1.0, textureColor[0], 0.0, 1.0);
+  
   }
 ")
 
-  (def single-color-vertex-shader-source "
-  #version 140
-  uniform mat4 projection_matrix;
-
-  in vec2 vertex_coordinate_attribute;
-  out vec3 color;
-
-  void main() {
-
-  switch(gl_VertexID) {
-  case 0:
-  color = vec3(1.0, 0.0, 0.0);
-  break;
-  case 1:
-  color = vec3(0.0, 1.0, 0.0);
-  break;
-  case 2:
-  color = vec3(0.0, 0.0, 1.0);
-  break;
-  case 3:
-  color = vec3(1.0, 1.0, 1.0);
-  break;
-  }
-
-
-  gl_Position = projection_matrix * vec4(vertex_coordinate_attribute[0], vertex_coordinate_attribute[1], 0.0, 1.0);
-  //gl_Position = vec4(vertex_coordinate_attribute[0], vertex_coordinate_attribute[1], 0.0, 1.0);
-  }
-
-")
-
-  (def single-color-fragment-shader-source "
-  #version 330
-
-  layout(location = 0) out vec4 outColor;
-
-  in vec3 color;
-
-  void main() {
-  float foo = color[0];
-  //outColor = vec4(0.0, 0.0, 1.0, 1.0);
-  outColor = vec4(color[0], color[1], color[2], 1.0);
-  //gl_FragColor.rgb = vec3(1.0, 0.0, 0.0);
-  }
-")
-
-
+  
 
 (defn text-image [text]
   (text/create-buffered-image [1 1 1 1]
@@ -148,12 +105,9 @@
     (shader/enable-program gl
                            shader-program)
 
-    #_(.glBindFragDataLocation gl
-                               shader-program
-                               0
-                               "outColor")
-
+    (.glActiveTexture gl GL2/GL_TEXTURE0)
     (.glBindTexture gl GL2/GL_TEXTURE_2D texture)
+    (.glUniform1i gl (.glGetUniformLocation gl shader-program "texture") 0)
 
     (shader/set-float4-matrix-uniform gl
                                       shader-program
@@ -193,50 +147,6 @@
 
 
 
-(defn draw-single-color-quad [gl quad-width quad-height frame-buffer-width frame-buffer-height]
-  (let [shader-program (shader/compile-program gl
-                                               single-color-vertex-shader-source
-                                               single-color-fragment-shader-source)
-        vertex-coordinate-attribute-index (.glGetAttribLocation gl shader-program "vertex_coordinate_attribute")
-        vertex-coordinate-buffer-id (buffer/create-gl-buffer gl)]
-
-    (shader/enable-program gl
-                           shader-program)
-
-    #_(.glBindFragDataLocation gl
-                               shader-program
-                               1
-                               "outColor")
-
-    (shader/set-float4-matrix-uniform gl
-                                      shader-program
-                                      "projection_matrix"
-                                      (math/projection-matrix-2d frame-buffer-width
-                                                                 frame-buffer-height))
-
-    (buffer/load-vertex-array-buffer gl
-                                     vertex-coordinate-buffer-id
-                                     :float
-                                     (map float (quad-3 0 0
-                                                        frame-buffer-width frame-buffer-height)))
-
-
-
-    (.glBindBuffer gl GL2/GL_ARRAY_BUFFER vertex-coordinate-buffer-id)
-    (.glEnableVertexAttribArray gl vertex-coordinate-attribute-index)
-    (.glVertexAttribPointer gl
-                            (int vertex-coordinate-attribute-index)
-                            (int 2)
-                            (int GL2/GL_FLOAT)
-                            (boolean GL2/GL_FALSE)
-                            (int 0)
-                            (long 0))
-
-    (.glDrawArrays gl GL2/GL_TRIANGLE_STRIP 0 4)
-
-    (.glDisableVertexAttribArray gl vertex-coordinate-attribute-index)
-    (buffer/delete gl vertex-coordinate-buffer-id)
-    (shader/delete-program gl shader-program)))
 
 (defn create-texture [gl]
   (let [texture (texture/create-gl-texture gl)]
@@ -289,6 +199,20 @@
                         8 8
                         GL2/GL_RED GL2/GL_UNSIGNED_BYTE
                         data)
+    texture))
+
+(defn create-rgba-texture [gl]
+  (let [texture (texture/create-gl-texture gl)
+        data (native-buffer/native-buffer-with-values :byte [0 255 0 255
+                                                             255 0 0 255])]
+    
+    (.glBindTexture gl GL2/GL_TEXTURE_2D texture)
+    (.glTexParameteri gl GL2/GL_TEXTURE_2D GL2/GL_TEXTURE_MAG_FILTER GL2/GL_NEAREST)
+    (.glTexParameteri gl GL2/GL_TEXTURE_2D GL2/GL_TEXTURE_MIN_FILTER GL2/GL_LINEAR)
+    (.glTexParameteri gl GL2/GL_TEXTURE_2D GL2/GL_TEXTURE_WRAP_S GL2/GL_CLAMP_TO_EDGE)
+    (.glTexParameteri gl GL2/GL_TEXTURE_2D GL2/GL_TEXTURE_WRAP_T GL2/GL_CLAMP_TO_EDGE)
+    (.glTexImage2D gl GL2/GL_TEXTURE_2D 0 GL2/GL_RGBA 2 1 0 GL2/GL_RGBA GL2/GL_UNSIGNED_BYTE data)
+    
     texture))
 
 
@@ -345,12 +269,13 @@
   (frame-buffer/delete (:frame-buffer render-target) gl)
   (texture/delete-gl-texture (:texture render-target) gl))
 
-(defn start []
+#_(defn start []
   (let [window (window/create 600
                               600
                               :profile :gl3
                               :close-automatically true
-                              :init opengl/initialize)]
+                              :init opengl/initialize
+                              )]
 
     (try
       (window/set-display window gl
@@ -361,12 +286,12 @@
 
                                 render-target-width 500 #_128
                                 render-target-height 500 #_128
-                                render-target (create render-target-width
+                                #_render-target #_(create render-target-width
                                                       render-target-height
                                                       gl)
                                 #_quad-batch #_(-> (quad-batch/create gl)
                                                    (quad-batch/add-textures gl [(buffered-image/create-from-file "pumpkin.png")]))
-                                checker-texture (create-checker-texture gl)]
+                                checker-texture #_(create-checker-texture gl) (create-rgba-texture gl)]
 
                             #_(load-texture-from-buffered-image gl image-texture  image)
                             #_(load-texture gl image-texture
@@ -412,6 +337,33 @@
                             #_(draw render-target width height gl)
 
                             (delete render-target gl)))
+
+      (println "exiting")
+
+      (catch Exception e
+        (window/close window)
+        (throw e)))))
+
+(defn start []
+  (let [window (window/create 600
+                              600
+                              :profile :gl3
+                              :close-automatically true
+                              ;;:init opengl/initialize
+                              )]
+
+    (try
+      (window/set-display window gl
+
+                          (let [{:keys [width height]} (opengl/size gl)
+                               texture (create-rgba-texture gl)]
+
+                            (opengl/clear gl 0 1 1 1)
+
+                            (draw-quad gl
+                                       texture
+                                       100 100
+                                       width height)))
 
       (println "exiting")
 

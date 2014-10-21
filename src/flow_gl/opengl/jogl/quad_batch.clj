@@ -91,8 +91,8 @@
   else
   quad_index = gl_InstanceID;
 
-  ivec2 texture_size = ivec2(128,128);// ivec2(texelFetch(quad_parameters, quad_index * quad_parameters_size + 3).x,
-  //texelFetch(quad_parameters, quad_index * quad_parameters_size + 4).x);
+  ivec2 texture_size = ivec2(texelFetch(quad_parameters, quad_index * quad_parameters_size + 3).x,
+  texelFetch(quad_parameters, quad_index * quad_parameters_size + 4).x);
 
   ivec2 quad_size = ivec2(texelFetch(quad_parameters, quad_index * quad_parameters_size + 6).x,
   texelFetch(quad_parameters, quad_index * quad_parameters_size + 7).x);
@@ -129,7 +129,7 @@
   gl_Position = projection_matrix * vec4(vertex_coordinates.x + quad_coordinates.x,
                                          vertex_coordinates.y + quad_coordinates.y, 0.0, 1.0);
 
-  texture_offset = 0; //texelFetch(quad_parameters, quad_index * quad_parameters_size + 5).x;
+  texture_offset = texelFetch(quad_parameters, quad_index * quad_parameters_size + 5).x;
   texture_width = texture_size.x;
   }
 ")
@@ -247,7 +247,7 @@
 (defn create [gl]
   ;;(opengl/initialize gl)
 
-  (let [initial-number-of-texels 10000
+  (let [initial-number-of-texels 5000000
         initial-number-of-quads 100
         quad-batch {:program (shader/compile-program gl
                                                      vertex-shader-source
@@ -368,6 +368,7 @@
           (update-vertex-array-object gl)))))
 
 (defn collect-texture-garbage [quad-batch gl]
+  (println "collecting")
   (let [new-number-of-texels (- (:next-free-texel quad-batch)
                                 (:removed-texels quad-batch))
 
@@ -409,6 +410,7 @@
         (update-vertex-array-object gl))))
 
 (defn grow-texture-buffer [gl quad-batch minimum-size]
+  (println "growing")
   (let [new-quad-batch (assoc quad-batch
                          :texture-buffer-id (allocate-texture gl (* 2 minimum-size))
                          :allocated-texels (* 2 minimum-size))]
