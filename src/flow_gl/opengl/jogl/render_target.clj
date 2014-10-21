@@ -58,13 +58,11 @@
   uniform sampler2D texture;
   in vec2 texture_coordinate;
   out vec4 outColor;
-  
 
   void main() {
   outColor = texture(texture, texture_coordinate);
   //outColor = texture(texture, vec2(texture_coordinate[0], texture_coordinate[1]));
   //outColor = vec4(texture(texture, texture_coordinate)[2], 0.0, 0.0, 1.0);
-  
   //outColor = texture(texture, vec2(0.5, 0.5));
   
   }
@@ -146,8 +144,6 @@
     (shader/delete-program gl shader-program)))
 
 
-
-
 (defn create-texture [gl]
   (let [texture (texture/create-gl-texture gl)]
     (.glBindTexture gl GL2/GL_TEXTURE_2D texture)
@@ -161,27 +157,14 @@
 
 (defn load-texture [gl texture width height data]
   (.glBindTexture gl GL2/GL_TEXTURE_2D texture)
-  (.glTexImage2D gl GL2/GL_TEXTURE_2D 0 GL2/GL_RGBA8 width height 0 GL2/GL_BGRA GL2/GL_UNSIGNED_BYTE data)
-  (.glBindTexture gl GL2/GL_TEXTURE_2D 0))
-
-(defn load-fixed-size-texture [gl texture width height data]
-  (.glBindTexture gl GL2/GL_TEXTURE_2D texture)
-  (.glTexSubImage2D gl GL2/GL_TEXTURE_2D 0 0 0 width height GL2/GL_BGRA GL2/GL_UNSIGNED_BYTE data))
+  (.glTexImage2D gl GL2/GL_TEXTURE_2D 0 GL2/GL_RGBA8 width height 0 GL2/GL_BGRA GL2/GL_UNSIGNED_BYTE data))
 
 (defn load-texture-from-buffered-image [gl texture image]
   (load-texture gl texture  (.getWidth image) (.getHeight image)
                 (native-buffer/native-buffer-with-values :int (-> image (.getRaster) (.getDataBuffer) (.getData)))))
 
-(defn create-fixed-size-texture [width height gl]
-  (let [texture (texture/create-gl-texture gl)]
-
-    (.glBindTexture gl GL2/GL_TEXTURE_2D texture)
-    (.glTexStorage2D gl GL2/GL_TEXTURE_2D 1 GL2/GL_RGBA8 width height)
-
-    texture))
-
 (defn create-checker-texture [gl]
-  (let [texture (texture/create-gl-texture gl)
+  (let [texture (create-texture gl)
         data (native-buffer/native-buffer-with-values :byte [0 255 0 255 0 255 0 255
                                                              255 0 255 0 255 0 255 0
                                                              0 255 0 255 0 255 0 255
@@ -190,15 +173,14 @@
                                                              255 0 255 0 255 0 255 0
                                                              0 255 0 255 0 255 0 255
                                                              255 0 255 0 255 0 255 0])]
+
     (.glBindTexture gl GL2/GL_TEXTURE_2D texture)
+    (.glTexParameteri gl GL2/GL_TEXTURE_2D GL2/GL_TEXTURE_WRAP_S GL2/GL_CLAMP_TO_EDGE)
+    (.glTexParameteri gl GL2/GL_TEXTURE_2D GL2/GL_TEXTURE_WRAP_T GL2/GL_CLAMP_TO_EDGE)
+    (.glTexParameteri gl GL2/GL_TEXTURE_2D GL2/GL_TEXTURE_MAG_FILTER GL2/GL_NEAREST)
+    (.glTexParameteri gl GL2/GL_TEXTURE_2D GL2/GL_TEXTURE_MIN_FILTER GL2/GL_NEAREST)
     (.glTexImage2D gl GL2/GL_TEXTURE_2D 0 GL2/GL_R8 8 8 0 GL2/GL_RED GL2/GL_UNSIGNED_BYTE data)
-    #_(.glTexStorage2D GL2/GL_TEXTURE_2D 4 GL2/GL_R8 8 8)
-    #_(.glTexSubImage2D GL2/GL_TEXTURE_2D
-                        0
-                        0 0
-                        8 8
-                        GL2/GL_RED GL2/GL_UNSIGNED_BYTE
-                        data)
+    
     texture))
 
 (defn create-rgba-texture [gl]
@@ -349,14 +331,17 @@
                               600
                               :profile :gl3
                               :close-automatically true
-                              ;;:init opengl/initialize
+                              :init opengl/initialize
                               )]
 
     (try
       (window/set-display window gl
 
                           (let [{:keys [width height]} (opengl/size gl)
-                               texture (create-rgba-texture gl)]
+                                image (buffered-image/create-from-file "pumpkin.png")
+                               texture (create-texture gl)]
+                            (load-texture gl texture (.getWidth image) (.getHeight image)
+                                          (native-buffer/native-buffer-with-values :int (-> image (.getRaster) (.getDataBuffer) (.getData))))
 
                             (opengl/clear gl 0 1 1 1)
 
