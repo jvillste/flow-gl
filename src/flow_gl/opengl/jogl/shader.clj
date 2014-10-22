@@ -90,6 +90,16 @@
                 value2
                 value3))
 
+(defn set-float4-uniform [gl program name value1 value2 value3 value4]
+  (.glUniform4f gl
+                (get-uniform-location gl
+                                         program
+                                         name)
+                value1
+                value2
+                value3
+                value4))
+
 (defn set-float4-matrix-uniform [gl program name values]
   (.glUniformMatrix4fv gl
                        (int (get-uniform-location gl

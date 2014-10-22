@@ -25,14 +25,14 @@
   (def vertex-shader-source "
   #version 140
   uniform mat4 projection_matrix;
+  uniform vec4 quad_coordinates;
 
   in vec2 vertex_coordinate_attribute;
 
   out vec2 texture_coordinate;
 
   void main() {
-  gl_Position = projection_matrix * vec4(vertex_coordinate_attribute[0], vertex_coordinate_attribute[1], 0.0, 1.0);
-
+  
   switch(gl_VertexID) {
   case 0:
   texture_coordinate = vec2(0.0, 0.0);
@@ -47,6 +47,10 @@
   texture_coordinate = vec2(1.0, 1.0);
   break;
   }
+
+  gl_Position = projection_matrix * vec4(quad_coordinates[0] + quad_coordinates[2] * texture_coordinate.x,
+                                         quad_coordinates[1] + quad_coordinates[3] * texture_coordinate.y,
+                                         0.0, 1.0);
 
   }
 
@@ -64,11 +68,11 @@
   //outColor = texture(texture, vec2(texture_coordinate[0], texture_coordinate[1]));
   //outColor = vec4(texture(texture, texture_coordinate)[2], 0.0, 0.0, 1.0);
   //outColor = texture(texture, vec2(0.5, 0.5));
-  
+
   }
 ")
 
-  
+
 
 (defn text-image [text]
   (text/create-buffered-image [1 1 1 1]
@@ -93,7 +97,7 @@
    x2 y1
    x2 y2])
 
-(defn draw-quad [gl texture quad-width quad-height frame-buffer-width frame-buffer-height]
+(defn draw-quad [gl texture x y quad-width quad-height frame-buffer-width frame-buffer-height]
   (let [shader-program (shader/compile-program gl
                                                vertex-shader-source
                                                fragment-shader-source)
@@ -113,7 +117,13 @@
                                       (math/projection-matrix-2d frame-buffer-width
                                                                  frame-buffer-height))
 
-    (buffer/load-vertex-array-buffer gl
+    (shader/set-float4-uniform gl
+                               shader-program
+                               "quad_coordinates"
+                               x y quad-width quad-height)
+
+
+    #_(buffer/load-vertex-array-buffer gl
                                      vertex-coordinate-buffer-id
                                      :float
                                      #_(map float (quad quad-width
@@ -124,9 +134,9 @@
     (let [vertex-array-object (vertex-array-object/create gl)]
       (vertex-array-object/bind gl vertex-array-object)
 
-      (.glBindBuffer gl GL2/GL_ARRAY_BUFFER vertex-coordinate-buffer-id)
-      (.glEnableVertexAttribArray gl vertex-coordinate-attribute-index)
-      (.glVertexAttribPointer gl
+      #_(.glBindBuffer gl GL2/GL_ARRAY_BUFFER vertex-coordinate-buffer-id)
+      #_(.glEnableVertexAttribArray gl vertex-coordinate-attribute-index)
+      #_(.glVertexAttribPointer gl
                               (int vertex-coordinate-attribute-index)
                               (int 2)
                               (int GL2/GL_FLOAT)
@@ -134,7 +144,8 @@
                               (int 0)
                               (long 0))
 
-      (.glDrawArrays gl GL2/GL_TRIANGLE_STRIP 0 4)
+      #_(.glDrawArrays gl GL2/GL_TRIANGLE_STRIP 0 4)
+      (.glDrawArraysInstanced gl GL2/GL_TRIANGLE_STRIP 0 4 1)
 
       (vertex-array-object/bind gl 0)
       (vertex-array-object/delete gl vertex-array-object))
@@ -180,21 +191,21 @@
     (.glTexParameteri gl GL2/GL_TEXTURE_2D GL2/GL_TEXTURE_MAG_FILTER GL2/GL_NEAREST)
     (.glTexParameteri gl GL2/GL_TEXTURE_2D GL2/GL_TEXTURE_MIN_FILTER GL2/GL_NEAREST)
     (.glTexImage2D gl GL2/GL_TEXTURE_2D 0 GL2/GL_R8 8 8 0 GL2/GL_RED GL2/GL_UNSIGNED_BYTE data)
-    
+
     texture))
 
 (defn create-rgba-texture [gl]
   (let [texture (texture/create-gl-texture gl)
         data (native-buffer/native-buffer-with-values :byte [0 255 0 255
                                                              255 0 0 255])]
-    
+
     (.glBindTexture gl GL2/GL_TEXTURE_2D texture)
     (.glTexParameteri gl GL2/GL_TEXTURE_2D GL2/GL_TEXTURE_MAG_FILTER GL2/GL_NEAREST)
     (.glTexParameteri gl GL2/GL_TEXTURE_2D GL2/GL_TEXTURE_MIN_FILTER GL2/GL_LINEAR)
     (.glTexParameteri gl GL2/GL_TEXTURE_2D GL2/GL_TEXTURE_WRAP_S GL2/GL_CLAMP_TO_EDGE)
     (.glTexParameteri gl GL2/GL_TEXTURE_2D GL2/GL_TEXTURE_WRAP_T GL2/GL_CLAMP_TO_EDGE)
     (.glTexImage2D gl GL2/GL_TEXTURE_2D 0 GL2/GL_RGBA 2 1 0 GL2/GL_RGBA GL2/GL_UNSIGNED_BYTE data)
-    
+
     texture))
 
 
@@ -232,14 +243,16 @@
 
 (defn start-rendering [render-target gl]
   (frame-buffer/bind (:frame-buffer render-target)
-                     gl))
+                     gl)
+  (.glViewport gl 0 0
+               (:width render-target)
+               (:height render-target)))
 
 (defn end-rendering [render-target gl]
   (frame-buffer/bind 0
                      gl))
 
 (defn draw [render-target width height gl]
-  #_(draw-single-color-quad gl 10 10 width height)
   (draw-quad gl
              (:texture render-target)
              (:width render-target)
@@ -251,9 +264,21 @@
   (frame-buffer/delete (:frame-buffer render-target) gl)
   (texture/delete-gl-texture (:texture render-target) gl))
 
-#_(defn start []
-  (let [window (window/create 600
-                              600
+(defn texture-for-file [file-name gl]
+  (let [image (buffered-image/create-from-file file-name)
+        texture (create-texture gl)]
+
+    (load-texture gl texture (.getWidth image) (.getHeight image)
+                  (native-buffer/native-buffer-with-values :int (-> image (.getRaster) (.getDataBuffer) (.getData))))
+    texture))
+
+
+(defn start []
+
+  (let [window-width 600
+        window-height 600
+        window (window/create window-width
+                              window-height
                               :profile :gl3
                               :close-automatically true
                               :init opengl/initialize
@@ -261,58 +286,33 @@
 
     (try
       (window/set-display window gl
-                          (println "drawing")
                           (let [{:keys [width height]} (opengl/size gl)
-                                ;;image (buffered-image/create-from-file "pumpkin.png")
-                                ;;image-texture (texture/create-gl-texture gl) #_(create-texture (.getWidth image) (.getHeight image) gl)
 
                                 render-target-width 500 #_128
                                 render-target-height 500 #_128
-                                #_render-target #_(create render-target-width
+                                render-target (create render-target-width
                                                       render-target-height
                                                       gl)
-                                #_quad-batch #_(-> (quad-batch/create gl)
-                                                   (quad-batch/add-textures gl [(buffered-image/create-from-file "pumpkin.png")]))
-                                checker-texture #_(create-checker-texture gl) (create-rgba-texture gl)]
+                                texture (texture-for-file "pumpkin.png" gl)]
 
-                            #_(load-texture-from-buffered-image gl image-texture  image)
-                            #_(load-texture gl image-texture
-                                            (.getWidth image)
-                                            (.getHeight image)
-                                            (native-buffer/native-buffer-with-values :byte
-                                                                                     (repeat (* (.getWidth image)
-                                                                                                (.getHeight image)
-                                                                                                4) 200)))
 
                             #_(start-rendering render-target gl)
 
                             (opengl/clear gl 0 1 1 1)
 
-                            #_(quad-batch/draw-quads quad-batch
-                                                     gl
-                                                     [{:x 0
-                                                       :y 0
-                                                       :texture-id 0}]
-                                                     width
-                                                     height)
-                            #_(draw-quad gl
-                                         image-texture
-                                         (.getWidth image)
-                                         (.getHeight image)
-                                         width height
-                                         #_(:width render-target)
-                                         #_(:height render-target))
-
                             (draw-quad gl
-                                       checker-texture
-                                       80 80
-                                       width height
-                                       #_(:width render-target)
-                                       #_(:height render-target))
-
-                            #_(draw-single-color-quad gl 0 0 render-target-width render-target-height)
+                                       texture
+                                       10 10
+                                       128 128
+                                       ;;width height
+                                       (:width render-target) (:height render-target)
+                                       )
 
                             #_(end-rendering render-target gl)
+
+                            #_(.glViewport gl 0 0
+                                           window-width
+                                           window-height)
 
                             #_(opengl/clear gl 0 0 0 1)
 
@@ -326,32 +326,29 @@
         (window/close window)
         (throw e)))))
 
-(defn start []
-  (let [window (window/create 600
-                              600
-                              :profile :gl3
-                              :close-automatically true
-                              :init opengl/initialize
-                              )]
+#_(defn start []
+    (let [window (window/create 600
+                                600
+                                :profile :gl3
+                                :close-automatically true
+                                :init opengl/initialize
+                                )]
 
-    (try
-      (window/set-display window gl
+      (try
+        (window/set-display window gl
 
-                          (let [{:keys [width height]} (opengl/size gl)
-                                image (buffered-image/create-from-file "pumpkin.png")
-                               texture (create-texture gl)]
-                            (load-texture gl texture (.getWidth image) (.getHeight image)
-                                          (native-buffer/native-buffer-with-values :int (-> image (.getRaster) (.getDataBuffer) (.getData))))
+                            (let [{:keys [width height]} (opengl/size gl)
+                                  texture (texture-for-file "pumpkin.png" gl)]
 
-                            (opengl/clear gl 0 1 1 1)
+                              (opengl/clear gl 0 1 1 1)
 
-                            (draw-quad gl
-                                       texture
-                                       100 100
-                                       width height)))
+                              (draw-quad gl
+                                         texture
+                                         100 100
+                                         width height)))
 
-      (println "exiting")
+        (println "exiting")
 
-      (catch Exception e
-        (window/close window)
-        (throw e)))))
+        (catch Exception e
+          (window/close window)
+          (throw e)))))
