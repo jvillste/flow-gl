@@ -32,7 +32,7 @@
   out vec2 texture_coordinate;
 
   void main() {
-  
+
   switch(gl_VertexID) {
   case 0:
   texture_coordinate = vec2(0.0, 0.0);
@@ -49,8 +49,8 @@
   }
 
   gl_Position = projection_matrix * vec4(quad_coordinates[0] + quad_coordinates[2] * texture_coordinate.x,
-                                         quad_coordinates[1] + quad_coordinates[3] * texture_coordinate.y,
-                                         0.0, 1.0);
+  quad_coordinates[1] + quad_coordinates[3] * texture_coordinate.y,
+  0.0, 1.0);
 
   }
 
@@ -59,16 +59,28 @@
   (def fragment-shader-source "
   #version 140
 
-  uniform sampler2D texture;
   in vec2 texture_coordinate;
+
+  uniform sampler2D texture;
+
   out vec4 outColor;
 
   void main() {
   outColor = texture(texture, texture_coordinate);
-  //outColor = texture(texture, vec2(texture_coordinate[0], texture_coordinate[1]));
-  //outColor = vec4(texture(texture, texture_coordinate)[2], 0.0, 0.0, 1.0);
-  //outColor = texture(texture, vec2(0.5, 0.5));
+  }
+")
 
+  (def render-target-fragment-shader-source "
+  #version 140
+
+  in vec2 texture_coordinate;
+
+  uniform sampler2D texture;
+
+  out vec4 outColor;
+
+  void main() {
+  outColor = texture(texture, vec2(texture_coordinate[0], 1 - texture_coordinate[1]));
   }
 ")
 
@@ -97,19 +109,20 @@
    x2 y1
    x2 y2])
 
-(defn draw-quad [gl texture x y quad-width quad-height frame-buffer-width frame-buffer-height]
+(defn draw-quad [gl textures fragment-shader-source x y quad-width quad-height frame-buffer-width frame-buffer-height]
   (let [shader-program (shader/compile-program gl
                                                vertex-shader-source
-                                               fragment-shader-source)
-        vertex-coordinate-attribute-index (.glGetAttribLocation gl shader-program "vertex_coordinate_attribute")
-        vertex-coordinate-buffer-id (buffer/create-gl-buffer gl)]
+                                               fragment-shader-source)]
 
     (shader/enable-program gl
                            shader-program)
 
-    (.glActiveTexture gl GL2/GL_TEXTURE0)
-    (.glBindTexture gl GL2/GL_TEXTURE_2D texture)
-    (.glUniform1i gl (.glGetUniformLocation gl shader-program "texture") 0)
+    (doall (map-indexed (fn [index [texture-name texture-id]]
+                          (.glActiveTexture gl (+ index GL2/GL_TEXTURE0))
+                          (.glBindTexture gl GL2/GL_TEXTURE_2D texture-id)
+                          (.glUniform1i gl (.glGetUniformLocation gl shader-program texture-name) index))
+                        textures))
+
 
     (shader/set-float4-matrix-uniform gl
                                       shader-program
@@ -122,36 +135,8 @@
                                "quad_coordinates"
                                x y quad-width quad-height)
 
+    (.glDrawArraysInstanced gl GL2/GL_TRIANGLE_STRIP 0 4 1)
 
-    #_(buffer/load-vertex-array-buffer gl
-                                     vertex-coordinate-buffer-id
-                                     :float
-                                     #_(map float (quad quad-width
-                                                        quad-height))
-                                     (map float (quad-3 0 0 quad-width quad-height)))
-
-
-    (let [vertex-array-object (vertex-array-object/create gl)]
-      (vertex-array-object/bind gl vertex-array-object)
-
-      #_(.glBindBuffer gl GL2/GL_ARRAY_BUFFER vertex-coordinate-buffer-id)
-      #_(.glEnableVertexAttribArray gl vertex-coordinate-attribute-index)
-      #_(.glVertexAttribPointer gl
-                              (int vertex-coordinate-attribute-index)
-                              (int 2)
-                              (int GL2/GL_FLOAT)
-                              (boolean GL2/GL_FALSE)
-                              (int 0)
-                              (long 0))
-
-      #_(.glDrawArrays gl GL2/GL_TRIANGLE_STRIP 0 4)
-      (.glDrawArraysInstanced gl GL2/GL_TRIANGLE_STRIP 0 4 1)
-
-      (vertex-array-object/bind gl 0)
-      (vertex-array-object/delete gl vertex-array-object))
-
-    (.glBindTexture gl GL2/GL_TEXTURE_2D 0)
-    (buffer/delete gl vertex-coordinate-buffer-id)
     (shader/delete-program gl shader-program)))
 
 
@@ -252,6 +237,15 @@
   (frame-buffer/bind 0
                      gl))
 
+(defmacro render-to [render-target gl & body]
+  `(do (let [size# (opengl/size ~gl)]
+         (start-rendering ~render-target ~gl)
+         ~@body
+         (end-rendering  ~render-target ~gl)
+         (.glViewport ~gl
+                      0 0
+                      (:width size#) (:height size#)))))
+
 (defn draw [render-target width height gl]
   (draw-quad gl
              (:texture render-target)
@@ -287,36 +281,36 @@
     (try
       (window/set-display window gl
                           (let [{:keys [width height]} (opengl/size gl)
-
-                                render-target-width 500 #_128
-                                render-target-height 500 #_128
-                                render-target (create render-target-width
-                                                      render-target-height
+                                render-target (create 500 500
                                                       gl)
                                 texture (texture-for-file "pumpkin.png" gl)]
 
+                            (render-to render-target gl
+                                       (opengl/clear gl 0 1 1 1)
 
-                            #_(start-rendering render-target gl)
+                                       (draw-quad gl
+                                                  [["texture" texture]]
+                                                  fragment-shader-source
+                                                  0 0
+                                                  128 128
+                                                  ;;width height
+                                                  (:width render-target) (:height render-target)
+                                                  ))
+                            #_(.glViewport gl 0 0
+                                         width
+                                         height)
 
-                            (opengl/clear gl 0 1 1 1)
+                            (opengl/clear gl 0 0 0 1)
 
                             (draw-quad gl
-                                       texture
-                                       10 10
-                                       128 128
-                                       ;;width height
-                                       (:width render-target) (:height render-target)
-                                       )
-
-                            #_(end-rendering render-target gl)
-
-                            #_(.glViewport gl 0 0
-                                           window-width
-                                           window-height)
-
-                            #_(opengl/clear gl 0 0 0 1)
-
-                            #_(draw render-target width height gl)
+                                       [["texture" (:texture render-target)]]
+                                       render-target-fragment-shader-source
+                                       0
+                                       0
+                                       (:width render-target)
+                                       (:height render-target)
+                                       width
+                                       height)
 
                             (delete render-target gl)))
 
