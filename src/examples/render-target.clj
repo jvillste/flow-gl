@@ -31,21 +31,16 @@
                           (let [{:keys [width height]} (opengl/size gl)]
                             (opengl/clear gl 0 0 0 1)
 
-                            #_(render-target/start-rendering render-target gl)
+                            (render-target/render-to render-target gl
+                                                     (opengl/clear gl 1 1 0 1)
 
-                            (opengl/clear gl 1 1 0 1)
+                                                     (NanoVG/beginFrame nanovg width height)
+                                                     (draw-rectangle nanovg
+                                                                     0 0 100 100
+                                                                     0 255 0 255)
+                                                     (NanoVG/endFrame nanovg))
 
-                            (NanoVG/beginFrame nanovg width height)
-                            (draw-rectangle nanovg
-                                            0 0 100 100
-                                            0 255 0 255)
-                            (NanoVG/endFrame nanovg)
-
-                            
-
-                            #_(render-target/end-rendering render-target gl)
-
-                            #_(render-target/draw render-target width height gl)))
+                            (render-target/draw render-target width height gl)))
 
       (println "exiting")
       (catch Exception e

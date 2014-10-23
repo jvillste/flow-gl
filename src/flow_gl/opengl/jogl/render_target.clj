@@ -52,8 +52,8 @@
   }
 
   gl_Position = projection_matrix * vec4(quad_coordinates[0] + quad_coordinates[2] * texture_coordinate.x,
-                                         quad_coordinates[1] + quad_coordinates[3] * (1 - texture_coordinate.y),
-                                         0.0, 1.0);
+  quad_coordinates[1] + quad_coordinates[3] * (1 - texture_coordinate.y),
+  0.0, 1.0);
 
   }
 
@@ -113,15 +113,18 @@
                                "quad_coordinates"
                                x y quad-width quad-height)
 
-    (.glDrawArraysInstanced gl GL2/GL_TRIANGLE_STRIP 0 4 1)
+    (let [vertex-array-object (vertex-array-object/create gl)]
+      (vertex-array-object/bind gl vertex-array-object)
+
+      (.glDrawArraysInstanced gl GL2/GL_TRIANGLE_STRIP 0 4 1)
+
+      (vertex-array-object/bind gl 0)
+      (vertex-array-object/delete gl vertex-array-object))
 
     (shader/delete-program gl shader-program)))
 
-
-
 (defn create [width height gl]
-  (let [vertex-array-object (vertex-array-object/create gl)
-        frame-buffer (frame-buffer/create gl)
+  (let [frame-buffer (frame-buffer/create gl)
         frame-buffer-texture (texture/create gl)]
 
     (.glBindTexture gl GL2/GL_TEXTURE_2D frame-buffer-texture)
@@ -173,7 +176,10 @@
 
 (defn draw [render-target width height gl]
   (draw-quad gl
-             (:texture render-target)
+             [["texture" (:texture render-target)]]
+             render-target-fragment-shader-source
+             0
+             0
              (:width render-target)
              (:height render-target)
              width
@@ -212,21 +218,11 @@
                                                   fragment-shader-source
                                                   0 0
                                                   128 128
-                                                  ;;width height
-                                                  (:width render-target) (:height render-target)
-                                                  ))
+                                                  (:width render-target) (:height render-target)))
 
                             (opengl/clear gl 0 0 1 1)
 
-                            (draw-quad gl
-                                       [["texture" (:texture render-target)]]
-                                       render-target-fragment-shader-source
-                                       0
-                                       0
-                                       (:width render-target)
-                                       (:height render-target)
-                                       width
-                                       height)
+                            (draw render-target width height gl)
 
                             (delete render-target gl)))
 
@@ -235,32 +231,3 @@
       (catch Exception e
         (window/close window)
         (throw e)))))
-
-#_(defn start []
-    (let [window (window/create 600
-                                600
-                                :profile :gl3
-                                :close-automatically true
-                                :init opengl/initialize
-                                )]
-
-      (try
-        (window/set-display window gl
-
-                            (let [{:keys [width height]} (opengl/size gl)
-                                  texture (texture-for-file "pumpkin.png" gl)]
-
-                              (opengl/clear gl 0 1 1 1)
-
-                              (draw-quad gl
-                                         [["texture" texture]]
-                                         fragment-shader-source
-                                         0 0
-                                         128 128
-                                         width height)))
-
-        (println "exiting")
-
-        (catch Exception e
-          (window/close window)
-          (throw e)))))

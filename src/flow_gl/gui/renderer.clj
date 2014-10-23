@@ -3,7 +3,8 @@
    (flow-gl.gui [drawable :as drawable]
                 [quad-view :as quad-view])
 
-   (flow-gl.opengl.jogl [opengl :as opengl]))
+   (flow-gl.opengl.jogl [opengl :as opengl]
+                        [render-target :as render-target]))
   (:import [nanovg NanoVG]
            [javax.media.opengl GL2]))
 
@@ -17,10 +18,6 @@
   (end-frame [this gl])
 
   (delete [this gl]))
-
-
-
-
 
 (defn map-for-renderers [function gl renderers]
   (doall (map #(function % gl)
@@ -126,21 +123,20 @@
     (assoc this :renderers
            (reduce (fn [renderers render-target-drawable]
                      #_(render-frame-drawables (:child-drawables render-target-drawable)
-                                             gl
-                                             renderers)
+                                               gl
+                                               renderers)
                      (let [render-target (render-target/create (:width render-target-drawable)
                                                                (:height render-target-drawable)
                                                                gl)]
 
+
+
+                       (render-target/render-to render-target gl
+                                                (opengl/clear gl 0 0 0 1)
+                                                (render-frame-drawables (:child-drawables render-target-drawable)
+                                                                        gl
+                                                                        renderers))
                        
-
-                       (render-target/start-rendering render-target gl)
-
-                       (render-frame-drawables (:child-drawables render-target-drawable)
-                                               gl
-                                               renderers)
-                       (opengl/clear gl 1 0 0 1)
-                       (render-target/end-rendering render-target gl)
 
                        (let [{:keys [width height]} (opengl/size gl)]
                          (render-target/draw render-target width height gl))

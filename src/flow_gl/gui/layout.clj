@@ -4,8 +4,7 @@
                                        [push-modelview :as push-modelview]
                                        [pop-modelview :as pop-modelview])
              flow-gl.debug
-             (flow-gl.gui [layoutable :as layoutable]
-                          [drawable :as drawable]))
+             (flow-gl.gui [layoutable :as layoutable]))
   (:use clojure.test))
 
 (defprotocol Layout
@@ -61,51 +60,6 @@
          [@current-state-atom
           child-layout]))))
 
-(defn layout-drawing-commands [layout]
-  (let [drawables (:children layout)]
-    (vec (concat [(push-modelview/->PushModelview)]
-                 (loop [commands []
-                        x 0
-                        y 0
-                        drawables drawables]
-                   (if (seq drawables)
-                     (let [drawable (first drawables)]
-                       (recur (concat commands
-                                      (concat (if (or (not (= (:x drawable) x))
-                                                      (not (= (:y drawable) y)))
-                                                [(translate/->Translate (- (:x drawable)
-                                                                           x)
-                                                                        (- (:y drawable)
-                                                                           y))]
-                                                [])
-                                              (drawable/drawing-commands drawable)))
-                              (:x drawable)
-                              (:y drawable)
-                              (rest drawables)))
-                     commands))
-                 [(pop-modelview/->PopModelview)]))))
-
-
-(defn draw-layout [layout graphics]
-  (if-let [drawables (:children layout)]
-    (let [old-transform (.getTransform graphics)]
-      (loop [x 0
-             y 0
-             drawables drawables]
-        (when (seq drawables)
-          (let [drawable (first drawables)]
-            (when (or (not (= (:x drawable) x))
-                      (not (= (:y drawable) y)))
-              (.translate graphics
-                          (double (- (:x drawable)
-                                     x))
-                          (double (- (:y drawable)
-                                     y))))
-            (drawable/draw drawable graphics)
-            (recur (:x drawable)
-                   (:y drawable)
-                   (rest drawables)))))
-      (.setTransform graphics old-transform))))
 
 (defn in-coordinates [x y layoutable]
   (and (>= x
