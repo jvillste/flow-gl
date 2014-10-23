@@ -87,8 +87,6 @@
   }
 ")
 
-
-
 (defn draw-quad [gl textures fragment-shader-source x y quad-width quad-height frame-buffer-width frame-buffer-height]
   (let [shader-program (shader/compile-program gl
                                                vertex-shader-source
@@ -120,29 +118,11 @@
     (shader/delete-program gl shader-program)))
 
 
-(defn create-texture [gl]
-  (let [texture (texture/create-gl-texture gl)]
-    (.glBindTexture gl GL2/GL_TEXTURE_2D texture)
-
-    (.glTexParameteri gl GL2/GL_TEXTURE_2D GL2/GL_TEXTURE_WRAP_S GL2/GL_CLAMP_TO_EDGE)
-    (.glTexParameteri gl GL2/GL_TEXTURE_2D GL2/GL_TEXTURE_WRAP_T GL2/GL_CLAMP_TO_EDGE)
-    (.glTexParameteri gl GL2/GL_TEXTURE_2D GL2/GL_TEXTURE_MAG_FILTER GL2/GL_NEAREST)
-    (.glTexParameteri gl GL2/GL_TEXTURE_2D GL2/GL_TEXTURE_MIN_FILTER GL2/GL_NEAREST)
-
-    texture))
-
-(defn load-texture [gl texture width height data]
-  (.glBindTexture gl GL2/GL_TEXTURE_2D texture)
-  (.glTexImage2D gl GL2/GL_TEXTURE_2D 0 GL2/GL_RGBA8 width height 0 GL2/GL_BGRA GL2/GL_UNSIGNED_BYTE data))
-
-(defn load-texture-from-buffered-image [gl texture image]
-  (load-texture gl texture  (.getWidth image) (.getHeight image)
-                (native-buffer/native-buffer-with-values :int (-> image (.getRaster) (.getDataBuffer) (.getData)))))
 
 (defn create [width height gl]
   (let [vertex-array-object (vertex-array-object/create gl)
         frame-buffer (frame-buffer/create gl)
-        frame-buffer-texture (texture/create-gl-texture gl)]
+        frame-buffer-texture (texture/create gl)]
 
     (.glBindTexture gl GL2/GL_TEXTURE_2D frame-buffer-texture)
 
@@ -201,15 +181,9 @@
 
 (defn delete [render-target gl]
   (frame-buffer/delete (:frame-buffer render-target) gl)
-  (texture/delete-gl-texture (:texture render-target) gl))
+  (texture/delete (:texture render-target) gl))
 
-(defn texture-for-file [file-name gl]
-  (let [image (buffered-image/create-from-file file-name)
-        texture (create-texture gl)]
 
-    (load-texture gl texture (.getWidth image) (.getHeight image)
-                  (native-buffer/native-buffer-with-values :int (-> image (.getRaster) (.getDataBuffer) (.getData))))
-    texture))
 
 
 (defn start []
@@ -228,7 +202,7 @@
                           (let [{:keys [width height]} (opengl/size gl)
                                 render-target (create 200 200
                                                       gl)
-                                texture (texture-for-file "pumpkin.png" gl)]
+                                texture (texture/create-for-file "pumpkin.png" gl)]
 
                             (render-to render-target gl
                                        (opengl/clear gl 0 1 1 1)

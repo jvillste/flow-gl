@@ -5,79 +5,42 @@
            [com.jogamp.opengl.util.texture.awt AWTTextureIO])
   (:require [flow-gl.graphics.buffered-image :as buffered-image]
             [flow-gl.graphics.text :as text]
-            [flow-gl.graphics.font :as font]))
+            [flow-gl.graphics.font :as font]
+            (flow-gl.graphics [buffered-image :as buffered-image]
+                              [native-buffer :as native-buffer])))
 
-(defn- texture-dimension [value] value)
+(defn create-texture-object [gl]
+  (let [result (int-array 1)]
+    (.glGenTextures gl 1 result 0)
+    (first result)))
 
-(defn create-gl-texture [gl]
-    (let [result (int-array 1)]
-      (.glGenTextures gl 1 result 0)
-      (first result)))
+(defn create [gl]
+  (let [texture (create-texture-object gl)]
+    (.glBindTexture gl GL2/GL_TEXTURE_2D texture)
 
-(defn delete-gl-texture [texture gl]
-  (.glDeleteTextures gl 1 (int-array [texture]) 0))
+    (.glTexParameteri gl GL2/GL_TEXTURE_2D GL2/GL_TEXTURE_WRAP_S GL2/GL_CLAMP_TO_EDGE)
+    (.glTexParameteri gl GL2/GL_TEXTURE_2D GL2/GL_TEXTURE_WRAP_T GL2/GL_CLAMP_TO_EDGE)
+    (.glTexParameteri gl GL2/GL_TEXTURE_2D GL2/GL_TEXTURE_MAG_FILTER GL2/GL_NEAREST)
+    (.glTexParameteri gl GL2/GL_TEXTURE_2D GL2/GL_TEXTURE_MIN_FILTER GL2/GL_NEAREST)
 
-(defrecord Texture [texture width height buffered-image])
-
-(defn delete [texture gl]
-  ;;(.glDeleteTextures gl 1 (int-array [(:id texture)]) 0)
-  (.destroy (:texture texture) gl))
-
-(defn bind [texture gl]
-  ;; (.glBindTexture gl GL2/GL_TEXTURE_2D (:id texture))
-  (.bind (:texture texture) gl))
-
-
-(defn get-graphics [texture]
-  (buffered-image/get-graphics (:buffered-image texture)))
-
-(defn texture-x-to-texel-x [texture texture-x]
-  (* texture-x
-     (:width texture)))
-
-(defn texture-y-to-texel-y [texture texture-y]
-  (* texture-y
-     (:height texture)))
-
-(defn create-jogl-texture [buffered-image gl]
-  ;;(println "creating texture")
-  (let [texture (AWTTextureIO/newTexture (.getGLProfile gl) buffered-image false)]
-    ;;(println (.getWidth texture) " X " (.getHeight texture) " = " (.getEstimatedMemorySize texture))
     texture))
 
-(defn create-for-buffered-image [buffered-image gl]
-  (Texture. (create-jogl-texture buffered-image gl)
-            (.getWidth buffered-image)
-            (.getHeight buffered-image)
-            buffered-image))
+(defn delete [texture gl]
+  (.glDeleteTextures gl 1 (int-array [texture]) 0))
 
-(defn create-for-text [text color font gl]
-  (let [buffered-image (buffered-image/create (max 1
-                                                   (font/width font text))
-                                              (max 1
-                                                   (font/height font)))]
+(defn load [gl texture width height data]
+  (.glBindTexture gl GL2/GL_TEXTURE_2D texture)
+  (.glTexImage2D gl GL2/GL_TEXTURE_2D 0 GL2/GL_RGBA8 width height 0 GL2/GL_BGRA GL2/GL_UNSIGNED_BYTE data))
 
-    (text/draw (buffered-image/get-graphics buffered-image)
-               color
-               font
-               text)
+(defn load-from-buffered-image [gl texture image]
+  (load gl texture  (.getWidth image) (.getHeight image)
+        (native-buffer/native-buffer-with-values :int (-> image (.getRaster) (.getDataBuffer) (.getData)))))
 
-    (create-for-buffered-image buffered-image gl)))
+(defn create-for-file [file-name gl]
+  (let [image (buffered-image/create-from-file file-name)
+        texture (create gl)]
+    (load-from-buffered-image gl texture image)
+    texture))
 
-(defn create
-  ([minimum-width minimum-height gl]
-     (create-for-buffered-image (buffered-image/create (texture-dimension minimum-width)
-                                                       (texture-dimension minimum-height))
-                                gl))
-
-  ([gl]
-     (create 128 128 gl)))
-
-
-(defn load [texture gl]
-  (delete texture gl)
-  (create-for-buffered-image (:buffered-image texture) gl))
-
-(defn create-child [texture x y width height gl]
-  (create-for-buffered-image (buffered-image/create-child (:buffered-image texture) x y width height)
-                             gl))
+(defn bind [texture gl]
+  (.glBindTexture gl GL2/GL_TEXTURE_2D texture))

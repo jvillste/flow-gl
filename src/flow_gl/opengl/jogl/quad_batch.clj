@@ -269,8 +269,8 @@
                     :quad-parameters-buffer-id (allocate-quads gl initial-number-of-quads)
 
                     :texture-buffer-id (allocate-texture gl initial-number-of-texels)
-                    :texture-buffer-texture-id (texture/create-gl-texture gl)
-                    :quad-parameters-buffer-texture-id (texture/create-gl-texture gl)
+                    :texture-buffer-texture-id (texture/create gl)
+                    :quad-parameters-buffer-texture-id (texture/create gl)
 
                     :allocated-texels initial-number-of-texels}]
 
