@@ -35,28 +35,31 @@
 
   switch(gl_VertexID) {
   case 0:
-  texture_coordinate = vec2(0.0, 0.0);
-  break;
-  case 1:
   texture_coordinate = vec2(0.0, 1.0);
   break;
-  case 2:
-  texture_coordinate = vec2(1.0, 0.0);
+
+  case 1:
+  texture_coordinate = vec2(0.0, 0.0);
   break;
-  case 3:
+
+  case 2:
   texture_coordinate = vec2(1.0, 1.0);
+  break;
+
+  case 3:
+  texture_coordinate = vec2(1.0, 0.0);
   break;
   }
 
   gl_Position = projection_matrix * vec4(quad_coordinates[0] + quad_coordinates[2] * texture_coordinate.x,
-  quad_coordinates[1] + quad_coordinates[3] * texture_coordinate.y,
-  0.0, 1.0);
+                                         quad_coordinates[1] + quad_coordinates[3] * (1 - texture_coordinate.y),
+                                         0.0, 1.0);
 
   }
 
 ")
 
-  (def fragment-shader-source "
+  (def render-target-fragment-shader-source "
   #version 140
 
   in vec2 texture_coordinate;
@@ -70,7 +73,7 @@
   }
 ")
 
-  (def render-target-fragment-shader-source "
+  (def fragment-shader-source "
   #version 140
 
   in vec2 texture_coordinate;
@@ -85,29 +88,6 @@
 ")
 
 
-
-(defn text-image [text]
-  (text/create-buffered-image [1 1 1 1]
-                              (font/create "LiberationSans-Regular.ttf" 14)
-                              text))
-
-(defn quad [width height]
-  [0   0
-   0   height
-   width 0
-   width height])
-
-(defn quad-2 [from to]
-  [from   from
-   from   to
-   to from
-   to to])
-
-(defn quad-3 [x1 y1 x2 y2]
-  [x1 y1
-   x1 y2
-   x2 y1
-   x2 y2])
 
 (defn draw-quad [gl textures fragment-shader-source x y quad-width quad-height frame-buffer-width frame-buffer-height]
   (let [shader-program (shader/compile-program gl
@@ -159,41 +139,6 @@
   (load-texture gl texture  (.getWidth image) (.getHeight image)
                 (native-buffer/native-buffer-with-values :int (-> image (.getRaster) (.getDataBuffer) (.getData)))))
 
-(defn create-checker-texture [gl]
-  (let [texture (create-texture gl)
-        data (native-buffer/native-buffer-with-values :byte [0 255 0 255 0 255 0 255
-                                                             255 0 255 0 255 0 255 0
-                                                             0 255 0 255 0 255 0 255
-                                                             255 0 255 0 255 0 255 0
-                                                             0 255 0 255 0 255 0 255
-                                                             255 0 255 0 255 0 255 0
-                                                             0 255 0 255 0 255 0 255
-                                                             255 0 255 0 255 0 255 0])]
-
-    (.glBindTexture gl GL2/GL_TEXTURE_2D texture)
-    (.glTexParameteri gl GL2/GL_TEXTURE_2D GL2/GL_TEXTURE_WRAP_S GL2/GL_CLAMP_TO_EDGE)
-    (.glTexParameteri gl GL2/GL_TEXTURE_2D GL2/GL_TEXTURE_WRAP_T GL2/GL_CLAMP_TO_EDGE)
-    (.glTexParameteri gl GL2/GL_TEXTURE_2D GL2/GL_TEXTURE_MAG_FILTER GL2/GL_NEAREST)
-    (.glTexParameteri gl GL2/GL_TEXTURE_2D GL2/GL_TEXTURE_MIN_FILTER GL2/GL_NEAREST)
-    (.glTexImage2D gl GL2/GL_TEXTURE_2D 0 GL2/GL_R8 8 8 0 GL2/GL_RED GL2/GL_UNSIGNED_BYTE data)
-
-    texture))
-
-(defn create-rgba-texture [gl]
-  (let [texture (texture/create-gl-texture gl)
-        data (native-buffer/native-buffer-with-values :byte [0 255 0 255
-                                                             255 0 0 255])]
-
-    (.glBindTexture gl GL2/GL_TEXTURE_2D texture)
-    (.glTexParameteri gl GL2/GL_TEXTURE_2D GL2/GL_TEXTURE_MAG_FILTER GL2/GL_NEAREST)
-    (.glTexParameteri gl GL2/GL_TEXTURE_2D GL2/GL_TEXTURE_MIN_FILTER GL2/GL_LINEAR)
-    (.glTexParameteri gl GL2/GL_TEXTURE_2D GL2/GL_TEXTURE_WRAP_S GL2/GL_CLAMP_TO_EDGE)
-    (.glTexParameteri gl GL2/GL_TEXTURE_2D GL2/GL_TEXTURE_WRAP_T GL2/GL_CLAMP_TO_EDGE)
-    (.glTexImage2D gl GL2/GL_TEXTURE_2D 0 GL2/GL_RGBA 2 1 0 GL2/GL_RGBA GL2/GL_UNSIGNED_BYTE data)
-
-    texture))
-
-
 (defn create [width height gl]
   (let [vertex-array-object (vertex-array-object/create gl)
         frame-buffer (frame-buffer/create gl)
@@ -241,10 +186,10 @@
   `(do (let [size# (opengl/size ~gl)]
          (start-rendering ~render-target ~gl)
          ~@body
-         (end-rendering  ~render-target ~gl)
-         (.glViewport ~gl
-                      0 0
-                      (:width size#) (:height size#)))))
+         (end-rendering ~render-target ~gl)
+         (.glViewport ~gl 0 0
+                      (:width size#)
+                      (:height size#)))))
 
 (defn draw [render-target width height gl]
   (draw-quad gl
@@ -281,7 +226,7 @@
     (try
       (window/set-display window gl
                           (let [{:keys [width height]} (opengl/size gl)
-                                render-target (create 500 500
+                                render-target (create 200 200
                                                       gl)
                                 texture (texture-for-file "pumpkin.png" gl)]
 
@@ -296,11 +241,8 @@
                                                   ;;width height
                                                   (:width render-target) (:height render-target)
                                                   ))
-                            #_(.glViewport gl 0 0
-                                         width
-                                         height)
 
-                            (opengl/clear gl 0 0 0 1)
+                            (opengl/clear gl 0 0 1 1)
 
                             (draw-quad gl
                                        [["texture" (:texture render-target)]]
@@ -337,8 +279,10 @@
                               (opengl/clear gl 0 1 1 1)
 
                               (draw-quad gl
-                                         texture
-                                         100 100
+                                         [["texture" texture]]
+                                         fragment-shader-source
+                                         0 0
+                                         128 128
                                          width height)))
 
         (println "exiting")
