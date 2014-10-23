@@ -86,17 +86,14 @@
                                               :enter (handle-button-click state)))})
 
   ([view-context state]
-     (-> (layouts/->Box 10 [(drawable/->FilledRoundedRectangle 0
-                                                            0
-                                                            10
-                                                            (if (:has-focus state)
-                                                              [0 0.8 0.8 1]
-                                                              [0 0.5 0.5 1]))
-                         (drawable/->Text (:text state)
-                                          (font/create "LiberationSans-Regular.ttf" 15)
-                                          (if (:disabled state)
-                                            [0.5 0.5 0.5 1]
-                                            [0 0 0 1]))])
+     (-> (layouts/->Box 10 [(drawable/->Rectangle 0
+                                                  0
+                                                  (if (:has-focus state)
+                                                    [0 0.8 0.8 1]
+                                                    [0 0.5 0.5 1]))
+                            (drawable/->Text (:text state)
+                                             (font/create "LiberationSans-Regular.ttf" 15)
+                                             (if (:disabled state)
+                                               [0.5 0.5 0.5 1]
+                                               [0 0 0 1]))])
          (gui/on-mouse-clicked handle-button-click))))
-
-

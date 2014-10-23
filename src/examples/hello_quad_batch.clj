@@ -53,8 +53,6 @@
        :y (* i 30)
        :texture-id 0})))
 
-
-
 (defn wait-for-next-frame [frame-started]
   (let [target-frames-per-second 60]
     (Thread/sleep (max 0
@@ -100,9 +98,9 @@
         (throw e)))))
 
 (defn start []
-  #_(start-view)
+  (start-view)
   #_(debug-monitor/with-debug-monitor
       (.start (Thread. (fn []
                          (start-view)))))
-  (.start (Thread. (fn []
+  #_(.start (Thread. (fn []
                      (start-view)))))

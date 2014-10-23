@@ -119,7 +119,7 @@
   (can-draw? [this drawable]
     (:render-target? drawable))
 
-  (draw-drawables [this render-targets gl]
+  (draw-drawables [this render-target-drawables gl]
     (assoc this :renderers
            (reduce (fn [renderers render-target-drawable]
                      #_(render-frame-drawables (:child-drawables render-target-drawable)
@@ -129,21 +129,18 @@
                                                                (:height render-target-drawable)
                                                                gl)]
 
+                       (let [renderers (render-target/render-to render-target gl
+                                                                (opengl/clear gl 0 0 0 1)
+                                                                (render-frame-drawables (:child-drawables render-target-drawable)
+                                                                                        gl
+                                                                                        renderers))]
+                         (let [{:keys [width height]} (opengl/size gl)]
+                           (render-target/draw render-target (:x render-target-drawable) (:y render-target-drawable) width height gl))
 
-
-                       (render-target/render-to render-target gl
-                                                (opengl/clear gl 0 0 0 1)
-                                                (render-frame-drawables (:child-drawables render-target-drawable)
-                                                                        gl
-                                                                        renderers))
-                       
-
-                       (let [{:keys [width height]} (opengl/size gl)]
-                         (render-target/draw render-target width height gl))
-
-                       (render-target/delete render-target gl)))
+                         (render-target/delete render-target gl)
+                         renderers)))
                    renderers
-                   render-targets)))
+                   render-target-drawables)))
 
   (start-frame [this gl]
     this)

@@ -31,12 +31,12 @@
 
 
     (try
-      (let [renderers-atom (atom (window/with-gl window gl #_[(renderer/create-render-target-renderer [#_(renderer/create-quad-view-renderer gl)
-                                                                                                       (renderer/create-nanovg-renderer)
-                                                                                                       ]
-                                                                                                      gl)]
-                                   [(renderer/create-nanovg-renderer)
-                                    (renderer/create-quad-view-renderer gl)]))]
+      (let [renderers-atom (atom (window/with-gl window gl
+                                   [(renderer/create-render-target-renderer [(renderer/create-quad-view-renderer gl)
+                                                                             (renderer/create-nanovg-renderer)]
+                                                                            gl)]
+                                   #_[(renderer/create-nanovg-renderer)
+                                      (renderer/create-quad-view-renderer gl)]))]
         (loop []
           (let [frame-started (System/currentTimeMillis)]
             (let [drawables (drawables-for-time frame-started)]
@@ -71,27 +71,41 @@
 (defn drawables-for-time [time]
   (let [phase (/ (mod time 1000)
                  1000)]
-    [#_{:render-target? true
-      :width 500
-      :height 500
-      :child-drawables [(assoc (text "foo 3")
-                          :x (* 100 phase)
-                          :y 0)
 
-                        #_{:render-target? true
-                           :width 200
-                           :height 200
-                           :child-drawables [(assoc (text "foo 2")
-                                               :x (* 100 phase)
-                                               :y 0)]}]}
+    (gui/drawables-for-layout (let [[state layout] (layout/layout (assoc (layouts/->VerticalStack [(text "foo 1")
+                                                                                                   (text "foo 2")])
+                                                                    :render-target? true
+                                                                    :x 10
+                                                                    :y 10
+                                                                    :width 200
+                                                                    :height 50)
+                                                                  {}
+                                                                  200 200)]
+                                (println "layout" layout)
+                                layout))
+    #_[{:render-target? true
+        :x 100
+        :y 100
+        :width 100
+        :height 100
+        :child-drawables [(assoc (text "foo 3")
+                            :x (- (* 100 phase) 50)
+                            :y 0)
 
-     #_(assoc (set-size (drawable/->Image image))
-         :x (* 100 phase)
-         :y 40)
+                          #_{:render-target? true
+                             :width 200
+                             :height 200
+                             :child-drawables [(assoc (text "foo 2")
+                                                 :x (* 100 phase)
+                                                 :y 0)]}]}
 
-     (assoc (drawable/->Rectangle 10 100 #_[1 0 0 1] [255 0 0 255])
-         :x (* 100 phase)
-         :y 10)]))
+       #_(assoc (set-size (drawable/->Image image))
+           :x (* 100 phase)
+           :y 40)
+
+       #_(assoc (drawable/->Rectangle 10 100 #_[1 0 0 1] [255 0 0 255])
+           :x (* 100 phase)
+           :y 10)]))
 
 (defn start []
   (start-view drawables-for-time))

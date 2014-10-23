@@ -1,9 +1,5 @@
 (ns flow-gl.gui.layouts
-  (:require  (flow-gl.graphics.command [translate :as translate]
-                                       [scale :as scale]
-                                       [push-modelview :as push-modelview]
-                                       [pop-modelview :as pop-modelview])
-             (flow-gl.gui [layout :as layout]
+  (:require  (flow-gl.gui [layout :as layout]
                           [gui :as gui]
                           [layoutable :as layoutable]
                           [drawable :as drawable]))

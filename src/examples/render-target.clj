@@ -18,9 +18,11 @@
                               :profile :gl3
                               :init opengl/initialize
                               :close-automatically true)
+        render-target-width 200
+        render-target-height 200
         
         render-target (window/with-gl window gl
-                        (render-target/create 200 300
+                        (render-target/create render-target-width render-target-height
                                               gl))
 
         nanovg  (window/with-gl window gl
@@ -32,15 +34,15 @@
                             (opengl/clear gl 0 0 0 1)
 
                             (render-target/render-to render-target gl
-                                                     (opengl/clear gl 1 1 0 1)
+                                                     (opengl/clear gl 1 0 0 1)
 
-                                                     (NanoVG/beginFrame nanovg width height)
+                                                     (NanoVG/beginFrame nanovg render-target-width render-target-height)
                                                      (draw-rectangle nanovg
                                                                      0 0 100 100
                                                                      0 255 0 255)
                                                      (NanoVG/endFrame nanovg))
 
-                            (render-target/draw render-target width height gl)))
+                            (render-target/draw render-target 0 0 width height gl)))
 
       (println "exiting")
       (catch Exception e

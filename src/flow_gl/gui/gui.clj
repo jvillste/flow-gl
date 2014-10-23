@@ -11,12 +11,10 @@
                          [quad-view :as quad-view]
                          [renderer :as renderer])
 
-            (flow-gl.graphics [command :as command]
-                              [font :as font]
+            (flow-gl.graphics [font :as font]
                               [buffered-image :as buffered-image])
 
-            (flow-gl.graphics.command [text :as text]
-                                      [translate :as translate])
+            
 
             (flow-gl.opengl.jogl [opengl :as opengl]
                                  [window :as window]

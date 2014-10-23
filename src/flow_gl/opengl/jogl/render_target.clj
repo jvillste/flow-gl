@@ -19,7 +19,8 @@
   (:import [javax.media.opengl GL2]
            [java.io PrintWriter StringWriter]
            [java.nio IntBuffer]
-           [java.awt Color]))
+           [java.awt Color]
+           [nanovg NanoVG]))
 
 
   (def vertex-shader-source "
@@ -168,29 +169,35 @@
 (defmacro render-to [render-target gl & body]
   `(do (let [size# (opengl/size ~gl)]
          (start-rendering ~render-target ~gl)
-         ~@body
-         (end-rendering ~render-target ~gl)
-         (.glViewport ~gl 0 0
-                      (:width size#)
-                      (:height size#)))))
+         (let [result# (do ~@body)]
+           (end-rendering ~render-target ~gl)
+           (.glViewport ~gl 0 0
+                        (:width size#)
+                        (:height size#))
+           result#))))
 
-(defn draw [render-target width height gl]
+(defn draw [render-target x y viewport-width viewport-height gl]
   (draw-quad gl
              [["texture" (:texture render-target)]]
              render-target-fragment-shader-source
-             0
-             0
+             x
+             y
              (:width render-target)
              (:height render-target)
-             width
-             height))
+             viewport-width
+             viewport-height))
 
 (defn delete [render-target gl]
   (frame-buffer/delete (:frame-buffer render-target) gl)
   (texture/delete (:texture render-target) gl))
 
 
-
+(defn draw-rectangle [nanovg x y width height r g b a]
+  (doto nanovg
+    (NanoVG/fillColor (char r) (char g) (char b) (char a))
+    (NanoVG/beginPath)
+    (NanoVG/rect x y width height)
+    (NanoVG/fill)))
 
 (defn start []
 
@@ -205,15 +212,25 @@
 
     (try
       (window/set-display window gl
+                          
+
                           (let [{:keys [width height]} (opengl/size gl)
+                                nanovg (NanoVG/init)
                                 render-target (create 200 200
                                                       gl)
                                 texture (texture/create-for-file "pumpkin.png" gl)]
 
+
                             (render-to render-target gl
                                        (opengl/clear gl 0 1 1 1)
+                                       (do
+                                         (NanoVG/beginFrame nanovg (:width render-target) (:height render-target))
+                                         (draw-rectangle nanovg
+                                                         10 10 10 10
+                                                         255 255 255 255)
+                                         (NanoVG/endFrame nanovg))
 
-                                       (draw-quad gl
+                                       #_(draw-quad gl
                                                   [["texture" texture]]
                                                   fragment-shader-source
                                                   0 0
@@ -221,8 +238,16 @@
                                                   (:width render-target) (:height render-target)))
 
                             (opengl/clear gl 0 0 1 1)
+                            
+                            
+                            (draw render-target 100 100 width height gl)
 
-                            (draw render-target width height gl)
+                            #_(do
+                              (NanoVG/beginFrame nanovg width height)
+                              (draw-rectangle nanovg
+                                              10 10 1000 1000
+                                              255 255 255 255)
+                              (NanoVG/endFrame nanovg))
 
                             (delete render-target gl)))
 

@@ -1,9 +1,5 @@
 (ns flow-gl.gui.layout
-  (:require  (flow-gl.graphics.command [translate :as translate]
-                                       [scale :as scale]
-                                       [push-modelview :as push-modelview]
-                                       [pop-modelview :as pop-modelview])
-             flow-gl.debug
+  (:require  flow-gl.debug
              (flow-gl.gui [layoutable :as layoutable]))
   (:use clojure.test))
 

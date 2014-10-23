@@ -269,8 +269,8 @@
                     :quad-parameters-buffer-id (allocate-quads gl initial-number-of-quads)
 
                     :texture-buffer-id (allocate-texture gl initial-number-of-texels)
-                    :texture-buffer-texture-id (texture/create gl)
-                    :quad-parameters-buffer-texture-id (texture/create gl)
+                    :texture-buffer-texture-id (texture/create-texture-object gl)
+                    :quad-parameters-buffer-texture-id (texture/create-texture-object gl)
 
                     :allocated-texels initial-number-of-texels}]
 
@@ -368,7 +368,6 @@
           (update-vertex-array-object gl)))))
 
 (defn collect-texture-garbage [quad-batch gl]
-  (println "collecting")
   (let [new-number-of-texels (- (:next-free-texel quad-batch)
                                 (:removed-texels quad-batch))
 
@@ -410,7 +409,6 @@
         (update-vertex-array-object gl))))
 
 (defn grow-texture-buffer [gl quad-batch minimum-size]
-  (println "growing")
   (let [new-quad-batch (assoc quad-batch
                          :texture-buffer-id (allocate-texture gl (* 2 minimum-size))
                          :allocated-texels (* 2 minimum-size))]
