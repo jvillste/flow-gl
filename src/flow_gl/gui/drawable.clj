@@ -14,7 +14,24 @@
 (defprotocol NanoVGDrawable
   (draw-nanovg [this nanovg]))
 
+(defprotocol GLDrawable
+  (draw-gl [this gl]))
+
 ;; DRAWABLES
+
+(defrecord Quad [texture width height]
+
+  GLDrawable
+  (draw-gl [this gl]
+    )
+
+  layoutable/Layoutable
+  (preferred-size [this available-width available-height]
+    {:width width
+     :height height})
+
+  Object
+  (toString [this] (layoutable/describe-layoutable this)))
 
 (defrecord Text [contents font color]
 

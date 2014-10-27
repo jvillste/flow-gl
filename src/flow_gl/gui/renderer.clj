@@ -122,9 +122,6 @@
   (draw-drawables [this render-target-drawables gl]
     (assoc this :renderers
            (reduce (fn [renderers render-target-drawable]
-                     #_(render-frame-drawables (:child-drawables render-target-drawable)
-                                               gl
-                                               renderers)
                      (let [render-target (render-target/create (:width render-target-drawable)
                                                                (:height render-target-drawable)
                                                                gl)]
