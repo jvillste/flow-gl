@@ -3,7 +3,9 @@
                                [vector :as vector]
                                [text :as graphics-text]
                                [buffered-image :as buffered-image])
-             (flow-gl.gui [layoutable :as layoutable]))
+             (flow-gl.gui [layoutable :as layoutable])
+             (flow-gl.opengl.jogl [quad :as quad]
+                                  [opengl :as opengl]))
   (:import [java.awt.geom Rectangle2D$Float RoundRectangle2D$Float GeneralPath]
            [java.awt Color RenderingHints BasicStroke]
            [nanovg NanoVG]))
@@ -19,11 +21,17 @@
 
 ;; DRAWABLES
 
-(defrecord Quad [texture width height]
+(defrecord Quad [texture x y width height]
 
   GLDrawable
   (draw-gl [this gl]
-    )
+    (let [viewport-size (opengl/size gl)]
+      (quad/draw gl
+                 [["texture" texture]]
+                 quad/fragment-shader-source
+                 x y
+                 width height
+                 (:width viewport-size) (:height viewport-size))))
 
   layoutable/Layoutable
   (preferred-size [this available-width available-height]
@@ -83,11 +91,11 @@
 
   #_Java2DDrawable
   #_(draw [this graphics]
-    (println "drawing rectangle")
-    (let [[r g b a] (map float color)]
-      (doto graphics
-        (.setColor (Color. r g b a))
-        (.fill (Rectangle2D$Float. 0 0 width height)))))
+      (println "drawing rectangle")
+      (let [[r g b a] (map float color)]
+        (doto graphics
+          (.setColor (Color. r g b a))
+          (.fill (Rectangle2D$Float. 0 0 width height)))))
 
   NanoVGDrawable
   (draw-nanovg [this nanovg]
@@ -100,8 +108,3 @@
 
   Object
   (toString [this] (layoutable/describe-layoutable this)))
-
-
-
-
-

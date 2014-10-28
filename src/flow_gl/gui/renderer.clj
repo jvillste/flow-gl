@@ -90,6 +90,25 @@
 (defn create-nanovg-renderer []
   (->NanoVGRenderer (NanoVG/init)))
 
+(defrecord GLRenderer []
+  Renderer
+  (can-draw? [this drawable]
+    (satisfies? drawable/GLDrawable drawable))
+
+  (draw-drawables [this drawables gl]
+    (doseq [drawable drawables]
+      (drawable/draw-gl drawable gl))    
+    this)
+
+  (start-frame [this gl] this)
+
+  (end-frame [this gl] this)
+
+  (delete [this gl] this))
+
+(defn create-gl-renderer []
+  (->GLRenderer))
+
 (defrecord QuadViewRenderer [quad-view]
   Renderer
   (can-draw? [this drawable]

@@ -254,7 +254,7 @@
                    (set-layout-coordinates parent-x
                                            parent-y
                                            parent-z)
-                   (assoc :child-drawables (child-drawables layout parent-x parent-y parent-z))
+                   (assoc :child-drawables (child-drawables layout 0 0 0))
                    (dissoc :children)))
 
          (concat quads

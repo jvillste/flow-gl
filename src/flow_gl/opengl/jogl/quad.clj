@@ -89,6 +89,7 @@
 ")
 
 (defn draw [gl textures fragment-shader-source x y quad-width quad-height frame-buffer-width frame-buffer-height]
+  (println "quad draw" textures fragment-shader-source x y quad-width quad-height frame-buffer-width frame-buffer-height)
   (let [shader-program (shader/compile-program gl
                                                vertex-shader-source
                                                fragment-shader-source)]
@@ -137,8 +138,6 @@
 
     (try
       (window/set-display window gl
-
-
                           (let [{:keys [width height]} (opengl/size gl)
                                 texture (texture/create-for-file "pumpkin.png" gl)]
 
