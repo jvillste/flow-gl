@@ -4,8 +4,11 @@
                 [quad-view :as quad-view])
 
    (flow-gl.opengl.jogl [opengl :as opengl]
-                        [render-target :as render-target]))
+                        [render-target :as render-target]
+                        [quad :as quad]
+                        [shader :as shader]))
   (:import [nanovg NanoVG]
+           [flow_gl.gui.drawable Quad]
            [javax.media.opengl GL2]))
 
 (defprotocol Renderer
@@ -18,6 +21,8 @@
   (end-frame [this gl])
 
   (delete [this gl]))
+
+(instance? Quad (drawable/->Quad 1 2 3 4 5 6))
 
 (defn map-for-renderers [function gl renderers]
   (doall (map #(function % gl)
@@ -97,7 +102,7 @@
 
   (draw-drawables [this drawables gl]
     (doseq [drawable drawables]
-      (drawable/draw-gl drawable gl))    
+      (drawable/draw-gl drawable gl))
     this)
 
   (start-frame [this gl] this)
@@ -134,6 +139,53 @@
 
 (defn create-quad-view-renderer [gl]
   (->QuadViewRenderer (quad-view/create gl)))
+
+(defrecord QuadRenderer [quad programs]
+  Renderer
+  (can-draw? [this drawable]
+    (instance? Quad  drawable))
+
+  (draw-drawables [this drawables gl]
+    (println "drawing " drawables)
+    (let [viewport-size (opengl/size gl)]
+      (loop [this this
+             drawables drawables]
+        (if-let [drawable (first drawables)]
+          (let [program (or (get programs (:fragment-shader-source drawable))
+                            (quad/create-program quad (:fragment-shader-source drawable) gl))]
+            (quad/draw gl
+                       (:textures drawable)
+                       program
+                       (:x drawable) (:y drawable)
+                       (:width drawable) (:height drawable)
+                       (:width viewport-size) (:height viewport-size))
+            (recur (-> this
+                       (update-in [:programs] assoc (:fragment-shader-source drawable) program)
+                       (update-in [:used-fragment-shader-sources] conj (:fragment-shader-source drawable)))
+                   (rest drawables)))
+          this))))
+
+  (start-frame [this gl]
+    (assoc this :used-fragment-shader-sources #{}))
+
+  (end-frame [this gl]
+    (println "deleting " (count (filter (complement (:used-fragment-shader-sources this))
+                                      (keys (:programs this)))))
+
+    (assoc this :programs (reduce (fn [programs fragment-shader-source]
+                                    (shader/delete-program gl (get programs fragment-shader-source))
+                                    (dissoc programs fragment-shader-source))
+                                  (:programs this)
+                                  (filter (complement (:used-fragment-shader-sources this))
+                                          (keys (:programs this))))))
+
+  (delete [this gl]
+    (quad/delete quad gl)
+    this))
+
+(defn create-quad-renderer [gl]
+  (->QuadRenderer (quad/create gl)
+                  {}))
 
 (defrecord RenderTargetRenderer [renderers]
   Renderer

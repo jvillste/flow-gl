@@ -95,6 +95,7 @@
   (shader/delete-shader gl (:vertex-shader quad)))
 
 (defn create-program [quad fragment-shader-source gl]
+  (println "create program")
   (let [fragment-shader (shader/create-fragment-shader gl fragment-shader-source)
         program (shader/create-program gl
                                        (:vertex-shader quad)
@@ -158,6 +159,13 @@
                                   program
                                   0 0
                                   128 128
+                                  width height)
+
+                            (draw gl
+                                  [["texture" texture]]
+                                  program
+                                  0 128
+                                  228 228
                                   width height)
 
                             (shader/delete-program gl program)

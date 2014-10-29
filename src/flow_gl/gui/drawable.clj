@@ -16,22 +16,10 @@
 (defprotocol NanoVGDrawable
   (draw-nanovg [this nanovg]))
 
-(defprotocol GLDrawable
-  (draw-gl [this gl]))
 
 ;; DRAWABLES
 
-(defrecord Quad [texture x y width height]
-
-  GLDrawable
-  (draw-gl [this gl]
-    (let [viewport-size (opengl/size gl)]
-      (quad/draw gl
-                 [["texture" texture]]
-                 quad/fragment-shader-source
-                 x y
-                 width height
-                 (:width viewport-size) (:height viewport-size))))
+(defrecord Quad [textures fragment-shader-source x y width height]
 
   layoutable/Layoutable
   (preferred-size [this available-width available-height]
@@ -40,6 +28,8 @@
 
   Object
   (toString [this] (layoutable/describe-layoutable this)))
+
+
 
 (defrecord Text [contents font color]
 
