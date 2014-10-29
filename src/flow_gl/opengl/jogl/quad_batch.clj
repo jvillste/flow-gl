@@ -529,7 +529,6 @@
   #_(flow-gl.debug/set-metric :draw-quads (System/currentTimeMillis))
   #_(flow-gl.debug/set-metric :allocated-quads (:allocated-quads quad-batch))
   #_(flow-gl.debug/set-metric :quad-count (count quads))
-
   (let [quad-count (count quads)
 
         quad-batch (if (< (:allocated-quads quad-batch)

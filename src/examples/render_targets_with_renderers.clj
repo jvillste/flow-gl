@@ -28,71 +28,76 @@
                              (font/create "LiberationSans-Regular.ttf" 30)
                              [1 1 1 1])))
 
+(defn child-render-target [key layout]
+  (assoc layout
+    :render-target? true
+    :key key
+    :constructor (fn [gl]
+                   {:renderers [(renderer/create-quad-view-renderer gl)
+                                (renderer/create-nanovg-renderer)]})
+    :destructor (fn [state gl]
+                  (dorun (map renderer/delete (:renderers state)))
+                  (render-target/delete (:render-target state) gl))
+    :render (fn [state drawables x y width height gl]
+              (let [old-render-target (:render-target state)
+                    render-target (if (and old-render-target
+                                           (= (:width old-render-target)
+                                              width)
+                                           (= (:height old-render-target)
+                                              height))
+                                    old-render-target
+                                    (render-target/create width
+                                                          height
+                                                          gl))]
+
+                (when (and old-render-target
+                           (not= old-render-target render-target))
+                  (render-target/delete old-render-target gl))
+
+                (let [renderers (render-target/render-to render-target gl
+                                                         (opengl/clear gl 0 0 0 1)
+                                                         (renderer/render-frame-drawables drawables
+                                                                                          gl
+                                                                                          (:renderers state)))]
+
+                  [(assoc state
+                     :renderers renderers
+                     :render-target render-target)
+                   (drawable/->Quad (:texture render-target)
+                                    x
+                                    y
+                                    width
+                                    height)])))))
+
+(defn root-render-target [layout]
+  (assoc layout
+    :render-target? true
+    :key :root
+    :constructor (fn [gl]
+                   {:renderers [#_(renderer/create-quad-view-renderer gl)
+                                #_(renderer/create-nanovg-renderer)
+                                (renderer/create-gl-renderer)]})
+    :destructor (fn [state gl]
+                  (doall map renderer/delete (:renderers state))
+                  state)
+    :render (fn [state drawables x y width height gl]
+              [(assoc state :renderers (renderer/render-frame drawables
+                                                              gl
+                                                              (:renderers state)))
+               nil])
+    :x 0
+    :y 0
+    :width 200
+    :height 100))
+
 (defn render-target-drawable-for-time [time]
   (let [phase (/ (mod time 1000)
                  1000)]
     (first (gui/drawables-for-layout
-            (let [[state layout] (layout/layout (assoc (layouts/->VerticalStack
-                                                        [(assoc (layouts/->HorizontalStack [(text "foo 1")
-                                                                                            (text "foo 2")])
-                                                           :render-target? true
-                                                           :key :texts
-                                                           :constructor (fn [gl]
-                                                                          {:renderers [(renderer/create-quad-view-renderer gl)
-                                                                                       (renderer/create-nanovg-renderer)]})
-                                                           :destructor (fn [state gl]
-                                                                         (dorun (map renderer/delete (:renderers state)))
-                                                                         (render-target/delete (:render-target state) gl))
-                                                           :render (fn [state drawables x y width height gl]
-                                                                     (let [old-render-target (:render-target state)
-                                                                           render-target (if (and old-render-target
-                                                                                                  (= (:width old-render-target)
-                                                                                                     width)
-                                                                                                  (= (:height old-render-target)
-                                                                                                     height))
-                                                                                           old-render-target
-                                                                                           (render-target/create width
-                                                                                                                 height
-                                                                                                                 gl))]
-
-                                                                       (when (and old-render-target
-                                                                                  (not= old-render-target render-target))
-                                                                         (render-target/delete old-render-target gl))
-
-                                                                       (let [renderers (render-target/render-to render-target gl
-                                                                                                                (opengl/clear gl 0 0 0 1)
-                                                                                                                (renderer/render-frame-drawables drawables
-                                                                                                                                                 gl
-                                                                                                                                                 (:renderers state)))]
-
-                                                                         [(assoc state
-                                                                            :renderers renderers
-                                                                            :render-target render-target)
-                                                                          (drawable/->Quad (:texture render-target)
-                                                                                           x
-                                                                                           y
-                                                                                           width
-                                                                                           height)]))))
-                                                         (text "foo 3")])
-                                                  :render-target? true
-                                                  :key :root
-                                                  :constructor (fn [gl]
-                                                                 {:renderers [(renderer/create-quad-view-renderer gl)
-                                                                              (renderer/create-nanovg-renderer)
-                                                                              (renderer/create-gl-renderer)]})
-                                                  :destructor (fn [state gl]
-                                                                (doall map renderer/delete (:renderers state))
-                                                                state)
-                                                  :render (fn [state drawables x y width height gl]
-                                                            (println "rendering " drawables)
-                                                            [(assoc state :renderers (renderer/render-frame drawables
-                                                                                                            gl
-                                                                                                            (:renderers state)))
-                                                             nil])
-                                                  :x 10
-                                                  :y 10
-                                                  :width 200
-                                                  :height 100)
+            (let [[state layout] (layout/layout (root-render-target (layouts/->VerticalStack
+                                                                     [(child-render-target :child-1 (layouts/->Margin 50 0 0 0 [(text "child 1")]))
+                                                                      (child-render-target :child-2 (layouts/->Margin 50 0 0 0 [(text "child 2")]))
+                                                                      #_(layouts/->Margin 50 0 0 0 [(text "root foo")])]))
                                                 {}
                                                 200 200)]
               layout)))))
@@ -155,6 +160,7 @@
                                          (let [[render-target-state render-target-drawable] (-> (or render-target-state
                                                                                                     ((:constructor render-target-drawable) gl))
                                                                                                 (render render-target-drawable gl))]
+                                           (println "new state is" render-target-state)
                                            render-target-state)))))
 
           (when (window/visible? window)
@@ -173,7 +179,3 @@
 (run-tests)
 
 #_( render drawables to multiple textures with filtering and transposing)
-
-
-
-(println )

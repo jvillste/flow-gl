@@ -44,11 +44,23 @@
            0)
     (throw (Exception. (compile-errors gl shader-id)))))
 
-(defn create-vertex-shader [gl]
-  (.glCreateShader gl GL2/GL_VERTEX_SHADER))
+(defn create-vertex-shader
+  ([gl]
+     (.glCreateShader gl GL2/GL_VERTEX_SHADER))
 
-(defn create-fragment-shader [gl]
-  (.glCreateShader gl GL2/GL_FRAGMENT_SHADER))
+  ([gl source]
+     (let [shader (create-vertex-shader gl)]
+       (compile-shader gl shader source)
+       shader)))
+
+(defn create-fragment-shader
+  ([gl]
+     (.glCreateShader gl GL2/GL_FRAGMENT_SHADER))
+
+  ([gl source]
+     (let [shader (create-fragment-shader gl)]
+       (compile-shader gl shader source)
+       shader)))
 
 (defn validate-program [gl program-id]
   (.glValidateProgram gl program-id)
@@ -65,8 +77,9 @@
     (let [errors (program-errors gl program-id)]
       (when (> (count errors)
                0)
-        (throw (Exception. (str "Error when creating shader program: " errors)))))
-
+        (throw (Exception. (str "Error when creating shader program: " errors))))
+      (.glDetachShader gl program-id vertex-shader-id)
+      (.glDetachShader gl program-id fragment-shader-id))
     program-id))
 
 (defn get-uniform-location [gl program name]
@@ -93,8 +106,8 @@
 (defn set-float4-uniform [gl program name value1 value2 value3 value4]
   (.glUniform4f gl
                 (get-uniform-location gl
-                                         program
-                                         name)
+                                      program
+                                      name)
                 value1
                 value2
                 value3
@@ -134,5 +147,8 @@
 (defn disable-program [gl]
   (enable-program gl 0))
 
+(defn delete-shader [gl shader-id]
+  (.glDeleteShader gl shader-id))
+
 (defn delete-program [gl program-id]
-  (.glDeleteShader gl program-id))
+  (.glDeleteProgram gl program-id))

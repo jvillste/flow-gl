@@ -115,6 +115,7 @@
     (satisfies? drawable/Java2DDrawable drawable))
 
   (draw-drawables [this drawables gl]
+    ;;(println "drawing " (-> quad-view :quad-batch :texture-buffer-id ) drawables)
     (doto gl
       (.glEnable GL2/GL_BLEND)
       (.glBlendFunc GL2/GL_SRC_ALPHA GL2/GL_ONE_MINUS_SRC_ALPHA))
@@ -125,6 +126,7 @@
     this)
 
   (end-frame [this gl]
+    ;;(println "end frame " (-> quad-view :quad-batch :quad-parameters-buffer-id ))
     (assoc this :quad-view (quad-view/unload-unused-textures quad-view)))
 
   (delete [this gl]

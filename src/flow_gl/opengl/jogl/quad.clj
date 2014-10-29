@@ -88,42 +88,51 @@
   }
 ")
 
-(defn draw [gl textures fragment-shader-source x y quad-width quad-height frame-buffer-width frame-buffer-height]
-  (println "quad draw" textures fragment-shader-source x y quad-width quad-height frame-buffer-width frame-buffer-height)
-  (let [shader-program (shader/compile-program gl
-                                               vertex-shader-source
-                                               fragment-shader-source)]
+(defn create [gl]
+  {:vertex-shader (shader/create-vertex-shader gl vertex-shader-source)})
 
-    (shader/enable-program gl
-                           shader-program)
+(defn delete [quad gl]
+  (shader/delete-shader gl (:vertex-shader quad)))
 
-    (doall (map-indexed (fn [index [texture-name texture-id]]
-                          (.glActiveTexture gl (+ index GL2/GL_TEXTURE0))
-                          (.glBindTexture gl GL2/GL_TEXTURE_2D texture-id)
-                          (.glUniform1i gl (.glGetUniformLocation gl shader-program texture-name) index))
-                        textures))
+(defn create-program [quad fragment-shader-source gl]
+  (let [fragment-shader (shader/create-fragment-shader gl fragment-shader-source)
+        program (shader/create-program gl
+                                       (:vertex-shader quad)
+                                       fragment-shader)]
+    (shader/delete-shader gl fragment-shader)
+    program))
+
+(defn draw [gl textures shader-program x y quad-width quad-height frame-buffer-width frame-buffer-height]
+  (shader/enable-program gl
+                         shader-program)
+
+  (doall (map-indexed (fn [index [texture-name texture-id]]
+                        (.glActiveTexture gl (+ index GL2/GL_TEXTURE0))
+                        (.glBindTexture gl GL2/GL_TEXTURE_2D texture-id)
+                        (.glUniform1i gl (.glGetUniformLocation gl shader-program texture-name) index))
+                      textures))
 
 
-    (shader/set-float4-matrix-uniform gl
-                                      shader-program
-                                      "projection_matrix"
-                                      (math/projection-matrix-2d frame-buffer-width
-                                                                 frame-buffer-height))
+  (shader/set-float4-matrix-uniform gl
+                                    shader-program
+                                    "projection_matrix"
+                                    (math/projection-matrix-2d frame-buffer-width
+                                                               frame-buffer-height))
 
-    (shader/set-float4-uniform gl
-                               shader-program
-                               "quad_coordinates"
-                               x y quad-width quad-height)
+  (shader/set-float4-uniform gl
+                             shader-program
+                             "quad_coordinates"
+                             x y quad-width quad-height)
 
-    (let [vertex-array-object (vertex-array-object/create gl)]
-      (vertex-array-object/bind gl vertex-array-object)
+  (let [vertex-array-object (vertex-array-object/create gl)]
+    (vertex-array-object/bind gl vertex-array-object)
 
-      (.glDrawArraysInstanced gl GL2/GL_TRIANGLE_STRIP 0 4 1)
+    (.glDrawArraysInstanced gl GL2/GL_TRIANGLE_STRIP 0 4 1)
 
-      (vertex-array-object/bind gl 0)
-      (vertex-array-object/delete gl vertex-array-object))
+    (vertex-array-object/bind gl 0)
+    (vertex-array-object/delete gl vertex-array-object))
 
-    (shader/delete-program gl shader-program)))
+  (shader/disable-program gl))
 
 (defn start []
 
@@ -133,22 +142,26 @@
                               window-height
                               :profile :gl3
                               :close-automatically true
-                              :init opengl/initialize
-                              )]
+                              :init opengl/initialize)]
 
     (try
       (window/set-display window gl
-                          (let [{:keys [width height]} (opengl/size gl)
+                          (let [quad (create gl)
+                                program (create-program quad upside-down-fragment-shader-source gl)
+                                {:keys [width height]} (opengl/size gl)
                                 texture (texture/create-for-file "pumpkin.png" gl)]
 
                             (opengl/clear gl 0 0 1 1)
 
                             (draw gl
                                   [["texture" texture]]
-                                  upside-down-fragment-shader-source
+                                  program
                                   0 0
                                   128 128
-                                  width height)))
+                                  width height)
+
+                            (shader/delete-program gl program)
+                            (delete quad gl)))
 
       (println "exiting")
 
