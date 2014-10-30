@@ -88,6 +88,23 @@
   }
 ")
 
+  (def alpha-fragment-shader-source "
+  #version 140
+
+  in vec2 texture_coordinate;
+
+  uniform sampler2D texture;
+
+  uniform float alpha;
+
+  out vec4 outColor;
+
+  void main() {
+  vec4 texture_color = texture(texture, vec2(texture_coordinate[0], 1 - texture_coordinate[1]));
+  outColor = vec4(texture_color[0],texture_color[1],texture_color[2],texture_color[3] * alpha);
+  }
+")
+
 (defn create [gl]
   {:vertex-shader (shader/create-vertex-shader gl vertex-shader-source)})
 
@@ -95,7 +112,6 @@
   (shader/delete-shader gl (:vertex-shader quad)))
 
 (defn create-program [quad fragment-shader-source gl]
-  (println "create program")
   (let [fragment-shader (shader/create-fragment-shader gl fragment-shader-source)
         program (shader/create-program gl
                                        (:vertex-shader quad)
@@ -103,16 +119,25 @@
     (shader/delete-shader gl fragment-shader)
     program))
 
-(defn draw [gl textures shader-program x y quad-width quad-height frame-buffer-width frame-buffer-height]
+(defn draw [gl textures uniforms shader-program x y quad-width quad-height frame-buffer-width frame-buffer-height]
   (shader/enable-program gl
                          shader-program)
 
-  (doall (map-indexed (fn [index [texture-name texture-id]]
+  (dorun (map-indexed (fn [index [texture-name texture-id]]
                         (.glActiveTexture gl (+ index GL2/GL_TEXTURE0))
                         (.glBindTexture gl GL2/GL_TEXTURE_2D texture-id)
                         (.glUniform1i gl (.glGetUniformLocation gl shader-program texture-name) index))
-                      textures))
+                      (partition 2 textures)))
 
+  (doseq [[type name values] (partition 3 uniforms)]
+    (let [location (.glGetUniformLocation gl shader-program name)]
+      (case type
+        :1i (let [[value] values]
+              (.glUniform1i gl location value))
+        :1f (let [[value] values]
+              (.glUniform1f gl location value))
+        :4f (let [[value1 value2 value3 value4] values]
+              (.glUniform4f gl location value1 value2 value3 value4)))))
 
   (shader/set-float4-matrix-uniform gl
                                     shader-program
@@ -148,21 +173,23 @@
     (try
       (window/set-display window gl
                           (let [quad (create gl)
-                                program (create-program quad upside-down-fragment-shader-source gl)
+                                program (create-program quad alpha-fragment-shader-source gl)
                                 {:keys [width height]} (opengl/size gl)
                                 texture (texture/create-for-file "pumpkin.png" gl)]
 
                             (opengl/clear gl 0 0 1 1)
 
                             (draw gl
-                                  [["texture" texture]]
+                                  ["texture" texture]
+                                  [:1f "alpha" [0.5]]
                                   program
                                   0 0
                                   128 128
                                   width height)
 
                             (draw gl
-                                  [["texture" texture]]
+                                  ["texture" texture]
+                                  [:1f "alpha" [1.0]]
                                   program
                                   0 128
                                   228 228

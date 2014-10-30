@@ -19,16 +19,21 @@
   (:import [nanovg NanoVG]))
 
 (defn wait-for-next-frame [frame-started]
-  (let [target-frames-per-second 2]
+  (let [target-frames-per-second 3]
     (Thread/sleep (max 0
                        (- (/ 1000 target-frames-per-second)
                           (- (System/currentTimeMillis)
                              frame-started))))))
 
 (defn drawable-for-time [texture time]
-  (drawable/->Quad [["texture" texture]]
-                   quad/upside-down-fragment-shader-source
-                   0 0 200 200))
+  (let [duration 2000
+        phase (/ (mod time duration)
+                 duration)]
+    (drawable/->Quad [["texture" texture]]
+                     (if (> phase 0.5)
+                       quad/upside-down-fragment-shader-source
+                       quad/fragment-shader-source)
+                     0 0 200 200)))
 
 (defn start-view []
   (let [window (window/create 300
@@ -37,7 +42,7 @@
                               :init opengl/initialize
                               :close-automatically true)
         renderers (atom [(window/with-gl window gl
-                                          (renderer/create-quad-renderer gl))])
+                           (renderer/create-quad-renderer gl))])
         texture (window/with-gl window gl
                   (texture/create-for-file "pumpkin.png" gl))]
 
