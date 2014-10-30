@@ -22,8 +22,6 @@
 
   (delete [this gl]))
 
-(instance? Quad (drawable/->Quad 1 2 3 4 5 6))
-
 (defn map-for-renderers [function gl renderers]
   (doall (map #(function % gl)
               renderers)))
@@ -154,6 +152,7 @@
                             (quad/create-program quad (:fragment-shader-source drawable) gl))]
             (quad/draw gl
                        (:textures drawable)
+                       (:uniforms drawable)
                        program
                        (:x drawable) (:y drawable)
                        (:width drawable) (:height drawable)
@@ -168,9 +167,6 @@
     (assoc this :used-fragment-shader-sources #{}))
 
   (end-frame [this gl]
-    (println "deleting " (count (filter (complement (:used-fragment-shader-sources this))
-                                      (keys (:programs this)))))
-
     (assoc this :programs (reduce (fn [programs fragment-shader-source]
                                     (shader/delete-program gl (get programs fragment-shader-source))
                                     (dissoc programs fragment-shader-source))

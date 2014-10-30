@@ -19,7 +19,7 @@
 
 ;; DRAWABLES
 
-(defrecord Quad [textures fragment-shader-source x y width height]
+(defrecord Quad [textures uniforms fragment-shader-source x y width height]
 
   layoutable/Layoutable
   (preferred-size [this available-width available-height]

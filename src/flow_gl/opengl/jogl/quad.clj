@@ -132,10 +132,8 @@
   (doseq [[type name values] (partition 3 uniforms)]
     (let [location (.glGetUniformLocation gl shader-program name)]
       (case type
-        :1i (let [[value] values]
-              (.glUniform1i gl location value))
-        :1f (let [[value] values]
-              (.glUniform1f gl location value))
+        :1i (.glUniform1i gl location values)
+        :1f (.glUniform1f gl location values)
         :4f (let [[value1 value2 value3 value4] values]
               (.glUniform4f gl location value1 value2 value3 value4)))))
 
@@ -181,7 +179,7 @@
 
                             (draw gl
                                   ["texture" texture]
-                                  [:1f "alpha" [0.5]]
+                                  [:1f "alpha" 0.5]
                                   program
                                   0 0
                                   128 128
@@ -189,7 +187,7 @@
 
                             (draw gl
                                   ["texture" texture]
-                                  [:1f "alpha" [1.0]]
+                                  [:1f "alpha" 1.0]
                                   program
                                   0 128
                                   228 228

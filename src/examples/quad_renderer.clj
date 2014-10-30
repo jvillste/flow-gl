@@ -19,7 +19,7 @@
   (:import [nanovg NanoVG]))
 
 (defn wait-for-next-frame [frame-started]
-  (let [target-frames-per-second 3]
+  (let [target-frames-per-second 60]
     (Thread/sleep (max 0
                        (- (/ 1000 target-frames-per-second)
                           (- (System/currentTimeMillis)
@@ -29,11 +29,17 @@
   (let [duration 2000
         phase (/ (mod time duration)
                  duration)]
-    (drawable/->Quad [["texture" texture]]
-                     (if (> phase 0.5)
-                       quad/upside-down-fragment-shader-source
-                       quad/fragment-shader-source)
-                     0 0 200 200)))
+
+    (if (< phase 0.5)
+      (drawable/->Quad ["texture" texture]
+                       [:1f "alpha" phase]
+                       quad/alpha-fragment-shader-source
+                       0 0 200 200)
+
+      (drawable/->Quad ["texture" texture]
+                       []
+                       quad/fragment-shader-source
+                       0 0 200 200))))
 
 (defn start-view []
   (let [window (window/create 300
