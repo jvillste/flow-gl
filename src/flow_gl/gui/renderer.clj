@@ -93,32 +93,13 @@
 (defn create-nanovg-renderer []
   (->NanoVGRenderer (NanoVG/init)))
 
-(defrecord GLRenderer []
-  Renderer
-  (can-draw? [this drawable]
-    (satisfies? drawable/GLDrawable drawable))
-
-  (draw-drawables [this drawables gl]
-    (doseq [drawable drawables]
-      (drawable/draw-gl drawable gl))
-    this)
-
-  (start-frame [this gl] this)
-
-  (end-frame [this gl] this)
-
-  (delete [this gl] this))
-
-(defn create-gl-renderer []
-  (->GLRenderer))
-
 (defrecord QuadViewRenderer [quad-view]
   Renderer
   (can-draw? [this drawable]
     (satisfies? drawable/Java2DDrawable drawable))
 
   (draw-drawables [this drawables gl]
-    ;;(println "drawing " (-> quad-view :quad-batch :texture-buffer-id ) drawables)
+    (println "draw quadview quads" drawables)
     (doto gl
       (.glEnable GL2/GL_BLEND)
       (.glBlendFunc GL2/GL_SRC_ALPHA GL2/GL_ONE_MINUS_SRC_ALPHA))
@@ -129,7 +110,6 @@
     this)
 
   (end-frame [this gl]
-    ;;(println "end frame " (-> quad-view :quad-batch :quad-parameters-buffer-id ))
     (assoc this :quad-view (quad-view/unload-unused-textures quad-view)))
 
   (delete [this gl]
@@ -144,6 +124,7 @@
     (instance? Quad  drawable))
 
   (draw-drawables [this drawables gl]
+    (println "draw quads" drawables)
     (let [viewport-size (opengl/size gl)]
       (loop [this this
              drawables drawables]
@@ -167,6 +148,7 @@
     (assoc this :used-fragment-shader-sources #{}))
 
   (end-frame [this gl]
+    (println "end quads frame")
     (assoc this :programs (reduce (fn [programs fragment-shader-source]
                                     (shader/delete-program gl (get programs fragment-shader-source))
                                     (dissoc programs fragment-shader-source))

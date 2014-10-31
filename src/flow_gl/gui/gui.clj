@@ -14,7 +14,7 @@
             (flow-gl.graphics [font :as font]
                               [buffered-image :as buffered-image])
 
-            
+
 
             (flow-gl.opengl.jogl [opengl :as opengl]
                                  [window :as window]
@@ -223,6 +223,7 @@
         (next-focus-path-parts state [[:children1 1] [:children2 2] [:children3 2]])  => nil))
 
 (defn set-layout-coordinates [layout parent-x parent-y parent-z]
+  ;;(println "set-layout-coordinates"  (type layout) parent-x parent-y parent-z)
   (assoc layout
     :x (+ parent-x (:x layout))
     :y (+ parent-y (:y layout))
@@ -231,13 +232,16 @@
 (def drawables-for-layout)
 
 (defn child-drawables [layout parent-x parent-y parent-z]
+  ;;(println  "child-drawables" (:render-target? layout) layout parent-x parent-y parent-z)
   (let [parent-x (+ parent-x (:x layout))
         parent-y (+ parent-y (:y layout))
         parent-z (+ parent-z (or (:z layout) 0))]
     (loop [quads []
            children (:children layout)]
       (if-let [child (first children)]
-        (let [quads (drawables-for-layout child parent-x parent-y parent-z quads)]
+        (let [quads (if (:render-target? layout)
+                      (drawables-for-layout child 0 0 0 quads)
+                      (drawables-for-layout child parent-x parent-y parent-z quads))]
           (recur quads
                  (rest children)))
         quads))))
@@ -247,6 +251,7 @@
      (drawables-for-layout layout 0 0 0 []))
 
   ([layout parent-x parent-y parent-z quads]
+     ;;(println "drawables for layout " (:render-target? layout) parent-x parent-y parent-z)
      (if (:children layout)
        (if (:render-target? layout)
          (conj quads
@@ -254,7 +259,7 @@
                    (set-layout-coordinates parent-x
                                            parent-y
                                            parent-z)
-                   (assoc :child-drawables (child-drawables layout 0 0 0))
+                   (assoc :child-drawables (child-drawables layout parent-x parent-y parent-z))
                    (dissoc :children)))
 
          (concat quads
@@ -264,6 +269,20 @@
                                      parent-x
                                      parent-y
                                      parent-z)))))
+
+(clojure.pprint/pprint (drawables-for-layout {:x 0 :y 0 :render-target? true
+                                              :children [{:x 0 :y 0 :render-target? true
+                                                          :children [{:x 0 :y 10}]}
+                                                         {:x 0 :y 10 :render-target? true
+                                                          :children [{:x 0 :y 10}]}]}))
+
+#_(deftest drawables-for-layout-test
+  (is (= (drawables-for-layout {:x 0 :y 0 :render-target? true
+                                :children [{:x 0 :y 0 :render-target? true
+                                            :children [{:x 0 :y 10}]}
+                                           {:x 0 :y 0 :render-target? true
+                                            :children [{:x 0 :y 10}]}]})
+         nil)))
 
 
 
@@ -276,8 +295,8 @@
                         (opengl/clear gl 0 0 0 1)
                         (reset! gpu-state-atom
                                 (renderer/render-frame drawables
-                                              gl
-                                              @gpu-state-atom)))))
+                                                       gl
+                                                       @gpu-state-atom)))))
 
 (defn move-hierarchical-state [state paths previous-path-parts-key child-state-key state-key state-gained-key state-lost-key]
   (-> state

@@ -3,7 +3,8 @@
             (flow-gl.opengl.jogl [opengl :as opengl]
                                  [window :as window]
                                  [quad-batch :as quad-batch]
-                                 [render-target :as render-target])
+                                 [render-target :as render-target]
+                                 [quad :as quad])
             (flow-gl.graphics [font :as font]
                               [buffered-image :as buffered-image])
             (flow-gl.gui [drawable :as drawable]
@@ -17,16 +18,17 @@
   (:import [nanovg NanoVG]))
 
 (defn wait-for-next-frame [frame-started]
-  (let [target-frames-per-second 2]
+  (let [target-frames-per-second 1]
     (Thread/sleep (max 0
                        (- (/ 1000 target-frames-per-second)
                           (- (System/currentTimeMillis)
                              frame-started))))))
 
+
 (defn text [text]
-  (set-size (drawable/->Text text
-                             (font/create "LiberationSans-Regular.ttf" 30)
-                             [1 1 1 1])))
+  (drawable/->Text text
+                   (font/create "LiberationSans-Regular.ttf" 30)
+                   [1 1 1 1]))
 
 (defn child-render-target [key layout]
   (assoc layout
@@ -34,11 +36,12 @@
     :key key
     :constructor (fn [gl]
                    {:renderers [(renderer/create-quad-view-renderer gl)
-                                (renderer/create-nanovg-renderer)]})
+                                #_(renderer/create-nanovg-renderer)]})
     :destructor (fn [state gl]
                   (dorun (map renderer/delete (:renderers state)))
                   (render-target/delete (:render-target state) gl))
     :render (fn [state drawables x y width height gl]
+              (println "rendering " x y width height drawables)
               (let [old-render-target (:render-target state)
                     render-target (if (and old-render-target
                                            (= (:width old-render-target)
@@ -55,7 +58,7 @@
                   (render-target/delete old-render-target gl))
 
                 (let [renderers (render-target/render-to render-target gl
-                                                         (opengl/clear gl 0 0 0 1)
+                                                         (opengl/clear gl 1 0 0 1)
                                                          (renderer/render-frame-drawables drawables
                                                                                           gl
                                                                                           (:renderers state)))]
@@ -63,7 +66,9 @@
                   [(assoc state
                      :renderers renderers
                      :render-target render-target)
-                   (drawable/->Quad (:texture render-target)
+                   (drawable/->Quad ["texture" (:texture render-target)]
+                                    []
+                                    quad/fragment-shader-source
                                     x
                                     y
                                     width
@@ -74,9 +79,10 @@
     :render-target? true
     :key :root
     :constructor (fn [gl]
-                   {:renderers [#_(renderer/create-quad-view-renderer gl)
+                   {:renderers [(renderer/create-quad-view-renderer gl)
                                 #_(renderer/create-nanovg-renderer)
-                                (renderer/create-gl-renderer)]})
+                                #_(renderer/create-gl-renderer)
+                                (renderer/create-quad-renderer gl)]})
     :destructor (fn [state gl]
                   (doall map renderer/delete (:renderers state))
                   state)
@@ -88,18 +94,21 @@
     :x 0
     :y 0
     :width 200
-    :height 100))
+    :height 300))
 
 (defn render-target-drawable-for-time [time]
   (let [phase (/ (mod time 1000)
                  1000)]
     (first (gui/drawables-for-layout
             (let [[state layout] (layout/layout (root-render-target (layouts/->VerticalStack
-                                                                     [(child-render-target :child-1 (layouts/->Margin 50 0 0 0 [(text "child 1")]))
-                                                                      (child-render-target :child-2 (layouts/->Margin 50 0 0 0 [(text "child 2")]))
+                                                                     [(text "childer 1")
+                                                                      (child-render-target :child-1 (layouts/->Margin 0 0 0 0 [(text "child 1")]))
+                                                                      (child-render-target :child-2 (layouts/->Margin 0 0 0 0 [(text "child 2")]))
+                                                                      (child-render-target :child-3 (layouts/->Margin 0 0 0 0 [(text "child 3")]))
                                                                       #_(layouts/->Margin 50 0 0 0 [(text "root foo")])]))
                                                 {}
                                                 200 200)]
+              #_(flow-gl.debug/ppreturn layout)
               layout)))))
 
 
@@ -153,6 +162,7 @@
       (loop []
         (let [frame-started (System/currentTimeMillis)]
           (let [render-target-drawable (render-target-drawable-for-time frame-started)]
+            ;;(println "render-target-drawable" render-target-drawable)
             (window/set-display window gl
                                 (opengl/clear gl 0 0 0 1)
                                 (swap! render-target-state-atom
@@ -160,7 +170,6 @@
                                          (let [[render-target-state render-target-drawable] (-> (or render-target-state
                                                                                                     ((:constructor render-target-drawable) gl))
                                                                                                 (render render-target-drawable gl))]
-                                           (println "new state is" render-target-state)
                                            render-target-state)))))
 
           (when (window/visible? window)

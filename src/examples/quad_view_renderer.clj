@@ -1,4 +1,4 @@
-(ns examples.nanovg
+(ns examples.quad-view-renderer
   (:require [clojure.data.priority-map :as priority-map]
             (flow-gl.opengl.jogl [opengl :as opengl]
                                  [window :as window]

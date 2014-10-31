@@ -1,9 +1,20 @@
 (ns flow-gl.debug
   (:require [clojure.java.io :as io]
             [clojure.core.async :as async]
-            [flow-gl.thread-inheritable :as thread-inheritable]))
+            [clojure.pprint :as pprint]
+            [flow-gl.thread-inheritable :as thread-inheritable])
+  (:import [java.io StringWriter]))
 
 ;; DEBUG
+
+(defn pprints [m] 
+  (let [w (StringWriter.)]
+    (pprint/pprint m w)
+    (.toString w)))
+
+(defmacro ppreturn [value]
+  `(do (println (name (quote ~value)) (pprints ~value))
+       ~value))
 
 (defn print-and-return [message value]
   (println message value)
@@ -12,6 +23,7 @@
 (defn debug-println [& values]
   (println (apply str values))
   (last values))
+
 
 
 (def debug-channel (thread-inheritable/thread-inheritable nil))
