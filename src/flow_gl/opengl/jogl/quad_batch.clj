@@ -218,32 +218,6 @@
                             number-of-texels)
     texture-buffer-id))
 
-(defn update-vertex-array-object [quad-batch gl]
-  (vertex-array-object/bind gl (:vertex-array-object quad-batch))
-
-  (shader/enable-program gl
-                         (:program quad-batch))
-
-  (bind-texture-buffer gl
-                       (:texture-buffer-id quad-batch)
-                       (:texture-buffer-texture-id quad-batch)
-                       0
-                       (:program quad-batch)
-                       "texture"
-                       GL2/GL_RGBA8)
-
-  (bind-texture-buffer gl
-                       (:quad-parameters-buffer-id quad-batch)
-                       (:quad-parameters-buffer-texture-id quad-batch)
-                       1
-                       (:program quad-batch)
-                       "quad_parameters"
-                       GL2/GL_R32UI)
-
-  (shader/validate-program gl (:program quad-batch))
-
-  quad-batch)
-
 (defn create [gl]
   ;;(opengl/initialize gl)
 
@@ -273,9 +247,9 @@
                     :quad-parameters-buffer-texture-id (texture/create-texture-object gl)
 
                     :allocated-texels initial-number-of-texels}]
-    ;;(update-vertex-array-object quad-batch gl)
-    quad-batch
-    ))
+    
+    (shader/validate-program gl (:program quad-batch))
+    quad-batch))
 
 (defn collect-garbage [quad-batch gl]
   (if (= (:next-free-quad quad-batch)
@@ -365,8 +339,7 @@
                  :next-free-texel new-number-of-texels
                  :ids-to-indexes ids-to-indexes
                  :removed-quads 0
-                 :removed-texels 0)
-          #_(update-vertex-array-object gl)))))
+                 :removed-texels 0)))))
 
 (defn collect-texture-garbage [quad-batch gl]
   (let [new-number-of-texels (- (:next-free-texel quad-batch)
@@ -406,8 +379,7 @@
                :allocated-texels new-texture-buffer-size
                :next-free-texel new-number-of-texels
                :textures-in-use textures-in-use
-               :removed-texels 0)
-        #_(update-vertex-array-object gl))))
+               :removed-texels 0))))
 
 (defn grow-texture-buffer [gl quad-batch minimum-size]
   (let [new-quad-batch (assoc quad-batch
@@ -423,7 +395,6 @@
 
     (buffer/delete gl (:texture-buffer-id quad-batch))
 
-    #_(update-vertex-array-object new-quad-batch gl)
     new-quad-batch))
 
 (defn grow-quad-buffers [gl quad-batch minimum-size]
@@ -442,9 +413,7 @@
 
     (buffer/delete gl (:quad-parameters-buffer-id quad-batch))
 
-    ;;(update-vertex-array-object new-quad-batch gl)
-    new-quad-batch
-    ))
+    new-quad-batch))
 
 (defn add-textures [quad-batch gl images]
   (let [texel-count (reduce (fn [texel-count image]
