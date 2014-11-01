@@ -41,7 +41,6 @@
                   (dorun (map renderer/delete (:renderers state)))
                   (render-target/delete (:render-target state) gl))
     :render (fn [state drawables x y width height gl]
-              (println "rendering " x y width height drawables)
               (let [old-render-target (:render-target state)
                     render-target (if (and old-render-target
                                            (= (:width old-render-target)
@@ -58,7 +57,7 @@
                   (render-target/delete old-render-target gl))
 
                 (let [renderers (render-target/render-to render-target gl
-                                                         (opengl/clear gl 1 0 0 1)
+                                                         (opengl/clear gl 0 0 0 0)
                                                          (renderer/render-frame-drawables drawables
                                                                                           gl
                                                                                           (:renderers state)))]
@@ -66,13 +65,20 @@
                   [(assoc state
                      :renderers renderers
                      :render-target render-target)
-                   (drawable/->Quad ["texture" (:texture render-target)]
-                                    []
-                                    quad/fragment-shader-source
-                                    x
-                                    y
-                                    width
-                                    height)])))))
+                   [(drawable/->Quad ["texture" (:texture render-target)]
+                                     []
+                                     quad/fragment-shader-source
+                                     x
+                                     y
+                                     width
+                                     height)
+                    (drawable/->Quad ["texture" (:texture render-target)]
+                                     []
+                                     quad/fragment-shader-source
+                                     x
+                                     y
+                                     width
+                                     height)]])))))
 
 (defn root-render-target [layout]
   (assoc layout
@@ -80,7 +86,7 @@
     :key :root
     :constructor (fn [gl]
                    {:renderers [(renderer/create-quad-view-renderer gl)
-                                #_(renderer/create-nanovg-renderer)
+                                (renderer/create-nanovg-renderer)
                                 #_(renderer/create-gl-renderer)
                                 (renderer/create-quad-renderer gl)]})
     :destructor (fn [state gl]
@@ -90,26 +96,28 @@
               [(assoc state :renderers (renderer/render-frame drawables
                                                               gl
                                                               (:renderers state)))
-               nil])
+               []])
     :x 0
     :y 0
     :width 200
     :height 300))
 
-(defn render-target-drawable-for-time [time]
+(defn drawables-for-time [time]
   (let [phase (/ (mod time 1000)
                  1000)]
-    (first (gui/drawables-for-layout
-            (let [[state layout] (layout/layout (root-render-target (layouts/->VerticalStack
-                                                                     [(text "childer 1")
-                                                                      (child-render-target :child-1 (layouts/->Margin 0 0 0 0 [(text "child 1")]))
-                                                                      (child-render-target :child-2 (layouts/->Margin 0 0 0 0 [(text "child 2")]))
-                                                                      (child-render-target :child-3 (layouts/->Margin 0 0 0 0 [(text "child 3")]))
-                                                                      #_(layouts/->Margin 50 0 0 0 [(text "root foo")])]))
-                                                {}
-                                                200 200)]
-              #_(flow-gl.debug/ppreturn layout)
-              layout)))))
+    (gui/drawables-for-layout
+     (let [[state layout] (layout/layout (assoc (layouts/->VerticalStack
+                                                 [(child-render-target :child-1 (layouts/->Margin 0 0 0 0 [(text "child 1")]))
+                                                  (child-render-target :child-2 (layouts/->Margin 10 0 0 0 [(text "child 2")]))
+                                                  (child-render-target :child-3 (layouts/->Margin 0 0 0 0 [(text "child 3")]))])
+                                           :width 200
+                                           :height 200
+                                           :x 0
+                                           :y 0)
+                                         {}
+                                         200 200)]
+       #_(flow-gl.debug/ppreturn layout)
+       layout))))
 
 
 (defn render [render-target-state render-target-drawable gl]
@@ -121,11 +129,11 @@
                                                                   (let [child-state-path [:child-render-target-states (:key drawable)]
                                                                         child-render-target-state (or (get-in render-target-state child-state-path)
                                                                                                       ((:constructor drawable) gl))
-                                                                        [child-render-target-state child-render-target-drawable] (render child-render-target-state
-                                                                                                                                         drawable
-                                                                                                                                         gl)]
+                                                                        [child-render-target-state child-render-target-drawables] (render child-render-target-state
+                                                                                                                                          drawable
+                                                                                                                                          gl)]
                                                                     [(assoc-in render-target-state child-state-path child-render-target-state)
-                                                                     (conj render-target-drawables child-render-target-drawable)])
+                                                                     (concat render-target-drawables child-render-target-drawables)])
                                                                   [render-target-state
                                                                    (conj render-target-drawables drawable)]))
                                                               [render-target-state []]
@@ -156,21 +164,34 @@
                               :profile :gl3
                               :init opengl/initialize
                               :close-automatically true)
-        render-target-state-atom (atom nil)]
+        render-target-state-atom (atom (window/with-gl window gl
+                                         {:renderers [(renderer/create-quad-view-renderer gl)
+                                                      (renderer/create-nanovg-renderer)
+                                                      (renderer/create-quad-renderer gl)]}))]
 
     (try
       (loop []
         (let [frame-started (System/currentTimeMillis)]
-          (let [render-target-drawable (render-target-drawable-for-time frame-started)]
-            ;;(println "render-target-drawable" render-target-drawable)
+          (let [drawables ( drawables-for-time frame-started)]
+            ;;(println "drawables" drawables)
             (window/set-display window gl
                                 (opengl/clear gl 0 0 0 1)
-                                (swap! render-target-state-atom
-                                       (fn [render-target-state]
-                                         (let [[render-target-state render-target-drawable] (-> (or render-target-state
-                                                                                                    ((:constructor render-target-drawable) gl))
-                                                                                                (render render-target-drawable gl))]
-                                           render-target-state)))))
+                                (let [{:keys [width height]} (opengl/size gl)]
+                                  (swap! render-target-state-atom
+                                         (fn [render-target-state]
+                                           (let [[render-target-state render-target-drawables] (render render-target-state
+                                                                                                       {:render (fn [state drawables x y width height gl]
+                                                                                                                  [(assoc state :renderers (renderer/render-frame drawables
+                                                                                                                                                                  gl
+                                                                                                                                                                  (:renderers state)))
+                                                                                                                   []])
+                                                                                                        :child-drawables drawables
+                                                                                                        :width width
+                                                                                                        :height height
+                                                                                                        :x 0
+                                                                                                        :y 0}
+                                                                                                       gl)]
+                                             render-target-state))))))
 
           (when (window/visible? window)
             (do (wait-for-next-frame frame-started)

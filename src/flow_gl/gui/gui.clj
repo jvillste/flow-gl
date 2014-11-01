@@ -270,19 +270,26 @@
                                      parent-y
                                      parent-z)))))
 
-(clojure.pprint/pprint (drawables-for-layout {:x 0 :y 0 :render-target? true
-                                              :children [{:x 0 :y 0 :render-target? true
-                                                          :children [{:x 0 :y 10}]}
+#_(clojure.pprint/pprint (drawables-for-layout {:x 0 :y 0 :render-target? true
+                                                :children [{:x 0 :y 0 :render-target? true
+                                                            :children [{:x 0 :y 10}]}
+                                                           {:x 0 :y 10 :render-target? true
+                                                            :children [{:x 0 :y 10}]}]}))
+
+(clojure.pprint/pprint (drawables-for-layout {:x 0 :y 0
+                                              :children [{:x 10 :y 0
+                                                          :children [{:x 0 :y 10 :foo :bar}]}
                                                          {:x 0 :y 10 :render-target? true
-                                                          :children [{:x 0 :y 10}]}]}))
+                                                          :children [{:x 0 :y 0}
+                                                                     {:x 0 :y 10}]}]}))
 
 #_(deftest drawables-for-layout-test
-  (is (= (drawables-for-layout {:x 0 :y 0 :render-target? true
-                                :children [{:x 0 :y 0 :render-target? true
-                                            :children [{:x 0 :y 10}]}
-                                           {:x 0 :y 0 :render-target? true
-                                            :children [{:x 0 :y 10}]}]})
-         nil)))
+    (is (= (drawables-for-layout {:x 0 :y 0 :render-target? true
+                                  :children [{:x 0 :y 0 :render-target? true
+                                              :children [{:x 0 :y 10}]}
+                                             {:x 0 :y 0 :render-target? true
+                                              :children [{:x 0 :y 10}]}]})
+           nil)))
 
 
 
