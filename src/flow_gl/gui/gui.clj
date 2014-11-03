@@ -252,23 +252,24 @@
 
   ([layout parent-x parent-y parent-z quads]
      ;;(println "drawables for layout " (:render-target? layout) parent-x parent-y parent-z)
-     (if (:children layout)
-       (if (:render-target? layout)
-         (conj quads
-               (-> layout
-                   (set-layout-coordinates parent-x
-                                           parent-y
-                                           parent-z)
-                   (assoc :child-drawables (child-drawables layout parent-x parent-y parent-z))
-                   (dissoc :children)))
-
-         (concat quads
-                 (child-drawables layout parent-x parent-y parent-z)))
+     (if (:render-target? layout)
        (conj quads
-             (set-layout-coordinates layout
-                                     parent-x
-                                     parent-y
-                                     parent-z)))))
+             (-> layout
+                 (set-layout-coordinates parent-x
+                                         parent-y
+                                         parent-z)
+                 (assoc :child-drawables (if (:children layout)
+                                           (child-drawables layout parent-x parent-y parent-z)
+                                           [(dissoc layout :render-target?)]))
+                 (dissoc :children)))
+       (if (:children layout)
+         (concat quads
+                 (child-drawables layout parent-x parent-y parent-z))
+         (conj quads
+               (set-layout-coordinates layout
+                                       parent-x
+                                       parent-y
+                                       parent-z))))))
 
 #_(clojure.pprint/pprint (drawables-for-layout {:x 0 :y 0 :render-target? true
                                                 :children [{:x 0 :y 0 :render-target? true

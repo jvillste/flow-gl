@@ -97,3 +97,16 @@ during the view function execution.)
 
 Change detection
 
+Layout
+Layoutable
+Drawable
+Renderer
+- Renders drawables
+Render tree
+- Layouted drawables and transformer nodes. This is reduced to a list of
+  drawables by applying the transformers in the depth first order.
+Render tree transformer
+- A function from drawables to drawables
+Render tree transformer node
+- A node without a drawable, just transformers to be applied to the tree below
+

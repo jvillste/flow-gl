@@ -99,7 +99,6 @@
     (satisfies? drawable/Java2DDrawable drawable))
 
   (draw-drawables [this drawables gl]
-    (println "draw quadview quads" drawables)
     (doto gl
       (.glEnable GL2/GL_BLEND)
       (.glBlendFunc GL2/GL_SRC_ALPHA GL2/GL_ONE_MINUS_SRC_ALPHA))
@@ -124,7 +123,6 @@
     (instance? Quad  drawable))
 
   (draw-drawables [this drawables gl]
-    (println "draw quads" drawables)
     (let [viewport-size (opengl/size gl)]
       (loop [this this
              drawables drawables]
@@ -148,7 +146,6 @@
     (assoc this :used-fragment-shader-sources #{}))
 
   (end-frame [this gl]
-    (println "end quads frame")
     (assoc this :programs (reduce (fn [programs fragment-shader-source]
                                     (shader/delete-program gl (get programs fragment-shader-source))
                                     (dissoc programs fragment-shader-source))
