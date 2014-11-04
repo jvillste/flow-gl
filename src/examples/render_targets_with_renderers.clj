@@ -107,7 +107,6 @@
 (defrecord Highlight [key]
   StatelessTransformer
   (transform [this drawables x y width height gl]
-    (println "highlighting" drawables)
     (concat drawables
             (map (fn [drawable]
                    (assoc (drawable/->Rectangle (:width drawable) (:height drawable) [255 0 0 155])
@@ -175,15 +174,20 @@
 (defn render-trees-for-time [time]
   (let [phase (/ (mod time 1000)
                  1000)]
-    (gui/drawables-for-layout
-     (let [[state layout] (layout/layout (-> (with-transformers (->Highlight :highlight)
+    (render-trees-for-layout
+     (let [[state layout] (layout/layout (-> (with-transformers
+                                               #_(->Filter :fade1
+                                                           quad/alpha-fragment-shader-source
+                                                           [:1f "alpha" 0.2])
+                                               (->Highlight :highlight)
                                                (layouts/->VerticalStack
-                                                [(layouts/->Margin 0 0 0 10 [(text "child 1")])
+                                                [(text "child 1")
                                                  (assoc (text "child 2") :highlight? true)
-                                                 #_(-> (text "child 3")
-                                                       (set-transformers (->Filter :fade
-                                                                                   quad/alpha-fragment-shader-source
-                                                                                   [:1f "alpha" 0.2])))]))
+                                                 (-> (with-transformers (->Filter :fade2
+                                                                                  quad/alpha-fragment-shader-source
+                                                                                  [:1f "alpha" 0.2])
+                                                       (text "child 3")))]))
+
                                              (assoc :width 200
                                                     :height 200
                                                     :x 0
@@ -191,27 +195,7 @@
 
                                          {}
                                          200 200)]
-       #_(flow-gl.debug/ppreturn layout)
        layout))))
-
-#_(->> {:key :root
-        :transformers [{:key :render-transformer}]
-        :children [{:children [{:y 10, :transformers [{:key :highlight-3}], :id 3, :x 0}
-                               {:z 0, :y 20, :id 4, :x 30}],
-                    :transformers [{:key :highlight-1}],
-                    :z 0,
-                    :y 10,
-                    :x 30}
-                   {:y 0, :transformers [{:key :highlight-2}], :id 6, :x 0}
-                   {:z 0, :y 20, :id 7, :x 0}]}
-       (filter :transformers)
-       (mapcat :transformers)
-       (map :key)
-       (apply hash-set))
-
-#_{:transformer-states {:render-transformer :state}
-   :child-render-tree-states {:highlight-1 :state
-                              :highlight-2 :state}}
 
 (defn apply-transformers [transformer-states render-tree gl]
   (let [[transformer-states child-drawables] (if (:children render-tree)
@@ -262,7 +246,7 @@
          drawables]))))
 
 (defn transform-tree [transformer-states render-tree gl]
-  (println "render tree is" render-tree)
+
   (let [[transformer-states drawables] (apply-transformers (assoc transformer-states :used-state-keys #{})
                                                            render-tree
                                                            gl)
@@ -285,7 +269,6 @@
 (defrecord RenderTransformer [key]
   StatefulTransformer
   (transform-with-state [this state drawables x y width height gl]
-    (println "transform with state" drawables)
     [(assoc state
        :renderers (renderer/render-frame drawables
                                          gl
