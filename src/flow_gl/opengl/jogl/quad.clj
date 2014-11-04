@@ -100,7 +100,8 @@
   out vec4 outColor;
 
   void main() {
-  vec4 texture_color = texture(texture, vec2(texture_coordinate[0], 1 - texture_coordinate[1]));
+  //vec4 texture_color = texture(texture, vec2(texture_coordinate[0], 1 - texture_coordinate[1]));
+  vec4 texture_color = texture(texture, texture_coordinate);
   outColor = vec4(texture_color[0],texture_color[1],texture_color[2],texture_color[3] * alpha);
   }
 ")

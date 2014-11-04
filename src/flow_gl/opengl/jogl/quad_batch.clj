@@ -247,7 +247,8 @@
                     :quad-parameters-buffer-texture-id (texture/create-texture-object gl)
 
                     :allocated-texels initial-number-of-texels}]
-    
+
+    (vertex-array-object/bind gl (:vertex-array-object quad-batch))
     (shader/validate-program gl (:program quad-batch))
     quad-batch))
 

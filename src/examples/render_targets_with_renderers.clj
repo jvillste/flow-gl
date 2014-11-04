@@ -55,7 +55,7 @@
   ([layoutable parent-x parent-y parent-z trees]
      (if (:transformers layoutable)
        (let [transformer-node (-> layoutable
-                                  (select-keys [:x :y :z :transformers :children])
+                                  (select-keys [:x :y :z :width :height :transformers :children])
                                   (transpose parent-x
                                              parent-y
                                              parent-z))]
@@ -124,6 +124,7 @@
 (defrecord Filter [key fragment-shader-source uniforms]
   StatefulTransformer
   (transform-with-state [this state drawables x y width height gl]
+    (println "running" key drawables)
     (let [drawables (map (fn [drawable]
                            (assoc drawable
                              :y (- (:y drawable) y)
@@ -162,7 +163,8 @@
 
   (initialize-state [this gl]
     (->FilterState [(renderer/create-quad-view-renderer gl)
-                    #_(renderer/create-nanovg-renderer)]
+                    (renderer/create-nanovg-renderer)
+                    (renderer/create-quad-renderer gl)]
                    nil)))
 
 (defn set-transformers [layoutable & transformers]
@@ -176,16 +178,16 @@
                  1000)]
     (render-trees-for-layout
      (let [[state layout] (layout/layout (-> (with-transformers
-                                               #_(->Filter :fade1
-                                                           quad/alpha-fragment-shader-source
-                                                           [:1f "alpha" 0.2])
                                                (->Highlight :highlight)
+                                               (->Filter :fade1
+                                                           quad/alpha-fragment-shader-source
+                                                           [:1f "alpha" 0.7])
                                                (layouts/->VerticalStack
                                                 [(text "child 1")
                                                  (assoc (text "child 2") :highlight? true)
                                                  (-> (with-transformers (->Filter :fade2
                                                                                   quad/alpha-fragment-shader-source
-                                                                                  [:1f "alpha" 0.2])
+                                                                                  [:1f "alpha" 0.7])
                                                        (text "child 3")))]))
 
                                              (assoc :width 200
@@ -217,6 +219,7 @@
            drawables child-drawables
            transformers (:transformers render-tree)]
       (if-let [transformer (first transformers)]
+        
         (if (satisfies? StatefulTransformer transformer)
           (let [transformer-state (or (get-in transformer-states [:states (:key transformer)] )
                                       (initialize-state transformer gl))
@@ -292,6 +295,7 @@
       (loop []
         (let [frame-started (System/currentTimeMillis)
               render-trees (render-trees-for-time frame-started)]
+          (flow-gl.debug/ppreturn render-trees)
           (window/set-display window gl
                               (opengl/clear gl 0 0 0 1)
                               (let [{:keys [width height]} (opengl/size gl)]
