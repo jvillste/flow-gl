@@ -67,24 +67,28 @@
                           parent-z))))))
 
 (deftest render-trees-for-layout-test
-  (is (= '({:children
-            [{:y 10, :transformers [:highlight-3], :id 3, :x 0}
-             {:z 0, :y 20, :id 4, :x 30}],
-            :transformers [:highlight-1],
-            :z 0,
-            :y 10,
-            :x 30}
-           {:y 0, :transformers [:highlight-2], :id 6, :x 0}
-           {:z 0, :y 20, :id 7, :x 0})
+  (is (= '({:y 10, :z 0, :id 8, :x 20}
+          {:children
+           [{:y 10, :transformers [:highlight-3], :id 3, :x 0}
+            {:z 0, :y 20, :id 4, :x 30}],
+           :transformers [:highlight-1],
+           :z 0,
+           :y 10,
+           :x 30}
+          {:y 0, :transformers [:highlight-2], :id 6, :x 0}
+          {:z 0, :y 20, :id 7, :x 0})
          (render-trees-for-layout {:x 20 :y 10 :id 1
-                                   :children [{:x 10 :y 0 :z 0
+                                   :children [
+                                              {:x 10 :y 0 :z 0
                                                :id 2
                                                :transformers [:highlight-1]
                                                :children [{:x 0 :y 10 :id 3 :transformers [:highlight-3]}
                                                           {:x 0 :y 10 :id 4}]}
                                               {:x 0 :y 10 :id 5
                                                :children [{:x 0 :y 0 :id 6 :transformers [:highlight-2]}
-                                                          {:x 0 :y 10 :id 7}]}]}))))
+                                                          {:x 0 :y 10 :id 7}]}
+                                              {:x 0 :y 0 :z 0
+                                               :id 8}]}))))
 
 
 
@@ -111,7 +115,7 @@
            drawables child-drawables
            transformers (:transformers render-tree)]
       (if-let [transformer (first transformers)]
-        
+
         (if (satisfies? StatefulTransformer transformer)
           (let [transformer-state (or (get-in transformer-states [:states (:key transformer)] )
                                       (initialize-state transformer gl))
@@ -240,3 +244,6 @@
     (->RenderTransformerState [(renderer/create-quad-view-renderer gl)
                                (renderer/create-nanovg-renderer)
                                (renderer/create-quad-renderer gl)])))
+
+
+(run-all-tests)

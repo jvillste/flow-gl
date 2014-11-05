@@ -9,7 +9,8 @@
                          [drawable :as drawable]
                          [events :as events]
                          [quad-view :as quad-view]
-                         [renderer :as renderer])
+                         [renderer :as renderer]
+                         [transformer :as transformer])
 
             (flow-gl.graphics [font :as font]
                               [buffered-image :as buffered-image])
@@ -222,89 +223,13 @@
         (next-focus-path-parts state [[:children1 1] [:children2 1]])  => [[:children1 1] [:children2 2] [:children3 0]]
         (next-focus-path-parts state [[:children1 1] [:children2 2] [:children3 2]])  => nil))
 
-(defn set-layout-coordinates [layout parent-x parent-y parent-z]
-  ;;(println "set-layout-coordinates"  (type layout) parent-x parent-y parent-z)
-  (assoc layout
-    :x (+ parent-x (:x layout))
-    :y (+ parent-y (:y layout))
-    :z (+ parent-z (or (:z layout) 0))))
-
-(def drawables-for-layout)
-
-(defn child-drawables [layout parent-x parent-y parent-z]
-  ;;(println  "child-drawables" (:render-target? layout) layout parent-x parent-y parent-z)
-  (let [parent-x (+ parent-x (:x layout))
-        parent-y (+ parent-y (:y layout))
-        parent-z (+ parent-z (or (:z layout) 0))]
-    (loop [quads []
-           children (:children layout)]
-      (if-let [child (first children)]
-        (let [quads (if (:render-target? layout)
-                      (drawables-for-layout child 0 0 0 quads)
-                      (drawables-for-layout child parent-x parent-y parent-z quads))]
-          (recur quads
-                 (rest children)))
-        quads))))
-
-(defn drawables-for-layout
-  ([layout]
-     (drawables-for-layout layout 0 0 0 []))
-
-  ([layout parent-x parent-y parent-z quads]
-     ;;(println "drawables for layout " (:render-target? layout) parent-x parent-y parent-z)
-     (if (:render-target? layout)
-       (conj quads
-             (-> layout
-                 (set-layout-coordinates parent-x
-                                         parent-y
-                                         parent-z)
-                 (assoc :child-drawables (if (:children layout)
-                                           (child-drawables layout parent-x parent-y parent-z)
-                                           [(dissoc layout :render-target?)]))
-                 (dissoc :children)))
-       (if (:children layout)
-         (concat quads
-                 (child-drawables layout parent-x parent-y parent-z))
-         (conj quads
-               (set-layout-coordinates layout
-                                       parent-x
-                                       parent-y
-                                       parent-z))))))
-
-#_(clojure.pprint/pprint (drawables-for-layout {:x 0 :y 0 :render-target? true
-                                                :children [{:x 0 :y 0 :render-target? true
-                                                            :children [{:x 0 :y 10}]}
-                                                           {:x 0 :y 10 :render-target? true
-                                                            :children [{:x 0 :y 10}]}]}))
-
-(clojure.pprint/pprint (drawables-for-layout {:x 0 :y 0
-                                              :children [{:x 10 :y 0
-                                                          :children [{:x 0 :y 10 :foo :bar}]}
-                                                         {:x 0 :y 10 :render-target? true
-                                                          :children [{:x 0 :y 0}
-                                                                     {:x 0 :y 10}]}]}))
-
-#_(deftest drawables-for-layout-test
-    (is (= (drawables-for-layout {:x 0 :y 0 :render-target? true
-                                  :children [{:x 0 :y 0 :render-target? true
-                                              :children [{:x 0 :y 10}]}
-                                             {:x 0 :y 0 :render-target? true
-                                              :children [{:x 0 :y 10}]}]})
-           nil)))
 
 
 
 (run-all-tests)
 
 
-(defn render-layout [window gpu-state-atom layout]
-  (let [drawables (drawables-for-layout layout)]
-    (window/set-display window gl
-                        (opengl/clear gl 0 0 0 1)
-                        (reset! gpu-state-atom
-                                (renderer/render-frame drawables
-                                                       gl
-                                                       @gpu-state-atom)))))
+
 
 (defn move-hierarchical-state [state paths previous-path-parts-key child-state-key state-key state-gained-key state-lost-key]
   (-> state
@@ -443,6 +368,24 @@
                  channel ([value] (recur (conj values value)))
                  :priority true)))
 
+
+(defn render-layout [layout render-tree-state-atom window]
+  (let [render-trees (transformer/render-trees-for-layout layout)]
+    (window/set-display window gl
+                        (opengl/clear gl 0 0 0 1)
+                        (let [{:keys [width height]} (opengl/size gl)]
+                          (swap! render-tree-state-atom
+                                 (fn [render-tree-state]
+                                   (let [[render-tree-state drawables] (transformer/transform-tree render-tree-state
+                                                                                                   {:transformers [(transformer/->RenderTransformer :root)]
+                                                                                                    :children render-trees
+                                                                                                    :width width
+                                                                                                    :height height
+                                                                                                    :x 0
+                                                                                                    :y 0}
+                                                                                                   gl)]
+                                     render-tree-state)))))))
+
 (defn start-view [constructor view]
   (let [event-channel (async/chan 50)
         control-channel (async/chan)
@@ -457,7 +400,6 @@
 
     (reset! last-event-channel-atom event-channel)
 
-
     (try
       (let [initial-state (constructor root-view-context
                                        control-channel)
@@ -470,8 +412,7 @@
             initial-state (set-focus initial-state
                                      (initial-focus-path-parts initial-state))
             initial-state (assoc initial-state :control-channel control-channel)
-            gpu-state-atom (atom (window/with-gl window gl [(renderer/create-nanovg-renderer)
-                                                            (renderer/create-quad-view-renderer gl)]))]
+            render-tree-state-atom (atom nil)]
 
 
         (loop [state initial-state
@@ -508,10 +449,7 @@
                                       :height height)
                                (layout/add-out-of-layout-hints))]
 
-                #_(flow-gl.debug/debug-timed "waiting")
-                #_(Thread/sleep 500)
-                (flow-gl.debug/debug-timed-and-return "render"
-                                                      (render-layout window gpu-state-atom layout))
+                (render-layout layout render-tree-state-atom window)
 
                 (let [new-state (binding [current-event-channel event-channel]
                                   (reduce #(handle-event %1 layout %2)

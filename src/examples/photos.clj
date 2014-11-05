@@ -116,6 +116,8 @@
 (defn date-navigation [view-context selected-year selected-month selected-day archive-path]
   (let [selected-color [0.3 0.8 0.4 1]]
     (l/horizontally
+     (controls/text "foo1")
+     (l/margin 0 0 0 10 (controls/text "foo2"))
      (apply l/vertically (for [year (years archive-path)]
                            (-> (controls/text year (if (= selected-year
                                                           year)
@@ -135,15 +137,15 @@
                                                          (gui/on-mouse-clicked view-context
                                                                                (fn [state time]
                                                                                  (assoc state
-                                                                                     :selected-month month
-                                                                                     :selected-day (first (days (str archive-path "/" selected-year) month)))) ))))))
+                                                                                   :selected-month month
+                                                                                   :selected-day (first (days (str archive-path "/" selected-year) month)))) ))))))
 
-     (l/margin 0 0 0 10 (apply l/vertically (doall (for [day (days (str archive-path "/" selected-year) selected-month)]
+     #_(l/margin 0 0 0 10 (apply l/vertically (doall (for [day (days (str archive-path "/" selected-year) selected-month)]
                                                      (-> (controls/text day (if (= selected-day
                                                                                    day)
                                                                               selected-color
                                                                               [0.8 0.8 0.8 1]))
-                                                         (gui/on-mouse-clicked view-context 
+                                                         (gui/on-mouse-clicked view-context
                                                                                (fn [state time]
                                                                                  (assoc state :selected-day day)))))))))))
 
@@ -174,7 +176,8 @@
                             [])
 
      (layouts/->FloatLeft (date-navigation view-context selected-year selected-month selected-day archive-path)
-                          (l/margin 0 0 0 10
+                          (controls/text "foo")
+                          #_(l/margin 0 0 0 10
                                     (layouts/->Flow
                                      (doall (for [image-file-name (images (str archive-path
                                                                                "/" selected-year

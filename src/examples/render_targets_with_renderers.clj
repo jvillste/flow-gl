@@ -18,12 +18,6 @@
   (:use clojure.test)
   (:import [nanovg NanoVG]))
 
-(defn wait-for-next-frame [frame-started]
-  (let [target-frames-per-second 60]
-    (Thread/sleep (max 0
-                       (- (/ 1000 target-frames-per-second)
-                          (- (System/currentTimeMillis)
-                             frame-started))))))
 
 
 (defn text [text]
@@ -31,38 +25,41 @@
                    (font/create "LiberationSans-Regular.ttf" 30)
                    [1 1 1 1]))
 
+(defn layoutable-for-time [time]
+    (let [duration 3000
+          phase (/ (mod time duration)
+                   duration)
+          pulse-phase (Math/sin (* phase Math/PI))]
+      (transformer/with-transformers
+        (transformer/->Highlight :highlight)
+        (transformer/->Filter :fade1
+                              quad/alpha-fragment-shader-source
+                              [:1f "alpha" pulse-phase])
+        (layouts/->VerticalStack
+         [(text "child 1")
+          (assoc (text "child 2") :highlight? true)
+          (-> (transformer/with-transformers (transformer/->Filter :fade2
+                                                                   quad/alpha-fragment-shader-source
+                                                                   [:1f "alpha" 0.7])
+                (text "child 3")))]))))
 
-(defn layout-for-time [time]
-  (let [duration 5000
-        phase (/ (mod time duration)
-                 duration)
-        pulse-phase (Math/sin (* phase Math/PI))]
-    (let [[state layout] (layout/layout (-> (transformer/with-transformers
-                                              (transformer/->Highlight :highlight)
-                                              (transformer/->Filter :fade1
-                                                                    quad/alpha-fragment-shader-source
-                                                                    [:1f "alpha" pulse-phase])
-                                              (layouts/->VerticalStack
-                                               [(text "child 1")
-                                                (assoc (text "child 2") :highlight? true)
-                                                (-> (transformer/with-transformers (transformer/->Filter :fade2
-                                                                                                         quad/alpha-fragment-shader-source
-                                                                                                         [:1f "alpha" 0.7])
-                                                      (text "child 3")))]))
+#_(defn layoutable-for-time [time]
+  (layouts/->FloatLeft (layouts/->HorizontalStack [(text "foo 1")
+                                                   (layouts/->Margin 0 0 0 100 [(text "foo 2")])] )
+                       (text "foo 3")))
 
-                                            (assoc :width 200
-                                                   :height 200
-                                                   :x 0
-                                                   :y 0))
-
-                                        {}
-                                        200 200)]
-      layout)))
-
+(defn wait-for-next-frame [frame-started]
+  (let [target-frames-per-second 1]
+    (Thread/sleep (max 0
+                       (- (/ 1000 target-frames-per-second)
+                          (- (System/currentTimeMillis)
+                             frame-started))))))
 
 (defn start-view []
-  (let [window (window/create 300
-                              400
+  (let [width 300
+        height 300
+        window (window/create width
+                              height
                               :profile :gl3
                               :init opengl/initialize
                               :close-automatically true)
@@ -71,8 +68,16 @@
     (try
       (loop []
         (let [frame-started (System/currentTimeMillis)
-              render-trees (transformer/render-trees-for-layout
-                            (layout-for-time frame-started))]
+              render-trees (-> (layoutable-for-time frame-started)
+                               (assoc :width width
+                                      :height height
+                                      :x 0
+                                      :y 0)
+                               (layout/layout {}
+                                              width
+                                              height)
+                               (second)
+                               (transformer/render-trees-for-layout))]
           (window/set-display window gl
                               (opengl/clear gl 0 0 0 1)
                               (let [{:keys [width height]} (opengl/size gl)]
