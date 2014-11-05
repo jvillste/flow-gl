@@ -25,7 +25,7 @@
                    (font/create "LiberationSans-Regular.ttf" 30)
                    [1 1 1 1]))
 
-(defn layoutable-for-time [time]
+#_(defn layoutable-for-time [time]
     (let [duration 3000
           phase (/ (mod time duration)
                    duration)
@@ -43,10 +43,13 @@
                                                                    [:1f "alpha" 0.7])
                 (text "child 3")))]))))
 
-#_(defn layoutable-for-time [time]
-  (layouts/->FloatLeft (layouts/->HorizontalStack [(text "foo 1")
-                                                   (layouts/->Margin 0 0 0 100 [(text "foo 2")])] )
-                       (text "foo 3")))
+(defn layoutable-for-time [time]
+  (layouts/->FloatLeft (layouts/->HorizontalStack [(drawable/->Rectangle 10 10 [255 0 0 255])
+                                                   #_(drawable/->Rectangle 10 10 [0 255 0 255])
+                                                   (layouts/->Margin 0 0 0 10
+                                                                     [(layouts/->VerticalStack [(drawable/->Rectangle 10 10 [0 255 0 255])
+                                                                                                #_(drawable/->Rectangle 10 10 [255 255 0 255])]) ])] )
+                       (drawable/->Rectangle 10 10 [0 0 255 255])))
 
 (defn wait-for-next-frame [frame-started]
   (let [target-frames-per-second 1]
@@ -54,6 +57,24 @@
                        (- (/ 1000 target-frames-per-second)
                           (- (System/currentTimeMillis)
                              frame-started))))))
+
+
+
+(deftest test
+  (is (= nil
+         (let [width 300
+               height 300]
+           (-> (layoutable-for-time 0)
+               (assoc :width width
+                      :height height
+                      :x 0
+                      :y 0)
+               (layout/layout {}
+                              width
+                              height)
+               (second)
+               (transformer/render-trees-for-layout))))))
+
 
 (defn start-view []
   (let [width 300

@@ -59,7 +59,10 @@
 
        (if (:children layoutable)
          (concat trees
-                 (child-render-trees layoutable))
+                 (child-render-trees (transpose layoutable
+                                                parent-x
+                                                parent-y
+                                                parent-z)))
          (conj trees
                (transpose layoutable
                           parent-x
@@ -68,15 +71,15 @@
 
 (deftest render-trees-for-layout-test
   (is (= '({:y 10, :z 0, :id 8, :x 20}
-          {:children
-           [{:y 10, :transformers [:highlight-3], :id 3, :x 0}
-            {:z 0, :y 20, :id 4, :x 30}],
-           :transformers [:highlight-1],
-           :z 0,
-           :y 10,
-           :x 30}
-          {:y 0, :transformers [:highlight-2], :id 6, :x 0}
-          {:z 0, :y 20, :id 7, :x 0})
+           {:children
+            [{:y 10, :transformers [:highlight-3], :id 3, :x 0}
+             {:z 0, :y 20, :id 4, :x 30}],
+            :transformers [:highlight-1],
+            :z 0,
+            :y 10,
+            :x 30}
+           {:y 0, :transformers [:highlight-2], :id 6, :x 0}
+           {:z 0, :y 20, :id 7, :x 0})
          (render-trees-for-layout {:x 20 :y 10 :id 1
                                    :children [
                                               {:x 10 :y 0 :z 0

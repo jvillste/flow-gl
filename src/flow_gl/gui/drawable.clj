@@ -78,15 +78,6 @@
   layoutable/Layoutable
   (preferred-size [this available-width available-height] {:width width
                                                            :height height})
-
-  #_Java2DDrawable
-  #_(draw [this graphics]
-      (println "drawing rectangle")
-      (let [[r g b a] (map float color)]
-        (doto graphics
-          (.setColor (Color. r g b a))
-          (.fill (Rectangle2D$Float. 0 0 width height)))))
-
   NanoVGDrawable
   (draw-nanovg [this nanovg]
     (let [[r g b a] color]
