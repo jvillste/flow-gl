@@ -59,7 +59,7 @@
 
 (defn text
   ([value]
-     (text value [1 1 1 1]))
+     (text value [255 255 255 255]))
 
   ([value color]
      (drawable/->Text (str value)

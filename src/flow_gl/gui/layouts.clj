@@ -65,9 +65,9 @@
                   (let [top-size (layoutable/preferred-size top available-width available-height)
                         bottom-size (layoutable/preferred-size bottom available-width (- available-height (:height top-size)))]
                     {:width (max (:width top-size)
-                                  (:width bottom-size))
+                                 (:width bottom-size))
                      :height (+ (:height top-size)
-                               (:height bottom-size))})))
+                                (:height bottom-size))})))
 
 (layout/deflayout-not-memoized Box [margin children]
   (layout [box requested-width requested-height]
@@ -271,47 +271,55 @@
 
 
 (defn size-group-width [size-group]
-  (apply max (conj (map layoutable/preferred-width (:members @size-group))
+  (apply max (conj (map (fn [element]
+                          (:width (layoutable/preferred-size element
+                                                             java.lang.Integer/MAX_VALUE
+                                                             java.lang.Integer/MAX_VALUE)))
+                        (:members @size-group) )
                    0)))
 
 (defn size-group-height [size-group]
-  (apply max (conj (map layoutable/preferred-height (:members @size-group))
+  (apply max (conj (map (fn [element]
+                          (:height (layoutable/preferred-size element
+                                                             java.lang.Integer/MAX_VALUE
+                                                             java.lang.Integer/MAX_VALUE)))
+                        (:members @size-group))
                    0)))
 
-#_(layout/deflayout-not-memoized SizeGroupMember [size-group mode children]
-    (layout [this requested-width requested-height]
+(layout/deflayout-not-memoized SizeGroupMember [size-group mode children]
+  (layout [this requested-width requested-height]
+          (let [size (layoutable/preferred-size (first children) requested-width requested-height)]
             (assoc this :children
                    [(layout/set-dimensions-and-layout (first children)
                                                       0
                                                       0
-                                                      (layoutable/preferred-width (first children))
-                                                      (layoutable/preferred-height (first children)))]))
+                                                      (:width size)
+                                                      (:height size))])))
 
-
-    (preferred-width [this] (if (#{:width :both} mode)
+  (preferred-size [this available-width available-height]
+                  (let [child-size (layoutable/preferred-size (first children) available-width available-width)]
+                    {:width (if (#{:width :both} mode)
                               (size-group-width size-group)
-                              (layoutable/preferred-width (first children))))
-    (preferred-height [this] (if (#{:height :both} mode)
+                              (:width child-size))
+                     :height (if (#{:height :both} mode)
                                (size-group-height size-group)
-                               (layoutable/preferred-height (first children)))))
+                               (:height child-size))})))
 
-#_(defn create-size-group []
-    (atom {:members #{}}))
+(defn create-size-group []
+  (atom {:members #{}}))
 
-#_(defn size-group-member [size-group mode layoutable]
-    (swap! size-group #(update-in % [:members] conj layoutable))
-    (->SizeGroupMember size-group mode [layoutable]))
+(defn size-group-member [size-group mode layoutable]
+  (swap! size-group #(update-in % [:members] conj layoutable))
+  (->SizeGroupMember size-group mode [layoutable]))
 
-
-
-#_(defn grid [rows]
-    (let [size-groups (repeatedly create-size-group)]
-      (->VerticalStack
-       (for [row rows]
-         (->HorizontalStack (for [[cell size-group] (partition 2
-                                                               (interleave row
-                                                                           size-groups))]
-                              (size-group-member size-group :width cell)))))))
+(defn grid [rows]
+  (let [size-groups (repeatedly create-size-group)]
+    (->VerticalStack
+     (for [row rows]
+       (->HorizontalStack (for [[cell size-group] (partition 2
+                                                             (interleave row
+                                                                         size-groups))]
+                            (size-group-member size-group :width cell)))))))
 
 
 #_(deflayout Stack [children]

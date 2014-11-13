@@ -1,6 +1,5 @@
 (ns examples.autocompleter
   (:require [clojure.core.async :as async]
-            [flow-gl.tools.layoutable-inspector :as layoutable-inspector]
             [flow-gl.utils :as utils]
             (flow-gl.gui [drawable :as drawable]
                          [layout :as layout]

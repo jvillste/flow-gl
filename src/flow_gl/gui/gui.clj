@@ -274,13 +274,12 @@
 
   (if (not (= new-mouse-over-layout-path
               (:mouse-over-layout-path state)))
-    (do (println "mouse over" new-mouse-over-layout-path (type (get-in layout new-mouse-over-layout-path)))
-        (-> state
-            (apply-layout-event-handlers layout (:mouse-over-layout-path state) :on-mouse-leave)
-            (apply-layout-event-handlers layout new-mouse-over-layout-path :on-mouse-enter)
-            (apply-layout-event-handlers-2 layout (:mouse-over-layout-path state) :handle-mouse-event-2 {:type :mouse-leave})
-            (apply-layout-event-handlers-2 layout new-mouse-over-layout-path :handle-mouse-event-2 {:type :mouse-enter})
-            (assoc :mouse-over-layout-path new-mouse-over-layout-path)))
+    (-> state
+        (apply-layout-event-handlers layout (:mouse-over-layout-path state) :on-mouse-leave)
+        (apply-layout-event-handlers layout new-mouse-over-layout-path :on-mouse-enter)
+        (apply-layout-event-handlers-2 layout (:mouse-over-layout-path state) :handle-mouse-event-2 {:type :mouse-leave})
+        (apply-layout-event-handlers-2 layout new-mouse-over-layout-path :handle-mouse-event-2 {:type :mouse-enter})
+        (assoc :mouse-over-layout-path new-mouse-over-layout-path))
     state))
 
 (defn handle-event [state layout event]
@@ -481,6 +480,12 @@
 (defn on-mouse-clicked [layoutable view-context handler & arguments]
   (add-mouse-event-handler-with-context layoutable view-context (fn [state event]
                                                                   (if (= :mouse-clicked (:type event))
+                                                                    (apply handler state (:time event) arguments)
+                                                                    state))))
+
+(defn on-mouse-event [layoutable event-type view-context handler & arguments]
+  (add-mouse-event-handler-with-context layoutable view-context (fn [state event]
+                                                                  (if (= event-type (:type event))
                                                                     (apply handler state (:time event) arguments)
                                                                     state))))
 

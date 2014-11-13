@@ -4,7 +4,7 @@
   (:import [java.awt Color RenderingHints]))
 
 (defn draw [graphics color font text]
-  (let [[r g b a] (map float color)]
+  (let [[r g b a] (map (fn [color] (float (/ color 255))) color)]
     (doto graphics
       (.setColor (Color. r g b a))
       (.setFont (font/graphics-font font))

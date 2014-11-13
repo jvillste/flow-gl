@@ -9,11 +9,10 @@
                          [events :as events]
                          [quad-view :as quad-view])
 
-            (flow-gl.graphics [command :as command]
-                              [font :as font]
+            (flow-gl.graphics [font :as font]
                               [buffered-image :as buffered-image])
 
-            (flow-gl.graphics.command [text :as text]
+            #_(flow-gl.graphics.command [text :as text]
                                       [translate :as translate])
 
             (flow-gl.opengl.jogl [opengl :as opengl]
