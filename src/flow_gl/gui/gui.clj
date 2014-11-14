@@ -295,7 +295,8 @@
 
    (= (:source event)
       :mouse)
-   (let [layout-path-under-mouse (last (layout/layout-paths-in-coordinates layout (:x event) (:y event)))
+   (let [layout-paths-under-mouse (layout/layout-paths-in-coordinates layout (:x event) (:y event))
+         layout-path-under-mouse (last layout-paths-under-mouse)
          state (case (:type event)
                  :mouse-pressed (if (get-in layout (conj (vec layout-path-under-mouse) :on-drag))
                                   (assoc state
@@ -329,7 +330,11 @@
                                     (apply-mouse-over-layout-event-handlers layout layout-path-under-mouse)))
                  state)]
 
-     (-> state
+     (reduce (fn [state layout-path]
+               (apply-layout-event-handlers-2 state layout layout-path :handle-mouse-event-2 event))
+             state
+             layout-paths-under-mouse)
+     #_(-> state
          (apply-layout-event-handlers layout layout-path-under-mouse :handle-mouse-event event)
          (apply-layout-event-handlers-2 layout layout-path-under-mouse :handle-mouse-event-2 event)))
 
@@ -480,13 +485,13 @@
 (defn on-mouse-clicked [layoutable view-context handler & arguments]
   (add-mouse-event-handler-with-context layoutable view-context (fn [state event]
                                                                   (if (= :mouse-clicked (:type event))
-                                                                    (apply handler state (:time event) arguments)
+                                                                    (apply handler state event arguments)
                                                                     state))))
 
 (defn on-mouse-event [layoutable event-type view-context handler & arguments]
   (add-mouse-event-handler-with-context layoutable view-context (fn [state event]
                                                                   (if (= event-type (:type event))
-                                                                    (apply handler state (:time event) arguments)
+                                                                    (apply handler state event arguments)
                                                                     state))))
 
 (defn seq-focus-handlers [child-seq-key]

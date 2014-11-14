@@ -115,22 +115,28 @@
                      :height (+ margin-top margin-bottom
                                 (:height child-size))})))
 
-#_(deflayout Absolute [children]
+(layout/deflayout-not-memoized Absolute [children]
+  (layout [absolute requested-width requested-height]
+          (assoc absolute :children
+                 (vec (map (fn [child]
+                             (let [child-size (layoutable/preferred-size child java.lang.Integer/MAX_VALUE java.lang.Integer/MAX_VALUE)]
+                               (layout/set-dimensions-and-layout child (or (:x child) 0) (or (:y child) 0) (:width child-size) (:height child-size))))
+                           children))))
 
-    (layout [absolute requested-width requested-height]
-            (assoc absolute :layoutables
-                   (vec (map #(layout/set-dimensions-and-layout % (or (:x %) 0) (or (:y %) 0) (layoutable/preferred-width %) (layoutable/preferred-height %))
-                             children))))
-
-    (preferred-width [absolute] (apply max (map (fn [layoutable]
-                                                  (+ (:x layoutable)
-                                                     (layoutable/preferred-width layoutable)))
-                                                children)))
-
-    (preferred-height [absolute] (apply max (map (fn [layoutable]
-                                                   (+ (:y layoutable)
-                                                      (layoutable/preferred-height layoutable)))
-                                                 children))))
+  (preferred-size [this available-width available-height]
+                  (let [child-sizes (map (fn [child]
+                                           (-> (layoutable/preferred-size child java.lang.Integer/MAX_VALUE java.lang.Integer/MAX_VALUE)
+                                               (assoc :x (:x child))
+                                               (assoc :y (:y child))))
+                                         children)]
+                    {:width (apply max (map (fn [child-size]
+                                              (+ (:x child-size)
+                                                 (:width child-size)))
+                                            child-sizes))
+                     :height (apply max (map (fn [child-size]
+                                               (+ (:y child-size)
+                                                  (:height child-size)))
+                                             child-sizes))})))
 
 (layout/deflayout-not-memoized VerticalStack [children]
   (layout [vertical-stack requested-width requested-height]
@@ -281,8 +287,8 @@
 (defn size-group-height [size-group]
   (apply max (conj (map (fn [element]
                           (:height (layoutable/preferred-size element
-                                                             java.lang.Integer/MAX_VALUE
-                                                             java.lang.Integer/MAX_VALUE)))
+                                                              java.lang.Integer/MAX_VALUE
+                                                              java.lang.Integer/MAX_VALUE)))
                         (:members @size-group))
                    0)))
 
@@ -338,21 +344,20 @@
 
 (layout/deflayout-not-memoized Superimpose [children]
   (layout [this requested-width requested-height]
-          (-> this
-              (update-in [:children]
-                         (fn [[under over]]
-                           [(layout/set-dimensions-and-layout under 0 0 requested-width requested-height)
-                            (assoc (layout/set-dimensions-and-layout over 0 0 requested-width requested-height)
-                              :z 1)]))))
+          (assoc this :children
+                 (vec (map-indexed (fn [index child]
+                                     (assoc (layout/set-dimensions-and-layout child 0 0 requested-width requested-height)
+                                       :z index))
+                                   children))))
 
   (preferred-size [this available-width available-height]
-                  (let [[under over] children
-                        under-size (layoutable/preferred-size under available-width available-height)
-                        over-size (layoutable/preferred-size over available-width available-height)]
-                    {:width (max (:width under-size)
-                                 (:width over-size))
-                     :height (max (:height under-size)
-                                  (:height over-size))})))
+                  (let [child-sizes (map (fn [child]
+                                           (layoutable/preferred-size child java.lang.Integer/MAX_VALUE java.lang.Integer/MAX_VALUE))
+                                         children)]
+                    {:width (apply max (map :width
+                                            child-sizes))
+                     :height (apply max (map :height
+                                             child-sizes))})))
 
 (layout/deflayout-with-state SizeDependent [preferred-size-function child-function]
   (layout [this state requested-width requested-height]

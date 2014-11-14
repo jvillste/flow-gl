@@ -6,6 +6,9 @@
        (filter (complement nil?))
        (flatten)))
 
+(defn superimpose [& contents]
+  (layouts/->Superimpose (flatten-contents contents)))
+
 (defn vertically [& contents]
   (layouts/->VerticalStack (flatten-contents contents)))
 
