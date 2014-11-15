@@ -326,7 +326,7 @@
 
    (= (:source event)
       :mouse)
-   (let [layout-paths-under-mouse (layout/layout-paths-in-coordinates layout (:x event) (:y event))
+   (let [layout-paths-under-mouse (reverse (layout/layout-paths-in-coordinates layout (:x event) (:y event)))
          layout-path-under-mouse (last layout-paths-under-mouse)
          state (case (:type event)
                  :mouse-pressed (if (get-in layout (conj (vec layout-path-under-mouse) :on-drag))
@@ -361,6 +361,11 @@
                                     (apply-mouse-over-layout-event-handlers layout layout-paths-under-mouse)))
                  state)]
 
+     (when (= (:type event)
+              :mouse-clicked)
+       (println "layout paths" (map (fn [path]
+                                      (type (get-in layout path)))
+                                    layout-paths-under-mouse)))
      (apply-layout-event-handlers-3 state layout layout-paths-under-mouse :handle-mouse-event-2 event)
 
      #_(reduce (fn [state layout-path]
