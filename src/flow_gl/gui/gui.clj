@@ -226,7 +226,7 @@
 
 
 
-(run-all-tests)
+
 
 
 
@@ -257,6 +257,39 @@
                     (handler-key (get-in layout layout-path)))
                   (path-prefixes layout-path))))
 
+(defn layout-path-to-handlers [layout-path layout handler-key]
+  (->> (map (fn [path]
+              (when-let [handler (-> (get-in layout path)
+                                     (handler-key))]
+                handler))
+            (path-prefixes layout-path))
+       (filter identity)
+       (reverse)))
+
+(deftest layout-path-to-handlers-test
+  (is (= '(:handler2 :handler1 :handler3)
+         (mapcat #(layout-path-to-handlers %
+                                           {:a
+                                            {:b
+                                             {:c
+                                              {:handler :handler1
+                                               :d
+                                               {:handler :handler2}}
+                                              :c2 {:handler :handler3}}}}
+
+                                           :handler)
+                 [[:a :b :c :d] [:a :b :c2]]))))
+
+(defn apply-layout-event-handlers-3 [state layout layout-paths handler-key & arguments]
+  (if layout-paths
+    (let [handlers (apply concat (mapcat #(layout-path-to-handlers % layout handler-key)
+                                         layout-paths))]
+      (apply (first handlers)
+             state
+             arguments))
+    state))
+
+
 (defn apply-layout-event-handlers-2 [state layout layout-path handler-key & arguments]
   (reduce (fn [state layout-path]
             (reduce (fn [state handler]
@@ -266,20 +299,18 @@
                     state
                     (get-in layout (conj layout-path handler-key))))
           state
-          (filter (fn [layout-path]
-                    (handler-key (get-in layout layout-path)))
-                  (path-prefixes layout-path))))
+          (layout-path-to-handlers layout-path layout handler-key)))
 
-(defn apply-mouse-over-layout-event-handlers [state layout new-mouse-over-layout-path]
+(defn apply-mouse-over-layout-event-handlers [state layout new-mouse-over-layout-paths]
 
-  (if (not (= new-mouse-over-layout-path
-              (:mouse-over-layout-path state)))
+  (if (not (= new-mouse-over-layout-paths
+              (:mouse-over-layout-paths state)))
     (-> state
-        (apply-layout-event-handlers layout (:mouse-over-layout-path state) :on-mouse-leave)
-        (apply-layout-event-handlers layout new-mouse-over-layout-path :on-mouse-enter)
-        (apply-layout-event-handlers-2 layout (:mouse-over-layout-path state) :handle-mouse-event-2 {:type :mouse-leave})
-        (apply-layout-event-handlers-2 layout new-mouse-over-layout-path :handle-mouse-event-2 {:type :mouse-enter})
-        (assoc :mouse-over-layout-path new-mouse-over-layout-path))
+        #_(apply-layout-event-handlers layout (:mouse-over-layout-paths state) :on-mouse-leave)
+        #_(apply-layout-event-handlers layout new-mouse-over-layout-paths :on-mouse-enter)
+        (apply-layout-event-handlers-3 layout (:mouse-over-layout-paths state) :handle-mouse-event-2 {:type :mouse-leave})
+        (apply-layout-event-handlers-3 layout new-mouse-over-layout-paths :handle-mouse-event-2 {:type :mouse-enter})
+        (assoc :mouse-over-layout-paths new-mouse-over-layout-paths))
     state))
 
 (defn handle-event [state layout event]
@@ -327,16 +358,18 @@
                  :mouse-moved (let [state-paths-under-mouse (layout-path-to-state-paths layout layout-path-under-mouse)]
                                 (-> state
                                     (set-mouse-over state-paths-under-mouse)
-                                    (apply-mouse-over-layout-event-handlers layout layout-path-under-mouse)))
+                                    (apply-mouse-over-layout-event-handlers layout layout-paths-under-mouse)))
                  state)]
 
-     (reduce (fn [state layout-path]
-               (apply-layout-event-handlers-2 state layout layout-path :handle-mouse-event-2 event))
-             state
-             layout-paths-under-mouse)
+     (apply-layout-event-handlers-3 state layout layout-paths-under-mouse :handle-mouse-event-2 event)
+
+     #_(reduce (fn [state layout-path]
+                 (apply-layout-event-handlers-2 state layout layout-path :handle-mouse-event-2 event))
+               state
+               layout-paths-under-mouse)
      #_(-> state
-         (apply-layout-event-handlers layout layout-path-under-mouse :handle-mouse-event event)
-         (apply-layout-event-handlers-2 layout layout-path-under-mouse :handle-mouse-event-2 event)))
+           (apply-layout-event-handlers layout layout-path-under-mouse :handle-mouse-event event)
+           (apply-layout-event-handlers-2 layout layout-path-under-mouse :handle-mouse-event-2 event)))
 
    (events/key-pressed? event :tab)
    (set-focus state (or (next-focus-path-parts state (:focus-path-parts state))
@@ -704,3 +737,6 @@
                     1 {}
                     :children [0 1]})
       => nil)
+
+
+(run-all-tests)
