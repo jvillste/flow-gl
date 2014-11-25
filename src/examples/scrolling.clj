@@ -2,7 +2,7 @@
   (:require (flow-gl.gui [drawable :as drawable]
                          [layout :as layout]
                          [layouts :as layouts]
-                         [quad-gui :as quad-gui]
+                         [gui :as gui]
                          [events :as events]
                          [layoutable :as layoutable])
 
@@ -63,15 +63,15 @@
                                   (:height middle-size)
                                   (:height right-size))})))
 
-(quad-gui/def-control horizontal-split
-  ([state-path event-channel control-channel]
+(gui/def-control horizontal-split
+  ([view-context control-channel]
      {:left-width 100})
 
-  ([state left right]
-     (->HorizontalSplit (:left-width state)
+  ([view-context {:keys [left right left-width]}]
+     (->HorizontalSplit left-width
                         left
-
-                        (assoc (drawable/->Rectangle 15 0 [0 0 1 1])
+                        
+                        (assoc (drawable/->Rectangle 15 0 [0 0 255 255])
                           :on-drag (fn [state x y]
                                      (update-in state [:left-width] + x)))
 
@@ -79,7 +79,7 @@
 
 (defn scroll-bar [value maximum size width height on-drag]
   (let [margin 5]
-    (layouts/->Superimpose [(drawable/->Rectangle 30 50 [1 1 1 1])
+    (layouts/->Superimpose [(drawable/->Rectangle 30 50 [255 255 255 255])
                             (layouts/->Preferred (layouts/->Margin (* height (/ value maximum))
                                                                    margin
                                                                    0
@@ -88,8 +88,9 @@
                                                                                                  (* height
                                                                                                     (/ size
                                                                                                        maximum))
-                                                                                                 [0.5 0.5 0.5 1])
+                                                                                                 [128 128 128 255])
                                                                       :on-drag (fn [state x y]
+                                                                                 (println "dragging scroll" x y)
                                                                                  (let [change (* y
                                                                                                  (/ maximum
                                                                                                     height))
@@ -100,11 +101,11 @@
                                                                                                                      change))))]
                                                                                    (on-drag state new-value))))]))])))
 
-(quad-gui/def-control scroll-panel
-  ([state-path event-channel control-channel]
+(gui/def-control scroll-panel
+  ([view-context control-channel]
      {:scroll-position 0})
 
-  ([state content]
+  ([view-context {:keys [content]}]
      (let [scroll-bar-width 30]
        (layouts/->SizeDependent (fn [available-width available-height]
                                   {:width available-width
@@ -120,7 +121,7 @@
                                                              (min (:scroll-position state)
                                                                   (- maximum requested-height)))]
 
-                                    (quad-gui/apply-to-current-view-state assoc :scroll-position scroll-position)
+                                    (gui/apply-to-current-view-state assoc :scroll-position scroll-position)
 
                                     (layouts/->FloatRight [(layouts/->Margin (- (:scroll-position state)) 0 0 0
                                                                              [content])
@@ -137,25 +138,26 @@
   (layouts/->Margin 2 2 0 0
                     [(drawable/->Text (str value)
                                       (font/create "LiberationSans-Regular.ttf" 15)
-                                      [1 1 1 1])]))
+                                      [255 255 255 255])]))
 
-(quad-gui/def-control root
-  ([state-path event-channel control-channel]
+(gui/def-control root
+  ([view-context control-channel]
      {})
 
-  ([state]
-     (horizontal-split (scroll-panel (layouts/->Flow (for [i (range 10000 10030)]
-                                                       (text i))))
+  ([view-context state]
+     (horizontal-split :split {:left (scroll-panel :left-panel {:content (layouts/->Flow (for [i (range 10000 10030)]
+                                                                                           (text i)))} )
+                               :right (scroll-panel :right-panel {:content (layouts/->Flow (for [i (range 20000 20030)]
+                                                                                             (text i)))})})))
 
-                       (scroll-panel (layouts/->Flow (for [i (range 20000 20030)]
-                                                       (text i)))))))
-
-(flow-gl.debug/set-active-channels :all)
+#_(flow-gl.debug/set-active-channels :all)
 
 (defn start []
-  (flow-gl.debug/reset-log)
-  (try (quad-gui/start-view create-root root-view)
-       (finally (flow-gl.debug/write-timed-log))))
+  (gui/start-view #'create-root #'root-view)
+
+  #_(flow-gl.debug/reset-log)
+  #_(try (gui/start-view create-root root-view)
+         (finally (flow-gl.debug/write-timed-log))))
 
 
 #_(run-tests)

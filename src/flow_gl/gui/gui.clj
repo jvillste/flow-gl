@@ -10,6 +10,7 @@
                          [events :as events]
                          [quad-view :as quad-view]
                          [renderer :as renderer]
+                         [window :as window]
                          [transformer :as transformer])
 
             (flow-gl.graphics [font :as font]
@@ -18,7 +19,7 @@
 
 
             (flow-gl.opengl.jogl [opengl :as opengl]
-                                 [window :as window]
+                                 [window :as jogl-window]
                                  [quad-batch :as quad-batch]))
   (:use flow-gl.utils
         midje.sweet
@@ -223,14 +224,6 @@
         (next-focus-path-parts state [[:children1 1] [:children2 1]])  => [[:children1 1] [:children2 2] [:children3 0]]
         (next-focus-path-parts state [[:children1 1] [:children2 2] [:children3 2]])  => nil))
 
-
-
-
-
-
-
-
-
 (defn move-hierarchical-state [state paths previous-path-parts-key child-state-key state-key state-gained-key state-lost-key]
   (-> state
       (set-hierarchical-state (previous-path-parts-key state) false child-state-key state-key state-gained-key state-lost-key)
@@ -284,9 +277,11 @@
   (if layout-paths
     (let [handlers (apply concat (mapcat #(layout-path-to-handlers % layout handler-key)
                                          layout-paths))]
-      (apply (first handlers)
-             state
-             arguments))
+      (if-let [handler (first handlers)]
+        (apply handler
+               state
+               arguments)
+        state))
     state))
 
 
@@ -362,10 +357,18 @@
                  state)]
 
      (when (= (:type event)
-              :mouse-clicked)
-       (println "layout paths" (map (fn [path]
-                                      (type (get-in layout path)))
-                                    layout-paths-under-mouse)))
+              :mouse-pressed)
+
+       (println "layout paths"
+                layout-paths-under-mouse
+                (map (fn [path]
+                       (type (get-in layout path)))
+                     layout-paths-under-mouse))
+
+       (println "layout path under mouse"
+                layout-path-under-mouse
+                (type (get-in layout layout-path-under-mouse))))
+
      (apply-layout-event-handlers-3 state layout layout-paths-under-mouse :handle-mouse-event-2 event)
 
      #_(reduce (fn [state layout-path]
@@ -413,7 +416,7 @@
 
 (defn render-layout [layout render-tree-state-atom window]
   (let [render-trees (transformer/render-trees-for-layout layout)]
-    (window/set-display window gl
+    (window/render-constantly window gl
                         (opengl/clear gl 0 0 0 1)
                         (let [{:keys [width height]} (opengl/size gl)]
                           (swap! render-tree-state-atom
@@ -429,18 +432,17 @@
                                      render-tree-state)))))))
 
 (defn start-view [constructor view]
-  (let [event-channel (async/chan 50)
-        control-channel (async/chan)
-        window (window/create 300
+  (let [control-channel (async/chan)
+        window (jogl-window/create 300
                               400
                               :profile :gl3
                               :init opengl/initialize
-                              :reshape opengl/resize
-                              :event-channel event-channel)
+                              :reshape opengl/resize)
+        event-channel (window/event-channel window) 
         root-view-context {:state-path []
                            :event-channel event-channel}]
 
-    (reset! last-event-channel-atom event-channel)
+    (reset! last-event-channel-atom event-channel )
 
     (try
       (let [initial-state (constructor root-view-context

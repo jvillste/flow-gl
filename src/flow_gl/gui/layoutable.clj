@@ -17,10 +17,13 @@
   (apply str (interpose " " (map (partial describe-property layoutable)
                                  properties))))
 
+(defn layoutable-name [layoutable]
+  (-> (clojure.reflect/typename (type layoutable))
+      (clojure.string/replace  "flow_gl.gui.layouts." "")
+      (clojure.string/replace  "flow_gl.gui.drawable." "")))
+
 (defn describe-layoutable [layoutable]
-  (let [name (-> (clojure.reflect/typename (type layoutable))
-                 (clojure.string/replace  "flow_gl.gui.layout." "")
-                 (clojure.string/replace  "flow_gl.gui.drawable." ""))]
+  (let [name (layoutable-name layoutable)]
     (if (:children layoutable)
       (str "(" name " (" (:state-path-part layoutable) ") " (apply str (interpose " " (map describe-layoutable (:children layoutable)))) ")")
       name)))

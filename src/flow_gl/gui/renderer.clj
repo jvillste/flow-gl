@@ -61,6 +61,7 @@
                  renderers))
 
 (defn render-frame [drawables gl renderers]
+  (println "render frame")
   (->> renderers
        (map-for-renderers start-frame gl)
        (render-frame-drawables drawables gl)
@@ -73,6 +74,7 @@
     (satisfies? drawable/NanoVGDrawable drawable))
 
   (draw-drawables [this drawables gl]
+    (println "drawing " drawables)
     (let [{:keys [width height]} (opengl/size gl)]
       (NanoVG/beginFrame nanovg width height)
       (doseq [drawable drawables]

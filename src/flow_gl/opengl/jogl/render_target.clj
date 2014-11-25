@@ -199,7 +199,7 @@
     (NanoVG/rect x y width height)
     (NanoVG/fill)))
 
-(defn start []
+#_(defn start []
 
   (let [window-width 600
         window-height 600

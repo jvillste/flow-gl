@@ -1,11 +1,24 @@
 (ns flow-gl.opengl.jogl.window
   (:require [flow-gl.gui.event-queue :as event-queue]
             [flow-gl.gui.events :as events]
-            [clojure.core.async :as async])
+            [clojure.core.async :as async]
+            [flow-gl.gui.window :as window])
   (:import [com.jogamp.newt.event WindowAdapter WindowEvent KeyAdapter KeyEvent MouseAdapter MouseEvent]
            [com.jogamp.newt.opengl GLWindow]
            [javax.media.opengl GLCapabilities GLProfile GLContext GL GL2 DebugGL2 DebugGL3 DebugGL4 GLEventListener GLAutoDrawable TraceGL2]
            [javax.media.nativewindow WindowClosingProtocol$WindowClosingMode]))
+
+
+(defrecord JoglWindow [gl-window event-channel renderer-atom]
+  window/Window
+  (set-renderer [this renderer]
+    (reset! renderer-atom renderer)
+    (.display gl-window))
+  (event-channel [this] event-channel)
+  (visible? [this] (.isVisible gl-window))
+  (width [this] (.getWidth gl-window))
+  (height [this] (.getHeight gl-window))
+  (close [this] (.destroy gl-window)))
 
 (def keyboard-keys {KeyEvent/VK_ENTER :enter
                     KeyEvent/VK_ESCAPE :esc
@@ -70,14 +83,14 @@
   ;; ([width height init reshape event-channel]
   ;;    (create width height init reshape event-channel :gl2))
 
-  ([width height & {:keys [init reshape event-channel profile close-automatically] :or {init identity reshape (fn [gl width height]) event-channel nil profile :gl2 close-automatically false}}]
+  ([width height & {:keys [init reshape event-channel profile close-automatically] :or {init identity reshape (fn [gl width height]) event-channel (async/chan 50) profile :gl2 close-automatically false}}]
      (let [gl-profile (GLProfile/get (case profile
                                        :gl2 GLProfile/GL2
                                        :gl3 GLProfile/GL3
                                        :gl4 GLProfile/GL4))
            gl-capabilities (doto (GLCapabilities. gl-profile)
                              (.setDoubleBuffered true))
-           display-atom (atom (fn [gl]))
+           renderer-atom (atom (fn [gl]))
            window (GLWindow/create gl-capabilities)]
 
 
@@ -136,13 +149,13 @@
 
                                     #_(Thread/sleep 1000)
 
-                                    (when @display-atom
-                                      (do (@display-atom gl)
+                                    (when @renderer-atom
+                                      (do (@renderer-atom gl)
                                           (.swapBuffers drawable)))
 
-                                    #_(when (not @display-atom)
+                                    #_(when (not @renderer-atom)
                                         (flow-gl.debug/debug :all "display called without atom" (.getId (java.lang.Thread/currentThread)) (java.util.Date.)))
-                                    #_(reset! display-atom nil)))
+                                    #_(reset! renderer-atom nil)))
 
                                 (init [^javax.media.opengl.GLAutoDrawable drawable]
                                   (let [gl (get-gl profile drawable)]
@@ -150,8 +163,8 @@
 
                                 (reshape [^javax.media.opengl.GLAutoDrawable drawable x y width height]
                                   #_(let [gl (get-gl profile drawable)]
-                                      #_(when @display-atom
-                                          (do (@display-atom gl)
+                                      #_(when @renderer-atom
+                                          (do (@renderer-atom gl)
                                               (.swapBuffers drawable)))
 
                                       #_(flow-gl.debug/debug-timed "resize start" (flow-gl.opengl.jogl.opengl/size gl))
@@ -181,47 +194,37 @@
 
        (when (not close-automatically)
          (.setDefaultCloseOperation window WindowClosingProtocol$WindowClosingMode/DO_NOTHING_ON_CLOSE))
+       (->JoglWindow window
+                     event-channel
+                     renderer-atom))))
 
-       {:gl-window  window
-        :display-atom display-atom
-        :profile profile
-        :event-channel event-channel})))
 
-(defn visible? [window]
-  (.isVisible (:gl-window window)))
+#_(defn start [app]
+    (let [event-channel (async/chan 50)
+          window (window/create 300
+                                400
+                                :profile :gl3
+                                :init opengl/initialize
+                                :reshape opengl/resize
+                                :event-channel event-channel)]
 
-(defn width [window]
-  (.getWidth (:gl-window window)))
+      (try
+        (loop [state {}]
 
-(defn height [window]
-  (.getHeight (:gl-window window)))
+          (if (:close-requested state)
+            (window/close window)
 
-(defn close [window]
-  (.destroy (:gl-window window)))
+            (recur (app window
+                        state
+                        (drain event-channel
+                               (or (:sleep-time state)
+                                   0))))))
 
-(defn render* [window renderer]
-  (reset! (:display-atom window) renderer)
-  (.display (:gl-window window)))
+        (catch Exception e
+          (window/close window)
+          (throw e)))))
+
+
 
 (defn swap-buffers [window]
   (.swapBuffers (:gl-window window)))
-
-(defmacro render [window gl & body]
-  `(render* ~window (fn [~gl] ~@body)))
-
-(defmacro set-display [window gl & body]
-  `(let [value-atom# (atom {})]
-     (render* ~window
-              (fn [~gl]
-                (reset! value-atom#
-                        (do ~@body))))
-     @value-atom#))
-
-(defmacro with-gl [window gl & body]
-  `(let [value-atom# (atom {})]
-     (render* ~window
-              (fn [~gl]
-                (reset! value-atom#
-                        (do ~@body))))
-     (reset! (:display-atom ~window) nil)
-     @value-atom#))

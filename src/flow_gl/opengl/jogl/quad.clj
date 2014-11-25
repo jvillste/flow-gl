@@ -159,7 +159,7 @@
 
   (shader/disable-program gl))
 
-(defn start []
+#_(defn start []
 
   (let [window-width 600
         window-height 600

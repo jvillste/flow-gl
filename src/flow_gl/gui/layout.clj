@@ -7,6 +7,12 @@
   (layout [layout state requested-width requested-height]))
 
 
+(defn do-layout [layoutable]
+  (second (layout layoutable
+                  {}
+                  java.lang.Integer/MAX_VALUE
+                  java.lang.Integer/MAX_VALUE)))
+
 #_(extend Object
     Layout {:layout (fn [this state requested-width requsested-height]
                       [state this])})
