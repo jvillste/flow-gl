@@ -157,7 +157,6 @@
                      (layout/add-out-of-layout-hints))]
       (assoc state :layout layout))))
 
-
 (defn add-layout-paths-under-mouse-beforehand [app]
   (fn [state event]
     (if (and (:layout state)
@@ -186,7 +185,7 @@
                       (add-layout-paths-under-mouse-beforehand)
                       (close-when-requested-beforehand)
                       (wrap-with-separate-events)
-                      (limit-frames-per-second-afterwards 1)
+                      (limit-frames-per-second-afterwards 60)
                       (wrap-with-close-window-on-exception)
                       (add-drawables-for-layout-afterwards)
                       (render-drawables-afterwards)))))
