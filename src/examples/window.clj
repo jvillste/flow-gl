@@ -38,13 +38,16 @@
 
 (defn event-loop [initial-state app]
   (loop [state initial-state]
-
     (if (:close-requested state)
       (window/close (:window state))
 
-      (recur (app state
-                  (csp/drain (window/event-channel (:window state))
-                             (:sleep-time state)))))))
+      (let [events (csp/drain (window/event-channel (:window state))
+                              (:sleep-time state))]
+
+        (recur (app state
+                    (if (empty? events)
+                      [{:type :wake-up}]
+                      events)))))))
 
 (defn wrap-with-close-window-on-exception [app]
   (fn [state events]
@@ -117,6 +120,25 @@
       state)))
 
 
+(defn limit-frames-per-second-afterwards [app target-frames-per-second]
+  (fn [state events]
+    (let [previous-sleep-time (:sleep-time state)
+          state (app state events)
+
+          minimum-sleep-time (/ 1000 target-frames-per-second)
+          previous-frame-duration (- (System/currentTimeMillis)
+                                     (or (:last-frame state)
+                                         (System/currentTimeMillis)))
+          sleep-time (max (or (:sleep-time state)
+                              0)
+                          (- minimum-sleep-time
+                             (max 0
+                                  (- previous-frame-duration
+                                     (or previous-sleep-time
+                                         0)))))]
+      (assoc state
+        :sleep-time sleep-time
+        :last-frame (System/currentTimeMillis)))))
 
 (defn add-layout-afterwards [app]
   (fn [state event]
@@ -164,6 +186,7 @@
                       (add-layout-paths-under-mouse-beforehand)
                       (close-when-requested-beforehand)
                       (wrap-with-separate-events)
+                      (limit-frames-per-second-afterwards 1)
                       (wrap-with-close-window-on-exception)
                       (add-drawables-for-layout-afterwards)
                       (render-drawables-afterwards)))))
@@ -174,16 +197,17 @@
                   :x 0 :y 0)]))
 
 (defn layout-app [state event]
-  (let [view-state (or (:view-state state)
-                       {:count 0})]
-    (assoc state
-      :view-state view-state
-      :layoutable (l/vertically (drawable/->Rectangle 100 100 [255 255 255 255])
-                                (text (:count view-state))
-                                (text (str "Layout paths" (:layout-paths-under-mouse state)))
-                                (gui/add-mouse-event-handler (drawable/->Rectangle 100 100 [0 255 255 255])
-                                                             (fn [state event]
-                                                               (update-in state [:view-state :count] inc)))))))
+  (let [state (if (:view-state state)
+                state
+                (assoc state :view-state {:count 0}))]
+    (-> state
+        (update-in [:view-state :count] inc)
+        (assoc :layoutable (l/vertically (drawable/->Rectangle 100 100 [255 255 255 255])
+                                         (text (get-in state [:view-state :count]))
+                                         #_(gui/add-mouse-event-handler (drawable/->Rectangle 100 100 [0 255 255 255])
+                                                                        (fn [state event]
+                                                                          (update-in state [:view-state :count] inc))))
+               :sleep-time 2000))))
 
 (defn start []
   #_(start-app (-> app
@@ -191,9 +215,3 @@
                    render-drawables-afterwards))
 
   (start-app layout-app))
-
-
-
-
-
-
