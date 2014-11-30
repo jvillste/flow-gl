@@ -357,7 +357,7 @@
                  state)]
 
      (when (= (:type event)
-               :mouse-pressed)
+              :mouse-pressed)
 
        (println "layout paths"
                 layout-paths-under-mouse
@@ -514,13 +514,15 @@
    :function function})
 
 
-
-(defn add-mouse-event-handler-with-context [layoutable view-context handler]
+(defn add-mouse-event-handler [layoutable handler]
   (assoc layoutable
     :handle-mouse-event-2 (conj (or (:handle-mouse-event-2 layoutable)
                                     [])
-                                (fn [state event]
-                                  (update-or-apply-in state (:state-path view-context) handler event)))))
+                                handler)))
+
+(defn add-mouse-event-handler-with-context [layoutable view-context handler]
+  (add-mouse-event-handler layoutable (fn [state event]
+                                        (update-or-apply-in state (:state-path view-context) handler event))))
 
 (defn on-mouse-clicked [layoutable view-context handler & arguments]
   (add-mouse-event-handler-with-context layoutable view-context (fn [state event]

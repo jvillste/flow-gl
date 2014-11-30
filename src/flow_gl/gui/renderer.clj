@@ -123,6 +123,7 @@
     (instance? Quad  drawable))
 
   (draw-drawables [this drawables gl]
+    (println "drawing quads" drawables)
     (let [viewport-size (opengl/size gl)]
       (loop [this this
              drawables drawables]
