@@ -16,10 +16,12 @@
   (layouts/->HorizontalStack (flatten-contents contents)))
 
 (defn margin [top right bottom left content]
-  (layouts/->Margin top right bottom left [content]))
+  (when content
+    (layouts/->Margin top right bottom left [content])))
 
 (defn box [margin outer inner]
-  (layouts/->Box margin [outer inner]))
+  (when (and outer inner)
+    (layouts/->Box margin [outer inner])))
 
 
 

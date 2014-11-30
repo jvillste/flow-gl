@@ -44,18 +44,19 @@
       :can-gain-focus true})
 
   ([view-context state]
-     (println "text editor state" state)
-     (layouts/->Box 10 [(drawable/->Rectangle 0
-                                              0
-                                              (cond
-                                               (:has-focus state) [0 0.8 0.8 1]
-                                               (:mouse-over state) [0 0.7 0.7 1]
-                                               :default [0 0.5 0.5 1]))
-                        (drawable/->Text (:text state)
-                                         (font/create "LiberationSans-Regular.ttf" 15)
-                                         (if (:has-focus state)
-                                           [0 0 0 1]
-                                           [0.3 0.3 0.3 1]))])))
+     (if (:view state)
+       ((:view state) view-context state)
+       (layouts/->Box 10 [(drawable/->Rectangle 0
+                                                0
+                                                (cond
+                                                 (:has-focus state) [0 0.8 0.8 1]
+                                                 (:mouse-over state) [0 0.7 0.7 1]
+                                                 :default [0 0.5 0.5 1]))
+                          (drawable/->Text (:text state)
+                                           (font/create "LiberationSans-Regular.ttf" 15)
+                                           (if (:has-focus state)
+                                             [0 0 0 255]
+                                             [0.3 0.3 0.3 1]))]))))
 
 (defn text
   ([value]
@@ -98,4 +99,7 @@
                                              (if (:disabled state)
                                                [0.5 0.5 0.5 1]
                                                [0 0 0 1]))])
-         (gui/on-mouse-clicked handle-button-click))))
+         (gui/on-mouse-event :mouse-clicked
+                             view-context
+                             (fn [state event]
+                               (handle-button-click state))))))

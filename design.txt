@@ -95,6 +95,13 @@ during the view function execution.)
 (p View function parameters are the view state, focus path...)
 
 
+Middleware
+
+state -> layout
+event, state, layout -> state
+
+
+
 Change detection
 
 Layout

@@ -357,7 +357,7 @@
                  state)]
 
      (when (= (:type event)
-              :mouse-pressed)
+               :mouse-pressed)
 
        (println "layout paths"
                 layout-paths-under-mouse
@@ -417,28 +417,28 @@
 (defn render-layout [layout render-tree-state-atom window]
   (let [render-trees (transformer/render-trees-for-layout layout)]
     (window/render-constantly window gl
-                        (opengl/clear gl 0 0 0 1)
-                        (let [{:keys [width height]} (opengl/size gl)]
-                          (swap! render-tree-state-atom
-                                 (fn [render-tree-state]
-                                   (let [[render-tree-state drawables] (transformer/transform-tree render-tree-state
-                                                                                                   {:transformers [(transformer/->RenderTransformer :root)]
-                                                                                                    :children render-trees
-                                                                                                    :width width
-                                                                                                    :height height
-                                                                                                    :x 0
-                                                                                                    :y 0}
-                                                                                                   gl)]
-                                     render-tree-state)))))))
+                              (opengl/clear gl 0 0 0 1)
+                              (let [{:keys [width height]} (opengl/size gl)]
+                                (swap! render-tree-state-atom
+                                       (fn [render-tree-state]
+                                         (let [[render-tree-state drawables] (transformer/transform-tree render-tree-state
+                                                                                                         {:transformers [(transformer/->RenderTransformer :root)]
+                                                                                                          :children render-trees
+                                                                                                          :width width
+                                                                                                          :height height
+                                                                                                          :x 0
+                                                                                                          :y 0}
+                                                                                                         gl)]
+                                           render-tree-state)))))))
 
 (defn start-view [constructor view]
   (let [control-channel (async/chan)
-        window (jogl-window/create 300
-                              400
-                              :profile :gl3
-                              :init opengl/initialize
-                              :reshape opengl/resize)
-        event-channel (window/event-channel window) 
+        window (jogl-window/create 500
+                                   400
+                                   :profile :gl3
+                                   :init opengl/initialize
+                                   :reshape opengl/resize)
+        event-channel (window/event-channel window)
         root-view-context {:state-path []
                            :event-channel event-channel}]
 

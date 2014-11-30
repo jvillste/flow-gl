@@ -52,9 +52,7 @@
                                       (concat layout-path [:children index])
                                       state)))))))
 
-
 (def layout (layout/do-layout (l/horizontally (text "foo") (text "bar"))))
-
 
 (gui/def-control layout-inspector
   ([view-context control-channel]

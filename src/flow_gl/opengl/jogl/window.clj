@@ -200,13 +200,11 @@
 
 
 #_(defn start [app]
-    (let [event-channel (async/chan 50)
-          window (window/create 300
+    (let [window (window/create 300
                                 400
                                 :profile :gl3
                                 :init opengl/initialize
-                                :reshape opengl/resize
-                                :event-channel event-channel)]
+                                :reshape opengl/resize)]
 
       (try
         (loop [state {}]
@@ -216,7 +214,7 @@
 
             (recur (app window
                         state
-                        (drain event-channel
+                        (drain (window/event-channel window)
                                (or (:sleep-time state)
                                    0))))))
 
