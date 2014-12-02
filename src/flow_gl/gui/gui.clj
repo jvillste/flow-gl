@@ -101,31 +101,29 @@
                 (update-or-apply-in state focus-path keyboard-event-handler event)
                 state)))
           state
-          (conj (path-prefixes (:focus-path-parts state))
+          (conj (path-prefixes (:focused-state-paths state))
                 [])))
 
 (defn apply-keyboard-event-handlers-2 [state event]
   (loop [state state
-         focus-path-prefixes (concat [[]]
-                                     (path-prefixes (:focus-path-parts state)))]
-    (if-let [focus-prefix (first focus-path-prefixes)]
-      (let [focus-path (apply concat focus-prefix)]
-        (if-let [keyboard-event-handler (get-in state (conj (vec focus-path) :handle-keyboard-event))]
-          (if (seq focus-path)
-            (let [[child-state continue] (keyboard-event-handler (get-in state focus-path)
-                                                                 event)
-                  state (assoc-in state focus-path child-state)]
-              (if continue
-                (recur state
-                       (rest focus-path-prefixes))
-                state))
-            (let [[state continue] (keyboard-event-handler state event)]
-              (if continue
-                (recur state
-                       (rest focus-path-prefixes))
-                state)))
-          (recur state
-                 (rest focus-path-prefixes))))
+         focused-state-paths (:focused-state-paths state)]
+    (if-let [focused-state-path (first focused-state-paths)]
+      (if-let [keyboard-event-handler (get-in state (conj (vec focused-state-path) :handle-keyboard-event))]
+        (if (seq focused-state-path)
+          (let [[child-state continue] (keyboard-event-handler (get-in state focused-state-path)
+                                                               event)
+                state (assoc-in state focused-state-path child-state)]
+            (if continue
+              (recur state
+                     (rest focused-state-paths))
+              state))
+          (let [[state continue] (keyboard-event-handler state event)]
+            (if continue
+              (recur state
+                     (rest focused-state-paths))
+              state)))
+        (recur state
+               (rest focused-state-paths)))
       state)))
 
 (defn set-focus-state [state focus-path-parts has-focus]
@@ -231,7 +229,7 @@
       (assoc previous-path-parts-key paths)))
 
 (defn set-focus [state focus-paths]
-  (move-hierarchical-state state focus-paths :focus-path-parts :child-has-focus :has-focus :on-focus-gained :on-focus-lost))
+  (move-hierarchical-state state focus-paths :focused-state-paths :child-has-focus :has-focus :on-focus-gained :on-focus-lost))
 
 (defn set-mouse-over [state mouse-over-paths]
   (if (not (= mouse-over-paths (:mouse-over-paths state)))
@@ -380,7 +378,7 @@
            (apply-layout-event-handlers-2 layout layout-path-under-mouse :handle-mouse-event-2 event)))
 
    (events/key-pressed? event :tab)
-   (set-focus state (or (next-focus-path-parts state (:focus-path-parts state))
+   (set-focus state (or (next-focus-path-parts state (:focused-state-paths state))
                         (initial-focus-path-parts state)))
 
    (= (:type event)

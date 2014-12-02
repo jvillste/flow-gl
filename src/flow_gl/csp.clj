@@ -31,7 +31,7 @@
 (defn drain [channel timeout]
   (loop [values (if (not timeout)
                   [(async/<!! channel)]
-                  (async/alt!! (async/timeout timeout) ([_] [])
+                  (async/alt!! (async/timeout (int timeout)) ([_] [])
                                channel ([value] [value])))]
     (async/alt!! (async/timeout 0) ([_] values)
                  channel ([value] (recur (conj values value)))

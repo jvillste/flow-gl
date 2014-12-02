@@ -81,6 +81,7 @@
      (drawables-for-layout layout 0 0 0 []))
 
   ([layout parent-x parent-y parent-z drawables]
+
      (if (:children layout)
        (let [parent-x (+ parent-x (:x layout))
              parent-y (+ parent-y (:y layout))
@@ -123,22 +124,23 @@
 (defn limit-frames-per-second-afterwards [app target-frames-per-second]
   (fn [state events]
     (let [previous-sleep-time (:sleep-time state)
-          state (app state events)
+          state (app state events)]
 
-          minimum-sleep-time (/ 1000 target-frames-per-second)
-          previous-frame-duration (- (System/currentTimeMillis)
-                                     (or (:last-frame state)
-                                         (System/currentTimeMillis)))
-          sleep-time (max (or (:sleep-time state)
-                              0)
-                          (- minimum-sleep-time
-                             (max 0
-                                  (- previous-frame-duration
-                                     (or previous-sleep-time
-                                         0)))))]
-      (assoc state
-        :sleep-time sleep-time
-        :last-frame (System/currentTimeMillis)))))
+      (if (:sleep-time state)
+        (let [minimum-sleep-time (/ 1000 target-frames-per-second)
+              previous-frame-duration (- (System/currentTimeMillis)
+                                         (or (:last-frame state)
+                                             (System/currentTimeMillis)))
+              sleep-time (max (:sleep-time state)
+                              (- minimum-sleep-time
+                                 (max 0
+                                      (- previous-frame-duration
+                                         (or previous-sleep-time
+                                             0)))))]
+          (assoc state
+            :sleep-time sleep-time
+            :last-frame (System/currentTimeMillis)))
+        state))))
 
 (defn add-layout-afterwards [app]
   (fn [state event]
@@ -176,12 +178,39 @@
                   state)]
       (app state event))))
 
+(defn apply-keyboard-event-handlers-beforehand [app]
+  (fn [state event]
+    (let [state (if (and (:focused-state-paths state)
+                         (= (:source event)
+                            :keyboard))
+                  (gui/apply-keyboard-event-handlers-2 state event)
+                  state)]
+      (app state event))))
+
+(defn set-focus-by-mouse-click-beforehand [app]
+  (fn [state event]
+    (let [state (if (and (= (:source event)
+                            :mouse)
+                         (= (:type event)
+                            :mouse-clicked))
+                  (let [state-paths-under-mouse (gui/layout-path-to-state-paths (:layout state)
+                                                                                (last (:layout-paths-under-mouse state)))]
+                    (println "under" (last state-paths-under-mouse))
+                    (if (get-in state (concat (last state-paths-under-mouse)
+                                              [:can-gain-focus]))
+                      (gui/set-focus state state-paths-under-mouse)
+                      state))
+                  state)]
+      (app state event))))
+
 (defn start-app [app]
   (-> {}
       (add-window)
       (event-loop (-> app
                       (add-layout-afterwards)
                       (apply-layout-event-handlers-beforehand)
+                      (apply-keyboard-event-handlers-beforehand)
+                      (set-focus-by-mouse-click-beforehand)
                       (add-layout-paths-under-mouse-beforehand)
                       (close-when-requested-beforehand)
                       (wrap-with-separate-events)
@@ -190,23 +219,39 @@
                       (add-drawables-for-layout-afterwards)
                       (render-drawables-afterwards)))))
 
-(defn app [window state events]
-  (assoc state
-    :drawables [(assoc (drawable/->Rectangle 100 100 [255 255 255 255])
-                  :x 0 :y 0)]))
+#_(gui/def-control app
+    ([view-context control-channel]
+       {})
+
+    ([view-context state]
+       (l/vertically (drawable/->Rectangle 100 100 [255 255 255 255]))))
+
+(defn counter-keyboard-event-handler [state event]
+  [(update-in state [:count] inc)
+   true])
+
+(def initial-counter-state {:count 0
+                            :can-gain-focus true
+                            :handle-keyboard-event counter-keyboard-event-handler})
 
 (defn layout-app [state event]
   (let [state (if (:view-state state)
                 state
-                (assoc state :view-state {:count 0}))]
+                (assoc state :view-state
+                       (merge initial-counter-state
+                              {:child-view-states {:child-1 initial-counter-state
+                                                   :child-2 initial-counter-state}})))
+        state (if (:focused-state-paths state)
+                state
+                (assoc state :focused-state-paths [[:view-state] [:child-view-states :child-1]]))]
     (-> state
-        (update-in [:view-state :count] inc)
-        (assoc :layoutable (l/vertically (drawable/->Rectangle 100 100 [255 255 255 255])
-                                         (text (get-in state [:view-state :count]))
-                                         #_(gui/add-mouse-event-handler (drawable/->Rectangle 100 100 [0 255 255 255])
-                                                                        (fn [state event]
-                                                                          (update-in state [:view-state :count] inc))))
-               :sleep-time 2000))))
+        (assoc :layoutable (-> (l/vertically (text (get-in state [:view-state :count]))
+                                             (-> (text (str "1: " (get-in state [:view-state :child-view-states :child-1 :count])))
+                                                 (assoc :state-path [:view-state :child-view-states :child-1]))
+                                             (-> (text (str "2: " (get-in state [:view-state :child-view-states :child-2 :count])))
+                                                 (assoc :state-path [:view-state :child-view-states :child-2]))
+                                             (text (:focused-state-paths state)))
+                               (assoc :state-path [:view-state]))))))
 
 (defn start []
   #_(start-app (-> app
@@ -214,3 +259,13 @@
                    render-drawables-afterwards))
 
   (start-app layout-app))
+
+
+
+
+
+
+
+
+
+
