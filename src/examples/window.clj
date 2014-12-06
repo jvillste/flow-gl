@@ -58,6 +58,8 @@
         (window/close (:window state))
         (throw e)))))
 
+
+
 (defn wrap-with-separate-events [app]
   (fn [state events]
     (reduce app
@@ -143,10 +145,27 @@
 
       state)))
 
+
+;; Animation
+
+(def ^:dynamic sleep-time-atom)
+
+(defn set-wake-up [view-context sleep-time]
+  (swap! (:sleep-time-atom view-context)
+         (fn [old-sleep-time]
+           (if old-sleep-time
+             (if sleep-time
+               (min old-sleep-time sleep-time)
+               old-sleep-time)
+             sleep-time))))
+
 (defn limit-frames-per-second-afterwards [app target-frames-per-second]
   (fn [state events]
     (let [previous-sleep-time (:sleep-time state)
-          state (app state events)]
+          state (-> state
+                    (assoc :frame-started (System/currentTimeMillis))
+                    (dissoc :sleep-time)
+                    (app events))]
 
       (if (:sleep-time state)
         (let [minimum-sleep-time (/ 1000 target-frames-per-second)
@@ -233,6 +252,8 @@
                   state)]
       (app state event))))
 
+
+
 (defn start-app [app]
   (-> {}
       (add-window)
@@ -259,19 +280,28 @@
                                                      [(update-in state [:count] inc)
                                                       true])})
 (gui/def-control counter-control
-  ([view-context control-channel]
-     initial-counter-state)
+  ([view-context]
+     (assoc initial-counter-state
+       :animation-started (get-in view-context [:app-state :frame-started])))
 
   ([view-context state]
-     (text (:count state) (if (:has-focus state)
-                            [255 255 255 255]
-                            [100 100 100 255]))))
+     (set-wake-up view-context (:pulse-rate state))
+     (text (str (:count state) (if (> (/ (mod (- (get-in view-context [:app-state :frame-started])
+                                                 (:animation-started state))
+                                              (:pulse-rate state))
+                                         (:pulse-rate state))
+                                      0.5)
+                                 "x"
+                                 ""))
+           (if (:has-focus state)
+             [255 255 255 255]
+             [100 100 100 255]))))
 
 (gui/def-control app-control
-  ([view-context control-channel]
+  ([view-context]
      (async/go-loop []
-       (async/alt! control-channel ([_] (println "exiting register process"))
-                   (async/timeout 1000) ([_]
+       (async/alt! (:control-channel view-context) ([_] (println "exiting countter process"))
+                   (async/timeout 2000) ([_]
                                            (println "applying")
                                            (gui/apply-to-state view-context update-in [:count] inc)
                                            (recur))))
@@ -280,8 +310,8 @@
 
   ([view-context state]
      (l/vertically (text (str "count " (:count state)))
-                   (counter-control :child-1 {})
-                   (counter-control :child-2 {})
+                   (counter-control view-context :child-1 {:pulse-rate 1000})
+                   (counter-control view-context :child-2 {:pulse-rate 200})
                    #_(transformer/with-transformers
                        (transformer/->Filter :fade1
                                              quad/alpha-fragment-shader-source
@@ -290,37 +320,28 @@
 
 (defn control-to-app [constructor view]
   (fn [app-state event]
-    (let [root-view-context {:state-path [:view-state]
-                             :event-channel (window/event-channel (:window app-state))}
+    (let [sleep-time-atom (atom (:sleep-time app-state))
+          control-channel (async/chan)
+          root-view-context {:state-path [:view-state]
+                             :app-state app-state
+                             :control-channel control-channel
+                             :event-channel (window/event-channel (:window app-state))
+                             :sleep-time-atom sleep-time-atom}
           app-state (if (:view-state app-state)
                       app-state
                       (assoc app-state :view-state
-                             (let [control-channel (async/chan)
-                                   event-channel (window/event-channel (:window app-state))
+                             (-> (constructor root-view-context)
+                                 (assoc :control-channel control-channel))))
 
-                                   initial-state (constructor root-view-context
-                                                              control-channel)
-                                   initial-state (-> (view root-view-context
-                                                           initial-state
-                                                           nil)
-                                                     :state)
-
-                                   initial-state (assoc initial-state :control-channel control-channel)]
-
-                               initial-state)))
-
-
-          {:keys [state layoutable sleep-time]} (view root-view-context
-                                                      (:view-state app-state)
-                                                      nil)
+          {:keys [state layoutable]} (view root-view-context
+                                           (:view-state app-state))
 
           layoutable (assoc layoutable :state-path [:view-state])]
-
+      (println "sleep-time" @sleep-time-atom)
       (assoc app-state
         :view-state state
         :layoutable layoutable
-        :sleep-time sleep-time))))
-
+        :sleep-time @sleep-time-atom))))
 
 (defn counter-view [state]
   (text (:count state) (if (:has-focus state)

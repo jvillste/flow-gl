@@ -412,7 +412,7 @@
                  :priority true)))
 
 (defn render-layout [layout render-tree-state-atom window]
-  (let [render-trees (transformer/render-trees-for-layout layout)]
+  #_(let [render-trees (transformer/render-trees-for-layout layout)]
     (window/with-gl window gl
       (opengl/clear gl 0 0 0 1)
       (let [{:keys [width height]} (opengl/size gl)]
@@ -611,35 +611,30 @@
 (fact (update-or-apply-in {:foo {:baz :bar}} [] assoc :x :y) => {:foo {:baz :bar}, :x :y}
       (update-or-apply-in {:foo {:baz :bar}} [:foo] assoc :x :y) => {:foo {:baz :bar, :x :y}})
 
-(def ^:dynamic current-state-path [:view-state])
 (def ^:dynamic current-view-state-atom)
-(def ^:dynamic sleep-time-atom)
 
 (defn call-named-view
-  ([view constructor child-id state-overrides]
-     (call-named-view view constructor child-id [] state-overrides))
+  ([parent-view-context view constructor child-id state-overrides]
+     (call-named-view parent-view-context view constructor child-id [] state-overrides))
 
-  ([view constructor child-id constructor-parameters state-overrides]
+  ([parent-view-context view constructor child-id constructor-parameters state-overrides]
      (let [state-path-part [:child-states child-id]
-           state-path (concat current-state-path state-path-part)
+           state-path (concat (:state-path parent-view-context) state-path-part)
+           control-channel (async/chan)
+           view-context (assoc parent-view-context
+                          :state-path state-path
+                          :control-channel control-channel)
            state (-> (or (get-in @current-view-state-atom state-path-part)
-                         (let [control-channel (async/chan)]
-                           (-> (apply constructor {:state-path state-path
-                                                   :event-channel current-event-channel}
-                                      control-channel
-                                      constructor-parameters)
-                               (assoc :control-channel control-channel))))
+                         (-> (apply constructor view-context
+                                    constructor-parameters)
+                             (assoc :control-channel control-channel)))
                      (conj state-overrides))
 
-           {:keys [state layoutable]} (binding [current-state-path state-path]
-                                        (view {:state-path state-path
-                                               :event-channel current-event-channel}
-                                              state
-                                              @sleep-time-atom))]
+           {:keys [state layoutable]} (view view-context
+                                            state)]
        (swap! current-view-state-atom assoc-in state-path-part state)
        (swap! current-view-state-atom add-child child-id)
        (assoc layoutable
-         :state-path-part state-path-part
          :state-path state-path))))
 
 (defn call-anonymous-view [view constructor state-overrides]
@@ -659,25 +654,25 @@
      (let [value# (do ~@body)]
        (assoc value# :sleep-time @sleep-time-atom))))
 
-(defn set-wake-up [sleep-time]
-  (swap! sleep-time-atom (fn [old-sleep-time]
-                           (if old-sleep-time
-                             (if sleep-time
-                               (min old-sleep-time sleep-time)
-                               old-sleep-time)
-                             sleep-time))))
+(defn set-wake-up [view-context sleep-time]
+  (swap! (:sleep-time-atom view-context)
+         (fn [old-sleep-time]
+           (if old-sleep-time
+             (if sleep-time
+               (min old-sleep-time sleep-time)
+               old-sleep-time)
+             sleep-time))))
 
 (defn apply-to-current-view-state [function & parameters]
   (apply swap! current-view-state-atom function parameters))
 
 (defmacro def-view [name parameters & body]
   (let [[view-context-parameter state-parameter] parameters]
-    `(defn ~name [view-context# state# sleep-time#]
-       (with-animation sleep-time#
-         (with-children state#
-           (let [~view-context-parameter view-context#
-                 ~state-parameter state#]
-             ~@body))))))
+    `(defn ~name [view-context# state#]
+       (with-children state#
+         (let [~view-context-parameter view-context#
+               ~state-parameter state#]
+           ~@body)))))
 
 (defmacro def-control [name constructor view]
   (let [view-name (symbol (str name "-view"))
@@ -685,12 +680,12 @@
     `(do (def-view ~view-name ~@view)
          (defn ~constructor-name ~@constructor)
          (defn ~name
-           ([state-overrides#]
-              (call-anonymous-view ~view-name ~constructor-name state-overrides#))
-           ([id# state-overrides#]
-              (call-named-view ~view-name ~constructor-name id# state-overrides#))
-           ([id# state-overrides# constructor-parameters#]
-              (call-named-view ~view-name ~constructor-name id# constructor-parameters# state-overrides#))))))
+           ([parent-view-context# state-overrides#]
+              (call-anonymous-view parent-view-context# ~view-name ~constructor-name state-overrides#))
+           ([parent-view-context# id# state-overrides#]
+              (call-named-view parent-view-context# ~view-name ~constructor-name id# state-overrides#))
+           ([parent-view-context# id# state-overrides# constructor-parameters#]
+              (call-named-view parent-view-context# ~view-name ~constructor-name id# constructor-parameters# state-overrides#))))))
 
 
 (defn apply-to-state [view-context function & arguments]
