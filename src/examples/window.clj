@@ -225,11 +225,20 @@
                   state)]
       (app state event))))
 
+(defn apply-view-state-applications-beforehand [app]
+  (fn [state event]
+    (let [state (if (= (:type event)
+                       :apply-to-view-state)
+                  ((:function event) state)
+                  state)]
+      (app state event))))
+
 (defn start-app [app]
   (-> {}
       (add-window)
       (event-loop (-> app
                       (add-layout-afterwards)
+                      (apply-view-state-applications-beforehand)
                       (apply-layout-event-handlers-beforehand)
                       (apply-keyboard-event-handlers-beforehand)
                       (set-focus-by-mouse-click-beforehand)
@@ -247,7 +256,6 @@
 (def initial-counter-state {:count 0
                             :can-gain-focus true
                             :handle-keyboard-event (fn [state event]
-                                                     (println (:count state) "got" event )
                                                      [(update-in state [:count] inc)
                                                       true])})
 (gui/def-control counter-control
@@ -261,6 +269,13 @@
 
 (gui/def-control app-control
   ([view-context control-channel]
+     (async/go-loop []
+       (async/alt! control-channel ([_] (println "exiting register process"))
+                   (async/timeout 1000) ([_]
+                                           (println "applying")
+                                           (gui/apply-to-state view-context update-in [:count] inc)
+                                           (recur))))
+
      initial-counter-state)
 
   ([view-context state]
@@ -275,34 +290,32 @@
 
 (defn control-to-app [constructor view]
   (fn [app-state event]
-    (let [app-state (if (:view-state app-state)
-                  app-state
-                  (assoc app-state :view-state
-                         (let [control-channel (async/chan)
-                               event-channel (window/event-channel (:window app-state))
-                               root-view-context {:state-path [:view-state]
-                                                  :event-channel (window/event-channel (:window app-state))}
-                               initial-state (constructor root-view-context
-                                                          control-channel)
-                               initial-state (binding [gui/current-event-channel (window/event-channel (:window app-state))]
-                                               (-> (view root-view-context
-                                                         initial-state
-                                                         nil)
-                                                   :state))
-                               
-                               initial-state (assoc initial-state :control-channel control-channel)]
+    (let [root-view-context {:state-path [:view-state]
+                             :event-channel (window/event-channel (:window app-state))}
+          app-state (if (:view-state app-state)
+                      app-state
+                      (assoc app-state :view-state
+                             (let [control-channel (async/chan)
+                                   event-channel (window/event-channel (:window app-state))
 
-                           initial-state)))
-          
-          
-          {:keys [state layoutable sleep-time]} (binding [gui/current-event-channel (window/event-channel (:window app-state))]
-                                                       (view {:state-path [:view-state]
-                                                              :event-channel (window/event-channel (:window app-state))}
-                                                             (:view-state app-state)
-                                                             nil))
-          
+                                   initial-state (constructor root-view-context
+                                                              control-channel)
+                                   initial-state (-> (view root-view-context
+                                                           initial-state
+                                                           nil)
+                                                     :state)
+
+                                   initial-state (assoc initial-state :control-channel control-channel)]
+
+                               initial-state)))
+
+
+          {:keys [state layoutable sleep-time]} (view root-view-context
+                                                      (:view-state app-state)
+                                                      nil)
+
           layoutable (assoc layoutable :state-path [:view-state])]
-      
+
       (assoc app-state
         :view-state state
         :layoutable layoutable
