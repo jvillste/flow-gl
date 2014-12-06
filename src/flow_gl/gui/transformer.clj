@@ -147,13 +147,22 @@
         [transformer-states
          drawables]))))
 
-(defn transform-tree [transformer-states render-tree gl]
-
-  (let [[transformer-states drawables] (apply-transformers (assoc transformer-states :used-state-keys #{})
-                                                           render-tree
-                                                           gl)
+(defn transform-trees [transformer-states render-trees gl]
+  (let [transformer-states (assoc transformer-states :used-state-keys #{})
+        [transformer-states drawables] (loop [render-trees render-trees
+                                              transformer-states transformer-states
+                                              all-drawables []]
+                                         (if-let [render-tree (first render-trees)]
+                                           (let [[transformer-states drawables] (apply-transformers transformer-states
+                                                                                                    render-tree
+                                                                                                    gl)]
+                                             (recur (rest render-trees)
+                                                    transformer-states
+                                                    (concat all-drawables drawables)))
+                                           [transformer-states all-drawables]))
         unused-transformer-state-keys (filter (complement (:used-state-keys transformer-states))
                                               (keys (:states transformer-states)))]
+
     (dorun (map (fn [unused-transformer-state-key]
                   (dispose (get-in transformer-states [:states unused-transformer-state-key])
                            gl))

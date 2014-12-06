@@ -411,23 +411,22 @@
                  channel ([value] (recur (conj values value)))
                  :priority true)))
 
-
 (defn render-layout [layout render-tree-state-atom window]
   (let [render-trees (transformer/render-trees-for-layout layout)]
-    (window/render-constantly window gl
-                              (opengl/clear gl 0 0 0 1)
-                              (let [{:keys [width height]} (opengl/size gl)]
-                                (swap! render-tree-state-atom
-                                       (fn [render-tree-state]
-                                         (let [[render-tree-state drawables] (transformer/transform-tree render-tree-state
-                                                                                                         {:transformers [(transformer/->RenderTransformer :root)]
-                                                                                                          :children render-trees
-                                                                                                          :width width
-                                                                                                          :height height
-                                                                                                          :x 0
-                                                                                                          :y 0}
-                                                                                                         gl)]
-                                           render-tree-state)))))))
+    (window/with-gl window gl
+      (opengl/clear gl 0 0 0 1)
+      (let [{:keys [width height]} (opengl/size gl)]
+        (swap! render-tree-state-atom
+               (fn [render-tree-state]
+                 (let [[render-tree-state drawables] (transformer/transform-tree render-tree-state
+                                                                                 {:transformers [(transformer/->RenderTransformer :root)]
+                                                                                  :children render-trees
+                                                                                  :width width
+                                                                                  :height height
+                                                                                  :x 0
+                                                                                  :y 0}
+                                                                                 gl)]
+                   render-tree-state)))))))
 
 (defn start-view [constructor view]
   (let [control-channel (async/chan)
@@ -612,7 +611,7 @@
 (fact (update-or-apply-in {:foo {:baz :bar}} [] assoc :x :y) => {:foo {:baz :bar}, :x :y}
       (update-or-apply-in {:foo {:baz :bar}} [:foo] assoc :x :y) => {:foo {:baz :bar, :x :y}})
 
-(def ^:dynamic current-state-path [])
+(def ^:dynamic current-state-path [:view-state])
 (def ^:dynamic current-view-state-atom)
 (def ^:dynamic sleep-time-atom)
 

@@ -9,11 +9,12 @@
            [javax.media.nativewindow WindowClosingProtocol$WindowClosingMode]))
 
 
-(defrecord JoglWindow [gl-window event-channel renderer-atom]
+(defrecord JoglWindow [gl-window event-channel runner-atom]
   window/Window
-  (set-renderer [this renderer]
-    (reset! renderer-atom renderer)
+  (run-with-gl [this runner]
+    (reset! runner-atom runner)
     (.display gl-window))
+  (swap-buffers [this] (.swapBuffers gl-window))
   (event-channel [this] event-channel)
   (visible? [this] (.isVisible gl-window))
   (width [this] (.getWidth gl-window))
@@ -90,7 +91,7 @@
                                        :gl4 GLProfile/GL4))
            gl-capabilities (doto (GLCapabilities. gl-profile)
                              (.setDoubleBuffered true))
-           renderer-atom (atom (fn [gl]))
+           runner-atom (atom (fn [gl]))
            window (GLWindow/create gl-capabilities)]
 
 
@@ -149,13 +150,12 @@
 
                                     #_(Thread/sleep 1000)
 
-                                    (when @renderer-atom
-                                      (do (@renderer-atom gl)
-                                          (.swapBuffers drawable)))
+                                    (when @runner-atom
+                                      (@runner-atom gl))
 
-                                    #_(when (not @renderer-atom)
+                                    #_(when (not @runner-atom)
                                         (flow-gl.debug/debug :all "display called without atom" (.getId (java.lang.Thread/currentThread)) (java.util.Date.)))
-                                    #_(reset! renderer-atom nil)))
+                                    #_(reset! runner-atom nil)))
 
                                 (init [^javax.media.opengl.GLAutoDrawable drawable]
                                   (let [gl (get-gl profile drawable)]
@@ -163,8 +163,8 @@
 
                                 (reshape [^javax.media.opengl.GLAutoDrawable drawable x y width height]
                                   #_(let [gl (get-gl profile drawable)]
-                                      #_(when @renderer-atom
-                                          (do (@renderer-atom gl)
+                                      #_(when @runner-atom
+                                          (do (@runner-atom gl)
                                               (.swapBuffers drawable)))
 
                                       #_(flow-gl.debug/debug-timed "resize start" (flow-gl.opengl.jogl.opengl/size gl))
@@ -196,7 +196,7 @@
          (.setDefaultCloseOperation window WindowClosingProtocol$WindowClosingMode/DO_NOTHING_ON_CLOSE))
        (->JoglWindow window
                      event-channel
-                     renderer-atom))))
+                     runner-atom))))
 
 
 #_(defn start [app]

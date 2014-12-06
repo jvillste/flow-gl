@@ -1,13 +1,14 @@
 (ns examples.render-targets-with-renderers
   (:require [clojure.data.priority-map :as priority-map]
             (flow-gl.opengl.jogl [opengl :as opengl]
-                                 [window :as window]
+                                 [window :as jogl-window]
                                  [quad-batch :as quad-batch]
                                  [render-target :as render-target]
                                  [quad :as quad])
             (flow-gl.graphics [font :as font]
                               [buffered-image :as buffered-image])
             (flow-gl.gui [drawable :as drawable]
+                         [window :as window]
                          [layout :as layout]
                          [layouts :as layouts]
                          [layoutable :as layoutable]
@@ -25,7 +26,7 @@
                    (font/create "LiberationSans-Regular.ttf" 30)
                    [1 1 1 1]))
 
-#_(defn layoutable-for-time [time]
+(defn layoutable-for-time [time]
     (let [duration 3000
           phase (/ (mod time duration)
                    duration)
@@ -43,7 +44,7 @@
                                                                    [:1f "alpha" 0.7])
                 (text "child 3")))]))))
 
-(defn layoutable-for-time [time]
+#_(defn layoutable-for-time [time]
   (layouts/->FloatLeft (layouts/->HorizontalStack [(drawable/->Rectangle 10 10 [255 0 0 255])
                                                    #_(drawable/->Rectangle 10 10 [0 255 0 255])
                                                    (layouts/->Margin 0 0 0 10
@@ -52,7 +53,7 @@
                        (drawable/->Rectangle 10 10 [0 0 255 255])))
 
 (defn wait-for-next-frame [frame-started]
-  (let [target-frames-per-second 1]
+  (let [target-frames-per-second 60]
     (Thread/sleep (max 0
                        (- (/ 1000 target-frames-per-second)
                           (- (System/currentTimeMillis)
@@ -79,7 +80,7 @@
 (defn start-view []
   (let [width 300
         height 300
-        window (window/create width
+        window (jogl-window/create width
                               height
                               :profile :gl3
                               :init opengl/initialize
@@ -99,7 +100,7 @@
                                               height)
                                (second)
                                (transformer/render-trees-for-layout))]
-          (window/set-display window gl
+          (window/render-constantly window gl
                               (opengl/clear gl 0 0 0 1)
                               (let [{:keys [width height]} (opengl/size gl)]
                                 (swap! render-tree-state-atom

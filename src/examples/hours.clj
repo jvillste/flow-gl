@@ -1,6 +1,6 @@
 (ns examples.hours
   (:require [flow-gl.utils :as utils]
-            [flow-gl.tools.layoutable-inspector :as layoutable-inspector]
+            #_[flow-gl.tools.layoutable-inspector :as layoutable-inspector]
             (flow-gl.gui [drawable :as drawable]
                          [layout :as layout]
                          [event-queue :as event-queue]
@@ -31,7 +31,7 @@
                     (:handle-mouse-event (get-in root-layout child-path)))
                   child-paths)))
 
-(defn start-view [view event-queue event-handler initial-state]
+#_(defn start-view [view event-queue event-handler initial-state]
   (let [window (window/create 600
                               600
                               :profile :gl3
@@ -152,6 +152,7 @@
     {:year (.get calendar java.util.Calendar/YEAR)
      :month  (+ 1 (.get calendar java.util.Calendar/MONTH))
      :day (.get calendar java.util.Calendar/DAY_OF_MONTH)}))
+
 
 (defn current-time []
   (let [calendar (java.util.GregorianCalendar.)]
