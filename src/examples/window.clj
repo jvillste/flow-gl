@@ -151,10 +151,8 @@
 
 ;; Animation
 
-(def ^:dynamic sleep-time-atom)
-
 (defn set-wake-up [view-context sleep-time]
-  (swap! (:sleep-time-atom view-context)
+  (swap! (get-in view-context [:application-state :sleep-time-atom])
          (fn [old-sleep-time]
            (if old-sleep-time
              (if sleep-time
@@ -185,6 +183,14 @@
             :sleep-time sleep-time
             :last-frame (System/currentTimeMillis)))
         state))))
+
+(defn wrap-with-sleep-time-atom [app]
+  (fn [state event]
+    (let [sleep-time-atom (atom (:sleep-time state))
+          state (app (assoc state
+                       :sleep-time-atom sleep-time-atom)
+                     event)]
+      (assoc state :sleep-time @sleep-time-atom))))
 
 ;; Layout
 
@@ -268,6 +274,7 @@
                       (close-when-requested-beforehand)
                       (close-control-channels-afterwards-when-close-requested)
                       (wrap-with-separate-events)
+                      (wrap-with-sleep-time-atom)
                       (limit-frames-per-second-afterwards 60)
                       #_(add-drawables-for-layout-afterwards)
                       (transform-layout-to-drawables-afterwards)
@@ -276,30 +283,30 @@
 
 ;; Controls
 
-(defn control-to-app [constructor view]
-  (fn [app-state event]
-    (let [sleep-time-atom (atom (:sleep-time app-state))
-          control-channel (async/chan)
+#_(defn add-control-channel [view]
+  (fn [view-context state]
+    (let [control-channel (async/chan)
+          view-result (view (assoc view-context
+                              :control-channel control-channel)
+                            state)]
+      (assoc-in view-result (concat [:state] (:state-path view-context) [:control-channel]) control-channel))))
+
+(defn control-to-application [constructor view]
+  (fn [application-state event]
+    (let [control-channel (async/chan)
           root-view-context {:state-path [:view-state]
-                             :app-state app-state
+                             :application-state application-state
                              :control-channel control-channel
-                             :event-channel (window/event-channel (:window app-state))
-                             :sleep-time-atom sleep-time-atom}
-          app-state (if (:view-state app-state)
-                      app-state
-                      (assoc app-state :view-state
-                             (-> (constructor root-view-context)
-                                 (assoc :control-channel control-channel))))
+                             :event-channel (window/event-channel (:window application-state))}
 
-          {:keys [state layoutable]} (view root-view-context
-                                           (:view-state app-state))
+          view-result (view root-view-context
+                            (or (:view-state application-state)
+                                (-> (constructor root-view-context)
+                                    (assoc :control-channel control-channel))))]
 
-          layoutable (assoc layoutable :state-path [:view-state])]
-
-      (assoc app-state
-        :view-state state
-        :layoutable layoutable
-        :sleep-time @sleep-time-atom))))
+      (assoc application-state
+        :view-state (:state view-result)
+        :layoutable (assoc (:layoutable view-result) :state-path [:view-state])))))
 
 ;; Control test
 
@@ -321,10 +328,10 @@
 (gui/def-control counter-control
   ([view-context]
      (assoc initial-counter-state
-       :animation-started (get-in view-context [:app-state :frame-started])))
+       :animation-started (get-in view-context [:application-state :frame-started])))
 
   ([view-context state]
-     (let [duration (mod (get-in view-context [:app-state :frame-started])
+     (let [duration (mod (get-in view-context [:application-state :frame-started])
                          (:pulse-rate state))]
 
        (set-wake-up view-context (- (/ (:pulse-rate state)
@@ -393,4 +400,4 @@
 
 (defn start []
   #_(start-app layout-app)
-  (start-app (control-to-app create-app-control app-control-view)))
+  (start-app (control-to-application create-app-control app-control-view)))
