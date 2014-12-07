@@ -620,14 +620,15 @@
   ([parent-view-context view constructor child-id constructor-parameters state-overrides]
      (let [state-path-part [:child-states child-id]
            state-path (concat (:state-path parent-view-context) state-path-part)
-           control-channel (async/chan)
+           constructor (reduce (fn [constructor decorator]
+                                 (decorator constructor))
+                               constructor
+                               (:constructor-decorators (:application-state parent-view-context)))
            view-context (assoc parent-view-context
-                          :state-path state-path
-                          :control-channel control-channel)
+                          :state-path state-path)
            state (-> (or (get-in @current-view-state-atom state-path-part)
-                         (-> (apply constructor view-context
-                                    constructor-parameters)
-                             (assoc :control-channel control-channel)))
+                         (apply constructor view-context
+                                constructor-parameters))
                      (conj state-overrides))
 
            {:keys [state layoutable]} (view view-context

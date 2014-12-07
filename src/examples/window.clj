@@ -259,11 +259,34 @@
                   state)]
       (app state event))))
 
+;; Controls
+
+(defn add-control-channel [constructor]
+  (fn [view-context & parameters]
+    (let [control-channel (async/chan)
+          view-state (apply constructor
+                            (assoc view-context
+                              :control-channel control-channel)
+                            parameters)]
+
+      (assoc view-state :control-channel control-channel))))
+
+(defn add-event-channel [constructor]
+  (fn [view-context & parameters]
+    (apply constructor
+           (assoc view-context
+             :event-channel (window/event-channel (-> view-context :application-state :window)))
+           parameters)))
+
+(defn add-constructor-decorators [state constructor-decorators]
+  (assoc state :constructor-decorators constructor-decorators))
+
 ;; App
 
 (defn start-app [app]
   (-> {}
       (add-window)
+      (add-constructor-decorators [add-event-channel add-control-channel])
       (event-loop (-> app
                       (add-layout-afterwards)
                       (apply-view-state-applications-beforehand)
@@ -281,28 +304,20 @@
                       (render-drawables-afterwards)
                       (wrap-with-close-window-on-exception)))))
 
-;; Controls
-
-#_(defn add-control-channel [view]
-  (fn [view-context state]
-    (let [control-channel (async/chan)
-          view-result (view (assoc view-context
-                              :control-channel control-channel)
-                            state)]
-      (assoc-in view-result (concat [:state] (:state-path view-context) [:control-channel]) control-channel))))
 
 (defn control-to-application [constructor view]
   (fn [application-state event]
-    (let [control-channel (async/chan)
-          root-view-context {:state-path [:view-state]
-                             :application-state application-state
-                             :control-channel control-channel
-                             :event-channel (window/event-channel (:window application-state))}
+    (let [root-view-context {:state-path [:view-state]
+                             :application-state application-state}
+
+          constructor (reduce (fn [constructor decorator]
+                                (decorator constructor))
+                              constructor
+                              (:constructor-decorators application-state))
 
           view-result (view root-view-context
                             (or (:view-state application-state)
-                                (-> (constructor root-view-context)
-                                    (assoc :control-channel control-channel))))]
+                                (constructor root-view-context)))]
 
       (assoc application-state
         :view-state (:state view-result)
