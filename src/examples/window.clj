@@ -27,15 +27,7 @@
   (:use flow-gl.utils
         clojure.test))
 
-
-(defn text
-  ([value]
-     (text value [255 255 255 255]))
-
-  ([value color]
-     (drawable/->Text (str value)
-                      (font/create "LiberationSans-Regular.ttf" 15)
-                      color)))
+;; Events
 
 (defn event-loop [initial-state app]
   (loop [state initial-state]
@@ -50,21 +42,13 @@
                       [{:type :wake-up}]
                       events)))))))
 
-(defn wrap-with-close-window-on-exception [app]
-  (fn [state events]
-    (try
-      (app state events)
-      (catch Exception e
-        (window/close (:window state))
-        (throw e)))))
-
-
-
 (defn wrap-with-separate-events [app]
   (fn [state events]
     (reduce app
             state
             events)))
+
+;; Window
 
 (defn add-window [state]
   (assoc state :window (jogl-window/create 300
@@ -79,12 +63,32 @@
       (assoc state :close-requested true)
       (app state event))))
 
+(defn wrap-with-close-window-on-exception [app]
+  (fn [state events]
+    (try
+      (app state events)
+      (catch Exception e
+        (window/close (:window state))
+        (throw e)))))
+
+;; CSP
+
 (defn close-control-channels-afterwards-when-close-requested [app]
   (fn [state event]
     (let [state (app state event)]
       (when (= (:type event) :close-requested)
         (gui/close-control-channels (:view-state state)))
       state)))
+
+(defn apply-view-state-applications-beforehand [app]
+  (fn [state event]
+    (let [state (if (= (:type event)
+                       :apply-to-view-state)
+                  ((:function event) state)
+                  state)]
+      (app state event))))
+
+;; Rendering
 
 (defn drawables-for-layout
   ([layout]
@@ -108,6 +112,11 @@
                :y (+ parent-y (:y layout))
                :z (+ parent-z (or (:z layout) 0)))))))
 
+(defn add-drawables-for-layout-afterwards [app]
+  (fn [state events]
+    (let [state (app state events)]
+      (assoc state :drawables (drawables-for-layout (:layout state))))))
+
 (defn transform-layout-to-drawables-afterwards [app]
   (fn [state events]
     (let [state (app state events)
@@ -120,11 +129,6 @@
       (assoc state
         :drawables drawables
         :transformer-states transformer-states))))
-
-(defn add-drawables-for-layout-afterwards [app]
-  (fn [state events]
-    (let [state (app state events)]
-      (assoc state :drawables (drawables-for-layout (:layout state))))))
 
 (defn render-drawables-afterwards [app]
   (fn [state events]
@@ -144,7 +148,6 @@
       (window/swap-buffers (:window state))
 
       state)))
-
 
 ;; Animation
 
@@ -183,6 +186,8 @@
             :last-frame (System/currentTimeMillis)))
         state))))
 
+;; Layout
+
 (defn add-layout-afterwards [app]
   (fn [state event]
     (let [state (app state event)
@@ -199,6 +204,8 @@
                             :height height)
                      (layout/add-out-of-layout-hints))]
       (assoc state :layout layout))))
+
+;; Mouse
 
 (defn add-layout-paths-under-mouse-beforehand [app]
   (fn [state event]
@@ -218,6 +225,8 @@
                   (gui/apply-layout-event-handlers-3 state (:layout state) (:layout-paths-under-mouse state) :handle-mouse-event-2 event)
                   state)]
       (app state event))))
+
+;; Keyboard
 
 (defn apply-keyboard-event-handlers-beforehand [app]
   (fn [state event]
@@ -244,15 +253,7 @@
                   state)]
       (app state event))))
 
-(defn apply-view-state-applications-beforehand [app]
-  (fn [state event]
-    (let [state (if (= (:type event)
-                       :apply-to-view-state)
-                  ((:function event) state)
-                  state)]
-      (app state event))))
-
-
+;; App
 
 (defn start-app [app]
   (-> {}
@@ -273,12 +274,50 @@
                       (render-drawables-afterwards)
                       (wrap-with-close-window-on-exception)))))
 
+;; Controls
+
+(defn control-to-app [constructor view]
+  (fn [app-state event]
+    (let [sleep-time-atom (atom (:sleep-time app-state))
+          control-channel (async/chan)
+          root-view-context {:state-path [:view-state]
+                             :app-state app-state
+                             :control-channel control-channel
+                             :event-channel (window/event-channel (:window app-state))
+                             :sleep-time-atom sleep-time-atom}
+          app-state (if (:view-state app-state)
+                      app-state
+                      (assoc app-state :view-state
+                             (-> (constructor root-view-context)
+                                 (assoc :control-channel control-channel))))
+
+          {:keys [state layoutable]} (view root-view-context
+                                           (:view-state app-state))
+
+          layoutable (assoc layoutable :state-path [:view-state])]
+
+      (assoc app-state
+        :view-state state
+        :layoutable layoutable
+        :sleep-time @sleep-time-atom))))
+
+;; Control test
+
+(defn text
+  ([value]
+     (text value [255 255 255 255]))
+
+  ([value color]
+     (drawable/->Text (str value)
+                      (font/create "LiberationSans-Regular.ttf" 15)
+                      color)))
 
 (def initial-counter-state {:count 0
                             :can-gain-focus true
                             :handle-keyboard-event (fn [state event]
                                                      [(update-in state [:count] inc)
                                                       true])})
+
 (gui/def-control counter-control
   ([view-context]
      (assoc initial-counter-state
@@ -320,30 +359,7 @@
                                              [:1f "alpha" 0.3])
                        (text (:focused-state-paths state))))))
 
-(defn control-to-app [constructor view]
-  (fn [app-state event]
-    (let [sleep-time-atom (atom (:sleep-time app-state))
-          control-channel (async/chan)
-          root-view-context {:state-path [:view-state]
-                             :app-state app-state
-                             :control-channel control-channel
-                             :event-channel (window/event-channel (:window app-state))
-                             :sleep-time-atom sleep-time-atom}
-          app-state (if (:view-state app-state)
-                      app-state
-                      (assoc app-state :view-state
-                             (-> (constructor root-view-context)
-                                 (assoc :control-channel control-channel))))
-
-          {:keys [state layoutable]} (view root-view-context
-                                           (:view-state app-state))
-
-          layoutable (assoc layoutable :state-path [:view-state])]
-
-      (assoc app-state
-        :view-state state
-        :layoutable layoutable
-        :sleep-time @sleep-time-atom))))
+;; App test
 
 (defn counter-view [state]
   (text (:count state) (if (:has-focus state)
@@ -373,6 +389,7 @@
                                                (text (:focused-state-paths state))))
 
                                (assoc :state-path [:view-state]))))))
+
 
 (defn start []
   #_(start-app layout-app)
