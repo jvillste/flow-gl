@@ -285,24 +285,26 @@
        :animation-started (get-in view-context [:app-state :frame-started])))
 
   ([view-context state]
-     (set-wake-up view-context (:pulse-rate state))
-     (text (str (:count state) (if (> (/ (mod (- (get-in view-context [:app-state :frame-started])
-                                                 (:animation-started state))
-                                              (:pulse-rate state))
-                                         (:pulse-rate state))
-                                      0.5)
-                                 "x"
-                                 ""))
-           (if (:has-focus state)
-             [255 255 255 255]
-             [100 100 100 255]))))
+     (let [duration (mod (get-in view-context [:app-state :frame-started])
+                         (:pulse-rate state))]
+
+       (set-wake-up view-context (- (/ (:pulse-rate state)
+                                       2)
+                                    duration))
+       (text (str (:count state) (if (> (/ duration
+                                           (:pulse-rate state))
+                                        0.5)
+                                   "x"
+                                   ""))
+             (if (:has-focus state)
+               [255 255 255 255]
+               [100 100 100 255])))))
 
 (gui/def-control app-control
   ([view-context]
      (async/go-loop []
-       (async/alt! (:control-channel view-context) ([_] (println "exiting countter process"))
+       (async/alt! (:control-channel view-context) ([_] (println "exiting counter process"))
                    (async/timeout 2000) ([_]
-                                           (println "applying")
                                            (gui/apply-to-state view-context update-in [:count] inc)
                                            (recur))))
 
@@ -311,7 +313,7 @@
   ([view-context state]
      (l/vertically (text (str "count " (:count state)))
                    (counter-control view-context :child-1 {:pulse-rate 1000})
-                   (counter-control view-context :child-2 {:pulse-rate 200})
+                   (counter-control view-context :child-2 {:pulse-rate 500})
                    #_(transformer/with-transformers
                        (transformer/->Filter :fade1
                                              quad/alpha-fragment-shader-source
@@ -337,7 +339,7 @@
                                            (:view-state app-state))
 
           layoutable (assoc layoutable :state-path [:view-state])]
-      (println "sleep-time" @sleep-time-atom)
+
       (assoc app-state
         :view-state state
         :layoutable layoutable
