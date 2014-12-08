@@ -261,32 +261,51 @@
 
 ;; Controls
 
-(defn add-control-channel [constructor]
+(defn add-control-channel [view-context]
+  (assoc view-context
+    :control-channel (async/chan)))
+
+(defn add-control-channel-to-view-state [constructor]
   (fn [view-context & parameters]
-    (let [control-channel (async/chan)
-          view-state (apply constructor
-                            (assoc view-context
-                              :control-channel control-channel)
-                            parameters)]
+    (-> (apply constructor
+               view-context
+               parameters)
+        (assoc :control-channel (:control-channel view-context)))))
 
-      (assoc view-state :control-channel control-channel))))
+(defn add-event-channel [view-context]
+  (assoc view-context
+    :event-channel (window/event-channel (-> view-context :application-state :window))))
 
-(defn add-event-channel [constructor]
-  (fn [view-context & parameters]
-    (apply constructor
-           (assoc view-context
-             :event-channel (window/event-channel (-> view-context :application-state :window)))
-           parameters)))
 
-(defn add-constructor-decorators [state constructor-decorators]
-  (assoc state :constructor-decorators constructor-decorators))
+(defn add-constructor-decorator [state constructor-decorator]
+  (assoc state :constructor-decorator constructor-decorator))
+
+(defn add-view-context-decorator [state view-context-decorator]
+  (assoc state :view-context-decorator view-context-decorator))
+
+
 
 ;; App
+
+(defn combine-decorators [decorators]
+  (fn [function]
+    (reduce (fn [function decorator]
+              (decorator function))
+            function
+            decorators)))
 
 (defn start-app [app]
   (-> {}
       (add-window)
-      (add-constructor-decorators [add-event-channel add-control-channel])
+
+      (add-constructor-decorator (fn [constructor]
+                                   (-> constructor
+                                       add-control-channel-to-view-state)))
+
+      (add-view-context-decorator (fn [view-context]
+                                    (-> view-context
+                                        add-event-channel
+                                        add-control-channel)))
       (event-loop (-> app
                       (add-layout-afterwards)
                       (apply-view-state-applications-beforehand)
@@ -307,13 +326,12 @@
 
 (defn control-to-application [constructor view]
   (fn [application-state event]
-    (let [root-view-context {:state-path [:view-state]
-                             :application-state application-state}
+    (let [root-view-context ((:view-context-decorator application-state)
+                             {:state-path [:view-state]
+                              :application-state application-state})
 
-          constructor (reduce (fn [constructor decorator]
-                                (decorator constructor))
-                              constructor
-                              (:constructor-decorators application-state))
+          constructor ((:constructor-decorator application-state)
+                       constructor)
 
           view-result (view root-view-context
                             (or (:view-state application-state)

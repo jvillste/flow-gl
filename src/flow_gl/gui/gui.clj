@@ -413,20 +413,20 @@
 
 (defn render-layout [layout render-tree-state-atom window]
   #_(let [render-trees (transformer/render-trees-for-layout layout)]
-    (window/with-gl window gl
-      (opengl/clear gl 0 0 0 1)
-      (let [{:keys [width height]} (opengl/size gl)]
-        (swap! render-tree-state-atom
-               (fn [render-tree-state]
-                 (let [[render-tree-state drawables] (transformer/transform-tree render-tree-state
-                                                                                 {:transformers [(transformer/->RenderTransformer :root)]
-                                                                                  :children render-trees
-                                                                                  :width width
-                                                                                  :height height
-                                                                                  :x 0
-                                                                                  :y 0}
-                                                                                 gl)]
-                   render-tree-state)))))))
+      (window/with-gl window gl
+        (opengl/clear gl 0 0 0 1)
+        (let [{:keys [width height]} (opengl/size gl)]
+          (swap! render-tree-state-atom
+                 (fn [render-tree-state]
+                   (let [[render-tree-state drawables] (transformer/transform-tree render-tree-state
+                                                                                   {:transformers [(transformer/->RenderTransformer :root)]
+                                                                                    :children render-trees
+                                                                                    :width width
+                                                                                    :height height
+                                                                                    :x 0
+                                                                                    :y 0}
+                                                                                   gl)]
+                     render-tree-state)))))))
 
 (defn start-view [constructor view]
   (let [control-channel (async/chan)
@@ -620,12 +620,13 @@
   ([parent-view-context view constructor child-id constructor-parameters state-overrides]
      (let [state-path-part [:child-states child-id]
            state-path (concat (:state-path parent-view-context) state-path-part)
-           constructor (reduce (fn [constructor decorator]
-                                 (decorator constructor))
-                               constructor
-                               (:constructor-decorators (:application-state parent-view-context)))
-           view-context (assoc parent-view-context
-                          :state-path state-path)
+
+           constructor ((:constructor-decorator (:application-state parent-view-context))
+                        constructor)
+
+           view-context ((:view-context-decorator (:application-state parent-view-context))
+                         (assoc parent-view-context
+                           :state-path state-path))
            state (-> (or (get-in @current-view-state-atom state-path-part)
                          (apply constructor view-context
                                 constructor-parameters))
