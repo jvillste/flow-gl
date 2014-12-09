@@ -618,6 +618,41 @@
        (assoc layoutable
          :state-path state-path))))
 
+(defn call-view
+  ([parent-view-context constructor child-id]
+     (call-view parent-view-context constructor child-id [] {}))
+  
+  ([parent-view-context constructor child-id state-overrides]
+     (call-view parent-view-context constructor child-id [] state-overrides))
+  
+
+  ([parent-view-context constructor child-id constructor-parameters state-overrides]
+     (let [state-path-part [:child-states child-id]
+           state-path (concat (:state-path parent-view-context) state-path-part)
+
+           constructor ((-> parent-view-context :application-state :constructor-decorator)
+                        constructor)
+
+           view-context ((-> parent-view-context :application-state :view-context-decorator)
+                         (assoc parent-view-context
+                           :state-path state-path))
+
+           state (-> (or (get-in @current-view-state-atom state-path-part)
+                         (apply constructor view-context
+                                constructor-parameters))
+                     (conj state-overrides))
+
+           view ((-> parent-view-context :application-state :view-decorator)
+                 (:view state))
+
+           {:keys [state layoutable]} (view view-context
+                                            state)]
+
+       (swap! current-view-state-atom assoc-in state-path-part state)
+       (swap! current-view-state-atom add-child child-id)
+       (assoc layoutable
+         :state-path state-path))))
+
 (defn call-anonymous-view [view constructor state-overrides]
   (call-named-view view
                    constructor
