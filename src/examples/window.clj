@@ -285,7 +285,7 @@
 
 ;; App
 
-(defn combine-decorators [decorators]
+(defn combine-decorators [& decorators]
   (fn [function]
     (reduce (fn [function decorator]
               (decorator function))
@@ -308,23 +308,15 @@
 (defn start-app [app]
   (-> {}
       (add-window)
-      (assoc :constructor-decorator (fn [constructor]
-                                      (-> constructor
-                                          add-control-channel-to-view-state)))
+      (assoc :constructor-decorator (combine-decorators add-control-channel-to-view-state))
 
 
-      (assoc :view-context-decorator (fn [view-context]
-                                       (-> view-context
-                                           add-event-channel)))
+      (assoc :view-context-decorator (combine-decorators add-event-channel))
 
-      (assoc :view-decorator (fn [view]
-                               (-> view
-                                   wrap-with-current-view-state-atom
-                                   wrap-with-remove-unused-children)))
+      (assoc :view-decorator (combine-decorators wrap-with-current-view-state-atom
+                                                 wrap-with-remove-unused-children))
 
-      (assoc :destructor-decorator (fn [destructor]
-                                     (-> destructor
-                                         close-control-channel-afterwards)))
+      (assoc :destructor-decorator (combine-decorators close-control-channel-afterwards))
 
       (event-loop (-> app
                       (add-layout-afterwards)
@@ -382,10 +374,8 @@
                                                      [(update-in state [:count] inc)
                                                       true])})
 
-
 (defn counter [view-context]
   (assoc initial-counter-state
-    :animation-started (get-in view-context [:application-state :frame-started])
     :view (fn [view-context state]
             (let [duration (mod (get-in view-context [:application-state :frame-started])
                                 (:pulse-rate state))]
@@ -402,26 +392,6 @@
                       [255 255 255 255]
                       [100 100 100 255]))))))
 
-#_(gui/def-control counter-control
-    ([view-context]
-       (assoc initial-counter-state
-         :animation-started (get-in view-context [:application-state :frame-started])))
-
-    ([view-context state]
-       (let [duration (mod (get-in view-context [:application-state :frame-started])
-                           (:pulse-rate state))]
-
-         (set-wake-up view-context (- (/ (:pulse-rate state)
-                                         2)
-                                      duration))
-         (text (str (:count state) (if (> (/ duration
-                                             (:pulse-rate state))
-                                          0.5)
-                                     "x"
-                                     ""))
-               (if (:has-focus state)
-                 [255 255 255 255]
-                 [100 100 100 255])))))
 
 (defn app [view-context]
   (async/go-loop []
@@ -435,31 +405,12 @@
             (l/vertically (text (str "count " (:count state)))
                           (gui/call-view view-context counter :child-1 {:pulse-rate 1000})
                           (gui/call-view view-context counter :child-2 {:pulse-rate 500})
-                          #_(transformer/with-transformers
-                              (transformer/->Filter :fade1
-                                                    quad/alpha-fragment-shader-source
-                                                    [:1f "alpha" 0.3])
-                              (text (:focused-state-paths state)))))))
+                          (transformer/with-transformers
+                            (transformer/->Filter :fade1
+                                                  quad/alpha-fragment-shader-source
+                                                  [:1f "alpha" 0.7])
+                            (text (-> view-context :application-state :focused-state-paths)))))))
 
-#_(gui/def-control app-control
-    ([view-context]
-       (async/go-loop []
-         (async/alt! (:control-channel view-context) ([_] (println "exiting counter process"))
-                     (async/timeout 2000) ([_]
-                                             (gui/apply-to-state view-context update-in [:count] inc)
-                                             (recur))))
-
-       initial-counter-state)
-
-    ([view-context state]
-       (l/vertically (text (str "count " (:count state)))
-                     (counter-control view-context :child-1 {:pulse-rate 1000})
-                     (counter-control view-context :child-2 {:pulse-rate 500})
-                     #_(transformer/with-transformers
-                         (transformer/->Filter :fade1
-                                               quad/alpha-fragment-shader-source
-                                               [:1f "alpha" 0.3])
-                         (text (:focused-state-paths state))))))
 
 ;; App test
 
