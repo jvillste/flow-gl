@@ -73,12 +73,34 @@
 
 ;; CSP
 
-(defn close-control-channels-afterwards-when-close-requested [app]
+(defn add-control-channel-to-view-state [constructor]
+  (fn [view-context & parameters]
+    (let [view-context (assoc view-context
+                         :control-channel (async/chan))]
+      (-> (apply constructor
+                 view-context
+                 parameters)
+          (assoc :control-channel (:control-channel view-context))))))
+
+(defn call-destructors-when-close-requested [app]
   (fn [state event]
     (let [state (app state event)]
       (when (= (:type event) :close-requested)
-        (gui/close-control-channels (:view-state state)))
+        (gui/call-destructors (:view-state state) (:destructor-decorator state)))
       state)))
+
+(defn close-control-channel-afterwards [destructor]
+  (fn [state]
+    (async/close! (:control-channel state))
+    (destructor state)))
+
+(def control-channel-feature {:constructor-decorator add-control-channel-to-view-state
+                              :destructor-decorator close-control-channel-afterwards
+                              :application-decorator call-destructors-when-close-requested})
+
+(defn add-event-channel [view-context]
+  (assoc view-context
+    :event-channel (window/event-channel (-> view-context :application-state :window))))
 
 (defn apply-view-state-applications-beforehand [app]
   (fn [state event]
@@ -87,6 +109,9 @@
                   ((:function event) state)
                   state)]
       (app state event))))
+
+(def apply-to-view-state-feature {:view-context-decorator add-event-channel
+                                  :application-decorator apply-view-state-applications-beforehand})
 
 ;; Rendering
 
@@ -259,32 +284,6 @@
                   state)]
       (app state event))))
 
-;; Controls
-
-(defn add-control-channel [view-context]
-  (assoc view-context
-    :control-channel (async/chan)))
-
-(defn add-control-channel-to-view-state [constructor]
-  (fn [view-context & parameters]
-    (-> (apply constructor
-               view-context
-               parameters)
-        (assoc :control-channel (:control-channel view-context)))))
-
-(defn add-event-channel [view-context]
-  (assoc view-context
-    :event-channel (window/event-channel (-> view-context :application-state :window))))
-
-
-(defn add-constructor-decorator [state constructor-decorator]
-  (assoc state :constructor-decorator constructor-decorator))
-
-(defn add-view-context-decorator [state view-context-decorator]
-  (assoc state :view-context-decorator view-context-decorator))
-
-
-
 ;; App
 
 (defn combine-decorators [decorators]
@@ -294,18 +293,32 @@
             function
             decorators)))
 
+(defn wrap-with-remove-unused-children [view]
+  (fn [view-context state]
+    (let [view-result (view view-context
+                            (gui/reset-children state))]
+      (update-in view-result [:state] gui/remove-unused-children view-context))))
+
 (defn start-app [app]
   (-> {}
       (add-window)
+      (assoc :constructor-decorator (fn [constructor]
+                                      (-> constructor
+                                          add-control-channel-to-view-state)))
+      
 
-      (add-constructor-decorator (fn [constructor]
-                                   (-> constructor
-                                       add-control-channel-to-view-state)))
+      (assoc :view-context-decorator (fn [view-context]
+                                       (-> view-context
+                                           add-event-channel)))
 
-      (add-view-context-decorator (fn [view-context]
-                                    (-> view-context
-                                        add-event-channel
-                                        add-control-channel)))
+      (assoc :view-decorator (fn [view]
+                               (-> view
+                                   wrap-with-remove-unused-children)))
+      
+      (assoc :destructor-decorator (fn [destructor]
+                                     (-> destructor
+                                         close-control-channel-afterwards)))
+      
       (event-loop (-> app
                       (add-layout-afterwards)
                       (apply-view-state-applications-beforehand)
@@ -314,7 +327,7 @@
                       (set-focus-by-mouse-click-beforehand)
                       (add-layout-paths-under-mouse-beforehand)
                       (close-when-requested-beforehand)
-                      (close-control-channels-afterwards-when-close-requested)
+                      (call-destructors-when-close-requested)
                       (wrap-with-separate-events)
                       (wrap-with-sleep-time-atom)
                       (limit-frames-per-second-afterwards 60)
@@ -322,7 +335,6 @@
                       (transform-layout-to-drawables-afterwards)
                       (render-drawables-afterwards)
                       (wrap-with-close-window-on-exception)))))
-
 
 (defn control-to-application [constructor view]
   (fn [application-state event]

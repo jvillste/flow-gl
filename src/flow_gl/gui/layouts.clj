@@ -361,8 +361,9 @@
 
 (layout/deflayout-with-state SizeDependent [preferred-size-function child-function]
   (layout [this state requested-width requested-height]
-          (let [{:keys [state layoutable]} (gui/with-children state (child-function state requested-width requested-height))]
-            (let [[state child-layout] (layout/set-dimensions-and-layout layoutable state
+          (binding [gui/current-view-state-atom (atom state)]
+            (let [layoutable (child-function state requested-width requested-height)
+                  [state child-layout] (layout/set-dimensions-and-layout layoutable @gui/current-view-state-atom
                                                                          0 0 requested-width requested-height)]
               [state
                (assoc this :children [child-layout])])))

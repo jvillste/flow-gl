@@ -402,6 +402,14 @@
   (doseq [state (vals (:child-states state))]
     (close-control-channels state)))
 
+(defn call-destructors [view-state destructor-decorator]
+  (let [destructor (destructor-decorator
+                    (or (:destructor view-state)
+                        identity))]
+    (destructor view-state)
+    (doseq [child-view-state (vals (:child-states view-state))]
+      (call-destructors child-view-state destructor-decorator))))
+
 (defn drain [channel timeout]
   (loop [values (if (not timeout)
                   [(async/<!! channel)]
@@ -560,40 +568,6 @@
                                []))
       (assoc :children [])))
 
-
-
-(defn remove-unused-children [state]
-  (let [child-set (set (:children state))
-        children-to-be-removed (->> (:old-children state)
-                                    (filter (complement child-set)))]
-    (reduce (fn [state child-to-be-removed]
-              (do (close-control-channels (get-in state [:child-states child-to-be-removed]))
-                  (update-in state [:child-states] dissoc child-to-be-removed)))
-            state
-            children-to-be-removed)))
-
-#_(fact (let [state-1 (-> {}
-                          (reset-children)
-
-                          (assoc-in [:child-states :1] :foo)
-                          (add-child :1)
-
-                          (assoc-in [:child-states :2] :foo)
-                          (add-child :2)
-
-                          (remove-unused-children))]
-
-          state-1 => {:child-states {:1 :foo, :2 :foo}, :children [:1 :2], :old-children []}
-
-          (-> state-1
-              (reset-children)
-
-              (assoc-in [:child-states :2] :foo2)
-              (add-child :2)
-
-              (remove-unused-children)) => {:child-states {:2 :foo2}, :children [:2], :old-children [:1 :2]}))
-
-
 (def child-focus-handlers
   {:first-focusable-child (fn [state]
                             [:child-states (first (:children state))])
@@ -621,19 +595,24 @@
      (let [state-path-part [:child-states child-id]
            state-path (concat (:state-path parent-view-context) state-path-part)
 
-           constructor ((:constructor-decorator (:application-state parent-view-context))
+           constructor ((-> parent-view-context :application-state :constructor-decorator)
                         constructor)
 
-           view-context ((:view-context-decorator (:application-state parent-view-context))
+           view-context ((-> parent-view-context :application-state :view-context-decorator)
                          (assoc parent-view-context
                            :state-path state-path))
+
            state (-> (or (get-in @current-view-state-atom state-path-part)
                          (apply constructor view-context
                                 constructor-parameters))
                      (conj state-overrides))
 
+           view ((-> parent-view-context :application-state :view-decorator)
+                 view)
+
            {:keys [state layoutable]} (view view-context
                                             state)]
+
        (swap! current-view-state-atom assoc-in state-path-part state)
        (swap! current-view-state-atom add-child child-id)
        (assoc layoutable
@@ -644,17 +623,6 @@
                    constructor
                    [:child (count (:children @current-view-state-atom))]
                    state-overrides))
-
-(defmacro with-children [state visual]
-  `(binding [current-view-state-atom (atom (reset-children ~state))]
-     (let [visual-value# ~visual]
-       {:state (remove-unused-children @current-view-state-atom)
-        :layoutable visual-value#})))
-
-(defmacro with-animation [sleep-time & body]
-  `(binding [sleep-time-atom (atom ~sleep-time)]
-     (let [value# (do ~@body)]
-       (assoc value# :sleep-time @sleep-time-atom))))
 
 (defn set-wake-up [view-context sleep-time]
   (swap! (:sleep-time-atom view-context)
@@ -668,13 +636,26 @@
 (defn apply-to-current-view-state [function & parameters]
   (apply swap! current-view-state-atom function parameters))
 
+(defn remove-unused-children [state view-context]
+  (let [child-set (set (:children state))
+        children-to-be-removed (->> (:old-children state)
+                                    (filter (complement child-set)))]
+    (reduce (fn [state child-to-be-removed]
+              (do (call-destructors (get-in state [:child-states child-to-be-removed])
+                                    (-> view-context :application-state :destructor-decorator))
+                  (update-in state [:child-states] dissoc child-to-be-removed)))
+            state
+            children-to-be-removed)))
+
 (defmacro def-view [name parameters & body]
   (let [[view-context-parameter state-parameter] parameters]
     `(defn ~name [view-context# state#]
-       (with-children state#
-         (let [~view-context-parameter view-context#
-               ~state-parameter state#]
-           ~@body)))))
+       (binding [current-view-state-atom (atom state#)]
+         (let [layoutable# (let [~view-context-parameter view-context#
+                                 ~state-parameter state#]
+                             ~@body)]
+           {:state @current-view-state-atom
+            :layoutable layoutable#})))))
 
 (defmacro def-control [name constructor view]
   (let [view-name (symbol (str name "-view"))
