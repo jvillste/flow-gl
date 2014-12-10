@@ -425,7 +425,7 @@
                          (= (:type event)
                             :mouse-clicked))
                   (let [state-paths-under-mouse (layout-path-to-state-paths (:layout state)
-                                                                            (last (:layout-paths-under-mouse state)))]
+                                                                            (first (:layout-paths-under-mouse state)))]
                     (if (get-in state (concat (last state-paths-under-mouse)
                                               [:can-gain-focus]))
                       (set-focus state state-paths-under-mouse)
@@ -508,6 +508,19 @@
       (app state event))))
 
 
+;; Cache
+
+(defn propagate-only-when-view-state-changed [app]
+  (fn [state event]
+
+    (let [state (if (and (:view-state state)
+                         (identical?  (:old-view-state state)
+                                      (:view-state state)))
+                  state
+                  (app state event))]
+
+      (assoc state :old-view-state (:view-state state)))))
+
 ;; App
 
 (defn reset-children [state]
@@ -557,6 +570,7 @@
 
       (event-loop (-> app
                       (add-layout-afterwards)
+                      #_(propagate-only-when-view-state-changed)
                       (apply-view-state-applications-beforehand)
                       (apply-layout-event-handlers-beforehand)
                       (apply-keyboard-event-handlers-beforehand)
@@ -619,13 +633,13 @@
 
 (defn call-view
   ([parent-view-context constructor child-id]
-     (call-view parent-view-context constructor child-id [] {}))
+     (call-view parent-view-context constructor child-id {} []))
 
   ([parent-view-context constructor child-id state-overrides]
-     (call-view parent-view-context constructor child-id [] state-overrides))
+     (call-view parent-view-context constructor child-id state-overrides []))
 
+  ([parent-view-context constructor child-id state-overrides constructor-parameters]
 
-  ([parent-view-context constructor child-id constructor-parameters state-overrides]
      (let [state-path-part [:child-states child-id]
            state-path (concat (:state-path parent-view-context) state-path-part)
 
