@@ -10,7 +10,6 @@
                          [window :as window]
                          [layout :as layout]
                          [layouts :as layouts]
-                         [gui :as gui]
                          [events :as events]
                          [layoutable :as layoutable]
                          [controls :as controls]
@@ -25,6 +24,7 @@
            [java.lang Runnable]
            [java.nio ByteBuffer])
   (:use flow-gl.utils
+        midje.sweet
         clojure.test))
 
 ;; Events
@@ -82,11 +82,19 @@
                  parameters)
           (assoc :control-channel (:control-channel view-context))))))
 
+(defn call-destructors [view-state destructor-decorator]
+  (let [destructor (destructor-decorator
+                    (or (:destructor view-state)
+                        identity))]
+    (destructor view-state)
+    (doseq [child-view-state (vals (:child-states view-state))]
+      (call-destructors child-view-state destructor-decorator))))
+
 (defn call-destructors-when-close-requested [app]
   (fn [state event]
     (let [state (app state event)]
       (when (= (:type event) :close-requested)
-        (gui/call-destructors (:view-state state) (:destructor-decorator state)))
+        (call-destructors (:view-state state) (:destructor-decorator state)))
       state)))
 
 (defn close-control-channel-afterwards [destructor]
@@ -248,25 +256,163 @@
           (app event))
       (app state event))))
 
+(defn path-prefixes [path]
+  (loop [prefixes []
+         prefix []
+         xs path]
+    (if-let [x (first xs)]
+      (let [prefix (conj prefix x)]
+        (recur (conj prefixes prefix)
+               prefix
+               (rest xs)))
+      prefixes)))
+
+(fact (path-prefixes [[1 2] [3] [4]])
+      => [[[1 2]]
+          [[1 2] [3]]
+          [[1 2] [3] [4]]])
+
+(defn layout-path-to-handlers [layout-path layout handler-key]
+  (->> (map (fn [path]
+              (when-let [handler (-> (get-in layout path)
+                                     (handler-key))]
+                handler))
+            (path-prefixes layout-path))
+       (filter identity)
+       (reverse)))
+
+(deftest layout-path-to-handlers-test
+  (is (= '(:handler2 :handler1 :handler3)
+         (mapcat #(layout-path-to-handlers %
+                                           {:a
+                                            {:b
+                                             {:c
+                                              {:handler :handler1
+                                               :d
+                                               {:handler :handler2}}
+                                              :c2 {:handler :handler3}}}}
+
+                                           :handler)
+                 [[:a :b :c :d] [:a :b :c2]]))))
+
+
+(defn apply-layout-event-handlers [state layout layout-paths handler-key & arguments]
+  (if layout-paths
+    (let [handlers (apply concat (mapcat #(layout-path-to-handlers % layout handler-key)
+                                         layout-paths))]
+      (if-let [handler (first handlers)]
+        (apply handler
+               state
+               arguments)
+        state))
+    state))
+
 (defn apply-layout-event-handlers-beforehand [app]
   (fn [state event]
     (let [state (if (and (:layout state)
                          (= (:source event)
                             :mouse))
-                  (gui/apply-layout-event-handlers-3 state (:layout state) (:layout-paths-under-mouse state) :handle-mouse-event-2 event)
+                  (apply-layout-event-handlers state (:layout state) (:layout-paths-under-mouse state) :handle-mouse-event event)
                   state)]
       (app state event))))
 
+;; mouse api
+
+(defn add-mouse-event-handler [layoutable handler]
+  (assoc layoutable
+    :handle-mouse-event (conj (or (:handle-mouse-event layoutable)
+                                    [])
+                                handler)))
+
+(defn add-mouse-event-handler-with-context [layoutable view-context handler]
+  (add-mouse-event-handler layoutable (fn [state event]
+                                        (update-or-apply-in state (:state-path view-context) handler event))))
+
+(defn on-mouse-clicked [layoutable view-context handler & arguments]
+  (add-mouse-event-handler-with-context layoutable view-context (fn [state event]
+                                                                  (if (= :mouse-clicked (:type event))
+                                                                    (apply handler state event arguments)
+                                                                    state))))
+
+(defn on-mouse-event [layoutable event-type view-context handler & arguments]
+  (add-mouse-event-handler-with-context layoutable view-context (fn [state event]
+                                                                  (if (= event-type (:type event))
+                                                                    (apply handler state event arguments)
+                                                                    state))))
+
 ;; Keyboard
+
+(defn apply-keyboard-event-handlers [state event]
+  (loop [state state
+         focused-state-paths (:focused-state-paths state)]
+    (if-let [focused-state-path (first focused-state-paths)]
+      (if-let [keyboard-event-handler (get-in state (conj (vec focused-state-path) :handle-keyboard-event))]
+        (if (seq focused-state-path)
+          (let [[child-state continue] (keyboard-event-handler (get-in state focused-state-path)
+                                                               event)
+                state (assoc-in state focused-state-path child-state)]
+            (if continue
+              (recur state
+                     (rest focused-state-paths))
+              state))
+          (let [[state continue] (keyboard-event-handler state event)]
+            (if continue
+              (recur state
+                     (rest focused-state-paths))
+              state)))
+        (recur state
+               (rest focused-state-paths)))
+      state)))
 
 (defn apply-keyboard-event-handlers-beforehand [app]
   (fn [state event]
     (let [state (if (and (:focused-state-paths state)
                          (= (:source event)
                             :keyboard))
-                  (gui/apply-keyboard-event-handlers-2 state event)
+                  (apply-keyboard-event-handlers state event)
                   state)]
       (app state event))))
+
+(defn layout-path-to-state-paths [root-layout child-path]
+  (loop [state-paths (if-let [state-path (:state-path root-layout)]
+                       [state-path]
+                       [])
+         rest-of-child-path child-path
+         child-path []]
+    (if-let [child-path-part (first rest-of-child-path)]
+      (let [child-path (conj child-path child-path-part)]
+        (if-let [new-state-path (get-in root-layout (conj child-path :state-path))]
+          (recur (conj state-paths new-state-path)
+                 (rest rest-of-child-path)
+                 child-path)
+          (recur state-paths
+                 (rest rest-of-child-path)
+                 child-path)))
+      state-paths)))
+
+(defn set-hierarchical-state [state paths new-value child-state-key state-key state-gained-key state-lost-key]
+  (if (seq paths)
+    (loop [paths paths
+           state state]
+      (if (seq (rest paths))
+        (recur (rest paths)
+               (update-in state (first paths) assoc child-state-key new-value))
+        (update-in state (first paths) (fn [state]
+                                         (let [focus-handler-key (if new-value state-gained-key state-lost-key)]
+                                           (-> (if-let [focus-handler (focus-handler-key state)]
+                                                 (focus-handler state)
+                                                 state)
+                                               (assoc state-key new-value)))))))
+    state))
+
+(defn move-hierarchical-state [state paths previous-path-parts-key child-state-key state-key state-gained-key state-lost-key]
+  (-> state
+      (set-hierarchical-state (previous-path-parts-key state) false child-state-key state-key state-gained-key state-lost-key)
+      (set-hierarchical-state paths true child-state-key state-key state-gained-key state-lost-key)
+      (assoc previous-path-parts-key paths)))
+
+(defn set-focus [state focus-paths]
+  (move-hierarchical-state state focus-paths :focused-state-paths :child-has-focus :has-focus :on-focus-gained :on-focus-lost))
 
 (defn set-focus-by-mouse-click-beforehand [app]
   (fn [state event]
@@ -274,14 +420,68 @@
                             :mouse)
                          (= (:type event)
                             :mouse-clicked))
-                  (let [state-paths-under-mouse (gui/layout-path-to-state-paths (:layout state)
+                  (let [state-paths-under-mouse (layout-path-to-state-paths (:layout state)
                                                                                 (last (:layout-paths-under-mouse state)))]
                     (if (get-in state (concat (last state-paths-under-mouse)
                                               [:can-gain-focus]))
-                      (gui/set-focus state state-paths-under-mouse)
+                      (set-focus state state-paths-under-mouse)
                       state))
                   state)]
       (app state event))))
+
+;; moving focus
+
+(defn seq-focus-handlers [child-seq-key]
+  {:first-focusable-child (fn [_] [child-seq-key 0])
+   :next-focusable-child (fn [this [_ child-index]]
+                           (let [new-child-index (inc child-index)]
+                             (if (= new-child-index
+                                    (count (child-seq-key this)))
+                               nil
+                               [child-seq-key (inc child-index)])))})
+
+(defn initial-focus-path-parts [state]
+  (loop [state state
+         focus-path-parts []]
+    (if-let [focus-path-part (when-let [first-focusable-child-function (:first-focusable-child state)]
+                               (first-focusable-child-function state))]
+      (recur (get-in state focus-path-part)
+             (conj focus-path-parts focus-path-part))
+      focus-path-parts)))
+
+(fact (initial-focus-path-parts {:first-focusable-child (fn [_] [:children 1])
+                                 :children [{:first-focusable-child (fn [_] [:children 0])
+                                             :children [{}]}
+                                            {:first-focusable-child (fn [_] [:children 0])
+                                             :children [{}]}]})
+      => [[:children 1] [:children 0]])
+
+(defn next-focus-path-parts [state previous-focus-path-parts]
+  (when (seq previous-focus-path-parts)
+    (let [parent-focus-path-parts (vec (drop-last previous-focus-path-parts))
+          focus-parent (get-in state (apply concat parent-focus-path-parts))]
+      (if-let [next-focus-path-part ((:next-focusable-child focus-parent) focus-parent (last previous-focus-path-parts))]
+        (concat parent-focus-path-parts
+                [next-focus-path-part]
+                (initial-focus-path-parts (get-in state
+                                                  (apply concat
+                                                         (conj parent-focus-path-parts
+                                                               next-focus-path-part)))))
+        (next-focus-path-parts state parent-focus-path-parts)))))
+
+(fact (let [state (conj (seq-focus-handlers :children1)
+                        {:children1 [(conj (seq-focus-handlers :children2)
+                                           {:children2 [{}{}{}]})
+                                     (conj (seq-focus-handlers :children2)
+                                           {:children2 [{}{}(conj (seq-focus-handlers :children3)
+                                                                  {:children3 [{}{}{}]})]})]})]
+
+        (next-focus-path-parts state [[:children1 0] [:children2 1]])  => [[:children1 0] [:children2 2]]
+        (next-focus-path-parts state [[:children1 0] [:children2 2]])  => [[:children1 1] [:children2 0]]
+        (next-focus-path-parts state [[:children1 1] [:children2 1]])  => [[:children1 1] [:children2 2] [:children3 0]]
+        (next-focus-path-parts state [[:children1 1] [:children2 2] [:children3 2]])  => nil))
+
+
 
 ;; App
 
@@ -292,18 +492,37 @@
             function
             decorators)))
 
+(defn reset-children [state]
+  (-> state
+      (assoc :old-children (or (:children state)
+                               []))
+      (assoc :children [])))
+
+(defn remove-unused-children [state view-context]
+  (let [child-set (set (:children state))
+        children-to-be-removed (->> (:old-children state)
+                                    (filter (complement child-set)))]
+    (reduce (fn [state child-to-be-removed]
+              (do (call-destructors (get-in state [:child-states child-to-be-removed])
+                                    (-> view-context :application-state :destructor-decorator))
+                  (update-in state [:child-states] dissoc child-to-be-removed)))
+            state
+            children-to-be-removed)))
+
 (defn wrap-with-remove-unused-children [view]
   (fn [view-context state]
     (let [view-result (view view-context
-                            (gui/reset-children state))]
-      (update-in view-result [:state] gui/remove-unused-children view-context))))
+                            (reset-children state))]
+      (update-in view-result [:state] remove-unused-children view-context))))
+
+(def ^:dynamic current-view-state-atom)
 
 (defn wrap-with-current-view-state-atom [view]
   (fn [view-context state]
-    (binding [gui/current-view-state-atom (atom state)]
+    (binding [current-view-state-atom (atom state)]
       (let [layoutable (view view-context state)]
         {:layoutable layoutable
-         :state @gui/current-view-state-atom}))))
+         :state @current-view-state-atom}))))
 
 (defn start-app [app]
   (-> {}
@@ -357,6 +576,59 @@
         :view-state (:state view-result)
         :layoutable (assoc (:layoutable view-result) :state-path [:view-state])))))
 
+;; control api
+
+(defn update-or-apply-in [map path function & arguments]
+  (if (seq path)
+    (apply update-in map path function arguments)
+    (apply function map arguments)))
+
+(defn create-apply-to-view-state-event [function]
+  {:type :apply-to-view-state
+   :function function})
+
+(defn apply-to-state [view-context function & arguments]
+  (async/go (async/>! (:event-channel view-context)
+                      (create-apply-to-view-state-event (fn [state]
+                                                          (if (get-in state (:state-path view-context))
+                                                            (apply update-or-apply-in state (:state-path view-context) function arguments)
+                                                            (flow-gl.debug/debug-timed "tried to apply to empty state" (vec (:state-path view-context)))))))))
+
+(defn call-view
+  ([parent-view-context constructor child-id]
+     (call-view parent-view-context constructor child-id [] {}))
+  
+  ([parent-view-context constructor child-id state-overrides]
+     (call-view parent-view-context constructor child-id [] state-overrides))
+  
+
+  ([parent-view-context constructor child-id constructor-parameters state-overrides]
+     (let [state-path-part [:child-states child-id]
+           state-path (concat (:state-path parent-view-context) state-path-part)
+
+           constructor ((-> parent-view-context :application-state :constructor-decorator)
+                        constructor)
+
+           view-context ((-> parent-view-context :application-state :view-context-decorator)
+                         (assoc parent-view-context
+                           :state-path state-path))
+
+           state (-> (or (get-in @current-view-state-atom state-path-part)
+                         (apply constructor view-context
+                                constructor-parameters))
+                     (conj state-overrides))
+
+           view ((-> parent-view-context :application-state :view-decorator)
+                 (:view state))
+
+           {:keys [state layoutable]} (view view-context
+                                            state)]
+
+       (swap! current-view-state-atom assoc-in state-path-part state)
+       (swap! current-view-state-atom update-in [:children] conj child-id)
+       (assoc layoutable
+         :state-path state-path))))
+
 ;; Control test
 
 (defn text
@@ -397,14 +669,17 @@
   (async/go-loop []
     (async/alt! (:control-channel view-context) ([_] (println "exiting counter process"))
                 (async/timeout 2000) ([_]
-                                        (gui/apply-to-state view-context update-in [:count] inc)
+                                        (apply-to-state view-context update-in [:count] inc)
                                         (recur))))
 
   (assoc initial-counter-state
     :view (fn [view-context state]
-            (l/vertically (text (str "count " (:count state)))
-                          (gui/call-view view-context counter :child-1 {:pulse-rate 1000})
-                          (gui/call-view view-context counter :child-2 {:pulse-rate 500})
+            (l/vertically (on-mouse-clicked (text (str "count " (:count state)))
+                                            view-context
+                                            (fn [state event]
+                                              (update-in state [:count] inc)))
+                          (call-view view-context counter :child-1 {:pulse-rate 1000})
+                          (call-view view-context counter :child-2 {:pulse-rate 500})
                           (transformer/with-transformers
                             (transformer/->Filter :fade1
                                                   quad/alpha-fragment-shader-source

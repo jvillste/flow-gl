@@ -32,21 +32,9 @@
     (async/put! last-event-channel-atom {:type :request-redraw})))
 
 
-(defn path-prefixes [path]
-  (loop [prefixes []
-         prefix []
-         xs path]
-    (if-let [x (first xs)]
-      (let [prefix (conj prefix x)]
-        (recur (conj prefixes prefix)
-               prefix
-               (rest xs)))
-      prefixes)))
 
-(fact (path-prefixes [[1 2] [3] [4]])
-      => [[[1 2]]
-          [[1 2] [3]]
-          [[1 2] [3] [4]]])
+
+
 
 (defn layout-path-to-state-path [root-layout child-path]
   (loop [state-path (or (:state-path root-layout) [])
@@ -69,22 +57,7 @@
                                  [:children 0 :child :child :child])
       => '(:foo 1 :bar))
 
-(defn layout-path-to-state-paths [root-layout child-path]
-  (loop [state-paths (if-let [state-path (:state-path root-layout)]
-                       [state-path]
-                       [])
-         rest-of-child-path child-path
-         child-path []]
-    (if-let [child-path-part (first rest-of-child-path)]
-      (let [child-path (conj child-path child-path-part)]
-        (if-let [new-state-path (get-in root-layout (conj child-path :state-path))]
-          (recur (conj state-paths new-state-path)
-                 (rest rest-of-child-path)
-                 child-path)
-          (recur state-paths
-                 (rest rest-of-child-path)
-                 child-path)))
-      state-paths)))
+
 
 (def ^:dynamic current-event-channel nil)
 (def ^:dynamic current-frame-time)
@@ -104,27 +77,7 @@
           (conj (path-prefixes (:focused-state-paths state))
                 [])))
 
-(defn apply-keyboard-event-handlers-2 [state event]
-  (loop [state state
-         focused-state-paths (:focused-state-paths state)]
-    (if-let [focused-state-path (first focused-state-paths)]
-      (if-let [keyboard-event-handler (get-in state (conj (vec focused-state-path) :handle-keyboard-event))]
-        (if (seq focused-state-path)
-          (let [[child-state continue] (keyboard-event-handler (get-in state focused-state-path)
-                                                               event)
-                state (assoc-in state focused-state-path child-state)]
-            (if continue
-              (recur state
-                     (rest focused-state-paths))
-              state))
-          (let [[state continue] (keyboard-event-handler state event)]
-            (if continue
-              (recur state
-                     (rest focused-state-paths))
-              state)))
-        (recur state
-               (rest focused-state-paths)))
-      state)))
+
 
 (defn set-focus-state [state focus-path-parts has-focus]
   (if (seq focus-path-parts)
@@ -157,79 +110,8 @@
                         :foo :bar}}}]})
 
 
-(defn set-hierarchical-state [state paths new-value child-state-key state-key state-gained-key state-lost-key]
-  (if (seq paths)
-    (loop [paths paths
-           state state]
-      (if (seq (rest paths))
-        (recur (rest paths)
-               (update-in state (first paths) assoc child-state-key new-value))
-        (update-in state (first paths) (fn [state]
-                                         (let [focus-handler-key (if new-value state-gained-key state-lost-key)]
-                                           (-> (if-let [focus-handler (focus-handler-key state)]
-                                                 (focus-handler state)
-                                                 state)
-                                               (assoc state-key new-value)))))))
-    state))
 
-(defn seq-focus-handlers [child-seq-key]
-  {:first-focusable-child (fn [_] [child-seq-key 0])
-   :next-focusable-child (fn [this [_ child-index]]
-                           (let [new-child-index (inc child-index)]
-                             (if (= new-child-index
-                                    (count (child-seq-key this)))
-                               nil
-                               [child-seq-key (inc child-index)])))})
 
-(defn initial-focus-path-parts [state]
-  (loop [state state
-         focus-path-parts []]
-    (if-let [focus-path-part (when-let [first-focusable-child-function (:first-focusable-child state)]
-                               (first-focusable-child-function state))]
-      (recur (get-in state focus-path-part)
-             (conj focus-path-parts focus-path-part))
-      focus-path-parts)))
-
-(fact (initial-focus-path-parts {:first-focusable-child (fn [_] [:children 1])
-                                 :children [{:first-focusable-child (fn [_] [:children 0])
-                                             :children [{}]}
-                                            {:first-focusable-child (fn [_] [:children 0])
-                                             :children [{}]}]})
-      => [[:children 1] [:children 0]])
-
-(defn next-focus-path-parts [state previous-focus-path-parts]
-  (when (seq previous-focus-path-parts)
-    (let [parent-focus-path-parts (vec (drop-last previous-focus-path-parts))
-          focus-parent (get-in state (apply concat parent-focus-path-parts))]
-      (if-let [next-focus-path-part ((:next-focusable-child focus-parent) focus-parent (last previous-focus-path-parts))]
-        (concat parent-focus-path-parts
-                [next-focus-path-part]
-                (initial-focus-path-parts (get-in state
-                                                  (apply concat
-                                                         (conj parent-focus-path-parts
-                                                               next-focus-path-part)))))
-        (next-focus-path-parts state parent-focus-path-parts)))))
-
-(fact (let [state (conj (seq-focus-handlers :children1)
-                        {:children1 [(conj (seq-focus-handlers :children2)
-                                           {:children2 [{}{}{}]})
-                                     (conj (seq-focus-handlers :children2)
-                                           {:children2 [{}{}(conj (seq-focus-handlers :children3)
-                                                                  {:children3 [{}{}{}]})]})]})]
-
-        (next-focus-path-parts state [[:children1 0] [:children2 1]])  => [[:children1 0] [:children2 2]]
-        (next-focus-path-parts state [[:children1 0] [:children2 2]])  => [[:children1 1] [:children2 0]]
-        (next-focus-path-parts state [[:children1 1] [:children2 1]])  => [[:children1 1] [:children2 2] [:children3 0]]
-        (next-focus-path-parts state [[:children1 1] [:children2 2] [:children3 2]])  => nil))
-
-(defn move-hierarchical-state [state paths previous-path-parts-key child-state-key state-key state-gained-key state-lost-key]
-  (-> state
-      (set-hierarchical-state (previous-path-parts-key state) false child-state-key state-key state-gained-key state-lost-key)
-      (set-hierarchical-state paths true child-state-key state-key state-gained-key state-lost-key)
-      (assoc previous-path-parts-key paths)))
-
-(defn set-focus [state focus-paths]
-  (move-hierarchical-state state focus-paths :focused-state-paths :child-has-focus :has-focus :on-focus-gained :on-focus-lost))
 
 (defn set-mouse-over [state mouse-over-paths]
   (if (not (= mouse-over-paths (:mouse-over-paths state)))
@@ -248,39 +130,8 @@
                     (handler-key (get-in layout layout-path)))
                   (path-prefixes layout-path))))
 
-(defn layout-path-to-handlers [layout-path layout handler-key]
-  (->> (map (fn [path]
-              (when-let [handler (-> (get-in layout path)
-                                     (handler-key))]
-                handler))
-            (path-prefixes layout-path))
-       (filter identity)
-       (reverse)))
 
-(deftest layout-path-to-handlers-test
-  (is (= '(:handler2 :handler1 :handler3)
-         (mapcat #(layout-path-to-handlers %
-                                           {:a
-                                            {:b
-                                             {:c
-                                              {:handler :handler1
-                                               :d
-                                               {:handler :handler2}}
-                                              :c2 {:handler :handler3}}}}
 
-                                           :handler)
-                 [[:a :b :c :d] [:a :b :c2]]))))
-
-(defn apply-layout-event-handlers-3 [state layout layout-paths handler-key & arguments]
-  (if layout-paths
-    (let [handlers (apply concat (mapcat #(layout-path-to-handlers % layout handler-key)
-                                         layout-paths))]
-      (if-let [handler (first handlers)]
-        (apply handler
-               state
-               arguments)
-        state))
-    state))
 
 
 (defn apply-layout-event-handlers-2 [state layout layout-path handler-key & arguments]
@@ -402,13 +253,7 @@
   (doseq [state (vals (:child-states state))]
     (close-control-channels state)))
 
-(defn call-destructors [view-state destructor-decorator]
-  (let [destructor (destructor-decorator
-                    (or (:destructor view-state)
-                        identity))]
-    (destructor view-state)
-    (doseq [child-view-state (vals (:child-states view-state))]
-      (call-destructors child-view-state destructor-decorator))))
+
 
 (defn drain [channel timeout]
   (loop [values (if (not timeout)
@@ -514,9 +359,7 @@
         (window/close window)
         (throw e)))))
 
-(defn create-apply-to-view-state-event [function]
-  {:type :apply-to-view-state
-   :function function})
+
 
 
 (defn add-mouse-event-handler [layoutable handler]
@@ -559,14 +402,9 @@
                (key parent-state)))
 
 
-(defn add-child [state path]
-  (update-in state [:children] conj path))
 
-(defn reset-children [state]
-  (-> state
-      (assoc :old-children (or (:children state)
-                               []))
-      (assoc :children [])))
+
+
 
 (def child-focus-handlers
   {:first-focusable-child (fn [state]
@@ -618,40 +456,7 @@
        (assoc layoutable
          :state-path state-path))))
 
-(defn call-view
-  ([parent-view-context constructor child-id]
-     (call-view parent-view-context constructor child-id [] {}))
-  
-  ([parent-view-context constructor child-id state-overrides]
-     (call-view parent-view-context constructor child-id [] state-overrides))
-  
 
-  ([parent-view-context constructor child-id constructor-parameters state-overrides]
-     (let [state-path-part [:child-states child-id]
-           state-path (concat (:state-path parent-view-context) state-path-part)
-
-           constructor ((-> parent-view-context :application-state :constructor-decorator)
-                        constructor)
-
-           view-context ((-> parent-view-context :application-state :view-context-decorator)
-                         (assoc parent-view-context
-                           :state-path state-path))
-
-           state (-> (or (get-in @current-view-state-atom state-path-part)
-                         (apply constructor view-context
-                                constructor-parameters))
-                     (conj state-overrides))
-
-           view ((-> parent-view-context :application-state :view-decorator)
-                 (:view state))
-
-           {:keys [state layoutable]} (view view-context
-                                            state)]
-
-       (swap! current-view-state-atom assoc-in state-path-part state)
-       (swap! current-view-state-atom add-child child-id)
-       (assoc layoutable
-         :state-path state-path))))
 
 (defn call-anonymous-view [view constructor state-overrides]
   (call-named-view view
@@ -671,16 +476,7 @@
 (defn apply-to-current-view-state [function & parameters]
   (apply swap! current-view-state-atom function parameters))
 
-(defn remove-unused-children [state view-context]
-  (let [child-set (set (:children state))
-        children-to-be-removed (->> (:old-children state)
-                                    (filter (complement child-set)))]
-    (reduce (fn [state child-to-be-removed]
-              (do (call-destructors (get-in state [:child-states child-to-be-removed])
-                                    (-> view-context :application-state :destructor-decorator))
-                  (update-in state [:child-states] dissoc child-to-be-removed)))
-            state
-            children-to-be-removed)))
+
 
 (defmacro def-view [name parameters & body]
   (let [[view-context-parameter state-parameter] parameters]
@@ -706,12 +502,7 @@
               (call-named-view parent-view-context# ~view-name ~constructor-name id# constructor-parameters# state-overrides#))))))
 
 
-(defn apply-to-state [view-context function & arguments]
-  (async/go (async/>! (:event-channel view-context)
-                      (create-apply-to-view-state-event (fn [state]
-                                                          (if (get-in state (:state-path view-context))
-                                                            (apply update-or-apply-in state (:state-path view-context) function arguments)
-                                                            (flow-gl.debug/debug-timed "tried to apply to empty state" (vec (:state-path view-context)))))))))
+
 
 
 (defn apply-to-state-2 [state-path function]
