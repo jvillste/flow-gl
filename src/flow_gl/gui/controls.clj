@@ -37,26 +37,24 @@
    [state true]))
 
 
-(gui/def-control text-editor
-  ([view-context control-channel]
-     {:text ""
-      :handle-keyboard-event handle-text-editor-event
-      :can-gain-focus true})
-
-  ([view-context state]
-     (if (:view state)
-       ((:view state) view-context state)
-       (layouts/->Box 10 [(drawable/->Rectangle 0
-                                                0
-                                                (cond
-                                                 (:has-focus state) [0 0.8 0.8 1]
-                                                 (:mouse-over state) [0 0.7 0.7 1]
-                                                 :default [0 0.5 0.5 1]))
-                          (drawable/->Text (:text state)
-                                           (font/create "LiberationSans-Regular.ttf" 15)
-                                           (if (:has-focus state)
-                                             [0 0 0 255]
-                                             [0.3 0.3 0.3 1]))]))))
+(defn text-editor [view-context]
+  {:text ""
+   :handle-keyboard-event handle-text-editor-event
+   :can-gain-focus true
+   :view (fn [view-context state]
+           (if (:view state)
+             ((:view state) view-context state)
+             (layouts/->Box 10 [(drawable/->Rectangle 0
+                                                      0
+                                                      (cond
+                                                       (:has-focus state) [0 0.8 0.8 1]
+                                                       (:mouse-over state) [0 0.7 0.7 1]
+                                                       :default [0 0.5 0.5 1]))
+                                (drawable/->Text (:text state)
+                                                 (font/create "LiberationSans-Regular.ttf" 15)
+                                                 (if (:has-focus state)
+                                                   [0 0 0 255]
+                                                   [0.3 0.3 0.3 1]))])))})
 
 (defn text
   ([value]
@@ -78,28 +76,28 @@
         state)
     state))
 
-(gui/def-control button
-  ([view-context  control-channel]
-     {:text text
-      :has-focus false
-      :on-pressed nil
-      :can-gain-focus true
-      :handle-keyboard-event (fn [state event]
-                               (events/on-key state event
-                                              :enter (handle-button-click state)))})
+#_(gui/def-control button
+    ([view-context  control-channel]
+       {:text text
+        :has-focus false
+        :on-pressed nil
+        :can-gain-focus true
+        :handle-keyboard-event (fn [state event]
+                                 (events/on-key state event
+                                                :enter (handle-button-click state)))})
 
-  ([view-context state]
-     (-> (layouts/->Box 10 [(drawable/->Rectangle 0
-                                                  0
-                                                  (if (:has-focus state)
-                                                    [0 0.8 0.8 1]
-                                                    [0 0.5 0.5 1]))
-                            (drawable/->Text (:text state)
-                                             (font/create "LiberationSans-Regular.ttf" 15)
-                                             (if (:disabled state)
-                                               [0.5 0.5 0.5 1]
-                                               [0 0 0 1]))])
-         (gui/on-mouse-event :mouse-clicked
-                             view-context
-                             (fn [state event]
-                               (handle-button-click state))))))
+    ([view-context state]
+       (-> (layouts/->Box 10 [(drawable/->Rectangle 0
+                                                    0
+                                                    (if (:has-focus state)
+                                                      [0 0.8 0.8 1]
+                                                      [0 0.5 0.5 1]))
+                              (drawable/->Text (:text state)
+                                               (font/create "LiberationSans-Regular.ttf" 15)
+                                               (if (:disabled state)
+                                                 [0.5 0.5 0.5 1]
+                                                 [0 0 0 1]))])
+           (gui/on-mouse-event :mouse-clicked
+                               view-context
+                               (fn [state event]
+                                 (handle-button-click state))))))

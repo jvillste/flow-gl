@@ -215,6 +215,7 @@
         (render-target/delete old-render-target gl))
 
       (let [renderers (render-target/render-to render-target gl
+                                               ;;(opengl/initialize-gl gl)
                                                (opengl/clear gl 0 0 0 0)
                                                (renderer/render-frame-drawables drawables
                                                                                 gl
