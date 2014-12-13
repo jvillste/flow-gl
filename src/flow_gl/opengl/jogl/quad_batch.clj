@@ -118,13 +118,13 @@
   break;
   }
 
-  
+
   vec2 quad_coordinates = vec2(texelFetch(quad_parameters, quad_index * quad_parameters_size + 1).x,
   texelFetch(quad_parameters, quad_index * quad_parameters_size + 2).x);
 
-  
+
   //gl_Position = projection_matrix * vec4(texture_coordinate.x + quad_coordinates.x,
-//                                           texture_coordinate.y + quad_coordinates.y, 0.0, 1.0);
+  //                                           texture_coordinate.y + quad_coordinates.y, 0.0, 1.0);
 
   gl_Position = projection_matrix * vec4(vertex_coordinates.x + quad_coordinates.x,
                                          vertex_coordinates.y + quad_coordinates.y, 0.0, 1.0);
@@ -134,7 +134,7 @@
   }
 ")
 
-  (def fragment-shader-source "
+(def fragment-shader-source "
   #version 140
 
   uniform samplerBuffer texture;
@@ -460,12 +460,12 @@
                                      (rest images))
                               textures-in-use))]
 
-      (flow-gl.debug/debug-timed-and-return "put images " (doseq [image images]
-                                                            (.put buffer
-                                                                  (-> image
-                                                                      (.getRaster)
-                                                                      (.getDataBuffer)
-                                                                      (.getData)))))
+      (doseq [image images]
+        (.put buffer
+              (-> image
+                  (.getRaster)
+                  (.getDataBuffer)
+                  (.getData))))
 
       (buffer/unmap-for-write gl)
 
@@ -477,7 +477,7 @@
                                  (count images))))))
 
 (defn draw [quad-batch gl width height]
-  
+
   (vertex-array-object/bind gl (:vertex-array-object quad-batch))
 
   (shader/enable-program gl

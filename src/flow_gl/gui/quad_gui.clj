@@ -444,6 +444,7 @@
                 #_(Thread/sleep 500)
                 (flow-gl.debug/debug-timed-and-return "render"
                                                       (render-layout window gpu-state-atom layout))
+                
 
                 (let [new-state (binding [current-event-channel event-channel]
                                   (reduce #(handle-event %1 layout %2)

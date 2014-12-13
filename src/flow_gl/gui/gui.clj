@@ -10,7 +10,8 @@
                          [window :as window]
                          [layout :as layout]
                          [events :as events]
-                         [layoutable :as layoutable])
+                         [layoutable :as layoutable]
+                         [cache :as cache])
             [flow-gl.csp :as csp]
             [clojure.string :as string]
             (flow-gl.graphics [font :as font]
@@ -23,6 +24,7 @@
   (:use flow-gl.utils
         midje.sweet
         clojure.test))
+
 ;; utils
 
 (defn update-or-apply-in [map path function & arguments]
@@ -97,7 +99,7 @@
   (fn [state event]
     (let [state (app state event)]
       (when (= (:type event) :close-requested)
-        (call-destructors (:view-state state) (:destructor-decorator state)))
+        (call-destructors (:view-state state) (-> state :view-context :destructor-decorator)))
       state)))
 
 (defn close-control-channel-beforehand [destructor]
@@ -110,9 +112,8 @@
                               :destructor-decorator close-control-channel-beforehand
                               :application-decorator call-destructors-when-close-requested})
 
-(defn add-event-channel [view-context]
-  (assoc view-context
-    :event-channel (window/event-channel (-> view-context :application-state :window))))
+(defn add-event-channel [state]
+  (assoc-in state [:view-context :event-channel]  (window/event-channel (-> state :window))))
 
 (defn apply-view-state-applications-beforehand [app]
   (fn [state event]
@@ -188,14 +189,19 @@
 
 ;; Animation
 
+(def ^:dynamic current-view-state-atom)
+
+(defn choose-sleep-time [sleep-time-1 sleep-time-2]
+  (if sleep-time-1
+    (if sleep-time-2
+      (min sleep-time-1 sleep-time-2)
+      sleep-time-1)
+    sleep-time-2))
+
 (defn set-wake-up [view-context sleep-time]
-  (swap! (get-in view-context [:application-state :sleep-time-atom])
-         (fn [old-sleep-time]
-           (if old-sleep-time
-             (if sleep-time
-               (min old-sleep-time sleep-time)
-               old-sleep-time)
-             sleep-time))))
+  (swap! current-view-state-atom
+         (fn [view-state]
+           (update-in view-state [:sleep-time] choose-sleep-time sleep-time))))
 
 (defn limit-frames-per-second-afterwards [app target-frames-per-second]
   (fn [state events]
@@ -221,13 +227,16 @@
             :last-frame (System/currentTimeMillis)))
         state))))
 
-(defn wrap-with-sleep-time-atom [app]
-  (fn [state event]
-    (let [sleep-time-atom (atom (:sleep-time state))
-          state (app (assoc state
-                       :sleep-time-atom sleep-time-atom)
-                     event)]
-      (assoc state :sleep-time @sleep-time-atom))))
+#_(defn add-sleep-time-atom [state]
+    (assoc-in state [:view-context :sleep-time-atom] (atom nil)))
+
+#_(defn wrap-with-sleep-time-atom [app]
+    (fn [state event]
+      (reset! (-> state :view-context :sleep-time-atom)
+              nil)
+      (-> state
+          (app event)
+          (assoc :sleep-time @(-> state :view-context :sleep-time-atom)))))
 
 ;; Layout
 
@@ -236,10 +245,10 @@
     (let [state (app state event)
           width (window/width (:window state))
           height (window/height (:window state))
-          [state layout] (layout/layout (:layoutable state)
-                                        state
-                                        width
-                                        height)
+          [state layout] (debug/debug-timed-and-return "layout" (layout/layout (:layoutable state)
+                                                                               state
+                                                                               width
+                                                                               height))
           layout (-> layout
                      (assoc :x 0
                             :y 0
@@ -304,7 +313,19 @@
   (if layout-paths
     (let [handlers (apply concat (mapcat #(layout-path-to-handlers % layout handler-key)
                                          layout-paths))]
-      (if-let [handler (first handlers)]
+      (reduce (fn [state handler]
+                (apply handler
+                       state
+                       arguments))
+              state
+              handlers))
+    state))
+
+(defn apply-layout-event-handler [state layout layout-paths handler-key & arguments]
+  (if layout-paths
+    (let [handlers (apply concat (mapcat #(layout-path-to-handlers % layout handler-key)
+                                         layout-paths))]
+      (if-let [handler (last handlers)]
         (apply handler
                state
                arguments)
@@ -317,6 +338,75 @@
                          (= (:source event)
                             :mouse))
                   (apply-layout-event-handlers state (:layout state) (:layout-paths-under-mouse state) :handle-mouse-event event)
+                  state)]
+      (app state event))))
+
+
+(defn set-hierarchical-state [state paths new-value child-state-key state-key state-gained-key state-lost-key]
+  (if (seq paths)
+    (loop [paths paths
+           state state]
+      (if (seq (rest paths))
+        (recur (rest paths)
+               (update-in state (first paths) assoc child-state-key new-value))
+        (update-in state (first paths) (fn [state]
+                                         (let [focus-handler-key (if new-value state-gained-key state-lost-key)]
+                                           (-> (if-let [focus-handler (focus-handler-key state)]
+                                                 (focus-handler state)
+                                                 state)
+                                               (assoc state-key new-value)))))))
+    state))
+
+(defn move-hierarchical-state [state paths previous-path-parts-key child-state-key state-key state-gained-key state-lost-key]
+  (-> state
+      (set-hierarchical-state (previous-path-parts-key state) false child-state-key state-key state-gained-key state-lost-key)
+      (set-hierarchical-state paths true child-state-key state-key state-gained-key state-lost-key)
+      (assoc previous-path-parts-key paths)))
+
+(defn set-mouse-over [state mouse-over-paths]
+  (if (not (= mouse-over-paths (:mouse-over-paths state)))
+    (move-hierarchical-state state mouse-over-paths :mouse-over-paths :mouse-over-child :mouse-over :on-mouse-enter :on-mouse-leave)
+    state))
+
+(defn apply-mouse-over-layout-event-handlers [state layout new-mouse-over-layout-paths]
+  (if (not (= new-mouse-over-layout-paths
+              (:mouse-over-layout-paths state)))
+    (let [old-mouse-over-layout-paths-set (apply hash-set (:mouse-over-layout-paths state))
+          new-mouse-over-layout-paths-set (apply hash-set new-mouse-over-layout-paths)]
+      (-> state
+          (apply-layout-event-handlers layout (clojure.set/difference old-mouse-over-layout-paths-set new-mouse-over-layout-paths-set) :handle-mouse-event {:type :mouse-leave})
+          (apply-layout-event-handlers layout (clojure.set/difference new-mouse-over-layout-paths-set old-mouse-over-layout-paths-set) :handle-mouse-event {:type :mouse-enter})
+          (assoc :mouse-over-layout-paths new-mouse-over-layout-paths)))
+    state))
+
+(defn layout-path-to-state-paths [root-layout child-path]
+  (loop [state-paths (if-let [state-path (:state-path root-layout)]
+                       [state-path]
+                       [])
+         rest-of-child-path child-path
+         child-path []]
+    (if-let [child-path-part (first rest-of-child-path)]
+      (let [child-path (conj child-path child-path-part)]
+        (if-let [new-state-path (get-in root-layout (conj child-path :state-path))]
+          (recur (conj state-paths new-state-path)
+                 (rest rest-of-child-path)
+                 child-path)
+          (recur state-paths
+                 (rest rest-of-child-path)
+                 child-path)))
+      state-paths)))
+
+(defn apply-mouse-movement-event-handlers-beforehand [app]
+  (fn [state event]
+    (let [state (if (and (:layout state)
+                         (= (:source event)
+                            :mouse)
+                         (:type event :mouse-moved))
+                  (let [state-paths-under-mouse (layout-path-to-state-paths (:layout state) (first (:layout-paths-under-mouse state)))]
+                    (-> state
+                        (set-mouse-over state-paths-under-mouse)
+                        (apply-mouse-over-layout-event-handlers (:layout state) (:layout-paths-under-mouse state) #_[(first (:layout-paths-under-mouse state))])))
+
                   state)]
       (app state event))))
 
@@ -376,44 +466,6 @@
                   (apply-keyboard-event-handlers state event)
                   state)]
       (app state event))))
-
-(defn layout-path-to-state-paths [root-layout child-path]
-  (loop [state-paths (if-let [state-path (:state-path root-layout)]
-                       [state-path]
-                       [])
-         rest-of-child-path child-path
-         child-path []]
-    (if-let [child-path-part (first rest-of-child-path)]
-      (let [child-path (conj child-path child-path-part)]
-        (if-let [new-state-path (get-in root-layout (conj child-path :state-path))]
-          (recur (conj state-paths new-state-path)
-                 (rest rest-of-child-path)
-                 child-path)
-          (recur state-paths
-                 (rest rest-of-child-path)
-                 child-path)))
-      state-paths)))
-
-(defn set-hierarchical-state [state paths new-value child-state-key state-key state-gained-key state-lost-key]
-  (if (seq paths)
-    (loop [paths paths
-           state state]
-      (if (seq (rest paths))
-        (recur (rest paths)
-               (update-in state (first paths) assoc child-state-key new-value))
-        (update-in state (first paths) (fn [state]
-                                         (let [focus-handler-key (if new-value state-gained-key state-lost-key)]
-                                           (-> (if-let [focus-handler (focus-handler-key state)]
-                                                 (focus-handler state)
-                                                 state)
-                                               (assoc state-key new-value)))))))
-    state))
-
-(defn move-hierarchical-state [state paths previous-path-parts-key child-state-key state-key state-gained-key state-lost-key]
-  (-> state
-      (set-hierarchical-state (previous-path-parts-key state) false child-state-key state-key state-gained-key state-lost-key)
-      (set-hierarchical-state paths true child-state-key state-key state-gained-key state-lost-key)
-      (assoc previous-path-parts-key paths)))
 
 (defn set-focus [state focus-paths]
   (move-hierarchical-state state focus-paths :focused-state-paths :child-has-focus :has-focus :on-focus-gained :on-focus-lost))
@@ -510,6 +562,17 @@
 
 ;; Cache
 
+(defn add-cache [state]
+  (assoc state :cache (cache/create)))
+
+(defn wrap-with-cache [app]
+  (fn [state events]
+    (cache/with-cache (-> state :cache)
+      (cache/clear-usages)
+      (let [state (app state events)]
+        (cache/remove-unused)
+        state))))
+
 (defn propagate-only-when-view-state-changed [app]
   (fn [state event]
 
@@ -520,6 +583,7 @@
                   (app state event))]
 
       (assoc state :old-view-state (:view-state state)))))
+
 
 ;; App
 
@@ -535,7 +599,7 @@
                                     (filter (complement child-set)))]
     (reduce (fn [state child-to-be-removed]
               (do (call-destructors (get-in state [:child-states child-to-be-removed])
-                                    (-> view-context :application-state :destructor-decorator))
+                                    (-> view-context :common-view-context :destructor-decorator))
                   (update-in state [:child-states] dissoc child-to-be-removed)))
             state
             children-to-be-removed)))
@@ -546,7 +610,7 @@
                             (reset-children state))]
       (update-in view-result [:state] remove-unused-children view-context))))
 
-(def ^:dynamic current-view-state-atom)
+
 
 (defn wrap-with-current-view-state-atom [view]
   (fn [view-context state]
@@ -558,20 +622,21 @@
 (defn start-app [app]
   (-> {}
       (add-window)
-      (assoc :constructor-decorator (comp add-control-channel-to-view-state))
+      (add-cache)
+      (add-event-channel)
+      #_(add-sleep-time-atom)
+      (assoc-in [:view-context :constructor-decorator] (comp add-control-channel-to-view-state))
 
+      (assoc-in [:view-context :view-decorator]  (comp wrap-with-remove-unused-children
+                                                       wrap-with-current-view-state-atom))
 
-      (assoc :view-context-decorator (comp add-event-channel))
-
-      (assoc :view-decorator (comp wrap-with-current-view-state-atom
-                                   wrap-with-remove-unused-children))
-
-      (assoc :destructor-decorator (comp close-control-channel-beforehand))
+      (assoc-in [:view-context :destructor-decorator]  (comp close-control-channel-beforehand))
 
       (event-loop (-> app
                       (add-layout-afterwards)
                       #_(propagate-only-when-view-state-changed)
                       (apply-view-state-applications-beforehand)
+                      (apply-mouse-movement-event-handlers-beforehand)
                       (apply-layout-event-handlers-beforehand)
                       (apply-keyboard-event-handlers-beforehand)
                       #_(move-focus-on-tab-beforehand)
@@ -580,8 +645,9 @@
                       (close-when-requested-beforehand)
                       (call-destructors-when-close-requested)
                       (wrap-with-separate-events)
-                      (wrap-with-sleep-time-atom)
-                      (limit-frames-per-second-afterwards 60)
+                      (wrap-with-cache)
+                      #_(wrap-with-sleep-time-atom)
+                      (limit-frames-per-second-afterwards 1)
                       #_(add-drawables-for-layout-afterwards)
                       (transform-layout-to-drawables-afterwards)
                       (render-drawables-afterwards)
@@ -589,36 +655,40 @@
 
 (defn control-to-application [constructor]
   (fn [application-state event]
-    (let [root-view-context ((:view-context-decorator application-state)
-                             {:state-path [:view-state]
-                              :application-state application-state})
+    (let [root-view-context {:state-path [:view-state]
+                             :common-view-context (:view-context application-state)}
 
-          constructor ((:constructor-decorator application-state)
+          constructor ((-> root-view-context :common-view-context :constructor-decorator)
                        constructor)
 
           state (or (:view-state application-state)
                     (constructor root-view-context))
 
+          root-view-context (if (or (:sleep-time state)
+                                    (not (contains? application-state :view-state)))
+                              (assoc root-view-context :frame-started (:frame-started application-state))
+                              root-view-context)
+
+          state (dissoc state :sleep-time)
+
           #_application-state #_(set-focus application-state
                                            (initial-focus-paths state))
 
-          view ((-> application-state :view-decorator)
+          view ((-> root-view-context :common-view-context :view-decorator)
                 (:view state))
 
           view-result (view root-view-context
                             state)]
-
       (assoc application-state
         :view-state (:state view-result)
-        :layoutable (assoc (:layoutable view-result) :state-path [:view-state])))))
+        :layoutable (assoc (:layoutable view-result) :state-path [:view-state])
+        :sleep-time (:sleep-time (:state view-result))))))
 
 (defn start-control [control]
   (start-app (control-to-application control)))
 
 
 ;; control api
-
-
 
 (defn create-apply-to-view-state-event [function]
   {:type :apply-to-view-state
@@ -643,25 +713,37 @@
      (let [state-path-part [:child-states child-id]
            state-path (concat (:state-path parent-view-context) state-path-part)
 
-           constructor ((-> parent-view-context :application-state :constructor-decorator)
+           constructor ((-> parent-view-context :common-view-context :constructor-decorator)
                         constructor)
 
-           view-context ((-> parent-view-context :application-state :view-context-decorator)
-                         (assoc parent-view-context
-                           :state-path state-path))
+           view-context (assoc parent-view-context
+                          :state-path state-path)
 
            state (-> (or (get-in @current-view-state-atom state-path-part)
                          (apply constructor view-context
                                 constructor-parameters))
                      (conj state-overrides))
 
-           view ((-> parent-view-context :application-state :view-decorator)
+           view-context (if (or (:sleep-time state)
+                                (not (contains? @current-view-state-atom state-path-part)))
+                          (assoc view-context :frame-started (:frame-started parent-view-context))
+                          view-context)
+
+           state (dissoc state :sleep-time)
+
+           view ((-> parent-view-context :common-view-context :view-decorator)
                  (:view state))
 
            {:keys [state layoutable]} (view view-context
                                             state)]
 
-       (swap! current-view-state-atom assoc-in state-path-part state)
-       (swap! current-view-state-atom update-in [:children] conj child-id)
+       (swap! current-view-state-atom
+              (fn [view-state]
+                (-> view-state
+                    (assoc-in state-path-part state)
+                    (update-in [:children] conj child-id)
+                    (assoc :sleep-time (choose-sleep-time (:sleep-time view-state)
+                                                          (:sleep-time state))))))
+
        (assoc layoutable
          :state-path state-path))))

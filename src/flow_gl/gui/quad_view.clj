@@ -142,8 +142,8 @@
     (if (empty? new-textures)
       quad-view
       (assoc quad-view
-        :quad-batch (flow-gl.debug/debug-timed-and-return "add-textures " (quad-batch/add-textures (:quad-batch quad-view) gl new-textures))
-        :drawable-textures (flow-gl.debug/debug-timed-and-return "add-new-textures " (add-new-textures (:drawable-textures quad-view) drawables (:next-free-texture-id (:quad-batch quad-view))))))))
+        :quad-batch (quad-batch/add-textures (:quad-batch quad-view) gl new-textures)
+        :drawable-textures (add-new-textures (:drawable-textures quad-view) drawables (:next-free-texture-id (:quad-batch quad-view)))))))
 
 (defn add-texture-ids [drawables drawable-textures]
   (map (fn [drawable]

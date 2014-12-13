@@ -50,7 +50,7 @@
 (defn counter [view-context]
   (assoc initial-counter-state
     :view (fn [view-context state]
-            (let [duration (mod (get-in view-context [:application-state :frame-started])
+            (let [duration (mod (:frame-started view-context)
                                 (:pulse-rate state))]
 
               (gui/set-wake-up view-context (- (/ (:pulse-rate state)
@@ -61,7 +61,10 @@
                                                   (:pulse-rate state))
                                                0.5)
                                           "x"
-                                          ""))
+                                          "")
+                         (if (:mouse-over state)
+                           "o"
+                           ""))
                     (if (:has-focus state)
                       [255 255 255 255]
                       [100 100 100 255]))))))
@@ -77,7 +80,6 @@
   (merge initial-counter-state
          gui/child-focus-handlers
          {:view (fn [view-context state]
-                  (println "view")
                   (l/vertically (gui/on-mouse-clicked (text (str "count " (:count state)))
                                                       view-context
                                                       (fn [state event]
@@ -96,11 +98,21 @@
   (merge initial-counter-state
          gui/child-focus-handlers
          {:view (fn [view-context state]
-                  (println "view")
-                  (l/vertically (gui/on-mouse-clicked (text (str "count " (:count state)))
-                                                      view-context
-                                                      (fn [state event]
-                                                        (update-in state [:count] inc)))))}))
+                  (l/vertically (-> (text (str "count " (:count state) (if (:mouse-over state) "x" "")))
+
+                                    (gui/on-mouse-clicked
+                                     view-context
+                                     (fn [state event]
+                                       (update-in state [:count] inc)))
+
+                                    (gui/add-mouse-event-handler-with-context
+                                     view-context
+                                     (fn [state event]
+                                       (println event)
+                                       state)))
+                                (gui/call-view view-context counter :child-1 {:pulse-rate 1000})
+                                (text (-> view-context :application-state :mouse-over-layout-paths vec))
+                                (text (-> view-context :application-state :mouse-over-paths vec))))}))
 
 
 ;; App test
