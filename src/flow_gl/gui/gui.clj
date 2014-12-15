@@ -210,7 +210,6 @@
                     (assoc :frame-started (System/currentTimeMillis))
                     (dissoc :sleep-time)
                     (app events))]
-
       (if (:sleep-time state)
         (let [minimum-sleep-time (/ 1000 target-frames-per-second)
               previous-frame-duration (- (System/currentTimeMillis)
@@ -562,6 +561,12 @@
 
 ;; Cache
 
+(defn wrap-with-cached [view]
+  (fn [view-context state]
+    ((cache/cached view)
+     view-context
+     (reset-children state))))
+
 (defn add-cache [state]
   (assoc state :cache (cache/create)))
 
@@ -627,7 +632,8 @@
       #_(add-sleep-time-atom)
       (assoc-in [:view-context :constructor-decorator] (comp add-control-channel-to-view-state))
 
-      (assoc-in [:view-context :view-decorator]  (comp wrap-with-remove-unused-children
+      (assoc-in [:view-context :view-decorator]  (comp wrap-with-cached
+                                                       wrap-with-remove-unused-children
                                                        wrap-with-current-view-state-atom))
 
       (assoc-in [:view-context :destructor-decorator]  (comp close-control-channel-beforehand))
@@ -647,7 +653,7 @@
                       (wrap-with-separate-events)
                       (wrap-with-cache)
                       #_(wrap-with-sleep-time-atom)
-                      (limit-frames-per-second-afterwards 1)
+                      (limit-frames-per-second-afterwards 20)
                       #_(add-drawables-for-layout-afterwards)
                       (transform-layout-to-drawables-afterwards)
                       (render-drawables-afterwards)
@@ -674,11 +680,14 @@
           #_application-state #_(set-focus application-state
                                            (initial-focus-paths state))
 
-          view ((-> root-view-context :common-view-context :view-decorator)
-                (:view state))
+          state (if (:decorated-view state)
+                  state
+                  (assoc state :decorated-view ((-> root-view-context :common-view-context :view-decorator)
+                                                (:view state))))
 
-          view-result (view root-view-context
-                            state)]
+          view-result ((:decorated-view state)
+                       root-view-context
+                       state)]
       (assoc application-state
         :view-state (:state view-result)
         :layoutable (assoc (:layoutable view-result) :state-path [:view-state])
@@ -709,7 +718,6 @@
      (call-view parent-view-context constructor child-id state-overrides []))
 
   ([parent-view-context constructor child-id state-overrides constructor-parameters]
-
      (let [state-path-part [:child-states child-id]
            state-path (concat (:state-path parent-view-context) state-path-part)
 
@@ -725,18 +733,20 @@
                      (conj state-overrides))
 
            view-context (if (or (:sleep-time state)
-                                (not (contains? @current-view-state-atom state-path-part)))
-                          (assoc view-context :frame-started (:frame-started parent-view-context))
-                          view-context)
+                                (not (get-in @current-view-state-atom state-path-part)))
+                          view-context
+                          (dissoc view-context :frame-started))
 
            state (dissoc state :sleep-time)
 
-           view ((-> parent-view-context :common-view-context :view-decorator)
-                 (:view state))
+           state (if (:decorated-view state)
+                   state
+                   (assoc state :decorated-view ((-> parent-view-context :common-view-context :view-decorator)
+                                                 (:view state))))
 
-           {:keys [state layoutable]} (view view-context
-                                            state)]
 
+           {:keys [state layoutable]} ((:decorated-view state) view-context
+                                       state)]
        (swap! current-view-state-atom
               (fn [view-state]
                 (-> view-state
@@ -747,3 +757,5 @@
 
        (assoc layoutable
          :state-path state-path))))
+
+                                        ;set-wake-uppia ei kutsuta jos näkymän tulos tulee välimuistita

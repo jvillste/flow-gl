@@ -47,12 +47,16 @@
                                                      [(update-in state [:count] inc)
                                                       true])})
 
+(defn static [view-context]
+  {:view (fn [view-context state]
+           (text "foo"))})
+
 (defn counter [view-context]
   (assoc initial-counter-state
     :view (fn [view-context state]
             (let [duration (mod (:frame-started view-context)
                                 (:pulse-rate state))]
-
+              
               (gui/set-wake-up view-context (- (/ (:pulse-rate state)
                                                   2)
                                                duration))
@@ -108,8 +112,8 @@
                                     (gui/add-mouse-event-handler-with-context
                                      view-context
                                      (fn [state event]
-                                       (println event)
                                        state)))
+                                (gui/call-view view-context static :static)
                                 (gui/call-view view-context counter :child-1 {:pulse-rate 1000})
                                 (text (-> view-context :application-state :mouse-over-layout-paths vec))
                                 (text (-> view-context :application-state :mouse-over-paths vec))))}))
@@ -129,8 +133,7 @@
                        (merge initial-counter-state
 
                               {:child-view-states {:child-1 initial-counter-state
-                                                   :child-2 initial-counter-state}}
-                              )))
+                                                   :child-2 initial-counter-state}})))
         state (if (:focused-state-paths state)
                 state
                 (assoc state :focused-state-paths [[:view-state] [:child-view-states :child-1]]))]
