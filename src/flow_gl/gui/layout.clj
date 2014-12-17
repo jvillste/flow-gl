@@ -1,6 +1,7 @@
 (ns flow-gl.gui.layout
   (:require  flow-gl.debug
-             (flow-gl.gui [layoutable :as layoutable]))
+             (flow-gl.gui [layoutable :as layoutable]
+                          [cache :as cache]))
   (:use clojure.test))
 
 (defprotocol Layout
@@ -251,24 +252,34 @@
 
 (defmacro deflayout-not-memoized [name parameters layout-implementation preferred-size-implementation]
   (let [[layout-name layout-parameters & layout-body] layout-implementation
-        [preferred-size-name preferred-size-parameters & preferred-size-body] preferred-size-implementation]
+        layout-parameters (vec (concat layout-parameters parameters))
+        [preferred-size-name preferred-size-parameters & preferred-size-body] preferred-size-implementation
+        preferred-size-parameters (vec (concat preferred-size-parameters parameters))
+        layout-implementation-symbol (gensym)
+        preferred-size-implementation-symbol (gensym)]
     (assert (= layout-name 'layout) (str "invalid layout name" layout-name))
     (assert (= preferred-size-name 'preferred-size) (str "invalid preferred size name" preferred-size-name))
+    (println name)
+    (println "layout parameters" layout-parameters)
+    (println "preferred size parameters" preferred-size-parameters)
 
-    `(defrecord ~name ~parameters
-       Layout
-       (layout [layoutable# state# width# height#]
-         (binding [current-state-atom (atom state#)]
-           (let [layout# ((fn ~layout-parameters ~@layout-body)
-                          layoutable# width# height#)]
-             [@current-state-atom
-              layout#])))
+    `(do (def ~layout-implementation-symbol (cache/cached (fn ~layout-parameters ~@layout-body)))
+         (def ~preferred-size-implementation-symbol (cache/cached (fn ~preferred-size-parameters ~@preferred-size-body)))
+         (defrecord ~name ~parameters
+           Layout
+           (layout [layoutable# state# width# height#]
+             (binding [current-state-atom (atom state#)]
+               (let [layout# (~layout-implementation-symbol
+                              layoutable# width# height# ~@parameters)]
+                 [@current-state-atom
+                  layout#])))
 
-       layoutable/Layoutable
-       (layoutable/preferred-size ~preferred-size-parameters ~@preferred-size-body)
+           layoutable/Layoutable
+           (layoutable/preferred-size [this# available-width# available-height#]
+             (~preferred-size-implementation-symbol this# available-width# available-height# ~@parameters))
 
-       Object
-       (toString [this#] (layoutable/describe-layoutable this#)))))
+           Object
+           (toString [this#] (layoutable/describe-layoutable this#))))))
 
 (defmacro deflayout-with-state [name parameters layout-implementation preferred-size-implementation]
   (let [[layout-name layout-parameters & layout-body] layout-implementation

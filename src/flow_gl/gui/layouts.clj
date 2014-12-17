@@ -140,28 +140,28 @@
 
 (layout/deflayout-not-memoized VerticalStack [children]
   (layout [vertical-stack requested-width requested-height]
-          (flow-gl.debug/debug-timed-and-return "layout vertical stack" (assoc vertical-stack :children
-                                                                       (loop [layouted-layoutables []
-                                                                              y 0
-                                                                              children children]
-                                                                         (if (seq children)
-                                                                           (let [height (:height (layoutable/preferred-size (first children) requested-width java.lang.Integer/MAX_VALUE))]
-                                                                             (recur (conj layouted-layoutables (layout/set-dimensions-and-layout (first children)
-                                                                                                                                                 0
-                                                                                                                                                 y
-                                                                                                                                                 requested-width
-                                                                                                                                                 height))
-                                                                                    (+ y height)
-                                                                                    (rest children)))
-                                                                           layouted-layoutables)))))
+          (assoc vertical-stack :children
+                 (loop [layouted-layoutables []
+                        y 0
+                        children children]
+                   (if (seq children)
+                     (let [height (:height (layoutable/preferred-size (first children) requested-width java.lang.Integer/MAX_VALUE))]
+                       (recur (conj layouted-layoutables (layout/set-dimensions-and-layout (first children)
+                                                                                           0
+                                                                                           y
+                                                                                           requested-width
+                                                                                           height))
+                              (+ y height)
+                              (rest children)))
+                     layouted-layoutables))))
 
   (preferred-size [vertical-stack available-width available-height]
-                  (flow-gl.debug/debug-timed-and-return "preferred size vertical stack" (let [child-sizes (map (fn [child]
-                                                                                                        (layoutable/preferred-size child available-width java.lang.Integer/MAX_VALUE))
-                                                                                                      children)]
-                                                                                 {:width (apply max (conj (map :width child-sizes)
-                                                                                                          0))
-                                                                                  :height (reduce + (map :height child-sizes))}))))
+                  (let [child-sizes (map (fn [child]
+                                           (layoutable/preferred-size child available-width java.lang.Integer/MAX_VALUE))
+                                         children)]
+                    {:width (apply max (conj (map :width child-sizes)
+                                             0))
+                     :height (reduce + (map :height child-sizes))})))
 
 
 (layout/deflayout-not-memoized HorizontalStack [children]

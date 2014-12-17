@@ -561,11 +561,13 @@
 
 ;; Cache
 
+
+
 (defn wrap-with-cached [view]
   (fn [view-context state]
     ((cache/cached view)
      view-context
-     (reset-children state))))
+     state)))
 
 (defn add-cache [state]
   (assoc state :cache (cache/create)))
@@ -653,7 +655,7 @@
                       (wrap-with-separate-events)
                       (wrap-with-cache)
                       #_(wrap-with-sleep-time-atom)
-                      (limit-frames-per-second-afterwards 20)
+                      (limit-frames-per-second-afterwards 1)
                       #_(add-drawables-for-layout-afterwards)
                       (transform-layout-to-drawables-afterwards)
                       (render-drawables-afterwards)

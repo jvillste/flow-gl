@@ -54,6 +54,7 @@
 (defn counter [view-context]
   (assoc initial-counter-state
     :view (fn [view-context state]
+            
             (let [duration (mod (:frame-started view-context)
                                 (:pulse-rate state))]
               
@@ -117,6 +118,8 @@
                                 (gui/call-view view-context counter :child-1 {:pulse-rate 1000})
                                 (text (-> view-context :application-state :mouse-over-layout-paths vec))
                                 (text (-> view-context :application-state :mouse-over-paths vec))))}))
+
+
 
 
 ;; App test

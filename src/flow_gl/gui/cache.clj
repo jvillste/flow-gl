@@ -10,8 +10,7 @@
   `(binding [cache ~cache-to-be-used]
      ~@body))
 
-(defn cached
-  [f]
+(defn cached [f]
   (fn [& args]
     (if (bound? #'cache)
       (do (swap! cache update-in [:used] conj [f args])
@@ -40,13 +39,16 @@
 
 ;; Testing
 
+
+
 (comment
+
   (defn-cached cached-function [data x]
     (+ (count data) x))
 
   (defmacro run-time [& body]
     `(do
-       (println '~body)
+       (println ~@body)
        (dorun (repeatedly 10 (fn [] (time ~@body))))))
 
   (with-cache (create)
@@ -56,7 +58,8 @@
 
       (run-time (cached-function long-data 1))
       (run-time (cached-function long-data-2 1))
-      (run-time (cached-function short-data 1))))
+      (run-time (cached-function short-data 1))))  
+
 
   #_(with-cache (create)
       (cached-function [1] 1)
