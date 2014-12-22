@@ -23,7 +23,39 @@
   (:use flow-gl.utils
         clojure.test))
 
-(defn create-blocks [log]
+(defn create-blocks-tree [entries]
+  (loop [blocks []
+         open-block {:children []
+                     :start-time (:time (first entries))
+                     :end-time (:time (last entries))}
+         entries entries]
+    (if-let [entry (first entries)]
+      (case (:block entry)
+        :start
+        (let [new-block {:start-time (:time entry)
+                         :message (:message entry)}]
+          (recur (conj blocks open-block)
+                 new-block
+                 (rest entries)))
+
+        :end
+        (let [parent-block (last blocks)]
+          (recur (pop blocks)
+                 (update-in parent-block [:children] conj (assoc open-block
+                                                            :end-time (:time entry)))
+                 (rest entries)))
+
+        nil
+        (recur blocks
+               (update-in open-block [:children] conj {:start-time (:time entry)
+                                                       :end-time (:time entry)
+                                                       :message (:message entry)
+                                                       :children []})
+               (rest entries)))
+
+      open-block)))
+
+(defn create-block-tree [log]
   (loop [open-blocks []
          open-block {:children []
                      :start-time (:time (first log))
@@ -95,7 +127,7 @@
                 :message "1"
                 :block :end}])
 
-#_(println (create-blocks test-log))
+#_(println (create-block-tree test-log))
 
 (defn color [message]
   (let [random (Random. (reduce + (map int (seq message))))]
@@ -205,7 +237,7 @@
                                                       (count))))
                      (reverse))]
     (for [thread threads]
-      (create-blocks (filter #(= (:thread %) thread) log)))))
+      (create-block-tree (filter #(= (:thread %) thread) log)))))
 
 
 (defn print-and-return [message value]

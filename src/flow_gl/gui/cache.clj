@@ -1,5 +1,13 @@
 (ns flow-gl.gui.cache
+  (:require [flow-gl.thread-inheritable :as thread-inheritable])
   (:use clojure.test))
+
+(def cache-enabled? (thread-inheritable/thread-inheritable true))
+
+(defmacro with-cache-disabled
+  [& body]
+  `(thread-inheritable/inheritable-binding [cache-enabled? false]
+                                           ~@body))
 
 (def ^:dynamic cache)
 
@@ -12,7 +20,8 @@
 
 (defn cached [f]
   (fn [& args]
-    (if (bound? #'cache)
+    (if (and @cache-enabled?
+             (bound? #'cache))
       (do (swap! cache update-in [:used] conj [f args])
           (if-let [value (get @cache [f args])]
             value
@@ -40,9 +49,20 @@
 ;; Testing
 
 
-
 (comment
+  (defn-cached cached-function [data x]
+    (println "run")
+    (+ (count data) x))
 
+  (with-cache-disabled
+    (.start (Thread. (fn [] (with-cache (create)
+                              (let [short-data [1]]
+
+                                (cached-function short-data 1)
+                                (cached-function short-data 1)))))))
+
+
+  
   (defn-cached cached-function [data x]
     (+ (count data) x))
 
@@ -58,7 +78,7 @@
 
       (run-time (cached-function long-data 1))
       (run-time (cached-function long-data-2 1))
-      (run-time (cached-function short-data 1))))  
+      (run-time (cached-function short-data 1))))
 
 
   #_(with-cache (create)

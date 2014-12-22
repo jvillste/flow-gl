@@ -32,6 +32,9 @@
     (apply update-in map path function arguments)
     (apply function map arguments)))
 
+
+
+
 ;; Events
 
 (defn event-loop [initial-state app]
@@ -125,6 +128,19 @@
 
 (def apply-to-view-state-feature {:view-context-decorator add-event-channel
                                   :application-decorator apply-view-state-applications-beforehand})
+
+
+
+
+(def ^:dynamic event-channel-atom (atom nil))
+
+(defn set-event-channel-atom [state]
+  (reset! event-channel-atom (-> state :window (window/event-channel)))
+  state)
+
+(defn redraw-last-started-view []
+  (when-let [event-channel-atom @event-channel-atom]
+    (async/put! event-channel-atom {:type :request-redraw})))
 
 ;; Rendering
 
@@ -630,6 +646,7 @@
   (-> {}
       (add-window)
       (add-cache)
+      (set-event-channel-atom)
       (add-event-channel)
       #_(add-sleep-time-atom)
       (assoc-in [:view-context :constructor-decorator] (comp add-control-channel-to-view-state))
@@ -706,7 +723,8 @@
    :function function})
 
 (defn apply-to-state [view-context function & arguments]
-  (async/go (async/>! (:event-channel view-context)
+  
+  (async/go (async/>! (-> view-context :common-view-context :event-channel)
                       (create-apply-to-view-state-event (fn [state]
                                                           (if (get-in state (:state-path view-context))
                                                             (apply update-or-apply-in state (:state-path view-context) function arguments)

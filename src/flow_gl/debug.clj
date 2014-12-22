@@ -7,7 +7,7 @@
 
 ;; DEBUG
 
-(defn pprints [m] 
+(defn pprints [m]
   (let [w (StringWriter.)]
     (pprint/pprint m w)
     (.toString w)))
@@ -36,10 +36,10 @@
 
 (defn start-log-reading-process [log-atom channel]
   (async/go-loop []
-                 (let [entry (async/<! channel)]
-                   (when entry
-                     (do (swap! log-atom conj entry)
-                         (recur))))))
+    (let [entry (async/<! channel)]
+      (when entry
+        (do (swap! log-atom conj entry)
+            (recur))))))
 
 (defmacro with-log [log-atom & body]
   `(let [channel# (async/chan)]
@@ -60,13 +60,21 @@
   (add-timed-entry :type :log
                    :message (apply str (interpose " " messages))))
 
-(defmacro debug-timed-and-return [message value]
-  `(do (add-timed-entry :message ~message
-                        :block :start)
-       (let [value# ~value]
-         (add-timed-entry :message ~message
-                          :block :end)
-         value#)))
+(defonce block-id-atom (atom 0))
+
+(defn next-block-id []
+  (swap! block-id-atom inc))
+
+(defmacro debug-timed-and-return [category value]
+  `(let [block-id# (next-block-id)]
+     (add-timed-entry :category ~category
+                      :block-id block-id#
+                      :block :start)
+     
+     (let [value# ~value]
+       (add-timed-entry :block-id block-id#
+                        :block :end)
+       value#)))
 
 (defn set-metric [key value & metadata]
   (apply add-timed-entry :type :metric

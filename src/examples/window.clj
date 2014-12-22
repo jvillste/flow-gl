@@ -54,10 +54,10 @@
 (defn counter [view-context]
   (assoc initial-counter-state
     :view (fn [view-context state]
-            
+
             (let [duration (mod (:frame-started view-context)
                                 (:pulse-rate state))]
-              
+
               (gui/set-wake-up view-context (- (/ (:pulse-rate state)
                                                   2)
                                                duration))
@@ -157,5 +157,5 @@
 
 (defn start []
   #_(gui/start-app layout-app)
-  #_(gui/start-control app)
-  (gui/start-control static-app))
+  (gui/start-control app)
+  #_(gui/start-control static-app))
