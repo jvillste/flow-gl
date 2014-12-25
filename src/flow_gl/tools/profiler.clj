@@ -54,7 +54,13 @@
 ;; UI
 
 (defn profiler-view [view-context {:keys [profiler]}]
-  (l/vertically (controls/text (str profiler) [255 0 200 255]) ))
+  (l/vertically #_(for-all [{:keys [category time]} (-> (map (fn [[category time]]
+                                                             {:category category
+                                                              :time time})
+                                                           (:total-times profiler))
+                                                      (sort-by :time))]
+                         (controls/text (str category " " time) [255 0 200 255]))
+                (controls/text profiler [255 0 200 255])))
 
 (defn create-profiler-control [channel]
   (fn [view-context]

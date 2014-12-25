@@ -1,36 +1,35 @@
 (ns flow-gl.gui.layout-dsl
   (:require (flow-gl.gui [layouts :as layouts])))
 
+(defmacro def-dsl [helper-name parameters & body]
+  (let [implementation-symbol (symbol (str (name helper-name) "-implementation"))]
+    `(do (defn ~implementation-symbol ~parameters ~@body)
+         (defmacro ~helper-name [& args#]
+             `(when-let [~'value# (~~implementation-symbol ~@args#)]
+                (with-meta ~'value#
+                  ~(assoc (meta ~'&form)
+                     :file *file*)))))))
+
 (defn flatten-contents [values]
   (->> values
        (filter (complement nil?))
        (flatten)))
 
-(defn superimpose [& contents]
+(def-dsl superimpose [& contents]
   (layouts/->Superimpose (flatten-contents contents)))
 
-(defn vertically [& contents]
+(def-dsl vertically [& contents]
   (layouts/->VerticalStack (flatten-contents contents)))
 
-(defn horizontally [& contents]
+(def-dsl horizontally [& contents]
   (layouts/->HorizontalStack (flatten-contents contents)))
 
-(defn margin [top right bottom left content]
+(def-dsl margin [top right bottom left content]
   (when content
     (layouts/->Margin top right bottom left [content])))
 
-(defn box [margin outer inner]
+(def-dsl box [margin outer inner]
   (when (and outer inner)
     (layouts/->Box margin [outer inner])))
-
-
-
-
-
-
-
-
-
-
 
 
