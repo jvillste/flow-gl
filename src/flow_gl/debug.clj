@@ -65,6 +65,8 @@
 (defn next-block-id []
   (swap! block-id-atom inc))
 
+
+
 (defmacro debug-timed-and-return [category value]
   `(let [block-id# (next-block-id)]
      (add-timed-entry :category ~category
@@ -75,6 +77,11 @@
        (add-timed-entry :block-id block-id#
                         :block :end)
        value#)))
+
+(defn add-event [category]
+  (add-timed-entry :category category
+                   :type :event)
+  #_(debug-timed-and-return category nil))
 
 (defn set-metric [key value & metadata]
   (apply add-timed-entry :type :metric

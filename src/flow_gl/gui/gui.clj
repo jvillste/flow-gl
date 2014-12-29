@@ -74,7 +74,7 @@
 (defn wrap-with-close-window-on-exception [app]
   (fn [state events]
     (try
-      (app state events)
+      (debug/debug-timed-and-return :total (app state events))
       (catch Exception e
         (window/close (:window state))
         (throw e)))))
@@ -100,6 +100,7 @@
 
 (defn call-destructors-when-close-requested [app]
   (fn [state event]
+    (debug/add-event (:type event))
     (let [state (app state event)]
       (when (= (:type event) :close-requested)
         (call-destructors (:view-state state) (-> state :view-context :destructor-decorator)))
@@ -174,12 +175,12 @@
 (defn transform-layout-to-drawables-afterwards [app]
   (fn [state events]
     (let [state (app state events)
-          [transformer-states drawables] (let [render-trees (transformer/render-trees-for-layout (:layout state))]
-                                           (window/with-gl (:window state) gl
-                                             (transformer/transform-trees (or (:transformer-states state)
-                                                                              {})
-                                                                          render-trees
-                                                                          gl)))]
+          [transformer-states drawables] (debug/debug-timed-and-return :transform (let [render-trees (transformer/render-trees-for-layout (:layout state))]
+                                                                                    (window/with-gl (:window state) gl
+                                                                                      (transformer/transform-trees (or (:transformer-states state)
+                                                                                                                       {})
+                                                                                                                   render-trees
+                                                                                                                   gl))))]
       (assoc state
         :drawables drawables
         :transformer-states transformer-states))))
@@ -194,11 +195,11 @@
                                              (renderer/create-nanovg-renderer)])))
           state (app state events)]
 
-      (window/with-gl (:window state) gl
-        (opengl/clear gl 0 0 0 1)
-        (renderer/render-frame (:drawables state)
-                               gl
-                               (:renderers state)))
+      (debug/debug-timed-and-return :render (window/with-gl (:window state) gl
+                                              (opengl/clear gl 0 0 0 1)
+                                              (renderer/render-frame (:drawables state)
+                                                                     gl
+                                                                     (:renderers state))))
       (window/swap-buffers (:window state))
 
       state)))
@@ -723,7 +724,7 @@
    :function function})
 
 (defn apply-to-state [view-context function & arguments]
-  
+
   (async/go (async/>! (-> view-context :common-view-context :event-channel)
                       (create-apply-to-view-state-event (fn [state]
                                                           (if (get-in state (:state-path view-context))

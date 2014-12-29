@@ -20,14 +20,16 @@
 
 (defn cached [f]
   (fn [& args]
-    (if (and @cache-enabled?
+    (if (and true #_@cache-enabled?
              (bound? #'cache))
       (do (swap! cache update-in [:used] conj [f args])
           (if-let [value (get @cache [f args])]
-            value
+            (do (flow-gl.debug/add-event :cache-hit)
+                value)
             (let [value (apply f args)]
               (swap! cache assoc [f args] value)
-              value)))
+              (do (flow-gl.debug/add-event :cache-miss)
+                  value))))
       (apply f args))))
 
 (defmacro defn-cached [name args & body]
@@ -62,7 +64,7 @@
                                 (cached-function short-data 1)))))))
 
 
-  
+
   (defn-cached cached-function [data x]
     (+ (count data) x))
 
