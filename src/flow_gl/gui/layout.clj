@@ -268,15 +268,17 @@
          (defrecord ~name ~parameters
            Layout
            (layout [layoutable# state# width# height#]
-             (binding [current-state-atom (atom state#)]
-               (let [layout# (~layout-implementation-symbol
-                              layoutable# width# height# ~@parameters)]
-                 [@current-state-atom
-                  layout#])))
+             (identity ;;flow-gl.debug/debug-timed-and-return ~(str "layout " name)
+                                                   (binding [current-state-atom (atom state#)]
+                                                     (let [layout# (~layout-implementation-symbol
+                                                                    layoutable# width# height# ~@parameters)]
+                                                       [@current-state-atom
+                                                        layout#]))))
 
            layoutable/Layoutable
            (layoutable/preferred-size [this# available-width# available-height#]
-             (~preferred-size-implementation-symbol this# available-width# available-height# ~@parameters))
+             (identity ;;flow-gl.debug/debug-timed-and-return ~(str "preferred size " name)
+                                                   (~preferred-size-implementation-symbol this# available-width# available-height# ~@parameters)))
 
            Object
            (toString [this#] (layoutable/describe-layoutable this#))))))

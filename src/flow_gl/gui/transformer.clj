@@ -238,6 +238,77 @@
                    nil)))
 
 
+(defrecord CacheState [renderers render-target previous-drawables]
+  TransformerState
+  (dispose [this gl]
+    (doseq [renderer renderers]
+      (renderer/delete renderer gl))
+    (when render-target
+      (render-target/delete render-target gl))))
+
+(defrecord Cache [key]
+  StatefulTransformer
+  (transform-with-state [this state drawables x y width height gl]
+    (if (and (:render-target state)
+             (= width (-> state :render-target :width))
+             (= height (-> state :render-target :height))
+             (= #_identical? drawables (:previous-drawables state)))
+      (do (flow-gl.debug/add-event :cache-transformer-hit)
+          [state
+           [(drawable/->Quad ["texture" (:texture (:render-target state))]
+                             []
+                             quad/fragment-shader-source
+                             x y
+                             width
+                             height)]])
+      
+      (let [drawables (map (fn [drawable]
+                           (assoc drawable
+                             :y (- (:y drawable) y)
+                             :x (- (:x drawable) x)))
+                         drawables)
+          old-render-target (:render-target state)
+          render-target (if (and old-render-target
+                                 (= (:width old-render-target)
+                                    width)
+                                 (= (:height old-render-target)
+                                    height))
+                          old-render-target
+                          (render-target/create width
+                                                height
+                                                gl))]
+        (flow-gl.debug/add-event :cache-transformer-miss)
+
+      (when (and old-render-target
+                 (not= old-render-target render-target))
+        (render-target/delete old-render-target gl))
+
+      (let [renderers (render-target/render-to render-target gl
+                                               ;;(opengl/initialize-gl gl)
+                                               (opengl/clear gl 0 0 0 0)
+                                               (renderer/render-frame-drawables drawables
+                                                                                gl
+                                                                                (:renderers state)))]
+
+        [(assoc state
+           :previous-drawables drawables
+           :renderers renderers
+           :render-target render-target)
+         [(drawable/->Quad ["texture" (:texture render-target)]
+                           []
+                           quad/fragment-shader-source
+                           x y
+                           width
+                           height)]]))))
+
+  (initialize-state [this gl]
+    (->CacheState [(renderer/create-quad-view-renderer gl)
+                   (renderer/create-nanovg-renderer)
+                   (renderer/create-quad-renderer gl)]
+                  nil
+                  nil)))
+
+
 (defrecord RenderTransformerState [renderers]
   TransformerState
   (dispose [this gl]

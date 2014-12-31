@@ -48,11 +48,14 @@
      (async/close! channel#)))
 
 (defn add-timed-entry [& values]
+  
   (when @debug-channel
-    (async/>!! @debug-channel
-               (conj {:time (.getTime (java.util.Date.))
-                      :thread (.getId (Thread/currentThread))}
-                     (apply hash-map values)))))
+    (do
+      (println "adding timed" values)
+      (async/>!! @debug-channel
+                 (conj {:time (.getTime (java.util.Date.))
+                        :thread (.getId (Thread/currentThread))}
+                       (apply hash-map values))))))
 
 #_(println (with-log (add-timed-entry :message "foo")))
 
@@ -72,7 +75,7 @@
      (add-timed-entry :category ~category
                       :block-id block-id#
                       :block :start)
-     
+
      (let [value# ~value]
        (add-timed-entry :block-id block-id#
                         :block :end)

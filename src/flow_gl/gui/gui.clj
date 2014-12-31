@@ -100,6 +100,7 @@
 
 (defn call-destructors-when-close-requested [app]
   (fn [state event]
+    (println "event" event)
     (debug/add-event (:type event))
     (let [state (app state event)]
       (when (= (:type event) :close-requested)
@@ -261,10 +262,10 @@
     (let [state (app state event)
           width (window/width (:window state))
           height (window/height (:window state))
-          [state layout] (debug/debug-timed-and-return "layout" (layout/layout (:layoutable state)
-                                                                               state
-                                                                               width
-                                                                               height))
+          [state layout] (debug/debug-timed-and-return :layout (layout/layout (:layoutable state)
+                                                                              state
+                                                                              width
+                                                                              height))
           layout (-> layout
                      (assoc :x 0
                             :y 0
@@ -577,8 +578,6 @@
 
 
 ;; Cache
-
-
 
 (defn wrap-with-cached [view]
   (fn [view-context state]

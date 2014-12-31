@@ -51,11 +51,13 @@
       profiler)
 
     nil
-    (if (= (:type entry) :event)
-      (update-in profiler [:event-counts (:category entry)] (fnil inc 0))
+    (case (:type entry)
+      :event (update-in profiler [:event-counts (:category entry)] (fnil inc 0))
+      :reset (create-state)
       profiler)))
 
 ;; UI
+
 (defn text-cell [value]
   (l/margin 1 2 1 2 (controls/text value)))
 
@@ -73,13 +75,16 @@
     (l/vertically (layouts/grid (concat [[(text-cell "Category")
                                           (text-cell "% of total")
                                           (text-cell "Total time")
-                                          (text-cell "Total count")]]
+                                          (text-cell "Total count")
+                                          (text-cell "Average")
+                                          ]]
                                         (for-all [{:keys [category time]} rows]
 
                                                  [(text-cell category)
                                                   (text-cell (%-of-total time))
                                                   (text-cell time)
-                                                  (text-cell (get-in profiler [:total-counts category]))])))
+                                                  (text-cell (get-in profiler [:total-counts category]))
+                                                  (text-cell (int (/ time (get-in profiler [:total-counts category]))))])))
 
 
                   (text-cell (str "rest: "
@@ -113,11 +118,22 @@
 
 (defn create-profiler-control [channel]
   (fn [view-context]
-    (async/go-loop []
-      (let [entry (async/<! channel)]
-        (when entry
-          (do (gui/apply-to-state view-context update-in [:profiler] add-entry entry)
-              (recur)))))
+    (let [profiler-channel (async/chan)
+          throttled-channel (csp/throttle-at-constant-rate profiler-channel 500)]
+
+      (async/go-loop [profiler (create-state)]
+        (if-let [entry (async/<! channel)]
+          (do (println "got entry " entry)
+              (let [new-profiler (add-entry profiler entry)]
+                (async/>! profiler-channel new-profiler)
+                (recur new-profiler)))
+          (async/close! profiler-channel)))
+
+      (async/go-loop []
+        (when-let [new-profiler (async/<! throttled-channel)]
+          (println "got new profiler")
+          (gui/apply-to-state view-context assoc-in [:profiler] new-profiler)
+          (recur))))
 
     {:profiler (create-state)
      :view #'profiler-view}))
@@ -157,3 +173,20 @@
       (add-entry {:time 2
                   :block-id 1
                   :block :end}))
+
+#_(def channel (async/chan 50))
+
+#_(do
+    (async/go-loop []
+      (let [entries (csp/drain channel nil)]
+        (println "got" entries)
+        (Thread/sleep 100)
+        (when entries
+          (recur))))
+
+    (async/put! channel 1)
+    (async/put! channel 2)
+    (async/put! channel 3)
+
+    (Thread/sleep 200)
+    (async/close! channel))
