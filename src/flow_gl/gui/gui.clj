@@ -100,7 +100,6 @@
 
 (defn call-destructors-when-close-requested [app]
   (fn [state event]
-    (println "event" event)
     (debug/add-event (:type event))
     (let [state (app state event)]
       (when (= (:type event) :close-requested)
@@ -194,16 +193,16 @@
                                             [(renderer/create-quad-renderer gl)
                                              (renderer/create-quad-view-renderer gl)
                                              (renderer/create-nanovg-renderer)])))
-          state (app state events)]
+          state (app state events)
+          new-renderers (debug/debug-timed-and-return :render (window/with-gl (:window state) gl
+                                                                (opengl/clear gl 0 0 0 1)
+                                                                (renderer/render-frame (:drawables state)
+                                                                                       gl
+                                                                                       (:renderers state))))]
 
-      (debug/debug-timed-and-return :render (window/with-gl (:window state) gl
-                                              (opengl/clear gl 0 0 0 1)
-                                              (renderer/render-frame (:drawables state)
-                                                                     gl
-                                                                     (:renderers state))))
       (window/swap-buffers (:window state))
 
-      state)))
+      (assoc state :renderers new-renderers))))
 
 ;; Animation
 
@@ -580,10 +579,13 @@
 ;; Cache
 
 (defn wrap-with-cached [view]
-  (fn [view-context state]
-    ((cache/cached view)
-     view-context
-     state)))
+  (let [cached-view (cache/cached (with-meta view
+                                    {:name (str "view: " view)}))]
+    (fn [view-context state]
+      (cached-view
+       view-context
+       state)))
+  )
 
 (defn add-cache [state]
   (assoc state :cache (cache/create)))

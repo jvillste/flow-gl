@@ -24,11 +24,17 @@
              (bound? #'cache))
       (do (swap! cache update-in [:used] conj [f args])
           (if-let [value (get @cache [f args])]
-            (do (flow-gl.debug/add-event :cache-hit)
+            (do (flow-gl.debug/add-event [:cache-hit (:name (meta f))] )
                 value)
             (let [value (apply f args)]
+              (when (.startsWith (:name (meta f)) "view")
+                #_(println (count (keys @cache)) "missed " f "but found" (->> (keys @cache)
+                                                         (filter vector?)
+                                                         (filter (fn [[f2 args2]] (= f2 f)))
+                                                         (map (fn [[f2 args2]] (take 2 (clojure.data/diff args args2)))))))
+
               (swap! cache assoc [f args] value)
-              (do (flow-gl.debug/add-event :cache-miss)
+              (do (flow-gl.debug/add-event [:cache-miss (:name (meta f))] )
                   value))))
       (apply f args))))
 

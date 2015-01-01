@@ -263,8 +263,10 @@
     (println "layout parameters" layout-parameters)
     (println "preferred size parameters" preferred-size-parameters)
 
-    `(do (def ~layout-implementation-symbol (cache/cached (fn ~layout-parameters ~@layout-body)))
-         (def ~preferred-size-implementation-symbol (cache/cached (fn ~preferred-size-parameters ~@preferred-size-body)))
+    `(do (def ~layout-implementation-symbol (cache/cached (with-meta (fn ~layout-parameters ~@layout-body)
+                                                            ~{:name (str "layout " name)})))
+         (def ~preferred-size-implementation-symbol (cache/cached (with-meta (fn ~preferred-size-parameters ~@preferred-size-body)
+                                                                    ~{:name (str "preferred-size " name)})))
          (defrecord ~name ~parameters
            Layout
            (layout [layoutable# state# width# height#]

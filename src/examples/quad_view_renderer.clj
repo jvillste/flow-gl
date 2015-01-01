@@ -41,6 +41,11 @@
           (let [frame-started (System/currentTimeMillis)]
             (let [drawables (drawables-for-time frame-started)]
               (println "drawables" drawables)
+              (window/with-gl window gl
+                (opengl/clear gl 0 0 0 1)
+                (renderer/render-frame (:drawables state)
+                                       gl
+                                       (:renderers state)))
               (window/set-display window gl
                                   (opengl/clear gl 0 0 0 1)
                                   (reset! renderers-atom

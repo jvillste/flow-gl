@@ -51,7 +51,6 @@
   
   (when @debug-channel
     (do
-      (println "adding timed" values)
       (async/>!! @debug-channel
                  (conj {:time (.getTime (java.util.Date.))
                         :thread (.getId (Thread/currentThread))}

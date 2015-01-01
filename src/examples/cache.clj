@@ -40,17 +40,34 @@
                       (font/create "LiberationSans-Regular.ttf" 15)
                       color)))
 
+(defn cache [layoutable]
+  (transformer/with-transformers
+    (transformer/->Cache :cache)
+    layoutable))
+
+(defn counter-view [view-context state]
+  (gui/on-mouse-clicked (l/horizontally (repeat (:count state) (text "X")))
+                        view-context
+                        (fn [state event]
+                          (update-in state [:count] inc))))
+
+(defn counter [view-context]
+  {:count 10
+   :view #'counter-view})
+
+(defn app-view [view-context state]
+  (l/vertically (for-all [x (range 2)]
+                         (gui/call-view view-context counter (keyword (str x))))))
+
 (defn app [view-context]
 
-  {:view (fn [view-context state]
-           (transformer/with-transformers
-             (transformer/->Cache :cache)
-             (l/vertically (text "foo")
-                           (text "bar"))))})
+  {:view #'app-view})
 
+(gui/redraw-last-started-view)
 
 (defn start []
-  #_(gui/start-app layout-app)
-  (profiler/with-profiler (gui/start-control app))
-  #_(gui/start-control app)
-  #_(gui/start-control static-app))
+  (.start (Thread. (fn [] (profiler/with-profiler (gui/start-control app)))))
+  
+  #_(.start (Thread. (fn [] (gui/start-control app)))))
+
+

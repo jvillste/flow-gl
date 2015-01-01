@@ -101,7 +101,8 @@
                   (l/margin 10 0 0 0
                             (layouts/grid (concat [[(text-cell "Category")
                                                     (text-cell "Count")]]
-                                                  (for-all [[category count] (:event-counts profiler)]
+                                                  (for-all [[category count] (->> (:event-counts profiler)
+                                                                                  (sort-by #(str (first %))))]
 
                                                            [(text-cell category)
                                                             (text-cell count)]))))
@@ -112,7 +113,8 @@
                                 (gui/on-mouse-event :mouse-clicked
                                                     view-context
                                                     (fn [state event]
-                                                      (assoc state :profiler (create-state))))))
+                                                      (async/put! (:channel state) {:type :reset})
+                                                      state))))
 
                   #_(controls/text profiler))))
 
@@ -123,19 +125,18 @@
 
       (async/go-loop [profiler (create-state)]
         (if-let [entry (async/<! channel)]
-          (do (println "got entry " entry)
-              (let [new-profiler (add-entry profiler entry)]
-                (async/>! profiler-channel new-profiler)
-                (recur new-profiler)))
+          (let [new-profiler (add-entry profiler entry)]
+            (async/>! profiler-channel new-profiler)
+            (recur new-profiler))
           (async/close! profiler-channel)))
 
       (async/go-loop []
         (when-let [new-profiler (async/<! throttled-channel)]
-          (println "got new profiler")
           (gui/apply-to-state view-context assoc-in [:profiler] new-profiler)
           (recur))))
 
     {:profiler (create-state)
+     :channel channel
      :view #'profiler-view}))
 
 ;; API
