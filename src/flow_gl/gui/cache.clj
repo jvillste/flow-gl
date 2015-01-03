@@ -25,11 +25,12 @@
       (do (swap! cache update-in [:used] conj [f args])
           (if-let [value (get @cache [f args])]
             (do (flow-gl.debug/add-event [:cache-hit (:name (meta f))] )
-                (if (= (:type (meta f)) :layout)
+                #_(if (= (:type (meta f)) :layout)
                   (flow-gl.gui.transformer/with-transformers
                     (flow-gl.gui.transformer/->HighlightAll :highlight [0 255 0 100])
                     value)
-                  value))
+                  value)
+                value)
             (let [value (apply f args)]
               #_(when (and (:name (meta f))
                            (.startsWith (:name (meta f)) "view"))
@@ -40,11 +41,12 @@
 
               (swap! cache assoc [f args] value)
               (flow-gl.debug/add-event [:cache-miss (:name (meta f))])
-              (if (= (:type (meta f)) :layout)
+              #_(if (= (:type (meta f)) :layout)
                 (flow-gl.gui.transformer/with-transformers
                   (flow-gl.gui.transformer/->HighlightAll :highlight [255 0 0 10])
                   value)
-                value))))
+                value)
+              value)))
       (apply f args))))
 
 (defmacro defn-cached [name args & body]
