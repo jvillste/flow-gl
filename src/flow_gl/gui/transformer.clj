@@ -183,6 +183,15 @@
                      :x (:x drawable) :y (:y drawable) :z 1 ))
                  (filter :highlight? drawables)))))
 
+(defrecord HighlightAll [key color]
+  StatelessTransformer
+  (transform [this drawables x y width height gl]
+    (concat drawables
+            (map (fn [drawable]
+                   (assoc (drawable/->Rectangle (:width drawable) (:height drawable) color)
+                     :x (:x drawable) :y (:y drawable) :z 1 ))
+                 drawables))))
+
 (defrecord FilterState [renderers render-target]
   TransformerState
   (dispose [this gl]

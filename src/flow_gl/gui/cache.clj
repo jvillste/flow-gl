@@ -25,21 +25,31 @@
       (do (swap! cache update-in [:used] conj [f args])
           (if-let [value (get @cache [f args])]
             (do (flow-gl.debug/add-event [:cache-hit (:name (meta f))] )
-                value)
+                (if (= (:type (meta f)) :layout)
+                  (flow-gl.gui.transformer/with-transformers
+                    (flow-gl.gui.transformer/->HighlightAll :highlight [0 255 0 100])
+                    value)
+                  value))
             (let [value (apply f args)]
-              (when (.startsWith (:name (meta f)) "view")
-                #_(println (count (keys @cache)) "missed " f "but found" (->> (keys @cache)
-                                                         (filter vector?)
-                                                         (filter (fn [[f2 args2]] (= f2 f)))
-                                                         (map (fn [[f2 args2]] (take 2 (clojure.data/diff args args2)))))))
+              #_(when (and (:name (meta f))
+                           (.startsWith (:name (meta f)) "view"))
+                  (println (count (keys @cache)) "missed " f "but found" (->> (keys @cache)
+                                                                              (filter vector?)
+                                                                              (filter (fn [[f2 args2]] (= f2 f)))
+                                                                              (map (fn [[f2 args2]] (take 2 (clojure.data/diff args args2)))))))
 
               (swap! cache assoc [f args] value)
-              (do (flow-gl.debug/add-event [:cache-miss (:name (meta f))] )
-                  value))))
+              (flow-gl.debug/add-event [:cache-miss (:name (meta f))])
+              (if (= (:type (meta f)) :layout)
+                (flow-gl.gui.transformer/with-transformers
+                  (flow-gl.gui.transformer/->HighlightAll :highlight [255 0 0 10])
+                  value)
+                value))))
       (apply f args))))
 
 (defmacro defn-cached [name args & body]
-  `(def ~name (cached (fn ~args ~@body))))
+  `(def ~name (cached (with-meta (fn ~args ~@body)
+                        {:name ~(str name)}))))
 
 (defn clear-usages []
   (swap! cache assoc :used #{}))

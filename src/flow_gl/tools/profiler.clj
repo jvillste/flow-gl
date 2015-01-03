@@ -57,9 +57,13 @@
       profiler)))
 
 ;; UI
+(defn text [value]
+  (drawable/->Text (str value)
+                   (font/create "LiberationSans-Regular.ttf" 10)
+                   [255 255 255 255]))
 
 (defn text-cell [value]
-  (l/margin 1 2 1 2 (controls/text value)))
+  (l/margin 1 2 1 2 (text value)))
 
 (defn profiler-view [view-context {:keys [profiler]}]
   (let [rows (->> (map (fn [[category time]]
@@ -72,19 +76,26 @@
         %-of-total (fn [time] (format "%.2f" (float (if-let [total (get-in profiler [:total-times :total])]
                                                       (float (* 100 (/ time total)))
                                                       0))))]
-    (l/vertically (layouts/grid (concat [[(text-cell "Category")
-                                          (text-cell "% of total")
-                                          (text-cell "Total time")
-                                          (text-cell "Total count")
-                                          (text-cell "Average")
-                                          ]]
-                                        (for-all [{:keys [category time]} rows]
+    (l/vertically (-> (text-cell "reset")
+                      (gui/on-mouse-event :mouse-clicked
+                                          view-context
+                                          (fn [state event]
+                                            (async/put! (:channel state) {:type :reset})
+                                            state)))
+                  (l/margin 10 0 0 0
+                            (layouts/grid (concat [[(text-cell "Category")
+                                                    (text-cell "% of total")
+                                                    (text-cell "Total time")
+                                                    (text-cell "Total count")
+                                                    (text-cell "Average")
+                                                    ]]
+                                                  (for-all [{:keys [category time]} rows]
 
-                                                 [(text-cell category)
-                                                  (text-cell (%-of-total time))
-                                                  (text-cell time)
-                                                  (text-cell (get-in profiler [:total-counts category]))
-                                                  (text-cell (int (/ time (get-in profiler [:total-counts category]))))])))
+                                                           [(text-cell category)
+                                                            (text-cell (%-of-total time))
+                                                            (text-cell time)
+                                                            (text-cell (get-in profiler [:total-counts category]))
+                                                            (text-cell (int (/ time (get-in profiler [:total-counts category]))))]))))
 
 
                   (text-cell (str "rest: "
@@ -97,7 +108,6 @@
                                     "")
                                   " %"))
 
-
                   (l/margin 10 0 0 0
                             (layouts/grid (concat [[(text-cell "Category")
                                                     (text-cell "Count")]]
@@ -108,13 +118,7 @@
                                                             (text-cell count)]))))
 
 
-                  (l/margin 10 0 0 0
-                            (-> (text-cell "reset")
-                                (gui/on-mouse-event :mouse-clicked
-                                                    view-context
-                                                    (fn [state event]
-                                                      (async/put! (:channel state) {:type :reset})
-                                                      state))))
+
 
                   #_(controls/text profiler))))
 

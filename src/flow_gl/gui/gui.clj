@@ -580,7 +580,7 @@
 
 (defn wrap-with-cached [view]
   (let [cached-view (cache/cached (with-meta view
-                                    {:name (str "view: " view)}))]
+                                    {:name (str "view: " (hash view))}))]
     (fn [view-context state]
       (cached-view
        view-context
@@ -732,6 +732,15 @@
                                                             (apply update-or-apply-in state (:state-path view-context) function arguments)
                                                             (flow-gl.debug/debug-timed "tried to apply to empty state" (vec (:state-path view-context)))))))))
 
+(defn set-new [target-map override-map]
+  (reduce (fn [target-map [key val]]
+            (if (not= (get target-map key)
+                      val)
+              (assoc target-map key val)
+              target-map))
+          target-map
+          override-map))
+
 (defn call-view
   ([parent-view-context constructor child-id]
      (call-view parent-view-context constructor child-id {} []))
@@ -752,7 +761,7 @@
            state (-> (or (get-in @current-view-state-atom state-path-part)
                          (apply constructor view-context
                                 constructor-parameters))
-                     (conj state-overrides))
+                     (set-new state-overrides))
 
            view-context (if (or (:sleep-time state)
                                 (not (get-in @current-view-state-atom state-path-part)))
