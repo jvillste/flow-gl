@@ -127,14 +127,14 @@
   //                                           texture_coordinate.y + quad_coordinates.y, 0.0, 1.0);
 
   gl_Position = projection_matrix * vec4(vertex_coordinates.x + quad_coordinates.x,
-                                         vertex_coordinates.y + quad_coordinates.y, 0.0, 1.0);
+  vertex_coordinates.y + quad_coordinates.y, 0.0, 1.0);
 
   texture_offset = texelFetch(quad_parameters, quad_index * quad_parameters_size + 5).x;
   texture_width = texture_size.x;
   }
 ")
 
-(def fragment-shader-source "
+  (def fragment-shader-source "
   #version 140
 
   uniform samplerBuffer texture;
@@ -416,65 +416,97 @@
 
     new-quad-batch))
 
-(defn add-textures [quad-batch gl images]
-  (let [texel-count (reduce (fn [texel-count image]
-                              (+ texel-count
-                                 (* (.getWidth image)
-                                    (.getHeight image))))
-                            0
-                            images)
-
-        quad-batch (if (> (:removed-texels quad-batch)
+(defn prepare-for-adding-textures [quad-batch gl texel-count]
+  (let [quad-batch (if (> (:removed-texels quad-batch)
                           (/ (:allocated-texels quad-batch)
                              2))
                      (collect-texture-garbage quad-batch gl)
                      quad-batch)
 
         minimum-texel-capacity (+ texel-count
-                                  (:next-free-texel quad-batch))
+                                  (:next-free-texel quad-batch))]
 
-        quad-batch (if (< (:allocated-texels quad-batch)
-                          minimum-texel-capacity)
-                     (grow-texture-buffer gl
-                                          quad-batch
-                                          minimum-texel-capacity)
-                     quad-batch)]
+    (if (< (:allocated-texels quad-batch)
+           minimum-texel-capacity)
+      (grow-texture-buffer gl
+                           quad-batch
+                           minimum-texel-capacity)
+      quad-batch)))
 
-    (let [buffer (buffer/map-for-write gl
-                                       (:texture-buffer-id quad-batch)
-                                       :int
-                                       (:next-free-texel quad-batch)
-                                       texel-count)
-          textures-in-use (loop [textures-in-use (:textures-in-use quad-batch)
-                                 next-free-texel (:next-free-texel quad-batch)
-                                 next-free-texture-id (:next-free-texture-id quad-batch)
-                                 images images]
-                            (if-let [image (first images)]
-                              (recur (assoc textures-in-use
-                                       next-free-texture-id {:first-texel next-free-texel
-                                                             :width (.getWidth image)
-                                                             :height (.getHeight image)})
-                                     (+ next-free-texel (* (.getWidth image)
-                                                           (.getHeight image)))
-                                     (inc next-free-texture-id)
-                                     (rest images))
-                              textures-in-use))]
+(defn finish-adding-textures [quad-batch texel-count dimensions]
+  (assoc quad-batch
+    :next-free-texel (+ (:next-free-texel quad-batch)
+                        texel-count)
+    :textures-in-use (loop [textures-in-use (:textures-in-use quad-batch)
+                            next-free-texel (:next-free-texel quad-batch)
+                            next-free-texture-id (:next-free-texture-id quad-batch)
+                            dimensions dimensions]
+                       (if-let [dimension (first dimensions)]
+                         (recur (assoc textures-in-use
+                                  next-free-texture-id {:first-texel next-free-texel
+                                                        :width (:width dimension)
+                                                        :height (:height dimension)})
+                                (+ next-free-texel (* (:width dimension)
+                                                      (:height dimension)))
+                                (inc next-free-texture-id)
+                                (rest dimensions))
+                         textures-in-use))
+    :next-free-texture-id (+ (:next-free-texture-id quad-batch)
+                             (count dimensions))))
 
-      (doseq [image images]
-        (.put buffer
-              (-> image
-                  (.getRaster)
-                  (.getDataBuffer)
-                  (.getData))))
+(defn texel-count [dimensions]
+  (reduce (fn [texel-count dimension]
+            (+ texel-count
+               (* (:width dimension)
+                  (:height dimension))))
+          0
+          dimensions))
 
-      (buffer/unmap-for-write gl)
+(defn add-textures [quad-batch gl images]
+  (let [dimensions (map (fn [image]
+                          {:width (.getWidth image)
+                           :height (.getHeight image)})
+                        images)
 
-      (assoc quad-batch
-        :next-free-texel (+ (:next-free-texel quad-batch)
-                            texel-count)
-        :textures-in-use textures-in-use
-        :next-free-texture-id (+ (:next-free-texture-id quad-batch)
-                                 (count images))))))
+        texel-count (texel-count dimensions)
+
+        quad-batch (prepare-for-adding-textures quad-batch gl texel-count)
+
+        buffer (buffer/map-for-write gl
+                                     (:texture-buffer-id quad-batch)
+                                     :int
+                                     (:next-free-texel quad-batch)
+                                     texel-count)]
+
+    (doseq [image images]
+      (.put buffer
+            (-> image
+                (.getRaster)
+                (.getDataBuffer)
+                (.getData))))
+
+    (buffer/unmap-for-write gl)
+
+    (finish-adding-textures quad-batch texel-count dimensions)))
+
+
+(defn add-textures-from-gl-textures [quad-batch gl textures]
+  (let [texel-count (texel-count textures)
+
+        quad-batch (prepare-for-adding-textures quad-batch gl texel-count)]
+
+    (loop [textures textures
+           offset (:next-free-texel quad-batch)]
+      (if-let [texture (first textures)]
+        (do (texture/copy-to-buffer gl
+                                    (:texture-id texture)
+                                    (:texture-buffer-id quad-batch)
+                                    offset)
+            (recur (rest textures)
+                   (+ offset (* (:width texture)
+                                (:height texture)))))))
+
+    (finish-adding-textures quad-batch texel-count textures)))
 
 (defn draw [quad-batch gl width height]
 
