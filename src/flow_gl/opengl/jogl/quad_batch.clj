@@ -19,7 +19,7 @@
            [java.nio IntBuffer]
            [java.awt Color]))
 
-(def quad-parameters-size (+ 2 1 1 2 2))
+(def quad-parameters-size 9)
 (def parent-offset 0)
 (def x-offset 1)
 (def y-offset 2)
@@ -28,6 +28,7 @@
 (def texture-offset-offset 5)
 (def quad-width-offset 6)
 (def quad-height-offset 7)
+(def upside-down-offset 8)
 
 (defn read-quad-parameters [quad-batch gl id]
   (let [[parent x y width height texture-offset] (buffer/read gl
@@ -72,7 +73,7 @@
   flat out int texture_offset;
   flat out int texture_width;
 
-  const int quad_parameters_size = 8;
+  const int quad_parameters_size = 9;
 
   void main() {
 
@@ -84,6 +85,7 @@
   // 5 texel index
   // 6 quad width
   // 7 quad height
+  // 8 upside down
 
   int quad_index;
   if(use_quad_index_buffer == 1)
@@ -118,13 +120,11 @@
   break;
   }
 
+  if(texelFetch(quad_parameters, quad_index * quad_parameters_size + 8).x == 1)
+    texture_coordinate.y = texture_size.y - texture_coordinate.y;
 
   vec2 quad_coordinates = vec2(texelFetch(quad_parameters, quad_index * quad_parameters_size + 1).x,
   texelFetch(quad_parameters, quad_index * quad_parameters_size + 2).x);
-
-
-  //gl_Position = projection_matrix * vec4(texture_coordinate.x + quad_coordinates.x,
-  //                                           texture_coordinate.y + quad_coordinates.y, 0.0, 1.0);
 
   gl_Position = projection_matrix * vec4(vertex_coordinates.x + quad_coordinates.x,
   vertex_coordinates.y + quad_coordinates.y, 0.0, 1.0);
@@ -433,26 +433,27 @@
                            minimum-texel-capacity)
       quad-batch)))
 
-(defn finish-adding-textures [quad-batch texel-count dimensions]
+(defn finish-adding-textures [quad-batch texel-count textures]
   (assoc quad-batch
     :next-free-texel (+ (:next-free-texel quad-batch)
                         texel-count)
     :textures-in-use (loop [textures-in-use (:textures-in-use quad-batch)
                             next-free-texel (:next-free-texel quad-batch)
                             next-free-texture-id (:next-free-texture-id quad-batch)
-                            dimensions dimensions]
-                       (if-let [dimension (first dimensions)]
+                            textures textures]
+                       (if-let [texture (first textures)]
                          (recur (assoc textures-in-use
                                   next-free-texture-id {:first-texel next-free-texel
-                                                        :width (:width dimension)
-                                                        :height (:height dimension)})
-                                (+ next-free-texel (* (:width dimension)
-                                                      (:height dimension)))
+                                                        :width (:width texture)
+                                                        :height (:height texture)
+                                                        :upside-down (:upside-down texture)})
+                                (+ next-free-texel (* (:width texture)
+                                                      (:height texture)))
                                 (inc next-free-texture-id)
-                                (rest dimensions))
+                                (rest textures))
                          textures-in-use))
     :next-free-texture-id (+ (:next-free-texture-id quad-batch)
-                             (count dimensions))))
+                             (count textures))))
 
 (defn texel-count [dimensions]
   (reduce (fn [texel-count dimension]
@@ -506,7 +507,8 @@
                    (+ offset (* (:width texture)
                                 (:height texture)))))))
 
-    (finish-adding-textures quad-batch texel-count textures)))
+    (finish-adding-textures quad-batch texel-count (map #(assoc % :upside-down true)
+                                                        textures))))
 
 (defn draw [quad-batch gl width height]
 
@@ -571,7 +573,8 @@
                                (:texture-id quad))
                           {:first-texel 0
                            :width 0
-                           :height 0})]
+                           :height 0
+                           :upside-down false})]
             (do (.put buffer
                       (int-array [(or (:parent quad) -1)
                                   (:x quad)
@@ -582,7 +585,10 @@
                                   (or (:width quad)
                                       (:width texture))
                                   (or (:height quad)
-                                      (:height texture))]))
+                                      (:height texture))
+                                  (if (:upside-down texture)
+                                    1
+                                    0)]))
                 (recur (rest quads))))))
 
       (.rewind buffer)

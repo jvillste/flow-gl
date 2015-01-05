@@ -48,12 +48,12 @@
 (defn initialize [quad-batch gl]
   (let [drawable (assoc
                      #_(set-size (text "FOO"))
-                     (set-size (drawable/->Image (buffered-image/create-from-file "pumpkin.png")))
-                     :x 20
-                     :y 10)
+                     (set-size (drawable/->Image (buffered-image/create-from-file "test.png")))
+                     :x 0
+                     :y 0)
         renderers [(renderer/create-quad-view-renderer gl)]
-        render-target (render-target/create (:width drawable)
-                                            (:height drawable) gl)]
+        render-target (render-target/create 100 100 #_(:width drawable)
+                                            #_(:height drawable) gl)]
 
     (println (:width drawable)
              (:height drawable))
@@ -69,7 +69,13 @@
   #_(quad-batch/add-textures quad-batch gl [(buffered-image/create-from-file "pumpkin.png")]))
 
 (defn quads [frame-time]
-  (for [i (range 1 2)]
+  [{:x 10
+    :y 10
+    :width 500
+    :height 500
+    :texture-id 0}]
+  
+  #_(for [i (range 1 2)]
     (let [round-time (* i 3000)]
       {:x (* (/ (mod frame-time round-time)
                 round-time)
@@ -78,7 +84,7 @@
        :texture-id 0})))
 
 (defn wait-for-next-frame [frame-started]
-  (let [target-frames-per-second 60]
+  (let [target-frames-per-second 1]
     (Thread/sleep (max 0
                        (- (/ 1000 target-frames-per-second)
                           (- (System/currentTimeMillis)
