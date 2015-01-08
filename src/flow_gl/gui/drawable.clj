@@ -19,6 +19,17 @@
 
 ;; DRAWABLES
 
+(defrecord GLTexture [texture-id width height]
+
+  layoutable/Layoutable
+  (preferred-size [this available-width available-height]
+    {:width width
+     :height height})
+
+  Object
+  (toString [this] (layoutable/describe-layoutable this)))
+
+
 (defrecord Quad [textures uniforms fragment-shader-source x y width height]
 
   layoutable/Layoutable

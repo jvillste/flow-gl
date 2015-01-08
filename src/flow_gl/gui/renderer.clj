@@ -96,7 +96,8 @@
 (defrecord QuadViewRenderer [quad-view]
   Renderer
   (can-draw? [this drawable]
-    (satisfies? drawable/Java2DDrawable drawable))
+    (or (satisfies? drawable/Java2DDrawable drawable)
+        (instance? flow_gl.gui.drawable.GLTexture drawable)))
 
   (draw-drawables [this drawables gl]
     (doto gl

@@ -65,7 +65,6 @@
                            [(renderer/create-quad-view-renderer gl)])]
           (let [frame-started (System/currentTimeMillis)]
 
-
             (let [drawables (drawables-for-time frame-started)]
               (let [renderers (window/with-gl window gl
                                 (opengl/clear gl 0 0 0 1)

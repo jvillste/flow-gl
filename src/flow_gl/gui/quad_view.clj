@@ -94,7 +94,7 @@
             nil)))
 
 (defn texture-key [drawable]
-  (dissoc drawable :x :y :texture-id))
+  (dissoc drawable :x :y  #_:texture-id))
 
 (defn unused-drawable-textures [drawable-textures drawables]
   (reduce dissoc drawable-textures (map texture-key drawables)))
@@ -170,16 +170,16 @@
 (defn draw-drawables [quad-view drawables width height gl]
   (let [quad-view (load-new-textures quad-view
                                      drawables
-                                     gl)
-        drawables (add-texture-ids drawables
-                                   (:drawable-textures quad-view))]
+                                     gl)]
 
     (assoc quad-view
       :drawn-drawables (concat (:drawn-drawables quad-view)
                                drawables)
+      
       :quad-batch (quad-batch/draw-quads (:quad-batch quad-view)
                                          gl
-                                         drawables
+                                         (add-texture-ids drawables
+                                                          (:drawable-textures quad-view))
                                          width height))))
 
 
