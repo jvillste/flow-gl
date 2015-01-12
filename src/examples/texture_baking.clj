@@ -1,4 +1,4 @@
-(ns examples.window
+(ns examples.texture-baking
   (:require [clojure.core.async :as async]
             (flow-gl.opengl.jogl [opengl :as opengl]
                                  [window :as jogl-window]
