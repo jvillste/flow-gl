@@ -56,23 +56,36 @@
     (try
       (let [render-target (window/with-gl window gl
                             (render-target/create 100 100
-                                                  gl))]
+                                                  gl))
+            quad-view-renderer (window/with-gl window gl
+                                 (renderer/create-quad-view-renderer gl))
+            drawable (assoc (renderer/->PrerenderedTexture :foo)
+                       :x 0 :y 0 :z 0)]
+
         (window/with-gl window gl
           (render-target/render-to render-target gl
                                    (opengl/clear gl 1 0 0 1)))
 
-        (loop [renderers (window/with-gl window gl
-                           [(renderer/create-quad-view-renderer gl)])]
+        (loop [quad-view-renderer (window/with-gl window gl
+                                    (update-in quad-view-renderer
+                                               [:quad-view]
+                                               quad-view/add-gl-texture
+                                               drawable
+                                               (:texture render-target)
+                                               (:width render-target)
+                                               (:height render-target)
+                                               gl))]
+          
           (let [frame-started (System/currentTimeMillis)]
 
-            (let [drawables (drawables-for-time frame-started)]
-              (let [renderers (window/with-gl window gl
-                                (opengl/clear gl 0 0 0 1)
-                                (renderer/render-frame drawables gl renderers))]
+            (let [drawables  [drawable (assoc drawable :x 200)] #_(drawables-for-time frame-started)]
+              (let [[quad-view-renderer] (window/with-gl window gl
+                                           (opengl/clear gl 0 0 0 1)
+                                           (renderer/render-frame drawables gl [quad-view-renderer]))]
                 (window/swap-buffers window)
                 (when (window/visible? window)
                   (do (wait-for-next-frame frame-started)
-                      (recur renderers))))))))
+                      (recur quad-view-renderer))))))))
 
 
       (println "exiting")
@@ -80,8 +93,6 @@
         (println "exception")
         (window/close window)
         (throw e)))))
-
-
 
 (defn start []
   (start-view))

@@ -2,7 +2,8 @@
   (:require [clojure.core.async :as async]
             (flow-gl.opengl.jogl [opengl :as opengl]
                                  [window :as jogl-window]
-                                 [quad :as quad])
+                                 [quad :as quad]
+                                 [render-target :as render-target])
             [datomic.api :as d]
             (flow-gl.gui [drawable :as drawable]
                          [transformer :as transformer]
@@ -11,7 +12,9 @@
                          [layout :as layout]
                          [events :as events]
                          [layoutable :as layoutable]
-                         [cache :as cache])
+                         [cache :as cache]
+                         [quad-view :as quad-view]
+                         )
             [flow-gl.csp :as csp]
             [clojure.string :as string]
             (flow-gl.graphics [font :as font]
@@ -37,42 +40,7 @@
 
 ;; Events
 
-(defn event-loop [initial-state app]
-  (let [initial-state (assoc initial-state
-                        :with-gl-channel (async/chan 50)
-                        :with-gl-dropping-channel (async/chan (async/dropping-buffer 1)))]
-    (async/thread (loop [state initial-state]
-                    (if (:close-requested state)
-                      (do (println "exiting event loop")
-                          (async/close! (:with-gl-channel initial-state))
-                          (async/close! (:with-gl-dropping-channel initial-state))
-                          (window/close (:window state)))
 
-                      (let [events (csp/drain (window/event-channel (:window state))
-                                              (:sleep-time state))
-
-                            events (if (empty? events)
-                                     [{:type :wake-up}]
-                                     events)]
-
-                        (recur (app state
-                                    events))))))
-
-    (loop [gpu-state {:window (:window initial-state)}]
-      (async/alt!! (:with-gl-dropping-channel initial-state) ([{:keys [function arguments]}]
-                                                                (when function (recur (window/with-gl (:window initial-state) gl
-                                                                                        (apply function
-                                                                                               (assoc gpu-state :gl gl)
-                                                                                               arguments)))))
-
-                   (:with-gl-channel initial-state) ([{:keys [function arguments]}]
-                                                       (when function (recur (window/with-gl (:window initial-state) gl
-                                                                               (apply function
-                                                                                      (assoc gpu-state :gl gl)
-                                                                                      arguments)))))
-                   :priority true))
-
-    (println "exiting render loop")))
 
 (defn wrap-with-separate-events [app]
   (fn [state events]
@@ -169,6 +137,11 @@
 
 ;; Rendering
 
+(defn add-renderers [gpu-state]
+  (assoc gpu-state :renderers {:quad-view (renderer/create-quad-view-renderer (:gl gpu-state))
+                               :quad (renderer/create-quad-renderer (:gl gpu-state))
+                               :nanovg (renderer/create-nanovg-renderer)}))
+
 (defn set-position [partition parent-x parent-y parent-z]
   (assoc partition
     :x (+ parent-x (:x partition))
@@ -181,7 +154,7 @@
 
 (defn partition-by-differences
   ([layout-1 layout-2]
-     (drawables-for-layout layout-1 layout-2 0 0 0 []))
+     (partition-by-differences layout-1 layout-2 0 0 0 []))
 
   ([layout-1 layout-2 parent-x parent-y parent-z partitions]
      (if (or (= layout-1 layout-2)
@@ -231,10 +204,11 @@
     (let [state (app state events)]
       (assoc state :drawables (drawables-for-layout (:layout state))))))
 
-
 (defn layout-to-render-trees [gpu-state]
   (assoc gpu-state
     :render-trees (transformer/render-trees-for-layout (:layout gpu-state))))
+
+
 
 (defn render-trees-to-drawables [gpu-state]
   (let [[transformer-states drawables] (debug/debug-timed-and-return :transform (transformer/transform-trees (or (:transformer-states gpu-state)
@@ -245,29 +219,96 @@
       :drawables drawables
       :transformer-states transformer-states)))
 
+(defn apply-to-renderers [gpu-state function]
+  (apply update-in
+         gpu-state
+         [:renderers]
+         map-vals
+         function))
+
+(defn start-frame [gpu-state]
+  (apply-to-renderers gpu-state
+                      #(renderer/start-frame % (:gl gpu-state))))
+
+(defn end-frame [gpu-state]
+  (apply-to-renderers gpu-state
+                      #(renderer/end-frame % (:gl gpu-state))))
+
 (defn render-drawables [gpu-state]
   (let [gl (:gl gpu-state)
-        gpu-state (if (:renderers gpu-state)
-                    gpu-state
-                    (assoc gpu-state :renderers [(renderer/create-quad-renderer gl)
-                                                 (renderer/create-quad-view-renderer gl)
-                                                 (renderer/create-nanovg-renderer)]))
+        [quad-view quad nanovg] (debug/debug-timed-and-return :render (do
+                                                                        (opengl/clear gl 0 0 0 1)
+                                                                        (renderer/render-frame-drawables (:drawables gpu-state)
+                                                                                                         gl
+                                                                                                         [(get-in gpu-state [:renderers :quad-view])
+                                                                                                          (get-in gpu-state [:renderers :quad])
+                                                                                                          (get-in gpu-state [:renderers :nanovg])])))]
 
-        new-renderers (debug/debug-timed-and-return :render (do
-                                                              (opengl/clear gl 0 0 0 1)
-                                                              (renderer/render-frame (:drawables gpu-state)
-                                                                                     gl
-                                                                                     (:renderers gpu-state))))]
-    (window/swap-buffers (:window gpu-state))
 
-    (assoc gpu-state :renderers new-renderers)))
+    (assoc gpu-state :renderers {:quad-view quad-view
+                                 :quad quad
+                                 :nanovg nanovg})))
+
+
+(defn layout-to-partitions [gpu-state]
+  (assoc gpu-state
+    :partitions (partition-by-differences (:layout gpu-state)
+                                          (:previous-layout gpu-state))
+    :previous-layout (:layout gpu-state)))
+
+(defn partition-to-render-trees [gpu-state partition]
+  (assoc gpu-state
+    :render-trees (transformer/render-trees-for-layout partition)))
+
+(defn add-partition-textures [gpu-state partitions]
+  #_(let [drawables (map #(renderer/->PrerenderedTexture %)
+                       partitions)
+        new-drawables (filter #(not (quad-view/has-texture? %)))
+        [gpu-state quad-view] (reduce (fn [[gpu-state quad-view] drawable]
+                                        (let [render-target (render-target/create (:width drawable)
+                                                                                  (:height drawable)
+                                                                                  (:gl gpu-state))
+                                              [gpu-state quad-view]  (render-target/render-to render-target
+                                                                                              (:gl gpu-state)
+                                                                                              )]
+                                          )
+                                        [
+                                         (quad-view/add-gl-texture quad-view
+                                                                   drawable
+                                                                   (:texture render-target)
+                                                                   (:width drawable)
+                                                                   (:height drawable)
+                                                                   (:gl gpu-state))] )
+                                      [gpu-state
+                                       (get-in gpu-state [:renderers :quad-view :quad-view])]
+                                      new-drawables)]
+
+    (assoc-in gpu-state [:renderers :quad-view :quad-view] quad-view)))
+
+(defn bake-recurring-partitions [gpu-state]
+  (let [partitions-without-location (->> (:partitions gpu-state)
+                                         (map #(dissoc % :x :y))
+                                         (apply hash-set))
+        recurring-partitions (clojure.set/intersection (or (:previous-partitions gpu-state)
+                                                           #{})
+                                                       partitions-without-location)]
+
+
+    (-> gpu-state
+        (add-partition-textures recurring-partitions)
+        (assoc :previous-partitions partitions-without-location))))
+
+
+(defn swap-buffers [gpu-state]
+  (window/swap-buffers (:window gpu-state)))
 
 (defn render [gpu-state layout]
   (try
     (-> (assoc gpu-state :layout layout)
         (layout-to-render-trees)
         (render-trees-to-drawables)
-        (render-drawables))
+        (render-drawables)
+        (swap-buffers))
     (catch Exception e
       (window/close (:window gpu-state))
       (throw e))))
@@ -720,6 +761,48 @@
       (let [layoutable (view view-context state)]
         {:layoutable layoutable
          :state @current-view-state-atom}))))
+
+
+
+(defn event-loop [initial-state app]
+  (let [initial-state (assoc initial-state
+                        :with-gl-channel (async/chan 50)
+                        :with-gl-dropping-channel (async/chan (async/dropping-buffer 1)))]
+    (async/thread (loop [state initial-state]
+                    (if (:close-requested state)
+                      (do (println "exiting event loop")
+                          (async/close! (:with-gl-channel initial-state))
+                          (async/close! (:with-gl-dropping-channel initial-state))
+                          (window/close (:window state)))
+
+                      (let [events (csp/drain (window/event-channel (:window state))
+                                              (:sleep-time state))
+
+                            events (if (empty? events)
+                                     [{:type :wake-up}]
+                                     events)]
+
+                        (recur (app state
+                                    events))))))
+
+    (loop [gpu-state (window/with-gl (:window initial-state) gl
+                       (-> {:window (:window initial-state)
+                            :gl gl}
+                           (add-renderers)))]
+      (async/alt!! (:with-gl-dropping-channel initial-state) ([{:keys [function arguments]}]
+                                                                (when function (recur (window/with-gl (:window initial-state) gl
+                                                                                        (apply function
+                                                                                               (assoc gpu-state :gl gl)
+                                                                                               arguments)))))
+
+                   (:with-gl-channel initial-state) ([{:keys [function arguments]}]
+                                                       (when function (recur (window/with-gl (:window initial-state) gl
+                                                                               (apply function
+                                                                                      (assoc gpu-state :gl gl)
+                                                                                      arguments)))))
+                   :priority true))
+
+    (println "exiting render loop")))
 
 (defn start-app [app]
   (-> {}

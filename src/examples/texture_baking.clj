@@ -41,40 +41,6 @@
                       (font/create "LiberationSans-Regular.ttf" 15)
                       color)))
 
-(def initial-counter-state {:count 0
-                            :can-gain-focus true
-                            :handle-keyboard-event (fn [state event]
-                                                     [(update-in state [:count] inc)
-                                                      true])})
-
-(defn static [view-context]
-  {:view (fn [view-context state]
-           (text "foo"))})
-
-(defn counter [view-context]
-  (assoc initial-counter-state
-    :view (fn [view-context state]
-
-            (let [duration (mod (:frame-started view-context)
-                                (:pulse-rate state))]
-
-              (gui/set-wake-up view-context (- (/ (:pulse-rate state)
-                                                  2)
-                                               duration))
-
-              (text (str (:count state) (if (> (/ duration
-                                                  (:pulse-rate state))
-                                               0.5)
-                                          "x"
-                                          "")
-                         (if (:mouse-over state)
-                           "o"
-                           ""))
-                    (if (:has-focus state)
-                      [255 255 255 255]
-                      [100 100 100 255]))))))
-
-
 (defn app [view-context]
   (async/go-loop []
     (async/alt! (:control-channel view-context) ([_] (println "exiting counter process"))
@@ -82,81 +48,35 @@
                                         (gui/apply-to-state view-context update-in [:count] inc)
                                         (recur))))
 
-  (merge initial-counter-state
-         gui/child-focus-handlers
-         {:view (fn [view-context state]
-                  (l/vertically (gui/on-mouse-clicked (text (str "count " (:count state)))
-                                                      view-context
-                                                      (fn [state event]
-                                                        (update-in state [:count] inc)))
-                                (gui/call-view view-context counter :child-1 {:pulse-rate 1000})
-                                (gui/call-view view-context counter :child-2 {:pulse-rate 500})
-                                (transformer/with-transformers
-                                  (transformer/->Filter :fade1
-                                                        quad/alpha-fragment-shader-source
-                                                        [:1f "alpha" 1])
-                                  (text (-> view-context :application-state :focused-state-paths vec)))))}))
+  {:count 0
+   :view (fn [view-context state]
+           (l/vertically (text "Foo")
+                         (text (:count state))
+                         (text "Bar")))})
 
 
-(defn static-app [view-context]
-
-  (merge initial-counter-state
-         gui/child-focus-handlers
-         {:view (fn [view-context state]
-                  (l/vertically (-> (text (str "count " (:count state) (if (:mouse-over state) "x" "")))
-
-                                    (gui/on-mouse-clicked
-                                     view-context
-                                     (fn [state event]
-                                       (update-in state [:count] inc)))
-
-                                    (gui/add-mouse-event-handler-with-context
-                                     view-context
-                                     (fn [state event]
-                                       state)))
-                                (gui/call-view view-context static :static)
-                                (gui/call-view view-context counter :child-1 {:pulse-rate 1000})
-                                (text (-> view-context :application-state :mouse-over-layout-paths vec))
-                                (text (-> view-context :application-state :mouse-over-paths vec))))}))
+(defn layout [layoutable]
+  (-> layoutable
+      (layout/layout {} Integer/MAX_VALUE Integer/MAX_VALUE)
+      (second)
+      (assoc :x 0 :y 0 :z 0)))
 
 
-
-
-;; App test
-
-(defn counter-view [state]
-  (text (:count state) (if (:has-focus state)
-                         [255 255 255 255]
-                         [100 100 100 255])))
-
-(defn layout-app [state event]
-  (let [state (if (:view-state state)
-                state
-                (assoc state :view-state
-                       (merge initial-counter-state
-
-                              {:child-view-states {:child-1 initial-counter-state
-                                                   :child-2 initial-counter-state}})))
-        state (if (:focused-state-paths state)
-                state
-                (assoc state :focused-state-paths [[:view-state] [:child-view-states :child-1]]))]
-    (-> state
-        (assoc :layoutable (-> (l/vertically (text (get-in state [:view-state :count]))
-                                             (-> (counter-view (get-in state [:view-state :child-view-states :child-1]))
-                                                 (assoc :state-path [:view-state :child-view-states :child-1]))
-                                             (-> (counter-view (get-in state [:view-state :child-view-states :child-2]))
-                                                 (assoc :state-path [:view-state :child-view-states :child-2]))
-                                             (transformer/with-transformers
-                                               (transformer/->Filter :fade1
-                                                                     quad/alpha-fragment-shader-source
-                                                                     [:1f "alpha" 0.3])
-                                               (text (:focused-state-paths state))))
-
-                               (assoc :state-path [:view-state]))))))
 
 
 (defn start []
   #_(gui/start-app layout-app)
   (gui/start-control app)
   #_(gui/start-control static-app))
+
+
+(defn view [count]
+  (l/vertically (l/horizontally (text "Foo") (text "Bar"))
+                (text count)
+                (text "Bar")))
+
+(clojure.pprint/pprint (gui/partition-by-differences (layout (view 0))
+                               (layout (view 1))))
+
+
 
