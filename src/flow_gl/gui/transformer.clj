@@ -12,16 +12,8 @@
            [javax.media.opengl GL2])
   (:use clojure.test))
 
-(defprotocol StatelessTransformer
-  (transform [this drawables x y width height gl]))
-
-(defprotocol StatefulTransformer
-  (transform-with-state [this state drawables x y width height gl])
-  (initialize-state [this gl]))
-
-(defprotocol TransformerState
-  (dispose [this gl]))
-
+(defprotocol Transformer
+  (transform [this gpu-state drawables x y width height]))
 
 (defn transpose [node x y z]
   (assoc node
@@ -98,99 +90,73 @@
 (defn with-transformers [& transformers-and-layoutable]
   (assoc (last transformers-and-layoutable) :transformers (drop-last transformers-and-layoutable)))
 
-(defn apply-transformers [transformer-states render-tree gl]
-  (let [[transformer-states child-drawables] (if (:children render-tree)
-                                               (loop [transformer-states transformer-states
-                                                      drawables []
-                                                      children (:children render-tree)]
-                                                 (if-let [child-tree (first children)]
-                                                   (let [[transformer-states child-drawables] (apply-transformers transformer-states child-tree gl)]
-                                                     (recur transformer-states
-                                                            (concat drawables child-drawables)
-                                                            (rest children)))
-                                                   [transformer-states
-                                                    drawables]))
-                                               [transformer-states
-                                                [render-tree]])]
+(defn apply-transformers [gpu-state render-tree]
+  (let [[gpu-state child-drawables] (if (:children render-tree)
+                                      (loop [gpu-state  gpu-state
+                                             drawables []
+                                             children (:children render-tree)]
+                                        (if-let [child-tree (first children)]
+                                          (let [[gpu-state  child-drawables] (apply-transformers gpu-state child-tree (:gl gpu-state))]
+                                            (recur gpu-state
+                                                   (concat drawables child-drawables)
+                                                   (rest children)))
+                                          [gpu-state
+                                           drawables]))
+                                      [gpu-state
+                                       [render-tree]])]
 
 
-    (loop [transformer-states transformer-states
+    (loop [gpu-state  gpu-state
            drawables child-drawables
            transformers (:transformers render-tree)]
       (if-let [transformer (first transformers)]
-
-        (if (satisfies? StatefulTransformer transformer)
-          (let [transformer-state (or (get-in transformer-states [:states (:key transformer)] )
-                                      (initialize-state transformer gl))
-                [transformer-state drawables] (transform-with-state transformer
-                                                                    transformer-state
-                                                                    drawables
-                                                                    (:x render-tree)
-                                                                    (:y render-tree)
-                                                                    (:width render-tree)
-                                                                    (:height render-tree)
-                                                                    gl)]
-            (recur (-> transformer-states
-                       (assoc-in [:states (:key transformer)] transformer-state)
-                       (update-in [:used-state-keys] conj (:key transformer)))
-                   drawables
-                   (rest transformers)))
-          (recur transformer-states
-                 (transform transformer
-                            drawables
-                            (:x render-tree)
-                            (:y render-tree)
-                            (:width render-tree)
-                            (:height render-tree)
-                            gl)
+        (let [[gpu-state drawables] (transform transformer
+                                               gpu-state
+                                               drawables
+                                               (:x render-tree)
+                                               (:y render-tree)
+                                               (:width render-tree)
+                                               (:height render-tree))]
+          (recur gpu-state
+                 drawables
                  (rest transformers)))
-        [transformer-states
+        [gpu-state
          drawables]))))
 
-(defn transform-trees [transformer-states render-trees gl]
-  (let [transformer-states (assoc transformer-states :used-state-keys #{})
-        [transformer-states drawables] (loop [render-trees render-trees
-                                              transformer-states transformer-states
-                                              all-drawables []]
-                                         (if-let [render-tree (first render-trees)]
-                                           (let [[transformer-states drawables] (apply-transformers transformer-states
-                                                                                                    render-tree
-                                                                                                    gl)]
-                                             (recur (rest render-trees)
-                                                    transformer-states
-                                                    (concat all-drawables drawables)))
-                                           [transformer-states all-drawables]))
-        unused-transformer-state-keys (filter (complement (:used-state-keys transformer-states))
-                                              (keys (:states transformer-states)))]
-
-    (dorun (map (fn [unused-transformer-state-key]
-                  (dispose (get-in transformer-states [:states unused-transformer-state-key])
-                           gl))
-                unused-transformer-state-keys))
-
-    [(update-in transformer-states [:states] dissoc unused-transformer-state-keys)
-     drawables]))
+(defn transform-trees [gpu-state render-trees]
+  (loop [render-trees render-trees
+         gpu-state gpu-state
+         all-drawables []]
+    (if-let [render-tree (first render-trees)]
+      (let [[gpu-state drawables] (apply-transformers gpu-state
+                                                      render-tree)]
+        (recur (rest render-trees)
+               gpu-state
+               (concat all-drawables drawables)))
+      [gpu-state all-drawables])))
 
 
 ;; Transformers
 
 (defrecord Highlight [key]
-  StatelessTransformer
-  (transform [this drawables x y width height gl]
-    (concat drawables
-            (map (fn [drawable]
-                   (assoc (drawable/->Rectangle (:width drawable) (:height drawable) [255 0 0 155])
-                     :x (:x drawable) :y (:y drawable) :z 1 ))
-                 (filter :highlight? drawables)))))
+  Transformer
+  (transform [this gpu-state drawables x y width height]
+    [gpu-state
+     (concat drawables
+             (map (fn [drawable]
+                    (assoc (drawable/->Rectangle (:width drawable) (:height drawable) [255 0 0 155])
+                      :x (:x drawable) :y (:y drawable) :z 1 ))
+                  (filter :highlight? drawables)))]))
 
 (defrecord HighlightAll [key color]
-  StatelessTransformer
-  (transform [this drawables x y width height gl]
-    (concat drawables
-            (map (fn [drawable]
-                   (assoc (drawable/->Rectangle (:width drawable) (:height drawable) color)
-                     :x (:x drawable) :y (:y drawable) :z 1 ))
-                 drawables))))
+  Transformer
+  (transform [this gpu-state drawables x y width height]
+    [gpu-state
+     (concat drawables
+             (map (fn [drawable]
+                    (assoc (drawable/->Rectangle (:width drawable) (:height drawable) color)
+                      :x (:x drawable) :y (:y drawable) :z 1 ))
+                  drawables))]))
 
 (defrecord FilterState [renderers render-target]
   TransformerState
@@ -201,14 +167,15 @@
       (render-target/delete render-target gl))))
 
 (defrecord Filter [key fragment-shader-source uniforms]
-  StatefulTransformer
-  (transform-with-state [this state drawables x y width height gl]
-    (let [drawables (map (fn [drawable]
+  Transformer
+  (transform [this gpu-state drawables x y width height]
+    (let [gl (:gl gpu-state)
+          drawables (map (fn [drawable]
                            (assoc drawable
                              :y (- (:y drawable) y)
                              :x (- (:x drawable) x)))
                          drawables)
-          old-render-target (:render-target state)
+          old-render-target (get-in gpu-state [:key :render-target])
           render-target (if (and old-render-target
                                  (= (:width old-render-target)
                                     width)
@@ -228,115 +195,17 @@
                                                (opengl/clear gl 0 0 0 0)
                                                (renderer/render-frame-drawables drawables
                                                                                 gl
-                                                                                (:renderers state)))]
+                                                                                (:renderers gpu-state)))]
 
-        [(assoc state
-           :renderers renderers
-           :render-target render-target)
+        [(-> gpu-state
+             (assoc :renderers renderers)
+             (assoc-in [:key :render-target] render-target))
          [(drawable/->Quad ["texture" (:texture render-target)]
                            uniforms
                            fragment-shader-source
                            x y
                            width
-                           height)]])))
-
-  (initialize-state [this gl]
-    (->FilterState [(renderer/create-quad-view-renderer gl)
-                    (renderer/create-nanovg-renderer)
-                    (renderer/create-quad-renderer gl)]
-                   nil)))
-
-
-(defrecord CacheState [renderers render-target previous-drawables]
-  TransformerState
-  (dispose [this gl]
-    (doseq [renderer renderers]
-      (renderer/delete renderer gl))
-    (when render-target
-      (render-target/delete render-target gl))))
-
-(defrecord Cache [key]
-  StatefulTransformer
-  (transform-with-state [this state drawables x y width height gl]
-    (if (and (:render-target state)
-             (= width (-> state :render-target :width))
-             (= height (-> state :render-target :height))
-             (= #_identical? drawables (:previous-drawables state)))
-      (do (flow-gl.debug/add-event :cache-transformer-hit)
-          [state
-           [(drawable/->Quad ["texture" (:texture (:render-target state))]
-                             []
-                             quad/fragment-shader-source
-                             x y
-                             width
-                             height)]])
-      
-      (let [drawables (map (fn [drawable]
-                           (assoc drawable
-                             :y (- (:y drawable) y)
-                             :x (- (:x drawable) x)))
-                         drawables)
-          old-render-target (:render-target state)
-          render-target (if (and old-render-target
-                                 (= (:width old-render-target)
-                                    width)
-                                 (= (:height old-render-target)
-                                    height))
-                          old-render-target
-                          (render-target/create width
-                                                height
-                                                gl))]
-        (flow-gl.debug/add-event :cache-transformer-miss)
-
-      (when (and old-render-target
-                 (not= old-render-target render-target))
-        (render-target/delete old-render-target gl))
-
-      (let [renderers (render-target/render-to render-target gl
-                                               ;;(opengl/initialize-gl gl)
-                                               (opengl/clear gl 0 0 0 0)
-                                               (renderer/render-frame-drawables drawables
-                                                                                gl
-                                                                                (:renderers state)))]
-
-        [(assoc state
-           :previous-drawables drawables
-           :renderers renderers
-           :render-target render-target)
-         [(drawable/->Quad ["texture" (:texture render-target)]
-                           []
-                           quad/fragment-shader-source
-                           x y
-                           width
                            height)]]))))
-
-  (initialize-state [this gl]
-    (->CacheState [(renderer/create-quad-view-renderer gl)
-                   (renderer/create-nanovg-renderer)
-                   (renderer/create-quad-renderer gl)]
-                  nil
-                  nil)))
-
-
-(defrecord RenderTransformerState [renderers]
-  TransformerState
-  (dispose [this gl]
-    (doseq [renderer renderers]
-      (renderer/delete renderer gl))))
-
-(defrecord RenderTransformer [key]
-  StatefulTransformer
-  (transform-with-state [this state drawables x y width height gl]
-    [(assoc state
-       :renderers (renderer/render-frame drawables
-                                         gl
-                                         (:renderers state)))
-     []])
-
-  (initialize-state [this gl]
-    (->RenderTransformerState [(renderer/create-quad-view-renderer gl)
-                               (renderer/create-nanovg-renderer)
-                               (renderer/create-quad-renderer gl)])))
 
 
 (run-all-tests)

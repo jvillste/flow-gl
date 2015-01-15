@@ -100,8 +100,7 @@
   (reduce dissoc drawable-textures (map texture-key drawables)))
 
 (defn has-texture? [quad-view drawable]
-  (contains? (:drawable-textures quad-view)
-             (texture-key drawable)))
+  (contains? (:drawable-textures quad-view) (texture-key drawable)))
 
 (defn set-texture [drawable-textures drawable texture-id]
   (assoc drawable-textures (texture-key drawable) texture-id))

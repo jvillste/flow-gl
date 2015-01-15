@@ -55,37 +55,42 @@
 
     (try
       (let [render-target (window/with-gl window gl
-                            (render-target/create 100 100
+                            (render-target/create 50 50
                                                   gl))
-            quad-view-renderer (window/with-gl window gl
-                                 (renderer/create-quad-view-renderer gl))
-            drawable (assoc (renderer/->PrerenderedTexture :foo)
-                       :x 0 :y 0 :z 0)]
+            gpu-state (gui/initialize-gpu-state window)
+            drawable {:has-predefined-texture true}
+            gpu-state (window/with-gl window gl
+                        (render-target/render-to render-target gl
+                                                 (opengl/clear gl 1 0 0 1)
+                                                 (-> gpu-state
+                                                     (gui/layout-to-render-trees partition)
+                                                     (gui/render-trees-to-drawables)
+                                                     (gui/render-drawables))))]
 
-        (window/with-gl window gl
-          (render-target/render-to render-target gl
-                                   (opengl/clear gl 1 0 0 1)))
 
-        (loop [quad-view-renderer (window/with-gl window gl
-                                    (update-in quad-view-renderer
-                                               [:quad-view]
-                                               quad-view/add-gl-texture
-                                               drawable
-                                               (:texture render-target)
-                                               (:width render-target)
-                                               (:height render-target)
-                                               gl))]
-          
-          (let [frame-started (System/currentTimeMillis)]
 
-            (let [drawables  [drawable (assoc drawable :x 200)] #_(drawables-for-time frame-started)]
-              (let [[quad-view-renderer] (window/with-gl window gl
-                                           (opengl/clear gl 0 0 0 1)
-                                           (renderer/render-frame drawables gl [quad-view-renderer]))]
-                (window/swap-buffers window)
-                (when (window/visible? window)
-                  (do (wait-for-next-frame frame-started)
-                      (recur quad-view-renderer))))))))
+        (let [quad-view-renderer :foo #_(window/with-gl window gl
+                                          (update-in quad-view-renderer
+                                                     [:quad-view]
+                                                     quad-view/add-gl-texture
+                                                     drawable
+                                                     (:texture render-target)
+                                                     (:width render-target)
+                                                     (:height render-target)
+                                                     gl))]
+          (loop [quad-view-renderer quad-view-renderer]
+            (when (window/visible? window)
+              (let [frame-started (System/currentTimeMillis)]
+
+                (let [drawables  [(assoc drawable :x 0 :y 0 :z 0)
+                                  (assoc drawable :x 0 :y 100 :z 0)]]
+                  (let [[quad-view-renderer] (window/with-gl window gl
+                                               (opengl/clear gl 0 0 0 1)
+                                               (renderer/render-frame drawables gl [quad-view-renderer]))]
+
+                    (window/swap-buffers window)
+                    (wait-for-next-frame frame-started)
+                    (recur quad-view-renderer))))))))
 
 
       (println "exiting")

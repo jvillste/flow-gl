@@ -204,20 +204,15 @@
     (let [state (app state events)]
       (assoc state :drawables (drawables-for-layout (:layout state))))))
 
-(defn layout-to-render-trees [gpu-state]
+(defn layout-to-render-trees [gpu-state layout]
   (assoc gpu-state
-    :render-trees (transformer/render-trees-for-layout (:layout gpu-state))))
-
-
+    :render-trees (transformer/render-trees-for-layout layout)))
 
 (defn render-trees-to-drawables [gpu-state]
-  (let [[transformer-states drawables] (debug/debug-timed-and-return :transform (transformer/transform-trees (or (:transformer-states gpu-state)
-                                                                                                                 {})
-                                                                                                             (:render-trees gpu-state)
-                                                                                                             (:gl gpu-state)))]
+  (let [[gpu-state drawables] (debug/debug-timed-and-return :transform (transformer/transform-trees gpu-state
+                                                                                                    (:render-trees gpu-state)))]
     (assoc gpu-state
-      :drawables drawables
-      :transformer-states transformer-states)))
+      :drawables drawables)))
 
 (defn apply-to-renderers [gpu-state function]
   (apply update-in
@@ -234,20 +229,20 @@
   (apply-to-renderers gpu-state
                       #(renderer/end-frame % (:gl gpu-state))))
 
+(defn render-drawables-with-renderers  [renderers gl drawables]
+  (let [[quad-view quad nanovg] (renderer/render-frame-drawables drawables
+                                                                 gl
+                                                                 [(:quad-view renderers)
+                                                                  (:quad renderers)
+                                                                  (:nanovg renderers)])]
+    {:quad-view quad-view
+     :quad quad
+     :nanovg nanovg}))
+
 (defn render-drawables [gpu-state]
-  (let [gl (:gl gpu-state)
-        [quad-view quad nanovg] (debug/debug-timed-and-return :render (do
-                                                                        (opengl/clear gl 0 0 0 1)
-                                                                        (renderer/render-frame-drawables (:drawables gpu-state)
-                                                                                                         gl
-                                                                                                         [(get-in gpu-state [:renderers :quad-view])
-                                                                                                          (get-in gpu-state [:renderers :quad])
-                                                                                                          (get-in gpu-state [:renderers :nanovg])])))]
-
-
-    (assoc gpu-state :renderers {:quad-view quad-view
-                                 :quad quad
-                                 :nanovg nanovg})))
+  (assoc gpu-state :renderers (render-drawables-with-renderers (:renderers gpu-state)
+                                                               (:gl gpu-state)
+                                                               (:drawables gpu-state))))
 
 
 (defn layout-to-partitions [gpu-state]
@@ -260,43 +255,48 @@
   (assoc gpu-state
     :render-trees (transformer/render-trees-for-layout partition)))
 
-(defn add-partition-textures [gpu-state partitions]
-  #_(let [drawables (map #(renderer/->PrerenderedTexture %)
-                       partitions)
-        new-drawables (filter #(not (quad-view/has-texture? %)))
-        [gpu-state quad-view] (reduce (fn [[gpu-state quad-view] drawable]
-                                        (let [render-target (render-target/create (:width drawable)
-                                                                                  (:height drawable)
-                                                                                  (:gl gpu-state))
-                                              [gpu-state quad-view]  (render-target/render-to render-target
-                                                                                              (:gl gpu-state)
-                                                                                              )]
-                                          )
-                                        [
-                                         (quad-view/add-gl-texture quad-view
-                                                                   drawable
-                                                                   (:texture render-target)
-                                                                   (:width drawable)
-                                                                   (:height drawable)
-                                                                   (:gl gpu-state))] )
-                                      [gpu-state
-                                       (get-in gpu-state [:renderers :quad-view :quad-view])]
-                                      new-drawables)]
+(defn add-partition-textures [gpu-state drawables]
+  (let [quad-view (get-in gpu-state [:renderers :quad-view :quad-view])
+        new-drawables (filter #(not (quad-view/has-texture? quad-view %))
+                              drawables)]
+    (reduce (fn [gpu-state drawable]
+              (let [paritition (:contents drawable)
+                    render-target (render-target/create (:width partition)
+                                                        (:height partition)
+                                                        (:gl gpu-state))
+                    gpu-state (-> (render-target/render-to render-target
+                                                           (:gl gpu-state)
+                                                           (-> gpu-state
+                                                               (layout-to-render-trees partition)
+                                                               (render-trees-to-drawables)
+                                                               (render-drawables)))
+                                  (update-in [:renderers :quad-view :quad-view]
+                                             quad-view/add-gl-texture
+                                             drawable
+                                             (:texture render-target)
+                                             (:width drawable)
+                                             (:height drawable)
+                                             (:gl gpu-state)))]
 
-    (assoc-in gpu-state [:renderers :quad-view :quad-view] quad-view)))
+                (render-target/delete render-target)
+                gpu-state))
+            gpu-state
+            new-drawables)))
 
 (defn bake-recurring-partitions [gpu-state]
   (let [partitions-without-location (->> (:partitions gpu-state)
-                                         (map #(dissoc % :x :y))
+                                         (map #(dissoc % :x :y :z))
                                          (apply hash-set))
         recurring-partitions (clojure.set/intersection (or (:previous-partitions gpu-state)
                                                            #{})
-                                                       partitions-without-location)]
-
+                                                       partitions-without-location)
+        drawables (map #(assoc :has-predefined-texture % true)
+                      recurring-partitions)]
 
     (-> gpu-state
-        (add-partition-textures recurring-partitions)
+        (add-partition-textures drawables)
         (assoc :previous-partitions partitions-without-location))))
+
 
 
 (defn swap-buffers [gpu-state]
@@ -305,9 +305,12 @@
 (defn render [gpu-state layout]
   (try
     (-> (assoc gpu-state :layout layout)
-        (layout-to-render-trees)
-        (render-trees-to-drawables)
+        (start-frame)
+        (layout-to-partitions)
+        (partitions-to-drawables)
+        (bake-recurring-partitions)
         (render-drawables)
+        (end-frame)
         (swap-buffers))
     (catch Exception e
       (window/close (:window gpu-state))
@@ -762,7 +765,11 @@
         {:layoutable layoutable
          :state @current-view-state-atom}))))
 
-
+(defn initialize-gpu-state [window]
+  (window/with-gl window gl
+    (-> {:window window
+         :gl gl}
+        (add-renderers))))
 
 (defn event-loop [initial-state app]
   (let [initial-state (assoc initial-state
@@ -785,10 +792,7 @@
                         (recur (app state
                                     events))))))
 
-    (loop [gpu-state (window/with-gl (:window initial-state) gl
-                       (-> {:window (:window initial-state)
-                            :gl gl}
-                           (add-renderers)))]
+    (loop [gpu-state (initialize-gpu-state (:window initial-state))]
       (async/alt!! (:with-gl-dropping-channel initial-state) ([{:keys [function arguments]}]
                                                                 (when function (recur (window/with-gl (:window initial-state) gl
                                                                                         (apply function

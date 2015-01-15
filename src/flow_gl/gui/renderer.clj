@@ -93,13 +93,11 @@
 (defn create-nanovg-renderer []
   (->NanoVGRenderer (NanoVG/init)))
 
-(defrecord PrerenderedTexture [contents])
-
 (defrecord QuadViewRenderer [quad-view]
   Renderer
   (can-draw? [this drawable]
     (or (satisfies? drawable/Java2DDrawable drawable)
-        (instance? PrerenderedTexture drawable)))
+        (:has-predefined-texture drawable)))
 
   (draw-drawables [this drawables gl]
     (doto gl
