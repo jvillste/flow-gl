@@ -1,7 +1,8 @@
 (ns examples.render-target
   (:require (flow-gl.opengl.jogl [opengl :as opengl]
-                                 [window :as window]
-                                 [render-target :as render-target]))
+                                 [window :as jogl-window]
+                                 [render-target :as render-target])
+            (flow-gl.gui [window :as window]))
   (:use clojure.test)
   (:import [nanovg NanoVG]))
 
@@ -9,11 +10,15 @@
   (doto nanovg
     (NanoVG/fillColor (char r) (char g) (char b) (char a))
     (NanoVG/beginPath)
-    (NanoVG/rect x y width height)
+    (NanoVG/moveTo 10 10)
+    (NanoVG/lineTo 100 100)
+    (NanoVG/lineTo 10 100)
+    (NanoVG/closePath)
+    ;;(NanoVG/rect x y width height)
     (NanoVG/fill)))
 
 (defn start-view []
-  (let [window (window/create 300
+  (let [window (jogl-window/create 300
                               400
                               :profile :gl3
                               :init opengl/initialize
@@ -29,7 +34,7 @@
                   (NanoVG/init))]
 
     (try
-      (window/set-display window gl
+      (window/with-gl window gl
                           (let [{:keys [width height]} (opengl/size gl)]
                             (opengl/clear gl 0 0 0 1)
 
@@ -43,6 +48,7 @@
                                                      (NanoVG/endFrame nanovg))
 
                             (render-target/draw render-target 0 0 width height gl)))
+      (window/swap-buffers window)
 
       (println "exiting")
       (catch Exception e

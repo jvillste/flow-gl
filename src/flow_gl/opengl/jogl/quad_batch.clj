@@ -419,6 +419,7 @@
     new-quad-batch))
 
 (defn prepare-for-adding-textures [quad-batch gl texel-count]
+  (println "adding " texel-count)
   (let [quad-batch (if (> (:removed-texels quad-batch)
                           (/ (:allocated-texels quad-batch)
                              2))
@@ -504,7 +505,7 @@
         (do (texture/copy-to-buffer gl
                                     (:texture-id texture)
                                     (:texture-buffer-id quad-batch)
-                                    offset)
+                                    (* 4 offset))
             (recur (rest textures)
                    (+ offset (* (:width texture)
                                 (:height texture)))))))

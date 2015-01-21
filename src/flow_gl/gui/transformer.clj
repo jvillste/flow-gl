@@ -158,14 +158,6 @@
                       :x (:x drawable) :y (:y drawable) :z 1 ))
                   drawables))]))
 
-(defrecord FilterState [renderers render-target]
-  TransformerState
-  (dispose [this gl]
-    (doseq [renderer renderers]
-      (renderer/delete renderer gl))
-    (when render-target
-      (render-target/delete render-target gl))))
-
 (defrecord Filter [key fragment-shader-source uniforms]
   Transformer
   (transform [this gpu-state drawables x y width height]

@@ -215,11 +215,10 @@
       :drawables drawables)))
 
 (defn apply-to-renderers [gpu-state function]
-  (apply update-in
-         gpu-state
-         [:renderers]
-         map-vals
-         function))
+  (update-in gpu-state
+   [:renderers]
+   map-vals
+   function))
 
 (defn start-frame [gpu-state]
   (apply-to-renderers gpu-state
@@ -291,7 +290,7 @@
                                                            #{})
                                                        partitions-without-location)
         drawables (map #(assoc :has-predefined-texture % true)
-                      recurring-partitions)]
+                       recurring-partitions)]
 
     (-> gpu-state
         (add-partition-textures drawables)
@@ -307,7 +306,6 @@
     (-> (assoc gpu-state :layout layout)
         (start-frame)
         (layout-to-partitions)
-        (partitions-to-drawables)
         (bake-recurring-partitions)
         (render-drawables)
         (end-frame)

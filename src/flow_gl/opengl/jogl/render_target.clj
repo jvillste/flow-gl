@@ -145,8 +145,7 @@
 
     (.glDrawBuffers gl 1 (int-array [GL2/GL_COLOR_ATTACHMENT0]) 0)
 
-    (assert GL2/GL_FRAMEBUFFER_COMPLETE
-            (.glCheckFramebufferStatus gl GL2/GL_FRAMEBUFFER))
+    (assert (.glCheckFramebufferStatus gl GL2/GL_FRAMEBUFFER) #_GL2/GL_FRAMEBUFFER_COMPLETE)
 
     (frame-buffer/bind 0 gl)
 

@@ -139,20 +139,26 @@
   (let [first-texture-id (:next-free-texture-id (:quad-batch quad-view))
         drawables (new-drawables quad-view drawables)
         new-textures (create-textures drawables)]
+    #_(println "new textures" (count new-textures) (:next-free-texture-id (:quad-batch quad-view)))
     (if (empty? new-textures)
       quad-view
       (assoc quad-view
         :quad-batch (quad-batch/add-textures (:quad-batch quad-view) gl new-textures)
-        :drawable-textures (add-new-textures (:drawable-textures quad-view) drawables (:next-free-texture-id (:quad-batch quad-view)))))))
+        :drawable-textures (add-new-textures (:drawable-textures quad-view)
+                                             drawables
+                                             (:next-free-texture-id (:quad-batch quad-view)))))))
 
 (defn add-gl-texture [quad-view drawable texture-id width height gl]
+  #_(println "new gl texture" (:next-free-texture-id (:quad-batch quad-view)))
   (assoc quad-view
     :quad-batch (quad-batch/add-textures-from-gl-textures (:quad-batch quad-view)
                                                           gl
                                                           [{:texture-id texture-id
                                                             :width width
                                                             :height height}])
-    :drawable-textures (add-new-textures (:drawable-textures quad-view) [drawable]  (:next-free-texture-id (:quad-batch quad-view)))))
+    :drawable-textures (add-new-textures (:drawable-textures quad-view)
+                                         [drawable]
+                                         (:next-free-texture-id (:quad-batch quad-view)))))
 
 (defn add-texture-ids [drawables drawable-textures]
   (map (fn [drawable]
