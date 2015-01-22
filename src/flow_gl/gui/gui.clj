@@ -148,9 +148,10 @@
     :y (+ parent-y (:y partition))
     :z (+ parent-z (or (:z partition) 0))))
 
-(defn add-partition [partitions partition parent-x parent-y parent-z]
+(defn add-partition [partitions partition parent-x parent-y parent-z is-equal]
   (conj partitions
-        (set-position partition parent-x parent-y parent-z)))
+        (-> (set-position partition parent-x parent-y parent-z)
+            (assoc :is-equal is-equal))))
 
 (defn partition-by-differences
   ([layout-1 layout-2]
@@ -161,7 +162,7 @@
              (not (:children layout-1))
              (not= (type layout-1)
                    (type layout-2)))
-       (add-partition partitions layout-1 parent-x parent-y parent-z)
+       (add-partition partitions layout-1 parent-x parent-y parent-z (= layout-1 layout-2))
        (let [parent-x (+ parent-x (:x layout-1))
              parent-y (+ parent-y (:y layout-1))
              parent-z (+ parent-z (or (:z layout-1) 0))]
@@ -216,9 +217,9 @@
 
 (defn apply-to-renderers [gpu-state function]
   (update-in gpu-state
-   [:renderers]
-   map-vals
-   function))
+             [:renderers]
+             map-vals
+             function))
 
 (defn start-frame [gpu-state]
   (apply-to-renderers gpu-state
@@ -254,13 +255,13 @@
   (assoc gpu-state
     :render-trees (transformer/render-trees-for-layout partition)))
 
-(defn add-partition-textures [gpu-state drawables]
+(defn add-partition-textures [gpu-state partitions]
   (let [quad-view (get-in gpu-state [:renderers :quad-view :quad-view])
-        new-drawables (filter #(not (quad-view/has-texture? quad-view %))
-                              drawables)]
-    (reduce (fn [gpu-state drawable]
-              (let [paritition (:contents drawable)
-                    render-target (render-target/create (:width partition)
+        new-partitions (filter #(not (quad-view/has-texture? quad-view %))
+                               partitions)]
+    (println "New partitions" (count new-partitions))
+    (reduce (fn [gpu-state partition]
+              (let [render-target (render-target/create (:width partition)
                                                         (:height partition)
                                                         (:gl gpu-state))
                     gpu-state (-> (render-target/render-to render-target
@@ -271,35 +272,43 @@
                                                                (render-drawables)))
                                   (update-in [:renderers :quad-view :quad-view]
                                              quad-view/add-gl-texture
-                                             drawable
+                                             (assoc partition :has-predefined-texture true)
                                              (:texture render-target)
-                                             (:width drawable)
-                                             (:height drawable)
+                                             (:width partition)
+                                             (:height partition)
                                              (:gl gpu-state)))]
 
-                (render-target/delete render-target)
+                (render-target/delete render-target (:gl gpu-state))
                 gpu-state))
             gpu-state
-            new-drawables)))
+            new-partitions)))
 
 (defn bake-recurring-partitions [gpu-state]
-  (let [partitions-without-location (->> (:partitions gpu-state)
-                                         (map #(dissoc % :x :y :z))
-                                         (apply hash-set))
-        recurring-partitions (clojure.set/intersection (or (:previous-partitions gpu-state)
-                                                           #{})
-                                                       partitions-without-location)
-        drawables (map #(assoc :has-predefined-texture % true)
-                       recurring-partitions)]
+  (let [#_partitions-with-markings #_(map (fn [partition]
+                                            (if (contains? (:previous-partitions gpu-state)
+                                                           (dissoc partition :x :y :z))
+                                              (assoc partition :has-predefined-texture true)
+                                              partition))
+                                          (:partitions gpu-state))]
 
     (-> gpu-state
-        (add-partition-textures drawables)
-        (assoc :previous-partitions partitions-without-location))))
+        (add-partition-textures (filter :is-equal (:partitions gpu-state)))
+        (assoc #_:previous-partitions #_(->> (:partitions gpu-state)
+                                             (map #(dissoc % :x :y :z))
+                                             (apply hash-set))
+
+               :drawables (mapcat (fn [partition]
+                                    (if (:is-equal partition)
+                                      [(assoc partition
+                                         :has-predefined-texture true)]
+                                      (drawables-for-layout partition)))
+                                  (:partitions gpu-state) #_partitions-with-markings)))))
 
 
 
 (defn swap-buffers [gpu-state]
-  (window/swap-buffers (:window gpu-state)))
+  (window/swap-buffers (:window gpu-state))
+  gpu-state)
 
 (defn render [gpu-state layout]
   (try
@@ -311,7 +320,7 @@
         (end-frame)
         (swap-buffers))
     (catch Exception e
-      (window/close (:window gpu-state))
+      #_(window/close (:window gpu-state))
       (throw e))))
 
 (defn render-drawables-afterwards [app]
@@ -766,7 +775,8 @@
 (defn initialize-gpu-state [window]
   (window/with-gl window gl
     (-> {:window window
-         :gl gl}
+         :gl gl
+         :previous-partitions #{}}
         (add-renderers))))
 
 (defn event-loop [initial-state app]

@@ -76,57 +76,23 @@
       (let [render-target (window/with-gl window gl
                             (render-target/create 100 100
                                                   gl))
-            gpu-state (quad-batch-status (gui/initialize-gpu-state window))
+            gpu-state (gui/initialize-gpu-state window)
             drawable {:has-predefined-texture true}
-            layout (assoc (second (layout/layout (l/vertically (text "foo") (text "bar")) {} 100 100))
+            layout (assoc (second (layout/layout (l/vertically (text "foo")
+                                                               (text "bar"))
+                                                 {} 100 100))
                      :x 0 :y 0 :z 0)
-            #_nanovg  #_(window/with-gl window gl
-                          (NanoVG/init))
 
-            #_quad-batch #_(window/with-gl window gl
-                             (-> (quad-batch/create gl)
-                                 (quad-batch/add-textures gl (quad-view/create-textures [(set-size (text "Faa"))]))))
+            gpu-state (window/with-gl window gl
+                        (render-target/render-to render-target gl
+                                                 (opengl/clear gl 0 0 0 1)
+                                                 (-> gpu-state
+                                                     (assoc :drawables [(assoc (text "haa") :x 0 :y 0 :z 0)]
+                                                            :gl gl)
+                                                     (gui/start-frame)
+                                                     (gui/render-drawables)
+                                                     (gui/end-frame))))
 
-            #_quad-batch #_(window/with-gl window gl
-                             (render-target/render-to render-target gl
-                                                      (opengl/clear gl 0 1 0 1)
-                                                      (quad-batch/draw-quads quad-batch
-                                                                             gl
-                                                                             [{:x 0 :y 0 :width 100 :height 100 :texture-id 0}]
-                                                                             (:width render-target) (:height render-target))
-                                                      (quad-batch/add-textures quad-batch gl (quad-view/create-textures [(set-size (text "Fee"))]))))
-
-            gpu-state (quad-batch-status (window/with-gl window gl
-                                           (render-target/render-to render-target gl
-                                                                    (opengl/clear gl 0 0 0 1)
-
-                                                                    #_(NanoVG/beginFrame nanovg (:width render-target)
-                                                                                         (:height render-target))
-                                                                    #_(draw-rectangle nanovg
-                                                                                      0 0 (:width render-target) (:height render-target)
-                                                                                      0 255 0 255)
-                                                                    #_(NanoVG/endFrame nanovg)
-
-                                                                    #_gpu-state
-                                                                    #_(update-in gpu-state [:renderers :quad-view :quad-view]
-                                                                                 quad-view/draw-drawables
-                                                                                 [(assoc (text "haa") :x 0 :y 0 :z 0)]
-                                                                                 (:width render-target) (:height render-target) gl)
-                                                                    (-> gpu-state
-                                                                        (assoc :drawables [(assoc (text "haa") :x 0 :y 0 :z 0)]
-                                                                               :gl gl)
-                                                                        (gui/start-frame)
-                                                                        (gui/render-drawables)
-                                                                        (gui/end-frame)))))
-
-
-            #_quad-batch #_(window/with-gl window gl
-                             (quad-batch/add-textures-from-gl-textures
-                              quad-batch
-                              gl
-                              [{:width (:width render-target)
-                                :height (:height render-target)
-                                :texture-id (:texture render-target)}]))
 
             gpu-state (quad-batch-status (window/with-gl window gl
                                            (update-in gpu-state
@@ -142,27 +108,10 @@
           (when (window/visible? window)
             (let [frame-started (System/currentTimeMillis)
                   drawables [(assoc drawable :x 0 :y 0 :z 0)
-                             #_(assoc (text "haa") :x 0 :y 0 :z 0)
+                             (assoc (text "hee") :x 110 :y 0 :z 0)
                              (assoc drawable :x 0 :y 110 :z 0)]
                   gpu-state (quad-batch-status (window/with-gl window gl
                                                  (opengl/clear gl 0 0 0 1)
-                                                 #_(NanoVG/beginFrame nanovg 300 400)
-                                                 #_(draw-rectangle nanovg
-                                                                   0 0 300 400
-                                                                   0 255 0 255)
-                                                 #_(NanoVG/endFrame nanovg)
-
-                                                 #_(quad-batch/draw-quads quad-batch
-                                                                          gl
-                                                                          [{:x 0 :y 0 :width 100 :height 100 :texture-id 0}
-                                                                           {:x 0 :y 110 :width 100 :height 100 :texture-id 1}]
-                                                                          300 400)
-                                                 #_gpu-state
-                                                 #_(update-in gpu-state [:renderers :quad-view :quad-view]
-                                                              quad-view/draw-drawables
-                                                              drawables
-                                                              300 400 gl)
-
                                                  (-> gpu-state
                                                      (assoc :drawables drawables
                                                             :gl gl)

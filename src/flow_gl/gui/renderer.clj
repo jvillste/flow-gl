@@ -100,11 +100,11 @@
         (:has-predefined-texture drawable)))
 
   (draw-drawables [this drawables gl]
+    (println "drawing quads" (count drawables))
     (doto gl
         (.glEnable GL2/GL_BLEND)
         (.glBlendFunc GL2/GL_SRC_ALPHA GL2/GL_ONE_MINUS_SRC_ALPHA))
     (let [{:keys [width height]} (opengl/size gl)]
-      (println "drawign " width height)
       (assoc this :quad-view (quad-view/draw-drawables quad-view drawables width height gl))))
 
   (start-frame [this gl]
