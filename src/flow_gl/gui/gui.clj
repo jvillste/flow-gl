@@ -259,50 +259,40 @@
   (let [quad-view (get-in gpu-state [:renderers :quad-view :quad-view])
         new-partitions (filter #(not (quad-view/has-texture? quad-view %))
                                partitions)]
-    (println "New partitions" (count new-partitions))
     (reduce (fn [gpu-state partition]
               (let [render-target (render-target/create (:width partition)
                                                         (:height partition)
                                                         (:gl gpu-state))
                     gpu-state (-> (render-target/render-to render-target
                                                            (:gl gpu-state)
+                                                           (opengl/clear (:gl gpu-state)
+                                                                         0 0 0 0)
                                                            (-> gpu-state
-                                                               (layout-to-render-trees partition)
+                                                               (layout-to-render-trees (assoc partition
+                                                                                         :x 0 :y 0 :z 0))
                                                                (render-trees-to-drawables)
                                                                (render-drawables)))
                                   (update-in [:renderers :quad-view :quad-view]
                                              quad-view/add-gl-texture
-                                             (assoc partition :has-predefined-texture true)
+                                             partition
                                              (:texture render-target)
                                              (:width partition)
                                              (:height partition)
                                              (:gl gpu-state)))]
-
                 (render-target/delete render-target (:gl gpu-state))
                 gpu-state))
             gpu-state
             new-partitions)))
 
 (defn bake-recurring-partitions [gpu-state]
-  (let [#_partitions-with-markings #_(map (fn [partition]
-                                            (if (contains? (:previous-partitions gpu-state)
-                                                           (dissoc partition :x :y :z))
-                                              (assoc partition :has-predefined-texture true)
-                                              partition))
-                                          (:partitions gpu-state))]
-
-    (-> gpu-state
-        (add-partition-textures (filter :is-equal (:partitions gpu-state)))
-        (assoc #_:previous-partitions #_(->> (:partitions gpu-state)
-                                             (map #(dissoc % :x :y :z))
-                                             (apply hash-set))
-
-               :drawables (mapcat (fn [partition]
-                                    (if (:is-equal partition)
-                                      [(assoc partition
-                                         :has-predefined-texture true)]
-                                      (drawables-for-layout partition)))
-                                  (:partitions gpu-state) #_partitions-with-markings)))))
+  (-> gpu-state
+      (add-partition-textures (filter :is-equal (:partitions gpu-state)))
+      (assoc :drawables (mapcat (fn [partition]
+                                  (if (:is-equal partition)
+                                    [(assoc partition
+                                       :has-predefined-texture true)]
+                                    (drawables-for-layout partition)))
+                                (:partitions gpu-state) #_partitions-with-markings))))
 
 
 
@@ -310,14 +300,23 @@
   (window/swap-buffers (:window gpu-state))
   gpu-state)
 
+(defn clear [gpu-state]
+  (opengl/clear (:gl gpu-state) 0 0 0 1)
+  gpu-state)
+
+(defn render-frame [gpu-state]
+  (-> gpu-state
+      (start-frame)
+      (layout-to-partitions)
+      (bake-recurring-partitions)
+      (clear)
+      (render-drawables)
+      (end-frame)))
+
 (defn render [gpu-state layout]
   (try
     (-> (assoc gpu-state :layout layout)
-        (start-frame)
-        (layout-to-partitions)
-        (bake-recurring-partitions)
-        (render-drawables)
-        (end-frame)
+        (render-frame)
         (swap-buffers))
     (catch Exception e
       #_(window/close (:window gpu-state))

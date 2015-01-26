@@ -33,12 +33,12 @@
   (let [length 5000
         phase (/ (mod time length)
                  length)]
-    (l/vertically (l/horizontally (text "foo") (text "bar") (text "baz"))
+    (l/vertically (l/horizontally (text "foo2") #_(text "bar") (text "baz"))
                   (text (str "phase: " (format "%.2f" (float phase))))
                   (l/horizontally (text "Foo") (text "Bar") (text "Baz")))))
 
 (defn wait-for-next-frame [frame-started]
-  (let [target-frames-per-second 1]
+  (let [target-frames-per-second 0.51]
     (Thread/sleep (max 0
                        (- (/ 1000 target-frames-per-second)
                           (- (System/currentTimeMillis)
@@ -50,8 +50,8 @@
     :x 0 :y 0 :z 0 :width width :height height))
 
 (defn start-view []
-  (let [window (jogl-window/create 300
-                                   400
+  (let [window (jogl-window/create 600
+                                   600
                                    :profile :gl3
                                    :init opengl/initialize
                                    :reshape opengl/resize
@@ -66,8 +66,31 @@
                                   (window/width window)
                                   (window/height window))
                 gpu-state (window/with-gl window gl
-                            (opengl/clear gl 0 0 0 1)
-                            (gui/render gpu-state layout))]
+                            (gui/render-frame (assoc gpu-state :layout layout)))]
+
+            (window/with-gl window gl
+              (let [quad-batch (get-in gpu-state [:renderers :quad-view :quad-view :quad-batch])
+                    quads (loop [textures (->> (:textures-in-use quad-batch)
+                                               (seq)
+                                               (sort-by first))
+                                 quads []
+                                 y 0]
+                            (if-let [[texture-id texture] (first textures)]
+                              (recur (rest textures)
+                                     (conj quads {:texture-id texture-id
+                                                  :x 300
+                                                  :y y})
+                                     (+ y (:height texture)))
+                              quads))]
+                #_(opengl/clear gl 0 0 0 1)
+                (println "quads " quads)
+                (quad-batch/draw-quads quad-batch
+                                       gl
+                                       quads
+                                       (window/width window)
+                                       (window/height window))))
+            
+            (window/swap-buffers window)
 
             (wait-for-next-frame frame-started)
 

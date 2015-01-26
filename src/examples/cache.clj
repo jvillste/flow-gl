@@ -40,10 +40,6 @@
                       (font/create "LiberationSans-Regular.ttf" 15)
                       color)))
 
-(defn cache [layoutable]
-  (transformer/with-transformers
-    (transformer/->Cache :cache)
-    layoutable))
 
 (defn counter-view [view-context state]
   (gui/on-mouse-clicked (l/horizontally (repeat (:count state) (text "X")))

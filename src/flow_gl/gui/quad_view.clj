@@ -94,7 +94,7 @@
             nil)))
 
 (defn texture-key [drawable]
-  (dissoc drawable :x :y :z #_:texture-id))
+  (dissoc drawable :x :y :z :has-predefined-texture #_:texture-id))
 
 (defn unused-drawable-textures [drawable-textures drawables]
   (reduce dissoc drawable-textures (map texture-key drawables)))
@@ -139,6 +139,11 @@
   (let [first-texture-id (:next-free-texture-id (:quad-batch quad-view))
         drawables (new-drawables quad-view drawables)
         new-textures (create-textures drawables)]
+    (if (> (count new-textures) 0)
+      (println "new textures" (:next-free-texture-id (:quad-batch quad-view)) " to " (- (+ (count new-textures) (:next-free-texture-id (:quad-batch quad-view)))
+                                                                                        1))
+      (println "no new textures"))
+    
     (if (empty? new-textures)
       quad-view
       (assoc quad-view
@@ -148,7 +153,7 @@
                                              (:next-free-texture-id (:quad-batch quad-view)))))))
 
 (defn add-gl-texture [quad-view drawable texture-id width height gl]
-  #_(println "new gl texture" (:next-free-texture-id (:quad-batch quad-view)))
+  (println "new gl texture" (:next-free-texture-id (:quad-batch quad-view)) (hash (texture-key drawable)) "from" texture-id)
   (assoc quad-view
     :quad-batch (quad-batch/add-textures-from-gl-textures (:quad-batch quad-view)
                                                           gl
@@ -161,6 +166,8 @@
 
 (defn add-texture-ids [drawables drawable-textures]
   (map (fn [drawable]
+         (println  "drawing texture" (texture drawable-textures
+                                              drawable) (hash (texture-key drawable) ))
          (assoc drawable
            :texture-id (texture drawable-textures
                                 drawable)))
@@ -175,6 +182,7 @@
         new-drawable-textures (reduce unset-texture
                                       (:drawable-textures quad-view)
                                       (keys unused-drawable-textures))]
+    (println "was unused " (vals unused-drawable-textures))
 
     (assoc quad-view
       :drawn-drawables []

@@ -91,7 +91,7 @@
                                                         (update-in state [:count] inc)))
                                 (gui/call-view view-context counter :child-1 {:pulse-rate 1000})
                                 (gui/call-view view-context counter :child-2 {:pulse-rate 500})
-                                (transformer/with-transformers
+                                #_(transformer/with-transformers
                                   (transformer/->Filter :fade1
                                                         quad/alpha-fragment-shader-source
                                                         [:1f "alpha" 1])

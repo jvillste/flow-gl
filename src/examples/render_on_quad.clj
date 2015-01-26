@@ -39,7 +39,7 @@
 
 
 (defn wait-for-next-frame [frame-started]
-  (let [target-frames-per-second 1]
+  (let [target-frames-per-second 10]
     (Thread/sleep (max 0
                        (- (/ 1000 target-frames-per-second)
                           (- (System/currentTimeMillis)
@@ -59,10 +59,38 @@
 (defn quad-batch-status [gpu-state]
   (let [quad-batch (get-in gpu-state [:renderers :quad-view :quad-view :quad-batch])]
     (println "quad-batch" (select-keys quad-batch [:removed-texels
-                                                   :next-free-texture-id
-                                                   :next-free-texel
-                                                   :textures-in-use])))
+                                                   :allocated-texels
+                                                   #_:next-free-texture-id
+                                                   #_:next-free-texel
+                                                   #_:textures-in-use])))
   gpu-state)
+
+(defn add-gl-texture [gpu-state window drawable]
+  (let [size (layoutable/preferred-size drawable Integer/MAX_VALUE Integer/MAX_VALUE)
+        render-target (window/with-gl window gl
+                        (render-target/create (:width size) (:height size)
+                                              gl))
+        gpu-state (window/with-gl window gl
+                    (render-target/render-to render-target gl
+                                             (opengl/clear gl 1 0 0 1)
+                                             (-> gpu-state
+                                                 (assoc :drawables [drawable]
+                                                        :gl gl)
+                                                 (gui/render-drawables))))
+
+        gpu-state (quad-batch-status (window/with-gl window gl
+                                       (update-in gpu-state
+                                                  [:renderers :quad-view :quad-view]
+                                                  quad-view/add-gl-texture
+                                                  drawable
+                                                  (:texture render-target)
+                                                  (:width render-target)
+                                                  (:height render-target)
+                                                  gl)))]
+    (window/with-gl window gl
+      (render-target/delete render-target gl))
+
+    gpu-state))
 
 (defn start-view []
   (let [window (jogl-window/create 300
@@ -73,43 +101,17 @@
                                    :close-automatically true)]
 
     (try
-      (let [render-target (window/with-gl window gl
-                            (render-target/create 100 100
-                                                  gl))
-            gpu-state (gui/initialize-gpu-state window)
-            drawable {:has-predefined-texture true}
-            layout (assoc (second (layout/layout (l/vertically (text "foo")
-                                                               (text "bar"))
-                                                 {} 100 100))
-                     :x 0 :y 0 :z 0)
-
-            gpu-state (window/with-gl window gl
-                        (render-target/render-to render-target gl
-                                                 (opengl/clear gl 0 0 0 1)
-                                                 (-> gpu-state
-                                                     (assoc :drawables [(assoc (text "haa") :x 0 :y 0 :z 0)]
-                                                            :gl gl)
-                                                     (gui/start-frame)
-                                                     (gui/render-drawables)
-                                                     (gui/end-frame))))
-
-
-            gpu-state (quad-batch-status (window/with-gl window gl
-                                           (update-in gpu-state
-                                                      [:renderers :quad-view :quad-view]
-                                                      quad-view/add-gl-texture
-                                                      drawable
-                                                      (:texture render-target)
-                                                      (:width render-target)
-                                                      (:height render-target)
-                                                      gl)))]
+      (let [gpu-state (gui/initialize-gpu-state window)
+            gpu-state (add-gl-texture gpu-state window (assoc (text "1") :x 0 :y 0 :z 0))
+            gpu-state (add-gl-texture gpu-state window (assoc (text "2") :x 0 :y 0 :z 0))]
 
         (loop [gpu-state gpu-state]
           (when (window/visible? window)
             (let [frame-started (System/currentTimeMillis)
-                  drawables [(assoc drawable :x 0 :y 0 :z 0)
-                             (assoc (text "hee") :x 110 :y 0 :z 0)
-                             (assoc drawable :x 0 :y 110 :z 0)]
+                  gpu-state (add-gl-texture gpu-state window (assoc (text (str "Phase is and was " (mod frame-started 10))) :x 0 :y 0 :z 0))
+                  drawables [(assoc (text "1")  :x 0 :y 0 :z 0)
+                             (assoc (text (str "Phase is and was " (mod frame-started 10))) :x 110 :y 0 :z 0)
+                             (assoc (text "2")  :x 0 :y 110 :z 0)]
                   gpu-state (quad-batch-status (window/with-gl window gl
                                                  (opengl/clear gl 0 0 0 1)
                                                  (-> gpu-state
