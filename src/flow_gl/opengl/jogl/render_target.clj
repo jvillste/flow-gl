@@ -198,60 +198,70 @@
     (NanoVG/rect x y width height)
     (NanoVG/fill)))
 
+(defn blit [render-target gl]
+  (let [{:keys [width height]} (opengl/size gl)]
+    (doto gl
+      (.glBindFramebuffer GL2/GL_READ_FRAMEBUFFER (:frame-buffer render-target))
+      (.glBindFramebuffer GL2/GL_DRAW_FRAMEBUFFER 0)
+      (.glBlitFramebuffer 0 0 (:width render-target) (:height render-target)
+                          0 (- height (:height render-target)) (:width render-target) height
+                          GL2/GL_COLOR_BUFFER_BIT GL2/GL_LINEAR))))
+
+
 #_(defn start []
 
-  (let [window-width 600
-        window-height 600
-        window (window/create window-width
-                              window-height
-                              :profile :gl3
-                              :close-automatically true
-                              :init opengl/initialize
-                              )]
+    (let [window-width 600
+          window-height 600
+          window (window/create window-width
+                                window-height
+                                :profile :gl3
+                                :close-automatically true
+                                :init opengl/initialize
+                                )]
 
-    (try
-      (window/set-display window gl
-                          
-
-                          (let [{:keys [width height]} (opengl/size gl)
-                                nanovg (NanoVG/init)
-                                render-target (create 200 200
-                                                      gl)
-                                texture (texture/create-for-file "pumpkin.png" gl)]
+      (try
+        (window/set-display window gl
 
 
-                            (render-to render-target gl
-                                       (opengl/clear gl 0 1 1 1)
-                                       (do
-                                         (NanoVG/beginFrame nanovg (:width render-target) (:height render-target))
-                                         (draw-rectangle nanovg
-                                                         10 10 10 10
-                                                         255 255 255 255)
-                                         (NanoVG/endFrame nanovg))
+                            (let [{:keys [width height]} (opengl/size gl)
+                                  nanovg (NanoVG/init)
+                                  render-target (create 200 200
+                                                        gl)
+                                  texture (texture/create-for-file "pumpkin.png" gl)]
 
-                                       #_(draw-quad gl
-                                                  [["texture" texture]]
-                                                  fragment-shader-source
-                                                  0 0
-                                                  128 128
-                                                  (:width render-target) (:height render-target)))
 
-                            (opengl/clear gl 0 0 1 1)
-                            
-                            
-                            (draw render-target 100 100 width height gl)
+                              (render-to render-target gl
+                                         (opengl/clear gl 0 1 1 1)
+                                         (do
+                                           (NanoVG/beginFrame nanovg (:width render-target) (:height render-target))
+                                           (draw-rectangle nanovg
+                                                           10 10 10 10
+                                                           255 255 255 255)
+                                           (NanoVG/endFrame nanovg))
 
-                            #_(do
-                              (NanoVG/beginFrame nanovg width height)
-                              (draw-rectangle nanovg
-                                              10 10 1000 1000
-                                              255 255 255 255)
-                              (NanoVG/endFrame nanovg))
+                                         #_(draw-quad gl
+                                                      [["texture" texture]]
+                                                      fragment-shader-source
+                                                      0 0
+                                                      128 128
+                                                      (:width render-target) (:height render-target)))
 
-                            (delete render-target gl)))
+                              (opengl/clear gl 0 0 1 1)
 
-      (println "exiting")
 
-      (catch Exception e
-        (window/close window)
-        (throw e)))))
+                              (draw render-target 100 100 width height gl)
+
+                              #_(do
+                                  (NanoVG/beginFrame nanovg width height)
+                                  (draw-rectangle nanovg
+                                                  10 10 1000 1000
+                                                  255 255 255 255)
+                                  (NanoVG/endFrame nanovg))
+
+                              (delete render-target gl)))
+
+        (println "exiting")
+
+        (catch Exception e
+          (window/close window)
+          (throw e)))))

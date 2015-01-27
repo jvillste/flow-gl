@@ -19,3 +19,9 @@
                            GL2/GL_TEXTURE_2D
                            texture-id
                            0))
+
+(defn blit-framebuffer [gl source target width height]
+  (doto gl
+    (.glBindFramebuffer GL2/GL_READ_FRAMEBUFFER source)
+    (.glBindFramebuffer GL2/GL_DRAW_FRAMEBUFFER target)
+    (.glBlitFramebuffer 0 0 width height 0 0 width height GL2/GL_COLOR_BUFFER_BIT GL2/GL_LINEAR)))

@@ -139,10 +139,6 @@
   (let [first-texture-id (:next-free-texture-id (:quad-batch quad-view))
         drawables (new-drawables quad-view drawables)
         new-textures (create-textures drawables)]
-    (if (> (count new-textures) 0)
-      (println "new textures" (:next-free-texture-id (:quad-batch quad-view)) " to " (- (+ (count new-textures) (:next-free-texture-id (:quad-batch quad-view)))
-                                                                                        1))
-      (println "no new textures"))
     
     (if (empty? new-textures)
       quad-view
@@ -153,21 +149,18 @@
                                              (:next-free-texture-id (:quad-batch quad-view)))))))
 
 (defn add-gl-texture [quad-view drawable texture-id width height gl]
-  (println "new gl texture" (:next-free-texture-id (:quad-batch quad-view)) (hash (texture-key drawable)) "from" texture-id)
   (assoc quad-view
     :quad-batch (quad-batch/add-textures-from-gl-textures (:quad-batch quad-view)
                                                           gl
                                                           [{:texture-id texture-id
-                                                            :width width
-                                                            :height height}])
+                                                            :width (int width)
+                                                            :height (int height)}])
     :drawable-textures (add-new-textures (:drawable-textures quad-view)
                                          [drawable]
                                          (:next-free-texture-id (:quad-batch quad-view)))))
 
 (defn add-texture-ids [drawables drawable-textures]
   (map (fn [drawable]
-         (println  "drawing texture" (texture drawable-textures
-                                              drawable) (hash (texture-key drawable) ))
          (assoc drawable
            :texture-id (texture drawable-textures
                                 drawable)))
@@ -182,8 +175,6 @@
         new-drawable-textures (reduce unset-texture
                                       (:drawable-textures quad-view)
                                       (keys unused-drawable-textures))]
-    (println "was unused " (vals unused-drawable-textures))
-
     (assoc quad-view
       :drawn-drawables []
       :quad-batch new-quad-batch

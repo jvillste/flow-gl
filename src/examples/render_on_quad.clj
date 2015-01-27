@@ -16,7 +16,8 @@
                          [renderer :as renderer]
                          [layout-dsl :as l]))
   (:use clojure.test)
-  (:import [nanovg NanoVG]))
+  (:import [nanovg NanoVG]
+           [javax.media.opengl GL2]))
 
 (defn set-size [drawable]
   (let [preferred-size (layoutable/preferred-size drawable 1000 1000)]
@@ -39,7 +40,7 @@
 
 
 (defn wait-for-next-frame [frame-started]
-  (let [target-frames-per-second 10]
+  (let [target-frames-per-second 1]
     (Thread/sleep (max 0
                        (- (/ 1000 target-frames-per-second)
                           (- (System/currentTimeMillis)
@@ -92,6 +93,7 @@
 
     gpu-state))
 
+
 (defn start-view []
   (let [window (jogl-window/create 300
                                    400
@@ -108,12 +110,15 @@
         (loop [gpu-state gpu-state]
           (when (window/visible? window)
             (let [frame-started (System/currentTimeMillis)
-                  gpu-state (add-gl-texture gpu-state window (assoc (text (str "Phase is and was " (mod frame-started 10))) :x 0 :y 0 :z 0))
+                  #_gpu-state #_(add-gl-texture gpu-state window (assoc (text (str "Phase is and was " (mod frame-started 10))) :x 0 :y 0 :z 0))
                   drawables [(assoc (text "1")  :x 0 :y 0 :z 0)
-                             (assoc (text (str "Phase is and was " (mod frame-started 10))) :x 110 :y 0 :z 0)
+                             (assoc (text (str "Phase " (mod frame-started 10))) :x 110 :y 0 :z 0)
                              (assoc (text "2")  :x 0 :y 110 :z 0)]
                   gpu-state (quad-batch-status (window/with-gl window gl
+
+
                                                  (opengl/clear gl 0 0 0 1)
+                                                 (opengl/clear-rectangle gl 10 10 100 100 1 1 0 1)
                                                  (-> gpu-state
                                                      (assoc :drawables drawables
                                                             :gl gl)
@@ -121,6 +126,11 @@
                                                      (gui/render-drawables)
                                                      (gui/end-frame))))]
               (window/swap-buffers window)
+              (Thread/sleep 1000)
+              (println "copying")
+              (window/with-gl window gl
+                (opengl/copy-back-to-front gl))
+
               (wait-for-next-frame frame-started)
               (recur gpu-state)))))
 

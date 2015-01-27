@@ -151,7 +151,7 @@
 (defn add-partition [partitions partition parent-x parent-y parent-z is-equal]
   (conj partitions
         (-> (set-position partition parent-x parent-y parent-z)
-            (assoc :is-equal is-equal))))
+            (assoc :recurring? is-equal))))
 
 (defn partition-by-differences
   ([layout-1 layout-2]
@@ -256,17 +256,19 @@
     :render-trees (transformer/render-trees-for-layout partition)))
 
 (defn add-partition-textures [gpu-state partitions]
+  (println "adding partition textures" (count partitions))
   (let [quad-view (get-in gpu-state [:renderers :quad-view :quad-view])
         new-partitions (filter #(not (quad-view/has-texture? quad-view %))
                                partitions)]
     (reduce (fn [gpu-state partition]
-              (let [render-target (render-target/create (:width partition)
-                                                        (:height partition)
+              #_(println "partition" (:width partition) (:height partition))
+              (let [render-target (render-target/create (max 1 (:width partition))
+                                                        (max 1 (:height partition))
                                                         (:gl gpu-state))
                     gpu-state (-> (render-target/render-to render-target
                                                            (:gl gpu-state)
                                                            (opengl/clear (:gl gpu-state)
-                                                                         0 0 0 0)
+                                                                         0 1 0 0)
                                                            (-> gpu-state
                                                                (layout-to-render-trees (assoc partition
                                                                                          :x 0 :y 0 :z 0))
@@ -286,18 +288,23 @@
 
 (defn bake-recurring-partitions [gpu-state]
   (-> gpu-state
-      (add-partition-textures (filter :is-equal (:partitions gpu-state)))
+      (add-partition-textures (filter :recurring? (:partitions gpu-state)))
       (assoc :drawables (mapcat (fn [partition]
-                                  (if (:is-equal partition)
-                                    [(assoc partition
+                                  (if (:recurring? partition)
+                                    [#_(assoc partition
                                        :has-predefined-texture true)]
-                                    (drawables-for-layout partition)))
+                                    (do (opengl/clear-rectangle (:gl gpu-state)
+                                                                (:x partition)
+                                                                (:y partition)
+                                                                (:width partition)
+                                                                (:height partition)
+                                                                0 0 1 1)
+                                      (drawables-for-layout partition))))
                                 (:partitions gpu-state) #_partitions-with-markings))))
 
-
-
 (defn swap-buffers [gpu-state]
-  (window/swap-buffers (:window gpu-state))
+  #_(window/swap-buffers (:window gpu-state))
+  (opengl/copy-back-to-front (:gl gpu-state))
   gpu-state)
 
 (defn clear [gpu-state]
@@ -309,7 +316,7 @@
       (start-frame)
       (layout-to-partitions)
       (bake-recurring-partitions)
-      (clear)
+      #_(clear)
       (render-drawables)
       (end-frame)))
 

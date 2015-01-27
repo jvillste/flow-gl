@@ -22,8 +22,7 @@
 
 (defn dispose [gl]
   (triangle-list/delete-shared-resources gl)
-  (textured-quad/delete-shared-resources gl)
-  )
+  (textured-quad/delete-shared-resources gl))
 
 (defn size [gl]
   (let [result-buffer (int-array 4)]
@@ -34,6 +33,28 @@
   (doto gl
     (.glClearColor r g b a)
     (.glClear GL2/GL_COLOR_BUFFER_BIT)))
+
+(defn copy-back-to-front [gl]
+  (let [{:keys [width height]} (size gl)]
+    (doto gl
+      #_(.glReadBuffer GL2/GL_BACK)
+      #_(.glDrawBuffer GL2/GL_FRONT)
+      (.glBindFramebuffer GL2/GL_READ_FRAMEBUFFER 0)
+      
+      (.glBlitFramebuffer 0 0 width height 0 0 100 100 #_width #_height GL2/GL_COLOR_BUFFER_BIT GL2/GL_LINEAR)
+      #_(.glRasterPos2i 10 10) 
+      #_(.glCopyPixels 10 10 100 100 #_width #_height GL2/GL_COLOR))))
+
+
+
+(defn clear-rectangle [gl x y width height r g b a]
+  (let [framebuffer-height (:height (size gl))]
+    (doto gl
+      (.glEnable GL2/GL_SCISSOR_TEST)
+      (.glScissor x (- framebuffer-height y height) width height)
+      (.glClearColor r g b a)
+      (.glClear GL2/GL_COLOR_BUFFER_BIT)
+      (.glDisable GL2/GL_SCISSOR_TEST))))
 
 (defn resize [gl width height]
   ;; http://www.opengl.org/discussion_boards/showthread.php/172280-Constructing-an-orthographic-matrix-for-2D-drawing

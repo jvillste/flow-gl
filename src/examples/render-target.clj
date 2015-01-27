@@ -1,10 +1,12 @@
 (ns examples.render-target
   (:require (flow-gl.opengl.jogl [opengl :as opengl]
                                  [window :as jogl-window]
-                                 [render-target :as render-target])
+                                 [render-target :as render-target]
+                                 [frame-buffer :as frame-buffer])
             (flow-gl.gui [window :as window]))
   (:use clojure.test)
-  (:import [nanovg NanoVG]))
+  (:import [nanovg NanoVG]
+           [javax.media.opengl GL2]))
 
 (defn draw-rectangle [nanovg x y width height r g b a]
   (doto nanovg
@@ -19,13 +21,13 @@
 
 (defn start-view []
   (let [window (jogl-window/create 300
-                              400
-                              :profile :gl3
-                              :init opengl/initialize
-                              :close-automatically true)
+                                   400
+                                   :profile :gl3
+                                   :init opengl/initialize
+                                   :close-automatically true)
         render-target-width 200
         render-target-height 200
-        
+
         render-target (window/with-gl window gl
                         (render-target/create render-target-width render-target-height
                                               gl))
@@ -35,19 +37,29 @@
 
     (try
       (window/with-gl window gl
-                          (let [{:keys [width height]} (opengl/size gl)]
-                            (opengl/clear gl 0 0 0 1)
+        (let [{:keys [width height]} (opengl/size gl)]
+          (opengl/clear gl 0 0 0 1)
 
-                            (render-target/render-to render-target gl
-                                                     (opengl/clear gl 1 0 0 1)
+          (render-target/render-to render-target gl
+                                   (opengl/clear gl 1 0 0 1)
 
-                                                     (NanoVG/beginFrame nanovg render-target-width render-target-height)
-                                                     (draw-rectangle nanovg
-                                                                     0 0 100 100
-                                                                     0 255 0 255)
-                                                     (NanoVG/endFrame nanovg))
+                                   (NanoVG/beginFrame nanovg render-target-width render-target-height)
+                                   (draw-rectangle nanovg
+                                                   0 0 100 100
+                                                   0 255 0 255)
+                                   (NanoVG/endFrame nanovg))
 
-                            (render-target/draw render-target 0 0 width height gl)))
+
+          #_(doto gl
+            (.glBindFramebuffer GL2/GL_READ_FRAMEBUFFER (:frame-buffer render-target))
+            (.glBindFramebuffer GL2/GL_DRAW_FRAMEBUFFER 0)
+            (.glBlitFramebuffer 0 0 render-target-width render-target-height
+                                0 (- height render-target-height) render-target-width height
+                                GL2/GL_COLOR_BUFFER_BIT GL2/GL_LINEAR))
+          
+          #_(render-target/draw render-target 0 0 width height gl)
+
+          (render-target/blit render-target gl)))
       (window/swap-buffers window)
 
       (println "exiting")
