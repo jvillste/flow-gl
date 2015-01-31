@@ -90,10 +90,12 @@
                                        :gl3 GLProfile/GL3
                                        :gl4 GLProfile/GL4))
            gl-capabilities (doto (GLCapabilities. gl-profile)
-                             (.setDoubleBuffered true))
+                             (.setDoubleBuffered true)
+                             (.setStencilBits 1))
            runner-atom (atom (fn [gl]))
            window (GLWindow/create gl-capabilities)]
 
+       
 
        (when event-channel
          (doto window
@@ -194,6 +196,7 @@
 
        (when (not close-automatically)
          (.setDefaultCloseOperation window WindowClosingProtocol$WindowClosingMode/DO_NOTHING_ON_CLOSE))
+       
        (->JoglWindow window
                      event-channel
                      runner-atom))))

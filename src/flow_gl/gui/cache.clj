@@ -24,7 +24,7 @@
              (bound? #'cache))
       (do (swap! cache update-in [:used] conj [f args])
           (if-let [value (get @cache [f args])]
-            (do (flow-gl.debug/add-event [:cache-hit (:name (meta f))] )
+            (do #_(flow-gl.debug/add-event [:cache-hit (:name (meta f))] )
                 #_(if (= (:type (meta f)) :layout)
                   (flow-gl.gui.transformer/with-transformers
                     (flow-gl.gui.transformer/->HighlightAll :highlight [0 255 0 100])
@@ -40,7 +40,7 @@
                                                                               (map (fn [[f2 args2]] (take 2 (clojure.data/diff args args2)))))))
 
               (swap! cache assoc [f args] value)
-              (flow-gl.debug/add-event [:cache-miss (:name (meta f))])
+              #_(flow-gl.debug/add-event [:cache-miss (:name (meta f))])
               #_(if (= (:type (meta f)) :layout)
                 (flow-gl.gui.transformer/with-transformers
                   (flow-gl.gui.transformer/->HighlightAll :highlight [255 0 0 10])

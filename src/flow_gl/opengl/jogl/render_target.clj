@@ -161,15 +161,16 @@
                (:width render-target)
                (:height render-target)))
 
-(defn end-rendering [render-target gl]
-  (frame-buffer/bind 0
-                     gl))
 
 (defmacro render-to [render-target gl & body]
-  `(do (let [size# (opengl/size ~gl)]
+  `(do (let [size# (opengl/size ~gl)
+             read# (frame-buffer/get-read ~gl)
+             draw# (frame-buffer/get-draw ~gl)]
          (start-rendering ~render-target ~gl)
          (let [result# (do ~@body)]
-           (end-rendering ~render-target ~gl)
+           (frame-buffer/bind-read read# ~gl)
+           (frame-buffer/bind-draw draw# ~gl)
+           
            (.glViewport ~gl 0 0
                         (:width size#)
                         (:height size#))

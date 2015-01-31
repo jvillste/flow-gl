@@ -177,6 +177,32 @@
                       (rest children-2)))
              partitions))))))
 
+(defn dirty-partitions
+  ([layout-1 layout-2]
+     (partition-by-differences layout-1 layout-2 0 0 0 []))
+
+  ([layout-1 layout-2 parent-x parent-y parent-z partitions]
+     (if (or (not (:children layout-1))
+             (not= (type layout-1)
+                   (type layout-2)))
+       (conj partitions
+             (set-position layout-1 parent-x parent-y parent-z))
+       (if (= layout-1 layout-2)
+         partitions
+         (let [parent-x (+ parent-x (:x layout-1))
+               parent-y (+ parent-y (:y layout-1))
+               parent-z (+ parent-z (or (:z layout-1) 0))]
+           (loop [partitions partitions
+                  children-1 (:children layout-1)
+                  children-2 (:children layout-2)]
+             (if-let [child-1 (first children-1)]
+               (let [child-2 (first children-2)
+                     partitions (dirty-partitions child-1 child-2 parent-x parent-y parent-z partitions)]
+                 (recur partitions
+                        (rest children-1)
+                        (rest children-2)))
+               partitions)))))))
+
 
 (defn drawables-for-layout
   ([layout]
@@ -240,16 +266,36 @@
      :nanovg nanovg}))
 
 (defn render-drawables [gpu-state]
-  (assoc gpu-state :renderers (render-drawables-with-renderers (:renderers gpu-state)
-                                                               (:gl gpu-state)
-                                                               (:drawables gpu-state))))
+  (let [gl (:gl gpu-state)
+        {:keys [width height]} (opengl/size gl)
+        render-target (if-let [render-target (:render-target gpu-state)]
+                        (if (and (= width
+                                    (:width render-target))
+                                 (= height
+                                    (:height render-target)))
+                          render-target
+                          (do (render-target/delete render-target gl)
+                              (render-target/create width height gl)))
+                        (render-target/create width height gl))
+        gpu-state (render-target/render-to render-target gl
+                                           #_(opengl/clear gl 0 0 0 1)
+                                           (update-in gpu-state [:renderers] render-drawables-with-renderers gl (:drawables gpu-state)))]
+
+    (render-target/blit render-target gl)
+
+    (assoc gpu-state
+      :render-target render-target)))
 
 
 (defn layout-to-partitions [gpu-state]
-  (assoc gpu-state
-    :partitions (partition-by-differences (:layout gpu-state)
-                                          (:previous-layout gpu-state))
-    :previous-layout (:layout gpu-state)))
+  (let [size (opengl/size (:gl gpu-state))]
+    (assoc gpu-state
+      :partitions (if (= size (:previous-size gpu-state))
+                    (dirty-partitions (:layout gpu-state)
+                                      (:previous-layout gpu-state))
+                    [(:layout gpu-state)])
+      :previous-layout (:layout gpu-state)
+      :previous-size size)))
 
 (defn partition-to-render-trees [gpu-state partition]
   (assoc gpu-state
@@ -287,24 +333,30 @@
             new-partitions)))
 
 (defn bake-recurring-partitions [gpu-state]
-  (-> gpu-state
-      (add-partition-textures (filter :recurring? (:partitions gpu-state)))
-      (assoc :drawables (mapcat (fn [partition]
-                                  (if (:recurring? partition)
-                                    [#_(assoc partition
-                                       :has-predefined-texture true)]
-                                    (do (opengl/clear-rectangle (:gl gpu-state)
-                                                                (:x partition)
-                                                                (:y partition)
-                                                                (:width partition)
-                                                                (:height partition)
-                                                                0 0 1 1)
-                                      (drawables-for-layout partition))))
-                                (:partitions gpu-state) #_partitions-with-markings))))
+  (add-partition-textures gpu-state (filter :recurring? (:partitions gpu-state))))
+
+(defn partitions-to-drawables [gpu-state]
+  (assoc gpu-state
+    :drawables (mapcat (fn [partition]
+                         (if (:recurring? partition)
+                           [#_(assoc partition
+                                :has-predefined-texture true)]
+                           (do #_(opengl/clear-rectangle (:gl gpu-state)
+                                                         (:x partition)
+                                                         (:y partition)
+                                                         (:width partition)
+                                                         (:height partition)
+                                                         0 0 1 1)
+                               (concat [(assoc (drawable/->Rectangle (:width partition)
+                                                                     (:height partition)
+                                                                     [0 0 0 255])
+                                          :x (:x partition)
+                                          :y (:y partition))]
+                                       (drawables-for-layout partition)))))
+                       (:partitions gpu-state))))
 
 (defn swap-buffers [gpu-state]
-  #_(window/swap-buffers (:window gpu-state))
-  (opengl/copy-back-to-front (:gl gpu-state))
+  (window/swap-buffers (:window gpu-state))
   gpu-state)
 
 (defn clear [gpu-state]
@@ -315,7 +367,8 @@
   (-> gpu-state
       (start-frame)
       (layout-to-partitions)
-      (bake-recurring-partitions)
+      #_(bake-recurring-partitions)
+      (partitions-to-drawables)
       #_(clear)
       (render-drawables)
       (end-frame)))

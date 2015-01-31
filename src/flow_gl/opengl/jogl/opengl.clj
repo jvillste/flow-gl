@@ -1,6 +1,5 @@
 (ns flow-gl.opengl.jogl.opengl
-  (:require (flow-gl.opengl.jogl [triangle-list :as triangle-list]
-                                 [textured-quad :as textured-quad]))
+  (:require (flow-gl.opengl.jogl [textured-quad :as textured-quad]))
   (:import [javax.media.opengl GL2]))
 
 
@@ -21,8 +20,8 @@
 
 
 (defn dispose [gl]
-  (triangle-list/delete-shared-resources gl)
-  (textured-quad/delete-shared-resources gl))
+  #_(triangle-list/delete-shared-resources gl)
+  #_(textured-quad/delete-shared-resources gl))
 
 (defn size [gl]
   (let [result-buffer (int-array 4)]

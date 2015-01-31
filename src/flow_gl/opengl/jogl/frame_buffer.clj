@@ -1,4 +1,5 @@
 (ns flow-gl.opengl.jogl.frame-buffer
+  (:require (flow-gl.opengl.jogl [get :as get]))
   (:import [javax.media.opengl GL2]))
 
 (defn create [gl]
@@ -9,8 +10,21 @@
 (defn bind [id gl]
   (.glBindFramebuffer gl GL2/GL_FRAMEBUFFER id))
 
+(defn bind-read [id gl]
+  (.glBindFramebuffer gl GL2/GL_READ_FRAMEBUFFER id))
+
+(defn bind-draw [id gl]
+  (.glBindFramebuffer gl GL2/GL_DRAW_FRAMEBUFFER id))
+
 (defn delete [id gl]
   (.glDeleteFramebuffers gl (int 1) (int-array [id]) (int 0)))
+
+
+(defn get-read [gl]
+  (get/integer gl GL2/GL_READ_FRAMEBUFFER_BINDING))
+
+(defn get-draw [gl]
+  (get/integer gl GL2/GL_DRAW_FRAMEBUFFER_BINDING))
 
 (defn bind-texture [texture-id gl]
   (.glFramebufferTexture2D gl

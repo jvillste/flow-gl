@@ -38,7 +38,7 @@
 
   ([value color]
      (drawable/->Text (str value)
-                      (font/create "LiberationSans-Regular.ttf" 15)
+                      (font/create "LiberationSans-Regular.ttf" 25)
                       color)))
 
 (def initial-counter-state {:count 0
