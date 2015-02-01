@@ -43,7 +43,7 @@
       (triangle-list/create-shared-resources gl))
 
     (let [triangle-list (window/with-gl window gl
-                          (triangle-list/create gl :triangle-strip))]
+                          (triangle-list/create gl :triangles))]
       (try
         (window/with-gl window gl
           (let [{:keys [width height]} (opengl/size gl)]
@@ -60,9 +60,8 @@
               (.glStencilOp GL2/GL_REPLACE GL2/GL_REPLACE GL2/GL_REPLACE))
 
             (triangle-list/render-single-color-coordinates triangle-list
-                                                           [0 0
-                                                            50 0
-                                                            0 100]
+                                                           (concat (quad 10 10 100 100)
+                                                                   (quad 10 120 100 100))
                                                            [1 0 0 1]
                                                            gl)
 
@@ -82,8 +81,13 @@
               (.glStencilOp GL2/GL_KEEP GL2/GL_KEEP GL2/GL_KEEP))
 
 
+            (triangle-list/render-single-color-coordinates triangle-list
+                                                           (quad 0 0 width height)
+                                                           [1 0 0 1]
+                                                           gl)
+            
 
-            (triangle-list/render-coordinates triangle-list
+            #_(triangle-list/render-coordinates triangle-list
                                               [0 0
                                                100 0
                                                0 100]

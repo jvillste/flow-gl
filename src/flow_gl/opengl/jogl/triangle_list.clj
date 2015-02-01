@@ -179,7 +179,6 @@
   triangle-list)
 
 
-
 (defn render-single-color [triangle-list color gl]
   (shader/enable-program gl @single-color-shader-program-atom)
 
