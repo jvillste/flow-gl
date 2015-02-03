@@ -179,29 +179,39 @@
 
 (defn dirty-partitions
   ([layout-1 layout-2]
-     (partition-by-differences layout-1 layout-2 0 0 0 []))
+     (dirty-partitions layout-1 layout-2 0 0 0 [] []))
 
-  ([layout-1 layout-2 parent-x parent-y parent-z partitions]
-     (if (or (not (:children layout-1))
-             (not= (type layout-1)
+  ([layout-1 layout-2 parent-x parent-y parent-z partitions-to-be-redrawn partitions-to-be-cleared]
+     (if (or (not= (type layout-1)
                    (type layout-2)))
-       (conj partitions
-             (set-position layout-1 parent-x parent-y parent-z))
+       [(conj partitions-to-be-redrawn
+              (set-position layout-1 parent-x parent-y parent-z))
+        (conj partitions-to-be-cleared
+              (set-position layout-2 parent-x parent-y parent-z))]
        (if (= layout-1 layout-2)
-         partitions
-         (let [parent-x (+ parent-x (:x layout-1))
-               parent-y (+ parent-y (:y layout-1))
-               parent-z (+ parent-z (or (:z layout-1) 0))]
-           (loop [partitions partitions
-                  children-1 (:children layout-1)
-                  children-2 (:children layout-2)]
-             (if-let [child-1 (first children-1)]
-               (let [child-2 (first children-2)
-                     partitions (dirty-partitions child-1 child-2 parent-x parent-y parent-z partitions)]
-                 (recur partitions
-                        (rest children-1)
-                        (rest children-2)))
-               partitions)))))))
+         [partitions-to-be-redrawn
+          partitions-to-be-cleared]
+         (if (:children layout-1)
+           (let [parent-x (+ parent-x (:x layout-1))
+                 parent-y (+ parent-y (:y layout-1))
+                 parent-z (+ parent-z (or (:z layout-1) 0))]
+             (loop [partitions-to-be-redrawn partitions-to-be-redrawn
+                    partitions-to-be-cleared partitions-to-be-cleared
+                    children-1 (:children layout-1)
+                    children-2 (:children layout-2)]
+               (if-let [child-1 (first children-1)]
+                 (let [child-2 (first children-2)
+                       [partitions-to-be-redrawn partitions-to-be-cleared] (dirty-partitions child-1 child-2 parent-x parent-y parent-z partitions-to-be-redrawn partitions-to-be-cleared)]
+                   (recur partitions-to-be-redrawn
+                          partitions-to-be-cleared
+                          (rest children-1)
+                          (rest children-2)))
+                 [partitions-to-be-redrawn
+                  partitions-to-be-cleared])))
+           [(conj partitions-to-be-redrawn
+                  (set-position layout-1 parent-x parent-y parent-z))
+            (conj partitions-to-be-cleared
+                  (set-position layout-2 parent-x parent-y parent-z))])))))
 
 
 (defn drawables-for-layout
@@ -278,6 +288,7 @@
                               (render-target/create width height gl)))
                         (render-target/create width height gl))
         gpu-state (render-target/render-to render-target gl
+                                           (clear gpu-state)
                                            #_(opengl/clear gl 0 0 0 1)
                                            (update-in gpu-state [:renderers] render-drawables-with-renderers gl (:drawables gpu-state)))]
 
@@ -288,12 +299,15 @@
 
 
 (defn layout-to-partitions [gpu-state]
-  (let [size (opengl/size (:gl gpu-state))]
+  (let [size (opengl/size (:gl gpu-state))
+        [partitions-to-be-redrawn partitions-to-be-cleared] (if (= size (:previous-size gpu-state))
+                                                              (dirty-partitions (:layout gpu-state)
+                                                                                (:previous-layout gpu-state))
+                                                              [[(:layout gpu-state)] []])]
+
     (assoc gpu-state
-      :partitions (if (= size (:previous-size gpu-state))
-                    (dirty-partitions (:layout gpu-state)
-                                      (:previous-layout gpu-state))
-                    [(:layout gpu-state)])
+      :partitions partitions-to-be-redrawn
+      :partitions-to-be-cleared partitions-to-be-cleared
       :previous-layout (:layout gpu-state)
       :previous-size size)))
 
@@ -302,7 +316,6 @@
     :render-trees (transformer/render-trees-for-layout partition)))
 
 (defn add-partition-textures [gpu-state partitions]
-  (println "adding partition textures" (count partitions))
   (let [quad-view (get-in gpu-state [:renderers :quad-view :quad-view])
         new-partitions (filter #(not (quad-view/has-texture? quad-view %))
                                partitions)]
@@ -336,6 +349,7 @@
   (add-partition-textures gpu-state (filter :recurring? (:partitions gpu-state))))
 
 (defn partitions-to-drawables [gpu-state]
+  (println "partitions" (map type (:partitions gpu-state)))
   (assoc gpu-state
     :drawables (mapcat (fn [partition]
                          (if (:recurring? partition)
@@ -360,7 +374,13 @@
   gpu-state)
 
 (defn clear [gpu-state]
-  (opengl/clear (:gl gpu-state) 0 0 0 1)
+  (doseq [partition (:partitions-to-be-cleared gpu-state)]
+    (opengl/clear-rectangle (:gl gpu-state)
+                            (:x partition)
+                            (:y partition)
+                            (:width partition)
+                            (:height partition)
+                            0 0 0 1))
   gpu-state)
 
 (defn render-frame [gpu-state]
@@ -369,7 +389,6 @@
       (layout-to-partitions)
       #_(bake-recurring-partitions)
       (partitions-to-drawables)
-      #_(clear)
       (render-drawables)
       (end-frame)))
 

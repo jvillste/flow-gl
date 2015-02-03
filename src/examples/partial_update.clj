@@ -30,12 +30,14 @@
                              [255 255 255 255])))
 
 (defn layoutable-for-time [time]
-  (let [length 5000
+  (let [length 500
         phase (/ (mod time length)
                  length)]
-    (l/vertically (l/horizontally (text "1") (text "2") (text "3"))
-                  (l/horizontally (text "4") (text (apply str (repeat (* phase 5) "x"))) (text "6"))
-                  (l/horizontally (text "7") (text "8") (text "9")))))
+    (layouts/->Preferred (l/box 10
+                                (drawable/->Rectangle 0 0 [0 255 0 255])
+                                (l/vertically (l/horizontally (text "1") (text "2") (text "3"))
+                                              (l/horizontally (text "4") (text (apply str (repeat (* phase 2) "x"))) (text "ABCD"))
+                                              (l/horizontally (text "7") (text "8") (text "9")))))))
 
 (defn wait-for-next-frame [frame-started target-frames-per-second]
   (Thread/sleep (max 0
@@ -68,7 +70,7 @@
 
             (window/swap-buffers window)
 
-            (wait-for-next-frame frame-started 1.1)
+            (wait-for-next-frame frame-started 10)
 
             (recur gpu-state))))
 
@@ -81,5 +83,3 @@
 
 (defn start []
   (start-view))
-
-
