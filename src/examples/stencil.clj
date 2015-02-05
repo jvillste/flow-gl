@@ -20,7 +20,7 @@
     (NanoVG/rect x y width height)
     (NanoVG/fill)))
 
-(defn quad [x y width height]
+(defn quad [{:keys [x y width height]}]
   [x y
    x (+ y height)
    (+ x width) y
@@ -28,6 +28,35 @@
    x (+ y height)
    (+ x width) (+ y height)
    (+ x width) y])
+
+(defn set-stencil [rectangles gl]
+  (doto gl
+    (.glColorMask false false false false)
+    (.glEnable GL2/GL_STENCIL_TEST)
+    (.glClearStencil 0)
+    (.glClear GL2/GL_STENCIL_BUFFER_BIT)
+    (.glStencilFunc GL2/GL_ALWAYS 1 1)
+    (.glStencilOp GL2/GL_REPLACE GL2/GL_REPLACE GL2/GL_REPLACE))
+
+  (let [triangle-list (triangle-list/create gl :triangles)
+        {:keys [width height]} (opengl/size gl)]
+
+    (triangle-list/set-size triangle-list width height gl)
+
+    (triangle-list/render-coordinates triangle-list
+                                      (apply concat (map quad rectangles))
+                                      [0 0 0 1]
+                                      gl)
+    
+    (triangle-list/delete triangle-list gl))
+
+  (doto gl
+    (.glStencilFunc GL2/GL_EQUAL 1 1)
+    (.glColorMask true true true true)
+    (.glStencilOp GL2/GL_KEEP GL2/GL_KEEP GL2/GL_KEEP)))
+
+(defn disable-stencil [gl]
+  (.glDisable gl GL2/GL_STENCIL_TEST))
 
 (defn start-view []
   (let [window (jogl-window/create 300
@@ -39,9 +68,6 @@
         nanovg  (window/with-gl window gl
                   (NanoVG/init))]
 
-    (window/with-gl window gl
-      (triangle-list/create-shared-resources gl))
-
     (let [triangle-list (window/with-gl window gl
                           (triangle-list/create gl :triangles))]
       (try
@@ -49,54 +75,18 @@
           (let [{:keys [width height]} (opengl/size gl)]
             (opengl/clear gl 0 0 0 1)
 
+            (set-stencil [{:x 10 :y 10 :width 100 :height 100}
+                          {:x 10 :y 120 :width 100 :height 100}]
+                         gl)
+
             (triangle-list/set-size triangle-list width height gl)
-
-            (doto gl
-              (.glColorMask false false false false)
-              (.glEnable GL2/GL_STENCIL_TEST)
-              (.glClearStencil 0)
-              (.glClear GL2/GL_STENCIL_BUFFER_BIT)
-              (.glStencilFunc GL2/GL_ALWAYS 1 1)
-              (.glStencilOp GL2/GL_REPLACE GL2/GL_REPLACE GL2/GL_REPLACE))
-
-            (triangle-list/render-single-color-coordinates triangle-list
-                                                           (concat (quad 10 10 100 100)
-                                                                   (quad 10 120 100 100))
-                                                           [1 0 0 1]
-                                                           gl)
-
-
-            #_(triangle-list/render-coordinates triangle-list
-                                                [0 0
-                                                 50 0
-                                                 0 100]
-                                              [1 0 0 1
-                                               0 1 0 1
-                                               0 0 1 1]
+            (triangle-list/render-coordinates triangle-list
+                                              (quad {:x 0 :y 0 :width width :height height})
+                                              [1 1 1 1]
                                               gl)
 
-            (doto gl
-              (.glStencilFunc GL2/GL_EQUAL 1 1)
-              (.glColorMask true true true true)
-              (.glStencilOp GL2/GL_KEEP GL2/GL_KEEP GL2/GL_KEEP))
 
-
-            (triangle-list/render-single-color-coordinates triangle-list
-                                                           (quad 0 0 width height)
-                                                           [1 0 0 1]
-                                                           gl)
-            
-
-            #_(triangle-list/render-coordinates triangle-list
-                                              [0 0
-                                               100 0
-                                               0 100]
-                                              [1 0 0 1
-                                               0 1 0 1
-                                               0 0 1 1]
-                                              gl)
-
-            (.glDisable gl GL2/GL_STENCIL_TEST)))
+            (disable-stencil gl)))
 
         (window/swap-buffers window)
 

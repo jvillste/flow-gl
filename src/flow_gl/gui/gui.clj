@@ -182,36 +182,38 @@
      (dirty-partitions layout-1 layout-2 0 0 0 [] []))
 
   ([layout-1 layout-2 parent-x parent-y parent-z partitions-to-be-redrawn partitions-to-be-cleared]
-     (if (or (not= (type layout-1)
+     (if (= layout-1 layout-2)
+       [partitions-to-be-redrawn
+        partitions-to-be-cleared]
+       (if (and (:children layout-1)
+                (= (type layout-1)
                    (type layout-2)))
-       [(conj partitions-to-be-redrawn
-              (set-position layout-1 parent-x parent-y parent-z))
-        (conj partitions-to-be-cleared
-              (set-position layout-2 parent-x parent-y parent-z))]
-       (if (= layout-1 layout-2)
-         [partitions-to-be-redrawn
-          partitions-to-be-cleared]
-         (if (:children layout-1)
-           (let [parent-x (+ parent-x (:x layout-1))
-                 parent-y (+ parent-y (:y layout-1))
-                 parent-z (+ parent-z (or (:z layout-1) 0))]
-             (loop [partitions-to-be-redrawn partitions-to-be-redrawn
-                    partitions-to-be-cleared partitions-to-be-cleared
-                    children-1 (:children layout-1)
-                    children-2 (:children layout-2)]
-               (if-let [child-1 (first children-1)]
-                 (let [child-2 (first children-2)
-                       [partitions-to-be-redrawn partitions-to-be-cleared] (dirty-partitions child-1 child-2 parent-x parent-y parent-z partitions-to-be-redrawn partitions-to-be-cleared)]
-                   (recur partitions-to-be-redrawn
-                          partitions-to-be-cleared
-                          (rest children-1)
-                          (rest children-2)))
-                 [partitions-to-be-redrawn
-                  partitions-to-be-cleared])))
-           [(conj partitions-to-be-redrawn
-                  (set-position layout-1 parent-x parent-y parent-z))
-            (conj partitions-to-be-cleared
-                  (set-position layout-2 parent-x parent-y parent-z))])))))
+         (let [parent-x (+ parent-x (:x layout-1))
+               parent-y (+ parent-y (:y layout-1))
+               parent-z (+ parent-z (or (:z layout-1) 0))]
+           (loop [partitions-to-be-redrawn partitions-to-be-redrawn
+                  partitions-to-be-cleared partitions-to-be-cleared
+                  children-1 (:children layout-1)
+                  children-2 (:children layout-2)]
+             (if-let [child-1 (first children-1)]
+               (let [child-2 (first children-2)
+                     [new-partitions-to-be-redrawn partitions-to-be-cleared] (dirty-partitions child-1
+                                                                                               child-2
+                                                                                               parent-x
+                                                                                               parent-y
+                                                                                               parent-z
+                                                                                               partitions-to-be-redrawn
+                                                                                               partitions-to-be-cleared)]
+                 (recur new-partitions-to-be-redrawn
+                        partitions-to-be-cleared
+                        (rest children-1)
+                        (rest children-2)))
+               [partitions-to-be-redrawn
+                partitions-to-be-cleared])))
+         [(conj partitions-to-be-redrawn
+                (set-position layout-1 parent-x parent-y parent-z))
+          (conj partitions-to-be-cleared
+                (set-position layout-2 parent-x parent-y parent-z))]))))
 
 
 (defn drawables-for-layout
