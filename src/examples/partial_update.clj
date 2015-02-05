@@ -34,7 +34,7 @@
         phase (/ (mod time length)
                  length)]
     (layouts/->Preferred (l/box 10
-                                (drawable/->Empty 0 0) #_(drawable/->Rectangle 0 0 [0 255 0 255])
+                                (drawable/->Rectangle 0 0 [0 255 0 255])
                                 (l/vertically (l/horizontally (text "1") (text "2") (text "3"))
                                               (l/horizontally (text "4") (text (apply str (repeat (* phase 2) "x"))) (text "ABCD"))
                                               (l/horizontally (text "7") (text "8") (text "9")))))))

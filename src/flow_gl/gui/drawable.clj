@@ -1,6 +1,5 @@
 (ns flow-gl.gui.drawable
   (:require  (flow-gl.graphics [font :as font]
-                               [vector :as vector]
                                [text :as graphics-text]
                                [buffered-image :as buffered-image])
              (flow-gl.gui [layoutable :as layoutable])

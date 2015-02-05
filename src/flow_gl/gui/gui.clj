@@ -13,8 +13,7 @@
                          [events :as events]
                          [layoutable :as layoutable]
                          [cache :as cache]
-                         [quad-view :as quad-view]
-                         )
+                         [quad-view :as quad-view])
             [flow-gl.csp :as csp]
             [clojure.string :as string]
             (flow-gl.graphics [font :as font]
@@ -194,20 +193,35 @@
            (loop [partitions-to-be-redrawn partitions-to-be-redrawn
                   partitions-to-be-cleared partitions-to-be-cleared
                   children-1 (:children layout-1)
-                  children-2 (:children layout-2)]
+                  children-2 (:children layout-2)
+                  dirty-layers #{}]
              (if-let [child-1 (first children-1)]
-               (let [child-2 (first children-2)
-                     [new-partitions-to-be-redrawn partitions-to-be-cleared] (dirty-partitions child-1
-                                                                                               child-2
-                                                                                               parent-x
-                                                                                               parent-y
-                                                                                               parent-z
-                                                                                               partitions-to-be-redrawn
-                                                                                               partitions-to-be-cleared)]
-                 (recur new-partitions-to-be-redrawn
+               (if (and (not (empty? dirty-layers))
+                        (not (empty? (disj dirty-layers (:z child-1)))))
+                 (recur (conj partitions-to-be-redrawn child-1)
                         partitions-to-be-cleared
                         (rest children-1)
-                        (rest children-2)))
+                        (rest children-2)
+                        dirty-layers)
+                 (let [child-2 (first children-2)
+                       [new-partitions-to-be-redrawn partitions-to-be-cleared] (dirty-partitions child-1
+                                                                                                 child-2
+                                                                                                 parent-x
+                                                                                                 parent-y
+                                                                                                 parent-z
+                                                                                                 partitions-to-be-redrawn
+                                                                                                 partitions-to-be-cleared)
+                       dirty-layers (if (= new-partitions-to-be-redrawn partitions-to-be-redrawn)
+                                      dirty-layers
+                                      (conj dirty-layers (:z child-1)))]
+
+
+                   (recur new-partitions-to-be-redrawn
+                          partitions-to-be-cleared
+                          (rest children-1)
+                          (rest children-2)
+                          dirty-layers)))
+
                [partitions-to-be-redrawn
                 partitions-to-be-cleared])))
          [(conj partitions-to-be-redrawn
@@ -276,6 +290,17 @@
     {:quad-view quad-view
      :quad quad
      :nanovg nanovg}))
+
+
+(defn clear [gpu-state]
+  (doseq [partition (:partitions-to-be-cleared gpu-state)]
+    (opengl/clear-rectangle (:gl gpu-state)
+                            (:x partition)
+                            (:y partition)
+                            (:width partition)
+                            (:height partition)
+                            0 0 0 1))
+  gpu-state)
 
 (defn render-drawables [gpu-state]
   (let [gl (:gl gpu-state)
@@ -375,15 +400,7 @@
   (window/swap-buffers (:window gpu-state))
   gpu-state)
 
-(defn clear [gpu-state]
-  (doseq [partition (:partitions-to-be-cleared gpu-state)]
-    (opengl/clear-rectangle (:gl gpu-state)
-                            (:x partition)
-                            (:y partition)
-                            (:width partition)
-                            (:height partition)
-                            0 0 0 1))
-  gpu-state)
+
 
 (defn render-frame [gpu-state]
   (-> gpu-state
