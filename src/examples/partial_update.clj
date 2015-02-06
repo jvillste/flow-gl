@@ -33,11 +33,17 @@
   (let [length 500
         phase (/ (mod time length)
                  length)]
-    (layouts/->Preferred (l/box 10
-                                (drawable/->Rectangle 0 0 [0 255 0 255])
-                                (l/vertically (l/horizontally (text "1") (text "2") (text "3"))
-                                              (l/horizontally (text "4") (text (apply str (repeat (* phase 2) "x"))) (text "ABCD"))
-                                              (l/horizontally (text "7") (text "8") (text "9")))))))
+    (l/box 10
+           (drawable/->Rectangle 0 0 [0 255 0 255])
+           (l/vertically (l/horizontally (text "1") (text "2") (text "3"))
+                         (l/horizontally (text "4") (text (apply str (repeat (* phase 2) "x"))) (text "ABCD"))
+                         (l/horizontally (text "7") (text "8") (text "9"))))
+    
+    #_(layouts/->Preferred (l/box 10
+                                  (drawable/->Rectangle 0 0 [0 255 0 255])
+                                  (l/vertically (l/horizontally (text "1") (text "2") (text "3"))
+                                                (l/horizontally (text "4") (text (apply str (repeat (* phase 2) "x"))) (text "ABCD"))
+                                                (l/horizontally (text "7") (text "8") (text "9")))))))
 
 (defn wait-for-next-frame [frame-started target-frames-per-second]
   (Thread/sleep (max 0

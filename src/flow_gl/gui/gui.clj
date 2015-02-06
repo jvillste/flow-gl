@@ -196,8 +196,7 @@
                   children-2 (:children layout-2)
                   dirty-layers #{}]
              (if-let [child-1 (first children-1)]
-               (if (and (not (empty? dirty-layers))
-                        (not (empty? (disj dirty-layers (:z child-1)))))
+               (if (not (empty? (disj dirty-layers (:z child-1)))) ;; how to test this also for the children before this?
                  (recur (conj partitions-to-be-redrawn child-1)
                         partitions-to-be-cleared
                         (rest children-1)
