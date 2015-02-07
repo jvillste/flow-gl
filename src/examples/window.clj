@@ -61,7 +61,6 @@
               (gui/set-wake-up view-context (- (/ (:pulse-rate state)
                                                   2)
                                                duration))
-
               (text (str (:count state) (if (> (/ duration
                                                   (:pulse-rate state))
                                                0.5)
@@ -85,17 +84,19 @@
   (merge initial-counter-state
          gui/child-focus-handlers
          {:view (fn [view-context state]
-                  (l/vertically (gui/on-mouse-clicked (text (str "count " (:count state)))
+                  (l/vertically (drawable/->Rectangle 10 10 [0 1 0 1])
+                                (gui/on-mouse-clicked (text (str "count " (:count state)))
                                                       view-context
                                                       (fn [state event]
                                                         (update-in state [:count] inc)))
+                                (drawable/->Rectangle 10 10 [0 1 0 1])
                                 (gui/call-view view-context counter :child-1 {:pulse-rate 1000})
                                 (gui/call-view view-context counter :child-2 {:pulse-rate 500})
                                 #_(transformer/with-transformers
-                                  (transformer/->Filter :fade1
-                                                        quad/alpha-fragment-shader-source
-                                                        [:1f "alpha" 1])
-                                  (text (-> view-context :application-state :focused-state-paths vec)))))}))
+                                    (transformer/->Filter :fade1
+                                                          quad/alpha-fragment-shader-source
+                                                          [:1f "alpha" 1])
+                                    (text (-> view-context :application-state :focused-state-paths vec)))))}))
 
 
 (defn static-app [view-context]
@@ -159,4 +160,3 @@
   #_(gui/start-app layout-app)
   (gui/start-control app)
   #_(gui/start-control static-app))
-

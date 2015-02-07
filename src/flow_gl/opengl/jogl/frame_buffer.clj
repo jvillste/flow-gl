@@ -34,6 +34,13 @@
                            texture-id
                            0))
 
+(defn bind-stencil [render-buffer-id gl]
+  (.glFramebufferRenderbuffer gl
+                              GL2/GL_FRAMEBUFFER
+                              GL2/GL_STENCIL_ATTACHMENT
+                              GL2/GL_RENDERBUFFER
+                              render-buffer-id))
+
 (defn blit-framebuffer [gl source target width height]
   (doto gl
     (.glBindFramebuffer GL2/GL_READ_FRAMEBUFFER source)

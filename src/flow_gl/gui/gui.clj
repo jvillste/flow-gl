@@ -3,6 +3,7 @@
             (flow-gl.opengl.jogl [opengl :as opengl]
                                  [window :as jogl-window]
                                  [quad :as quad]
+                                 [stencil :as stencil]
                                  [render-target :as render-target])
             [datomic.api :as d]
             (flow-gl.gui [drawable :as drawable]
@@ -33,7 +34,6 @@
   (if (seq path)
     (apply update-in map path function arguments)
     (apply function map arguments)))
-
 
 
 
@@ -139,7 +139,8 @@
 (defn add-renderers [gpu-state]
   (assoc gpu-state :renderers {:quad-view (renderer/create-quad-view-renderer (:gl gpu-state))
                                :quad (renderer/create-quad-renderer (:gl gpu-state))
-                               :nanovg (renderer/create-nanovg-renderer)}))
+                               :nanovg (renderer/create-nanovg-renderer)
+                               :triangle-list (renderer/create-triangle-list-renderer (:gl gpu-state))}))
 
 (defn set-position [partition parent-x parent-y parent-z]
   (assoc partition
@@ -215,12 +216,12 @@
                         (rest children-2))
                  (let [child-2 (first children-2)
                        [partitions-to-be-redrawn partitions-to-be-cleared] (dirty-partitions child-1
-                                                                                                 child-2
-                                                                                                 parent-x
-                                                                                                 parent-y
-                                                                                                 parent-z
-                                                                                                 partitions-to-be-redrawn
-                                                                                                 partitions-to-be-cleared)]
+                                                                                             child-2
+                                                                                             parent-x
+                                                                                             parent-y
+                                                                                             parent-z
+                                                                                             partitions-to-be-redrawn
+                                                                                             partitions-to-be-cleared)]
                    (recur partitions-to-be-redrawn
                           partitions-to-be-cleared
                           (rest children-1)
@@ -228,7 +229,9 @@
                [partitions-to-be-redrawn
                 partitions-to-be-cleared])))
          [(conj partitions-to-be-redrawn
-                (set-position layout-1 parent-x parent-y parent-z))
+                (-> layout-1
+                    (set-position parent-x parent-y parent-z)
+                    (assoc :stenciled true)))
           (conj partitions-to-be-cleared
                 (set-position layout-2 parent-x parent-y parent-z))]))))
 
@@ -285,14 +288,16 @@
                       #(renderer/end-frame % (:gl gpu-state))))
 
 (defn render-drawables-with-renderers  [renderers gl drawables]
-  (let [[quad-view quad nanovg] (renderer/render-frame-drawables drawables
-                                                                 gl
-                                                                 [(:quad-view renderers)
-                                                                  (:quad renderers)
-                                                                  (:nanovg renderers)])]
+  (let [[quad-view quad nanovg triangle-list] (renderer/render-frame-drawables drawables
+                                                                               gl
+                                                                               [(:quad-view renderers)
+                                                                                (:quad renderers)
+                                                                                (:nanovg renderers)
+                                                                                (:triangle-list renderers)])]
     {:quad-view quad-view
      :quad quad
-     :nanovg nanovg}))
+     :nanovg nanovg
+     :triangle-list triangle-list}))
 
 
 (defn clear [gpu-state]
@@ -304,6 +309,11 @@
                             (:height partition)
                             0 0 0 1))
   gpu-state)
+
+(defn set-stencil [gpu-state]
+  (stencil/set (concat (filter :stenciled (:partitions gpu-state))
+                       (:partitions-to-be-cleared gpu-state))
+               (:gl gpu-state)))
 
 (defn render-drawables [gpu-state]
   (let [gl (:gl gpu-state)
@@ -318,10 +328,12 @@
                               (render-target/create width height gl)))
                         (render-target/create width height gl))
         gpu-state (render-target/render-to render-target gl
+                                           (set-stencil gpu-state)
                                            (clear gpu-state)
-                                           #_(opengl/clear gl 0 0 0 1)
-                                           (update-in gpu-state [:renderers] render-drawables-with-renderers gl (:drawables gpu-state)))]
-
+                                           (let [gpu-state (update-in gpu-state [:renderers] render-drawables-with-renderers gl (:drawables gpu-state))]
+                                             (stencil/disable (:gl gpu-state))
+                                             gpu-state))]
+    
     (render-target/blit render-target gl)
 
     (assoc gpu-state
@@ -333,7 +345,8 @@
         [partitions-to-be-redrawn partitions-to-be-cleared] (if (= size (:previous-size gpu-state))
                                                               (dirty-partitions (:layout gpu-state)
                                                                                 (:previous-layout gpu-state))
-                                                              [[(:layout gpu-state)] []])]
+                                                              [[(assoc (:layout gpu-state)
+                                                                  :stenciled true)] []])]
 
     (assoc gpu-state
       :partitions partitions-to-be-redrawn

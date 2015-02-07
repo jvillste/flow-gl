@@ -9,7 +9,8 @@
                                  [shader :as shader]
                                  [buffer :as buffer]
                                  [quad-batch :as quad-batch]
-                                 [vertex-array-object :as vertex-array-object])
+                                 [vertex-array-object :as vertex-array-object]
+                                 [render-buffer :as render-buffer])
             [flow-gl.opengl.math :as math]
             (flow-gl.graphics [buffered-image :as buffered-image]
                               [font :as font]
@@ -126,7 +127,8 @@
 
 (defn create [width height gl]
   (let [frame-buffer (frame-buffer/create gl)
-        frame-buffer-texture (texture/create gl)]
+        frame-buffer-texture (texture/create gl)
+        stencil-buffer (render-buffer/create-stencil-buffer width height gl)]
 
     (.glBindTexture gl GL2/GL_TEXTURE_2D frame-buffer-texture)
 
@@ -139,13 +141,13 @@
 
 
     (frame-buffer/bind frame-buffer gl)
-
-    (frame-buffer/bind-texture frame-buffer-texture
-                               gl)
+    (frame-buffer/bind-texture frame-buffer-texture gl)
+    (frame-buffer/bind-stencil stencil-buffer gl)
 
     (.glDrawBuffers gl 1 (int-array [GL2/GL_COLOR_ATTACHMENT0]) 0)
 
-    (assert (.glCheckFramebufferStatus gl GL2/GL_FRAMEBUFFER) #_GL2/GL_FRAMEBUFFER_COMPLETE)
+    (println "status" (.glCheckFramebufferStatus gl GL2/GL_FRAMEBUFFER) GL2/GL_FRAMEBUFFER_COMPLETE)
+    (assert (= (.glCheckFramebufferStatus gl GL2/GL_FRAMEBUFFER) GL2/GL_FRAMEBUFFER_COMPLETE))
 
     (frame-buffer/bind 0 gl)
 

@@ -4,7 +4,8 @@
                                [buffered-image :as buffered-image])
              (flow-gl.gui [layoutable :as layoutable])
              (flow-gl.opengl.jogl [quad :as quad]
-                                  [opengl :as opengl]))
+                                  [opengl :as opengl])
+             [flow-gl.opengl.math :as math])
   (:import [java.awt.geom Rectangle2D$Float RoundRectangle2D$Float GeneralPath]
            [java.awt Color RenderingHints BasicStroke]
            [nanovg NanoVG]))
@@ -15,8 +16,11 @@
 (defprotocol NanoVGDrawable
   (draw-nanovg [this nanovg]))
 
+(defprotocol TriangleListDrawable
+  (triangles [this]))
+
 #_(defprotocol TextureDrawable
-  (draw-texture [this texture-id]))
+    (draw-texture [this texture-id]))
 
 
 ;; DRAWABLES
@@ -91,14 +95,29 @@
   layoutable/Layoutable
   (preferred-size [this available-width available-height] {:width width
                                                            :height height})
-  NanoVGDrawable
-  (draw-nanovg [this nanovg]
-    (let [[r g b a] color]
-      (doto nanovg
-        (NanoVG/fillColor (char r) (char g) (char b) (char a))
-        (NanoVG/beginPath)
-        (NanoVG/rect 0 0 width height)
-        (NanoVG/fill))))
+  #_NanoVGDrawable
+  #_(draw-nanovg [this nanovg]
+      (let [[r g b a] color]
+        (doto nanovg
+          (NanoVG/fillColor (char r) (char g) (char b) (char a))
+          (NanoVG/beginPath)
+          (NanoVG/rect 0 0 width height)
+          (NanoVG/fill))))
+
+  TriangleListDrawable
+  (triangles [this]
+    [(math/quad (:x this) (:y this) width height)
+     (apply concat (repeat 6 color))])
 
   Object
   (toString [this] (layoutable/describe-layoutable this)))
+
+
+
+
+
+
+
+
+
+

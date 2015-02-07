@@ -20,3 +20,12 @@
    1.0
    1.0
    1.0])
+
+(defn quad [x y width height]
+  [x y
+   x (+ y height)
+   (+ x width) y
+
+   x (+ y height)
+   (+ x width) (+ y height)
+   (+ x width) y])

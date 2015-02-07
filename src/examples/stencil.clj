@@ -5,9 +5,19 @@
                                  [stencil :as stencil]
                                  [frame-buffer :as frame-buffer]
                                  [triangle-list :as triangle-list])
+            [flow-gl.opengl.math :as math]
             (flow-gl.gui [window :as window]))
   (:use clojure.test)
   (:import [javax.media.opengl GL2]))
+
+(defn quad [{:keys [x y width height]}]
+  [x y
+   x (+ y height)
+   (+ x width) y
+
+   x (+ y height)
+   (+ x width) (+ y height)
+   (+ x width) y])
 
 
 (defn start-view []
@@ -15,10 +25,7 @@
                                    400
                                    :profile :gl3
                                    :init opengl/initialize
-                                   :close-automatically true)
-
-        nanovg  (window/with-gl window gl
-                  (NanoVG/init))]
+                                   :close-automatically true)]
 
     (let [triangle-list (window/with-gl window gl
                           (triangle-list/create gl :triangles))]
@@ -34,7 +41,7 @@
             (triangle-list/set-size triangle-list width height gl)
             (triangle-list/render-coordinates triangle-list
                                               (quad {:x 0 :y 0 :width width :height height})
-                                              [1 1 1 1]
+                                              [1 0 1 1]
                                               gl)
 
             (stencil/disable gl)))

@@ -6,7 +6,8 @@
    (flow-gl.opengl.jogl [opengl :as opengl]
                         [render-target :as render-target]
                         [quad :as quad]
-                        [shader :as shader]))
+                        [shader :as shader]
+                        [multicolor-triangle-list :as multicolor-triangle-list]))
   (:import [nanovg NanoVG]
            [flow_gl.gui.drawable Quad]
            [javax.media.opengl GL2]))
@@ -93,6 +94,39 @@
 (defn create-nanovg-renderer []
   (->NanoVGRenderer (NanoVG/init)))
 
+(defrecord TriangleListRenderer [triangle-list]
+  Renderer
+  (can-draw? [this drawable]
+    (satisfies? drawable/TriangleListDrawable drawable))
+
+  (draw-drawables [this drawables gl]
+    (let [{:keys [width height]} (opengl/size gl)
+          [coordinates colors] (loop [coordinates []
+                                      colors []
+                                      drawables drawables]
+                                 (if-let [drawable (first drawables)]
+                                   (let [[new-coordinates new-colors] (drawable/triangles drawable)]
+                                     (recur (concat coordinates new-coordinates)
+                                            (concat colors new-colors)
+                                            (rest drawables)))
+                                   [coordinates colors]))]
+      (multicolor-triangle-list/set-size triangle-list width height gl)
+      (multicolor-triangle-list/render-coordinates triangle-list
+                                                   coordinates
+                                                   colors
+                                                   gl))
+    this)
+
+  (start-frame [this gl] this)
+
+  (end-frame [this gl] this)
+
+  (delete [this gl] this))
+
+(defn create-triangle-list-renderer [gl]
+  (println "creating")
+  (->TriangleListRenderer (multicolor-triangle-list/create gl :triangles)))
+
 (defrecord QuadViewRenderer [quad-view]
   Renderer
   (can-draw? [this drawable]
@@ -101,8 +135,8 @@
 
   (draw-drawables [this drawables gl]
     (doto gl
-        (.glEnable GL2/GL_BLEND)
-        (.glBlendFunc GL2/GL_SRC_ALPHA GL2/GL_ONE_MINUS_SRC_ALPHA))
+      (.glEnable GL2/GL_BLEND)
+      (.glBlendFunc GL2/GL_SRC_ALPHA GL2/GL_ONE_MINUS_SRC_ALPHA))
     (let [{:keys [width height]} (opengl/size gl)]
       (assoc this :quad-view (quad-view/draw-drawables quad-view drawables width height gl))))
 
