@@ -84,12 +84,12 @@
   (merge initial-counter-state
          gui/child-focus-handlers
          {:view (fn [view-context state]
-                  (l/vertically (drawable/->Rectangle 10 10 [0 1 0 1])
+                  (l/vertically (drawable/->Rectangle 10 10 [0 255 0 255])
                                 (gui/on-mouse-clicked (text (str "count " (:count state)))
                                                       view-context
                                                       (fn [state event]
                                                         (update-in state [:count] inc)))
-                                (drawable/->Rectangle 10 10 [0 1 0 1])
+                                (drawable/->Rectangle 10 10 [0 255 0 255])
                                 (gui/call-view view-context counter :child-1 {:pulse-rate 1000})
                                 (gui/call-view view-context counter :child-2 {:pulse-rate 500})
                                 #_(transformer/with-transformers

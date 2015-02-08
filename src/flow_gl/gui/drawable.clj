@@ -107,7 +107,7 @@
   TriangleListDrawable
   (triangles [this]
     [(math/quad (:x this) (:y this) width height)
-     (apply concat (repeat 6 color))])
+     (apply concat (repeat 6 (map (fn [value] (/ value 255)) color)))])
 
   Object
   (toString [this] (layoutable/describe-layoutable this)))

@@ -333,7 +333,7 @@
                                            (let [gpu-state (update-in gpu-state [:renderers] render-drawables-with-renderers gl (:drawables gpu-state))]
                                              (stencil/disable (:gl gpu-state))
                                              gpu-state))]
-    
+
     (render-target/blit render-target gl)
 
     (assoc gpu-state
@@ -345,8 +345,11 @@
         [partitions-to-be-redrawn partitions-to-be-cleared] (if (= size (:previous-size gpu-state))
                                                               (dirty-partitions (:layout gpu-state)
                                                                                 (:previous-layout gpu-state))
-                                                              [[(assoc (:layout gpu-state)
-                                                                  :stenciled true)] []])]
+                                                              [[(:layout gpu-state)]
+                                                               [{:x 0
+                                                                 :y 0
+                                                                 :width (:width size)
+                                                                 :height (:height size)}]])]
 
     (assoc gpu-state
       :partitions partitions-to-be-redrawn
