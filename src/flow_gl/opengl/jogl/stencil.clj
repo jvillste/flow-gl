@@ -13,7 +13,13 @@
    (+ x width) (+ y height)
    (+ x width) y])
 
-(defn set [rectangles gl]
+(defn create [gl]
+  {:triangle-list (triangle-list/create gl :triangles)})
+
+(defn delete [stencil gl]
+  (triangle-list/delete (:triangle-list stencil) gl))
+
+(defn set [stencil rectangles gl]
   (doto gl
     (.glColorMask false false false false)
     (.glEnable GL2/GL_STENCIL_TEST)
@@ -22,17 +28,14 @@
     (.glStencilFunc GL2/GL_ALWAYS 1 1)
     (.glStencilOp GL2/GL_REPLACE GL2/GL_REPLACE GL2/GL_REPLACE))
 
-  (let [triangle-list (triangle-list/create gl :triangles)
-        {:keys [width height]} (opengl/size gl)]
+  (let [{:keys [width height]} (opengl/size gl)]
 
-    (triangle-list/set-size triangle-list width height gl)
+    (triangle-list/set-size (:triangle-list stencil) width height gl)
 
-    (triangle-list/render-coordinates triangle-list
+    (triangle-list/render-coordinates (:triangle-list stencil)
                                       (apply concat (map rectangle-to-triangle-coordinates rectangles))
                                       [0 0 0 1]
-                                      gl)
-    
-    (triangle-list/delete triangle-list gl))
+                                      gl))
 
   (doto gl
     (.glStencilFunc GL2/GL_EQUAL 1 1)

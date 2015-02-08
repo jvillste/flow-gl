@@ -59,7 +59,7 @@
 ;; UI
 (defn text [value]
   (drawable/->Text (str value)
-                   (font/create "LiberationSans-Regular.ttf" 10)
+                   (font/create "LiberationSans-Regular.ttf" 15)
                    [255 255 255 255]))
 
 (defn text-cell [value]

@@ -28,13 +28,16 @@
                                    :close-automatically true)]
 
     (let [triangle-list (window/with-gl window gl
-                          (triangle-list/create gl :triangles))]
+                          (triangle-list/create gl :triangles))
+          stencil (window/with-gl window gl
+                    (stencil/create gl))]
       (try
         (window/with-gl window gl
           (let [{:keys [width height]} (opengl/size gl)]
             (opengl/clear gl 0 0 0 1)
 
-            (stencil/set [{:x 10 :y 10 :width 100 :height 100}
+            (stencil/set stencil
+                         [{:x 10 :y 10 :width 100 :height 100}
                           {:x 10 :y 120 :width 100 :height 100}]
                          gl)
 

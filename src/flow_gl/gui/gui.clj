@@ -65,7 +65,8 @@
 (defn wrap-with-close-window-on-exception [app]
   (fn [state events]
     (try
-      (debug/debug-timed-and-return :total (app state events))
+      (app state events)
+
       (catch Exception e
         (window/close (:window state))
         (throw e)))))
@@ -228,12 +229,16 @@
                           (rest children-2))))
                [partitions-to-be-redrawn
                 partitions-to-be-cleared])))
-         [(conj partitions-to-be-redrawn
-                (-> layout-1
-                    (set-position parent-x parent-y parent-z)
-                    (assoc :stenciled true)))
-          (conj partitions-to-be-cleared
-                (set-position layout-2 parent-x parent-y parent-z))]))))
+
+         (do (when @debug/debug-channel (println "not equal" layout-1 layout-2))
+             [(conj partitions-to-be-redrawn
+                    (-> layout-1
+                        (set-position parent-x parent-y parent-z)
+                        (assoc :stenciled true)))
+              (if layout-2
+                (conj partitions-to-be-cleared
+                      (set-position layout-2 parent-x parent-y parent-z))
+                partitions-to-be-cleared)])))))
 
 
 (defn drawables-for-layout
@@ -279,28 +284,29 @@
              map-vals
              function))
 
-(defn start-frame [gpu-state]
+(debug/defn-timed start-frame [gpu-state]
   (apply-to-renderers gpu-state
                       #(renderer/start-frame % (:gl gpu-state))))
 
-(defn end-frame [gpu-state]
+(debug/defn-timed end-frame [gpu-state]
   (apply-to-renderers gpu-state
                       #(renderer/end-frame % (:gl gpu-state))))
 
 (defn render-drawables-with-renderers  [renderers gl drawables]
-  (let [[quad-view quad nanovg triangle-list] (renderer/render-frame-drawables drawables
-                                                                               gl
-                                                                               [(:quad-view renderers)
-                                                                                (:quad renderers)
-                                                                                (:nanovg renderers)
-                                                                                (:triangle-list renderers)])]
+  (let [[quad-view quad nanovg triangle-list] (debug/debug-timed-and-return :render-drawables-with-renderers (renderer/render-frame-drawables drawables
+                                                                                                                                              gl
+                                                                                                                                              [(:quad-view renderers)
+                                                                                                                                               (:quad renderers)
+                                                                                                                                               (:nanovg renderers)
+                                                                                                                                               (:triangle-list renderers)]))]
     {:quad-view quad-view
      :quad quad
      :nanovg nanovg
      :triangle-list triangle-list}))
 
 
-(defn clear [gpu-state]
+(debug/defn-timed clear [gpu-state]
+  (when @debug/debug-channel (println "clear" (count (:partitions-to-be-cleared gpu-state))))
   (doseq [partition (:partitions-to-be-cleared gpu-state)]
     (opengl/clear-rectangle (:gl gpu-state)
                             (:x partition)
@@ -310,23 +316,27 @@
                             0 0 0 1))
   gpu-state)
 
-(defn set-stencil [gpu-state]
-  (stencil/set (concat (filter :stenciled (:partitions gpu-state))
+(defn add-stencil [gpu-state]
+  (assoc gpu-state :stencil (stencil/create (:gl gpu-state))))
+
+(debug/defn-timed set-stencil [gpu-state]
+  (stencil/set (:stencil gpu-state)
+               (concat (filter :stenciled (:partitions gpu-state))
                        (:partitions-to-be-cleared gpu-state))
                (:gl gpu-state)))
 
-(defn render-drawables [gpu-state]
+(debug/defn-timed render-drawables [gpu-state]
   (let [gl (:gl gpu-state)
         {:keys [width height]} (opengl/size gl)
-        render-target (if-let [render-target (:render-target gpu-state)]
-                        (if (and (= width
-                                    (:width render-target))
-                                 (= height
-                                    (:height render-target)))
-                          render-target
-                          (do (render-target/delete render-target gl)
-                              (render-target/create width height gl)))
-                        (render-target/create width height gl))
+        render-target (debug/debug-timed-and-return :create-render-target (if-let [render-target (:render-target gpu-state)]
+                                                                            (if (and (= width
+                                                                                        (:width render-target))
+                                                                                     (= height
+                                                                                        (:height render-target)))
+                                                                              render-target
+                                                                              (do (render-target/delete render-target gl)
+                                                                                  (render-target/create width height gl)))
+                                                                            (render-target/create width height gl)))
         gpu-state (render-target/render-to render-target gl
                                            (set-stencil gpu-state)
                                            (clear gpu-state)
@@ -334,13 +344,13 @@
                                              (stencil/disable (:gl gpu-state))
                                              gpu-state))]
 
-    (render-target/blit render-target gl)
+    (debug/debug-timed-and-return :blit (render-target/blit render-target gl))
 
     (assoc gpu-state
       :render-target render-target)))
 
 
-(defn layout-to-partitions [gpu-state]
+(debug/defn-timed layout-to-partitions [gpu-state]
   (let [size (opengl/size (:gl gpu-state))
         [partitions-to-be-redrawn partitions-to-be-cleared] (if (= size (:previous-size gpu-state))
                                                               (dirty-partitions (:layout gpu-state)
@@ -366,7 +376,6 @@
         new-partitions (filter #(not (quad-view/has-texture? quad-view %))
                                partitions)]
     (reduce (fn [gpu-state partition]
-              #_(println "partition" (:width partition) (:height partition))
               (let [render-target (render-target/create (max 1 (:width partition))
                                                         (max 1 (:height partition))
                                                         (:gl gpu-state))
@@ -394,25 +403,26 @@
 (defn bake-recurring-partitions [gpu-state]
   (add-partition-textures gpu-state (filter :recurring? (:partitions gpu-state))))
 
-(defn partitions-to-drawables [gpu-state]
-  (println "partitions" (map type (:partitions gpu-state)))
+(debug/defn-timed partitions-to-drawables [gpu-state]
   (assoc gpu-state
     :drawables (mapcat (fn [partition]
-                         (if (:recurring? partition)
-                           [#_(assoc partition
-                                :has-predefined-texture true)]
-                           (do #_(opengl/clear-rectangle (:gl gpu-state)
-                                                         (:x partition)
-                                                         (:y partition)
-                                                         (:width partition)
-                                                         (:height partition)
-                                                         0 0 1 1)
-                               (concat [(assoc (drawable/->Rectangle (:width partition)
-                                                                     (:height partition)
-                                                                     [0 0 0 255])
-                                          :x (:x partition)
-                                          :y (:y partition))]
-                                       (drawables-for-layout partition)))))
+                         (drawables-for-layout partition)
+
+                         #_(if (:recurring? partition)
+                             [#_(assoc partition
+                                  :has-predefined-texture true)]
+                             (do #_(opengl/clear-rectangle (:gl gpu-state)
+                                                           (:x partition)
+                                                           (:y partition)
+                                                           (:width partition)
+                                                           (:height partition)
+                                                           0 0 1 1)
+                                 (concat [(assoc (drawable/->Rectangle (:width partition)
+                                                                       (:height partition)
+                                                                       [0 0 0 255])
+                                            :x (:x partition)
+                                            :y (:y partition))]
+                                         (drawables-for-layout partition)))))
                        (:partitions gpu-state))))
 
 (defn swap-buffers [gpu-state]
@@ -431,19 +441,19 @@
       (end-frame)))
 
 (defn render [gpu-state layout]
-  (try
-    (-> (assoc gpu-state :layout layout)
-        (render-frame)
-        (swap-buffers))
-    (catch Exception e
-      #_(window/close (:window gpu-state))
-      (throw e))))
+  (debug/debug-timed-and-return :total (try
+                                         (-> (assoc gpu-state :layout layout)
+                                             (render-frame)
+                                             (swap-buffers))
+                                         (catch Exception e
+                                           #_(window/close (:window gpu-state))
+                                           (throw e)))))
 
 (defn render-drawables-afterwards [app]
   (fn [state events]
     (let [state (app state events)]
 
-      (async/put! (:with-gl-channel state)
+      (async/put! (:with-gl-dropping-channel state)
                   {:function render
                    :arguments [(:layout state)]})
 
@@ -506,10 +516,10 @@
     (let [state (app state event)
           width (window/width (:window state))
           height (window/height (:window state))
-          [state layout] (debug/debug-timed-and-return :layout (layout/layout (:layoutable state)
-                                                                              state
-                                                                              width
-                                                                              height))
+          [state layout] (layout/layout (:layoutable state)
+                                        state
+                                        width
+                                        height)
           layout (-> layout
                      (assoc :x 0
                             :y 0
@@ -888,12 +898,15 @@
         {:layoutable layoutable
          :state @current-view-state-atom}))))
 
+
+
 (defn initialize-gpu-state [window]
   (window/with-gl window gl
     (-> {:window window
          :gl gl
          :previous-partitions #{}}
-        (add-renderers))))
+        (add-renderers)
+        (add-stencil))))
 
 (defn event-loop [initial-state app]
   (let [initial-state (assoc initial-state
@@ -1011,7 +1024,6 @@
    :function function})
 
 (defn apply-to-state [view-context function & arguments]
-
   (async/go (async/>! (-> view-context :common-view-context :event-channel)
                       (create-apply-to-view-state-event (fn [state]
                                                           (if (get-in state (:state-path view-context))

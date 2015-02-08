@@ -48,7 +48,7 @@
      (async/close! channel#)))
 
 (defn add-timed-entry [& values]
-  
+
   (when @debug-channel
     (do
       (async/>!! @debug-channel
@@ -79,6 +79,12 @@
        (add-timed-entry :block-id block-id#
                         :block :end)
        value#)))
+
+(defmacro defn-timed [function-name arguments & body]
+  (let [id (keyword (name function-name))]
+    `(defn ~function-name ~arguments
+       (debug-timed-and-return ~id
+                               (do ~@body)))))
 
 (defn add-event [category]
   (add-timed-entry :category category

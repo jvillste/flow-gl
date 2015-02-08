@@ -3,6 +3,7 @@
             (flow-gl.opengl.jogl [opengl :as opengl]
                                  [window :as jogl-window]
                                  [quad :as quad])
+            (flow-gl.tools [profiler :as profiler])
             [datomic.api :as d]
             (flow-gl.gui [drawable :as drawable]
                          [gui :as gui]
@@ -28,8 +29,6 @@
         midje.sweet
         clojure.test))
 
-
-
 ;; Control test
 
 (defn text
@@ -41,6 +40,9 @@
                       (font/create "LiberationSans-Regular.ttf" 25)
                       color)))
 
+(defn counter-mouse-handler [state event]
+  (update-in state [:count] inc))
+
 (defn counter [view-context]
   {:count 0
    :view (fn [view-context state]
@@ -49,8 +51,7 @@
                                          [255 255 255 255]
                                          [100 100 100 255]))
                                  view-context
-                                 (fn [state event]
-                                   (update-in state [:count] inc))))})
+                                 counter-mouse-handler))})
 
 (defn app [view-context]
   {:view (fn [view-context state]
@@ -58,6 +59,5 @@
                                     (l/vertically (for-all [row (range 10)]
                                                            (gui/call-view view-context counter [row column]))))))})
 
-
 (defn start []
-  (gui/start-control app))
+  (.start (Thread. (fn [] (profiler/with-profiler (gui/start-control app))))))
