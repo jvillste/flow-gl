@@ -24,28 +24,32 @@
              (bound? #'cache))
       (do (swap! cache update-in [:used] conj [f args])
           (if-let [value (get @cache [f args])]
-            (do #_(flow-gl.debug/add-event [:cache-hit (:name (meta f))] )
+            (do (flow-gl.debug/add-event [:cache-hit (:name (meta f))] )
                 #_(if (= (:type (meta f)) :layout)
-                  (flow-gl.gui.transformer/with-transformers
-                    (flow-gl.gui.transformer/->HighlightAll :highlight [0 255 0 100])
+                    (flow-gl.gui.transformer/with-transformers
+                      (flow-gl.gui.transformer/->HighlightAll :highlight [0 255 0 100])
+                      value)
                     value)
-                  value)
                 value)
             (let [value (apply f args)]
-              #_(when (and (:name (meta f))
-                           (.startsWith (:name (meta f)) "view"))
-                  (println (count (keys @cache)) "missed " f "but found" (->> (keys @cache)
-                                                                              (filter vector?)
-                                                                              (filter (fn [[f2 args2]] (= f2 f)))
-                                                                              (map (fn [[f2 args2]] (take 2 (clojure.data/diff args args2)))))))
+              #_(println "missed " (hash f) (count (keys @cache)) (:name (meta f)) "but found" (->> (keys @cache)
+                                                                                                    (filter vector?)
+                                                                                                    (filter (fn [[f2 args2]] (= f2 f)))
+                                                                                                    (map (fn [[f2 args2]] (take 2 (clojure.data/diff args args2))))))
+              (when (= (:name (meta f))
+                       "counter-view")
+                (println "missed " (:name (meta f)) "but found" (->> (keys @cache)
+                                                                     (filter vector?)
+                                                                     (filter (fn [[f2 args2]] (= f2 f)))
+                                                                     (map (fn [[f2 args2]] (take 2 (clojure.data/diff args args2)))))))
 
               (swap! cache assoc [f args] value)
-              #_(flow-gl.debug/add-event [:cache-miss (:name (meta f))])
+              (flow-gl.debug/add-event [:cache-miss (:name (meta f))])
               #_(if (= (:type (meta f)) :layout)
-                (flow-gl.gui.transformer/with-transformers
-                  (flow-gl.gui.transformer/->HighlightAll :highlight [255 0 0 10])
+                  (flow-gl.gui.transformer/with-transformers
+                    (flow-gl.gui.transformer/->HighlightAll :highlight [255 0 0 10])
+                    value)
                   value)
-                value)
               value)))
       (apply f args))))
 
@@ -57,6 +61,14 @@
   (swap! cache assoc :used #{}))
 
 (defn remove-unused []
+  (println "unused"
+           (count (->> (keys @cache)
+                                (filter (fn [key]
+                                          (and (not (= key :used))
+                                               (not (contains? (:used @cache)
+                                                               key)))))))
+           (count (keys @cache)))
+  
   (swap! cache (fn [cache]
                  (reduce dissoc
                          cache

@@ -43,21 +43,28 @@
 (defn counter-mouse-handler [state event]
   (update-in state [:count] inc))
 
+(defn counter-view
+  ""
+  {:name "counter-view"}
+  [view-context state]
+
+  (gui/on-mouse-clicked (text (:count state)
+                              (if (:mouse-over state)
+                                [255 255 255 255]
+                                [100 100 100 255]))
+                        view-context
+                        counter-mouse-handler))
+
 (defn counter [view-context]
   {:count 0
-   :view (fn [view-context state]
-           (gui/on-mouse-clicked (text (:count state)
-                                       (if (:mouse-over state)
-                                         [255 255 255 255]
-                                         [100 100 100 255]))
-                                 view-context
-                                 counter-mouse-handler))})
+   :view #'counter-view})
 
 (defn app [view-context]
   {:view (fn [view-context state]
-           (l/horizontally (for-all [column (range 10)]
-                                    (l/vertically (for-all [row (range 10)]
+           (l/horizontally (for-all [column (range 30)]
+                                    (l/vertically (for-all [row (range 30)]
                                                            (gui/call-view view-context counter [row column]))))))})
 
 (defn start []
-  (.start (Thread. (fn [] (profiler/with-profiler (gui/start-control app))))))
+  (gui/start-control app)
+  #_(.start (Thread. (fn [] (profiler/with-profiler (gui/start-control app))))))

@@ -264,7 +264,7 @@
     (println "preferred size parameters" preferred-size-parameters)
 
     `(do (def ~layout-implementation-symbol (cache/cached (with-meta (fn ~layout-parameters ~@layout-body)
-                                                            ~{:name (str "layout " name)
+                                                            ~{:name (str name)
                                                               :type :layout})))
          (def ~preferred-size-implementation-symbol (cache/cached (with-meta (fn ~preferred-size-parameters ~@preferred-size-body)
                                                                     ~{:name (str "preferred-size " name)})))

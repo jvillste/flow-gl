@@ -230,15 +230,14 @@
                [partitions-to-be-redrawn
                 partitions-to-be-cleared])))
 
-         (do (when @debug/debug-channel (println "not equal" layout-1 layout-2))
-             [(conj partitions-to-be-redrawn
-                    (-> layout-1
-                        (set-position parent-x parent-y parent-z)
-                        (assoc :stenciled true)))
-              (if layout-2
-                (conj partitions-to-be-cleared
-                      (set-position layout-2 parent-x parent-y parent-z))
-                partitions-to-be-cleared)])))))
+         [(conj partitions-to-be-redrawn
+                (-> layout-1
+                    (set-position parent-x parent-y parent-z)
+                    (assoc :stenciled true)))
+          (if layout-2
+            (conj partitions-to-be-cleared
+                  (set-position layout-2 parent-x parent-y parent-z))
+            partitions-to-be-cleared)]))))
 
 
 (defn drawables-for-layout
@@ -306,7 +305,6 @@
 
 
 (debug/defn-timed clear [gpu-state]
-  (when @debug/debug-channel (println "clear" (count (:partitions-to-be-cleared gpu-state))))
   (doseq [partition (:partitions-to-be-cleared gpu-state)]
     (opengl/clear-rectangle (:gl gpu-state)
                             (:x partition)
@@ -835,7 +833,9 @@
 
 (defn wrap-with-cached [view]
   (let [cached-view (cache/cached (with-meta view
-                                    {:name (str "view: " (hash view))}))]
+                                    (conj (or (meta view)
+                                              {})
+                                          {:type :view})))]
     (fn [view-context state]
       (cached-view
        view-context
@@ -847,10 +847,19 @@
 (defn wrap-with-cache [app]
   (fn [state events]
     (cache/with-cache (-> state :cache)
-      (cache/clear-usages)
-      (let [state (app state events)]
-        (cache/remove-unused)
-        state))))
+      (let [state (app state events)
+            event-batch (or (:event-batch state)
+                            0)]
+        (when (> event-batch
+                 100)
+          (cache/remove-unused)
+          (cache/clear-usages))
+
+        (assoc state
+          :event-batch (if (> event-batch
+                              100)
+                         0
+                         (inc event-batch)))))))
 
 (defn propagate-only-when-view-state-changed [app]
   (fn [state event]
@@ -884,19 +893,21 @@
             children-to-be-removed)))
 
 (defn wrap-with-remove-unused-children [view]
-  (fn [view-context state]
-    (let [view-result (view view-context
-                            (reset-children state))]
-      (update-in view-result [:state] remove-unused-children view-context))))
+  (-> (fn [view-context state]
+        (let [view-result (view view-context
+                                (reset-children state))]
+          (update-in view-result [:state] remove-unused-children view-context)))
+      (with-meta (meta view))))
 
 
 
 (defn wrap-with-current-view-state-atom [view]
-  (fn [view-context state]
-    (binding [current-view-state-atom (atom state)]
-      (let [layoutable (view view-context state)]
-        {:layoutable layoutable
-         :state @current-view-state-atom}))))
+  (-> (fn [view-context state]
+        (binding [current-view-state-atom (atom state)]
+          (let [layoutable (view view-context state)]
+            {:layoutable layoutable
+             :state @current-view-state-atom})))
+      (with-meta (meta view))))
 
 
 

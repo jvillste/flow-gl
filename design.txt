@@ -117,3 +117,6 @@ Render tree transformer
 Render tree transformer node
 - A node without a drawable, just transformers to be applied to the tree below
 
+
+current-view-state-atom to the view-context as an atom ala http://www.infoq.com/presentations/clojure-features
+- no need for for-all
