@@ -40,7 +40,7 @@
                       (font/create "LiberationSans-Regular.ttf" 25)
                       color)))
 
-(defn counter-mouse-handler [state event]
+(defn counter-mouse-handler [state event] 
   (update-in state [:count] inc))
 
 (defn counter-view
@@ -61,8 +61,8 @@
 
 (defn app [view-context]
   {:view (fn [view-context state]
-           (l/horizontally (for-all [column (range 30)]
-                                    (l/vertically (for-all [row (range 30)]
+           (l/horizontally (for-all [column (range 10)]
+                                    (l/vertically (for-all [row (range 10)]
                                                            (gui/call-view view-context counter [row column]))))))})
 
 (defn start []
