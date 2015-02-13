@@ -197,8 +197,9 @@
                  (if-let [child-1 (first children-1)]
                    (let [child-2 (first children-2)]
                      (if (not (empty? (disj dirty-layers (:z child-1))))
-                       (recur (conj partitions-to-be-redrawn child-1)
-                              (if child-2
+                       (recur (conj partitions-to-be-redrawn (assoc child-1 :stenciled (not (= child-1 child-2))))
+                              (if (and child-2
+                                       (not (= child-1 child-2)))
                                 (conj partitions-to-be-cleared child-2)
                                 partitions-to-be-cleared)
                               (rest children-1)
@@ -304,6 +305,7 @@
   (assoc gpu-state :stencil (stencil/create (:gl gpu-state))))
 
 (debug/defn-timed set-stencil [gpu-state]
+  (println "stencils" (count (filter :stenciled (:partitions gpu-state))))
   (stencil/set (:stencil gpu-state)
                (concat (filter :stenciled (:partitions gpu-state))
                        (:partitions-to-be-cleared gpu-state))

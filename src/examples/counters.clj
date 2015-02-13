@@ -74,13 +74,13 @@
 
 (defn app [view-context]
   {:view (fn [view-context state]
-           (l/preferred (l/horizontally (for-all [column (range 10)]
-                                                 (-> (l/vertically (for-all [row (range 10)]
+           (l/preferred (l/horizontally (for-all [column (range 4)]
+                                                 (-> (l/vertically (for-all [row (range 4)]
                                                                             (-> (gui/call-view view-context counter [row column])
-                                                                                #_(highlight (= (:mouse-over-row state) row)
+                                                                                (highlight (= (:mouse-over-row state) row)
                                                                                              [255 255 0 255])
                                                                                 (gui/on-mouse-event :mouse-enter view-context mouse-enter row column))))
-                                                     #_(highlight (= (:mouse-over-column state) column)
+                                                     (highlight (= (:mouse-over-column state) column)
                                                                   [255 0 0 255]))))))})
 
 (defn start []
