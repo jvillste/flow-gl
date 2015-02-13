@@ -28,7 +28,11 @@
               renderers)))
 
 (defn select-renderer [renderers drawable]
-  (first (filter #(can-draw? % drawable) renderers)))
+  (loop [renderers renderers]
+    (when-let [renderer (first renderers)]
+      (if (can-draw? renderer drawable)
+        renderer
+        (recur (rest renderers))))))
 
 (defn render-drawables-with-renderers [drawables gl renderers]
   (let [batches (group-by (partial select-renderer renderers) drawables)]
@@ -37,10 +41,11 @@
       (if-let [renderer (first renderers)]
         (recur (rest renderers)
                (conj rendered-renderers
-                     (draw-drawables renderer
-                                     (or (get batches renderer)
-                                         [])
-                                     gl)))
+                     (if-let [batch (get batches renderer)]
+                       (draw-drawables renderer
+                                       batch
+                                       gl)
+                       renderer)))
         rendered-renderers))))
 
 (defn render-layers [layers gl renderers]
@@ -100,6 +105,7 @@
     (satisfies? drawable/TriangleListDrawable drawable))
 
   (draw-drawables [this drawables gl]
+    (println "drawing triangles" (count drawables))
     (let [{:keys [width height]} (opengl/size gl)
           [coordinates colors] (loop [coordinates []
                                       colors []
@@ -134,6 +140,7 @@
         (:has-predefined-texture drawable)))
 
   (draw-drawables [this drawables gl]
+    (println "drawing java2d drawables" (count drawables))
     (doto gl
       (.glEnable GL2/GL_BLEND)
       (.glBlendFunc GL2/GL_SRC_ALPHA GL2/GL_ONE_MINUS_SRC_ALPHA))

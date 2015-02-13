@@ -160,63 +160,69 @@
      (dirty-partitions layout-1 layout-2 [] []))
 
   ([layout-1 layout-2 partitions-to-be-redrawn partitions-to-be-cleared]
-     (if (= layout-1 layout-2)
+     (if (= layout-1
+            layout-2)
        [partitions-to-be-redrawn
         partitions-to-be-cleared]
-       (if (and (:children layout-1)
-                (= (type layout-1)
-                   (type layout-2)))
-         (let [transposed-children-1 (map (fn [child]
-                                            (add-vectors child layout-1))
-                                          (:children layout-1))
+       (do #_(when (instance? flow_gl.gui.drawable.Text layout-1)
+               (println "was not equal" (type layout-1) (type layout-2) (take 2 (clojure.data/diff layout-1 layout-2))))
+           (if (and (:children layout-1)
+                    (= (type layout-1)
+                       (type layout-2)))
+             (let [transposed-children-1 (map (fn [child]
+                                                (add-vectors child layout-1))
+                                              (:children layout-1))
 
-               transposed-children-2 (map (fn [child]
-                                            (add-vectors child layout-2))
-                                          (:children layout-2))
+                   transposed-children-2 (map (fn [child]
+                                                (add-vectors child layout-2))
+                                              (:children layout-2))
 
-               dirty-layers (loop [children-1 transposed-children-1
-                                   children-2 transposed-children-2
-                                   dirty-layers #{}]
-                              (if-let [child-1 (first children-1)]
-                                (let [child-2 (first children-2)]
-                                  (if (= child-1 child-2)
-                                    (recur (rest children-1)
-                                           (rest children-2)
-                                           dirty-layers)
-                                    (recur (rest children-1)
-                                           (rest children-2)
-                                           (conj dirty-layers (:z child-1)))))
-                                dirty-layers))]
-           (loop [partitions-to-be-redrawn partitions-to-be-redrawn
-                  partitions-to-be-cleared partitions-to-be-cleared
-                  children-1 transposed-children-1
-                  children-2 transposed-children-2]
-             (if-let [child-1 (first children-1)]
-               (if (not (empty? (disj dirty-layers (:z child-1))))
-                   (recur (conj partitions-to-be-redrawn child-1)
-                          partitions-to-be-cleared
-                          (rest children-1)
-                          (rest children-2))
-                   (let [child-2 (first children-2)
-                         [partitions-to-be-redrawn partitions-to-be-cleared] (dirty-partitions child-1
-                                                                                               child-2
-                                                                                               partitions-to-be-redrawn
-                                                                                               partitions-to-be-cleared)]
-                     (recur partitions-to-be-redrawn
-                            partitions-to-be-cleared
-                            (rest children-1)
-                            (rest children-2))))
+                   dirty-layers (loop [children-1 transposed-children-1
+                                       children-2 transposed-children-2
+                                       dirty-layers #{}]
+                                  (if-let [child-1 (first children-1)]
+                                    (let [child-2 (first children-2)]
+                                      (if (= child-1 child-2)
+                                        (recur (rest children-1)
+                                               (rest children-2)
+                                               dirty-layers)
+                                        (recur (rest children-1)
+                                               (rest children-2)
+                                               (conj dirty-layers (:z child-1)))))
+                                    dirty-layers))]
+               (loop [partitions-to-be-redrawn partitions-to-be-redrawn
+                      partitions-to-be-cleared partitions-to-be-cleared
+                      children-1 transposed-children-1
+                      children-2 transposed-children-2]
+                 (if-let [child-1 (first children-1)]
+                   (let [child-2 (first children-2)]
+                     (if (not (empty? (disj dirty-layers (:z child-1))))
+                       (recur (conj partitions-to-be-redrawn child-1)
+                              (if child-2
+                                (conj partitions-to-be-cleared child-2)
+                                partitions-to-be-cleared)
+                              (rest children-1)
+                              (rest children-2))
+                       (let [[partitions-to-be-redrawn partitions-to-be-cleared] (dirty-partitions child-1
+                                                                                                   child-2
+                                                                                                   partitions-to-be-redrawn
+                                                                                                   partitions-to-be-cleared)]
+                         (recur partitions-to-be-redrawn
+                                partitions-to-be-cleared
+                                (rest children-1)
+                                (rest children-2)))))
 
-               [partitions-to-be-redrawn
-                partitions-to-be-cleared])))
 
-         [(conj partitions-to-be-redrawn
-                (-> layout-1
-                    (assoc :stenciled true)))
-          (if layout-2
-            (conj partitions-to-be-cleared
-                  layout-2)
-            partitions-to-be-cleared)]))))
+                   [partitions-to-be-redrawn
+                    partitions-to-be-cleared])))
+
+             [(conj partitions-to-be-redrawn
+                    (-> layout-1
+                        (assoc :stenciled true)))
+              (if layout-2
+                (conj partitions-to-be-cleared
+                      layout-2)
+                partitions-to-be-cleared)])))))
 
 
 (defn drawables-for-layout
@@ -285,6 +291,7 @@
 
 (debug/defn-timed clear [gpu-state]
   (doseq [partition (:partitions-to-be-cleared gpu-state)]
+    (println "clearing" (type partition))
     (opengl/clear-rectangle (:gl gpu-state)
                             (:x partition)
                             (:y partition)
@@ -559,25 +566,14 @@
 
 (defn apply-layout-event-handlers [state layout layout-paths handler-key & arguments]
   (if layout-paths
-    (let [handlers (apply concat (mapcat #(layout-path-to-handlers % layout handler-key)
-                                         layout-paths))]
-      (reduce (fn [state handler]
+    (let [handlers-and-arguments (apply concat (mapcat #(layout-path-to-handlers % layout handler-key)
+                                                       layout-paths))]
+      (reduce (fn [state [handler handler-arguments]]
                 (apply handler
                        state
-                       arguments))
+                       (concat arguments handler-arguments)))
               state
-              handlers))
-    state))
-
-(defn apply-layout-event-handler [state layout layout-paths handler-key & arguments]
-  (if layout-paths
-    (let [handlers (apply concat (mapcat #(layout-path-to-handlers % layout handler-key)
-                                         layout-paths))]
-      (if-let [handler (last handlers)]
-        (apply handler
-               state
-               arguments)
-        state))
+              handlers-and-arguments))
     state))
 
 (defn apply-layout-event-handlers-beforehand [app]
@@ -660,27 +656,28 @@
 
 ;; mouse api
 
-(defn add-mouse-event-handler [layoutable handler]
+(defn add-mouse-event-handler [layoutable handler arguments]
   (assoc layoutable
     :handle-mouse-event (conj (or (:handle-mouse-event layoutable)
                                   [])
-                              handler)))
+                              [handler arguments])))
 
-(defn add-mouse-event-handler-with-context [layoutable view-context handler]
-  (add-mouse-event-handler layoutable (fn [state event]
-                                        (update-or-apply-in state (:state-path view-context) handler event))))
+(defn handle-mouse-event-with-context [state event view-context handler arguments]
+  (apply update-or-apply-in state (:state-path view-context) handler event arguments))
 
-(defn on-mouse-clicked [layoutable view-context handler & arguments]
-  (add-mouse-event-handler-with-context layoutable view-context (fn [state event]
-                                                                  (if (= :mouse-clicked (:type event))
-                                                                    (apply handler state event arguments)
-                                                                    state))))
+(defn add-mouse-event-handler-with-context [layoutable view-context handler arguments]
+  (add-mouse-event-handler layoutable handle-mouse-event-with-context [view-context handler arguments]))
+
+(defn handle-mouse-event-of-type [state event event-type handler arguments]
+  (if (= event-type (:type event))
+    (apply handler state event arguments)
+    state))
 
 (defn on-mouse-event [layoutable event-type view-context handler & arguments]
-  (add-mouse-event-handler-with-context layoutable view-context (fn [state event]
-                                                                  (if (= event-type (:type event))
-                                                                    (apply handler state event arguments)
-                                                                    state))))
+  (add-mouse-event-handler-with-context layoutable view-context handle-mouse-event-of-type [event-type handler arguments]))
+
+(defn on-mouse-clicked [layoutable view-context handler & arguments]
+  (apply on-mouse-event layoutable :mouse-clicked view-context handler arguments))
 
 ;; Keyboard
 

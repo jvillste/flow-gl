@@ -40,7 +40,7 @@
                       (font/create "LiberationSans-Regular.ttf" 25)
                       color)))
 
-(defn counter-mouse-handler [state event] 
+(defn counter-mouse-handler [state event]
   (update-in state [:count] inc))
 
 (defn counter-view
@@ -48,9 +48,11 @@
   {:name "counter-view"}
   [view-context state]
 
-  (gui/on-mouse-clicked (text (:count state)
+  (gui/on-mouse-clicked (text (apply str (if (= 0 (mod (:count state) 2))
+                                           "X"
+                                           "ZZ"))
                               (if (:mouse-over state)
-                                [255 255 255 255]
+                                [0 255 0 255]
                                 [100 100 100 255]))
                         view-context
                         counter-mouse-handler))
@@ -59,11 +61,27 @@
   {:count 0
    :view #'counter-view})
 
+(defn highlight [element highlight? color]
+  (if highlight?
+    (l/box 0 (drawable/->Rectangle 0 0 color)
+           element)
+    element))
+
+(defn mouse-enter [state event row column]
+  (assoc state
+    :mouse-over-row row
+    :mouse-over-column column))
+
 (defn app [view-context]
   {:view (fn [view-context state]
-           (l/horizontally (for-all [column (range 10)]
-                                    (l/vertically (for-all [row (range 10)]
-                                                           (gui/call-view view-context counter [row column]))))))})
+           (l/preferred (l/horizontally (for-all [column (range 10)]
+                                                 (-> (l/vertically (for-all [row (range 10)]
+                                                                            (-> (gui/call-view view-context counter [row column])
+                                                                                #_(highlight (= (:mouse-over-row state) row)
+                                                                                             [255 255 0 255])
+                                                                                (gui/on-mouse-event :mouse-enter view-context mouse-enter row column))))
+                                                     #_(highlight (= (:mouse-over-column state) column)
+                                                                  [255 0 0 255]))))))})
 
 (defn start []
   (gui/start-control app)

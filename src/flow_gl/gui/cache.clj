@@ -32,11 +32,13 @@
                     value)
                 value)
             (let [value (apply f args)]
-              #_(println "missed " (hash f) (count (keys @cache)) (:name (meta f)) "but found" (->> (keys @cache)
-                                                                                                    (filter vector?)
-                                                                                                    (filter (fn [[f2 args2]] (= f2 f)))
-                                                                                                    (map (fn [[f2 args2]] (take 2 (clojure.data/diff args args2))))))
-              (when (= (:name (meta f))
+
+              #_(println "missed " (:name (meta f)) "but found" (->> (keys @cache)
+                                                                   (filter vector?)
+                                                                   (filter (fn [[f2 args2]] (= f2 f)))
+                                                                   (map (fn [[f2 args2]] (take 2 (clojure.data/diff args args2))))
+                                                                   #_(map keys)))
+              #_(when (= (:name (meta f))
                        "counter-view")
                 (println "missed " (:name (meta f)) "but found" (->> (keys @cache)
                                                                      (filter vector?)
