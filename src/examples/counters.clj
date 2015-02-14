@@ -74,8 +74,8 @@
 
 (defn app [view-context]
   {:view (fn [view-context state]
-           (l/preferred (l/horizontally (for-all [column (range 4)]
-                                                 (-> (l/vertically (for-all [row (range 4)]
+           (l/preferred (l/horizontally (for-all [column (range 40)]
+                                                 (-> (l/vertically (for-all [row (range 10)]
                                                                             (-> (gui/call-view view-context counter [row column])
                                                                                 (highlight (= (:mouse-over-row state) row)
                                                                                              [255 255 0 255])
@@ -84,5 +84,5 @@
                                                                   [255 0 0 255]))))))})
 
 (defn start []
-  (gui/start-control app)
-  #_(.start (Thread. (fn [] (profiler/with-profiler (gui/start-control app))))))
+  #_(gui/start-control app)
+  (.start (Thread. (fn [] (profiler/with-profiler (gui/start-control app))))))

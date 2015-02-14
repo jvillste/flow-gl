@@ -290,22 +290,17 @@
      :triangle-list triangle-list}))
 
 
-(debug/defn-timed clear [gpu-state]
-  (doseq [partition (:partitions-to-be-cleared gpu-state)]
-    (println "clearing" (type partition))
-    (opengl/clear-rectangle (:gl gpu-state)
-                            (:x partition)
-                            (:y partition)
-                            (:width partition)
-                            (:height partition)
-                            0 0 0 1))
-  gpu-state)
+(debug/defn-timed add-clearing-drawable [gpu-state]
+  (let [{:keys [width height]} (opengl/size (:gl gpu-state))]
+    (assoc gpu-state
+      :drawables (concat [(assoc (drawable/->Rectangle width height [0 0 0 255])
+                            :x 0 :y 0 :z -1 :width width :height height)]
+                         (:drawables gpu-state)))))
 
 (defn add-stencil [gpu-state]
   (assoc gpu-state :stencil (stencil/create (:gl gpu-state))))
 
 (debug/defn-timed set-stencil [gpu-state]
-  (println "stencils" (count (filter :stenciled (:partitions gpu-state))))
   (stencil/set (:stencil gpu-state)
                (concat (filter :stenciled (:partitions gpu-state))
                        (:partitions-to-be-cleared gpu-state))
@@ -314,23 +309,23 @@
 (debug/defn-timed render-drawables [gpu-state]
   (let [gl (:gl gpu-state)
         {:keys [width height]} (opengl/size gl)
-        render-target (debug/debug-timed-and-return :create-render-target (if-let [render-target (:render-target gpu-state)]
-                                                                            (if (and (= width
-                                                                                        (:width render-target))
-                                                                                     (= height
-                                                                                        (:height render-target)))
-                                                                              render-target
-                                                                              (do (render-target/delete render-target gl)
-                                                                                  (render-target/create width height gl)))
-                                                                            (render-target/create width height gl)))
+        render-target (if-let [render-target (:render-target gpu-state)]
+                        (if (and (= width
+                                    (:width render-target))
+                                 (= height
+                                    (:height render-target)))
+                          render-target
+                          (do (render-target/delete render-target gl)
+                              (render-target/create width height gl)))
+                        (render-target/create width height gl))
         gpu-state (render-target/render-to render-target gl
                                            (set-stencil gpu-state)
-                                           (clear gpu-state)
-                                           (let [gpu-state (update-in gpu-state [:renderers] render-drawables-with-renderers gl (:drawables gpu-state))]
+                                           (let [gpu-state (add-clearing-drawable gpu-state)
+                                                 gpu-state (update-in gpu-state [:renderers] render-drawables-with-renderers gl (:drawables gpu-state))]
                                              (stencil/disable (:gl gpu-state))
                                              gpu-state))]
 
-    (debug/debug-timed-and-return :blit (render-target/blit render-target gl))
+    (render-target/blit render-target gl)
 
     (assoc gpu-state
       :render-target render-target)))
