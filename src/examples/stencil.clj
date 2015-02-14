@@ -30,16 +30,21 @@
     (let [triangle-list (window/with-gl window gl
                           (triangle-list/create gl :triangles))
           stencil (window/with-gl window gl
-                    (stencil/create gl))]
+                    (stencil/create gl))
+          stencil-rectangles (doall (for [x (range 20)
+                                          y (range 20)]
+                                      {:x (* x 10)
+                                       :y (* y 10)
+                                       :width 8
+                                       :height 8}))]
       (try
         (window/with-gl window gl
           (let [{:keys [width height]} (opengl/size gl)]
             (opengl/clear gl 0 0 0 1)
 
-            (stencil/set stencil
-                         [{:x 10 :y 10 :width 100 :height 100}
-                          {:x 10 :y 120 :width 100 :height 100}]
-                         gl)
+            (time (stencil/set stencil
+                               stencil-rectangles
+                               gl))
 
             (triangle-list/set-size triangle-list width height gl)
             (triangle-list/render-coordinates triangle-list

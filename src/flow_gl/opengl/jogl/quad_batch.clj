@@ -121,7 +121,7 @@
   }
 
   if(texelFetch(quad_parameters, quad_index * quad_parameters_size + 8).x == 1)
-    texture_coordinate.y = texture_size.y - texture_coordinate.y;
+  texture_coordinate.y = texture_size.y - texture_coordinate.y;
 
   vec2 quad_coordinates = vec2(texelFetch(quad_parameters, quad_index * quad_parameters_size + 1).x,
   texelFetch(quad_parameters, quad_index * quad_parameters_size + 2).x);

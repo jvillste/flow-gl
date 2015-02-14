@@ -49,6 +49,17 @@
                             2
                             3)))
 
+(defn update-coordinates-from-native-buffer [triangle-list native-buffer gl]
+  (buffer/load-vertex-array-buffer-from-native-buffer gl
+                                                      (:vertex-coordinate-buffer-id triangle-list)
+                                                      :float
+                                                      native-buffer)
+
+  (assoc triangle-list
+    :number-of-triangles (/ (.limit native-buffer)
+                            2
+                            3)))
+
 (defn create [gl mode]
   (let [shader-program (shader/compile-program gl
                                                single-color-vertex-shader-source
@@ -101,4 +112,9 @@
 (defn render-coordinates [triangle-list coordinates color gl]
   (-> triangle-list
       (update-coordinates coordinates gl)
+      (render-single-color color gl)))
+
+(defn render-coordinates-from-native-buffer [triangle-list native-buffer color gl]
+  (-> triangle-list
+      (update-coordinates-from-native-buffer native-buffer gl)
       (render-single-color color gl)))

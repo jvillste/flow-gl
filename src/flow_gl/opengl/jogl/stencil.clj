@@ -1,17 +1,28 @@
 (ns flow-gl.opengl.jogl.stencil
+  (:refer-clojure :exclude [set])
   (:require (flow-gl.opengl.jogl [opengl :as opengl]
-                                 [triangle-list :as triangle-list]))
+                                 [triangle-list :as triangle-list])
+            [flow-gl.graphics.native-buffer :as native-buffer])
 
   (:import [javax.media.opengl GL2]))
 
-(defn rectangle-to-triangle-coordinates [{:keys [x y width height]}]
-  [x y
-   x (+ y height)
-   (+ x width) y
+(defn coordinates-buffer [rectangles]
+  (let [number-of-coordinates (* 12 (count rectangles))
+        buffer (native-buffer/native-buffer :float number-of-coordinates)]
 
-   x (+ y height)
-   (+ x width) (+ y height)
-   (+ x width) y])
+    (doseq [rectangle rectangles]
+      (let [{:keys [x y width height]} rectangle]
+        (.put buffer
+              (float-array [x y
+                            x (+ y height)
+                            (+ x width) y
+
+                            x (+ y height)
+                            (+ x width) (+ y height)
+                            (+ x width) y]))))
+    (.rewind buffer)
+
+    buffer))
 
 (defn create [gl]
   {:triangle-list (triangle-list/create gl :triangles)})
@@ -32,10 +43,10 @@
 
     (triangle-list/set-size (:triangle-list stencil) width height gl)
 
-    (triangle-list/render-coordinates (:triangle-list stencil)
-                                      (apply concat (map rectangle-to-triangle-coordinates rectangles))
-                                      [0 0 0 1]
-                                      gl))
+    (triangle-list/render-coordinates-from-native-buffer (:triangle-list stencil)
+                                                         (coordinates-buffer rectangles)
+                                                         [0 0 0 1]
+                                                         gl))
 
   (doto gl
     (.glStencilFunc GL2/GL_EQUAL 1 1)

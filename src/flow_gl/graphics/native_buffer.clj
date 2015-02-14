@@ -38,14 +38,15 @@
     native-buffer))
 
 (defn native-buffer [type minimum-capacity]
-  (let [native-buffer (get @native-buffers type)]
-    (if native-buffer
-      (if (>= (.capacity native-buffer)
-              minimum-capacity)
-        (do (.rewind native-buffer)
-            native-buffer)
-        (add-native-buffer type minimum-capacity))
-      (add-native-buffer type minimum-capacity))))
+  (let [native-buffer (if-let [native-buffer (get @native-buffers type)]
+                        (if (>= (.capacity native-buffer)
+                                minimum-capacity)
+                          native-buffer
+                          (add-native-buffer type minimum-capacity))
+                        (add-native-buffer type minimum-capacity))]
+    (.rewind native-buffer)
+    (.limit native-buffer minimum-capacity)
+    native-buffer))
 
 (defn coercion [type]
   (case type

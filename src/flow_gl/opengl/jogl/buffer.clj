@@ -65,6 +65,9 @@
 (defn load-vertex-array-buffer [gl id type values]
   (load-buffer gl id type GL2/GL_ARRAY_BUFFER GL2/GL_STATIC_DRAW values))
 
+(defn load-vertex-array-buffer-from-native-buffer [gl id type native-buffer]
+  (load-buffer-from-native-buffer gl id type GL2/GL_ARRAY_BUFFER GL2/GL_STATIC_DRAW native-buffer))
+
 (defn load-texture-buffer [gl id type values]
   (load-buffer gl id type GL2/GL_TEXTURE_BUFFER GL2/GL_STATIC_DRAW values))
 
