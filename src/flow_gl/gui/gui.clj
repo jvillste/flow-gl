@@ -301,10 +301,11 @@
   (assoc gpu-state :stencil (stencil/create (:gl gpu-state))))
 
 (debug/defn-timed set-stencil [gpu-state]
-  (stencil/set (:stencil gpu-state)
-               (concat (filter :stenciled (:partitions gpu-state))
-                       (:partitions-to-be-cleared gpu-state))
-               (:gl gpu-state)))
+  (assoc gpu-state :stencil
+         (stencil/set (:stencil gpu-state)
+                      (concat (filter :stenciled (:partitions gpu-state))
+                              (:partitions-to-be-cleared gpu-state))
+                      (:gl gpu-state))))
 
 (debug/defn-timed render-drawables [gpu-state]
   (let [gl (:gl gpu-state)
@@ -319,8 +320,9 @@
                               (render-target/create width height gl)))
                         (render-target/create width height gl))
         gpu-state (render-target/render-to render-target gl
-                                           (set-stencil gpu-state)
-                                           (let [gpu-state (add-clearing-drawable gpu-state)
+
+                                           (let [gpu-state (-> (set-stencil gpu-state)
+                                                               (add-clearing-drawable))
                                                  gpu-state (update-in gpu-state [:renderers] render-drawables-with-renderers gl (:drawables gpu-state))]
                                              (stencil/disable (:gl gpu-state))
                                              gpu-state))]

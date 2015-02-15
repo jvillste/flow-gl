@@ -200,6 +200,7 @@
   (.glTexBuffer gl GL2/GL_TEXTURE_BUFFER type buffer-id))
 
 (defn allocate-quads [gl number-of-quads]
+  (println "allocating" number-of-quads)
   (let [quad-parameters-buffer (buffer/create-gl-buffer gl)]
 
     (buffer/allocate-buffer gl
@@ -229,6 +230,7 @@
                                                      vertex-shader-source
                                                      fragment-shader-source)
 
+                    :int-buffer (native-buffer/create-native-buffer :int (* initial-number-of-quads quad-parameters-size))
                     :next-free-texel 0
                     :next-free-quad 0
                     :removed-quads 0
@@ -254,6 +256,8 @@
     (shader/validate-program gl (:program quad-batch))
     quad-batch))
 
+
+
 (defn collect-garbage [quad-batch gl]
   (if (= (:next-free-quad quad-batch)
          0)
@@ -272,8 +276,9 @@
                                        (* new-number-of-texels
                                           2))
 
-          quad-parameters-native-buffer (native-buffer/native-buffer :int (* quad-parameters-size
-                                                                             new-quad-parameters-buffer-size))
+          quad-parameters-native-buffer (native-buffer/ensure-buffer-capacity (:int-buffer quad-batch)
+                                                                              (* quad-parameters-size
+                                                                                 new-quad-parameters-buffer-size))
 
           new-quad-parameters-buffer (buffer/create-gl-buffer gl)
 
@@ -334,7 +339,8 @@
       (buffer/delete gl (:quad-parameters-buffer-id quad-batch))
 
       (-> quad-batch
-          (assoc :texture-buffer-id new-texture-buffer
+          (assoc :int-buffer quad-parameters-native-buffer
+                 :texture-buffer-id new-texture-buffer
                  :quad-parameters-buffer-id new-quad-parameters-buffer
                  :allocated-quads new-quad-parameters-buffer-size
                  :next-free-quad new-number-of-quads
@@ -405,6 +411,7 @@
                          :allocated-quads (* 2 minimum-size)
                          :quad-parameters-buffer-id (allocate-quads gl (* 2 minimum-size)))]
 
+    (println "copying " (:allocated-quads quad-batch))
     (buffer/copy gl
                  (:quad-parameters-buffer-id quad-batch)
                  (:quad-parameters-buffer-id new-quad-batch)
@@ -566,7 +573,8 @@
 
     (let [count (* quad-parameters-size
                    quad-count)
-          buffer (native-buffer/native-buffer :int count)]
+          buffer (native-buffer/ensure-buffer-capacity (:int-buffer quad-batch)
+                                                       count)]
 
       (loop [quads quads]
         (when-let [quad (first quads)]
@@ -600,10 +608,11 @@
                                         :int
                                         0
                                         count
-                                        buffer))
+                                        buffer)
 
-    (draw (assoc quad-batch
-            :next-free-quad quad-count) gl width height)))
+      (draw (assoc quad-batch
+              :int-buffer buffer
+              :next-free-quad quad-count) gl width height))))
 
 
 (defn remove-index [quad-batch gl index]

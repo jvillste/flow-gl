@@ -38,7 +38,7 @@
 ")
 
 
-(defn update-coordinates [triangle-list coordinates gl]
+#_(defn update-coordinates [triangle-list coordinates gl]
   (buffer/load-vertex-array-buffer gl
                                    (:vertex-coordinate-buffer-id triangle-list)
                                    :float
@@ -109,7 +109,7 @@
 
   triangle-list)
 
-(defn render-coordinates [triangle-list coordinates color gl]
+#_(defn render-coordinates [triangle-list coordinates color gl]
   (-> triangle-list
       (update-coordinates coordinates gl)
       (render-single-color color gl)))

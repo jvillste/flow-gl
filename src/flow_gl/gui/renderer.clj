@@ -105,7 +105,7 @@
     (satisfies? drawable/TriangleListDrawable drawable))
 
   (draw-drawables [this drawables gl]
-    (println "drawing triangles" (count drawables))
+    #_(println "drawing triangles" (count drawables))
     (let [{:keys [width height]} (opengl/size gl)
           [coordinates colors] (loop [coordinates []
                                       colors []
@@ -130,7 +130,6 @@
   (delete [this gl] this))
 
 (defn create-triangle-list-renderer [gl]
-  (println "creating")
   (->TriangleListRenderer (multicolor-triangle-list/create gl :triangles)))
 
 (defrecord QuadViewRenderer [quad-view]
@@ -140,7 +139,7 @@
         (:has-predefined-texture drawable)))
 
   (draw-drawables [this drawables gl]
-    (println "drawing java2d drawables" (count drawables))
+    #_(println "drawing java2d drawables" (count drawables))
     (doto gl
       (.glEnable GL2/GL_BLEND)
       (.glBlendFunc GL2/GL_SRC_ALPHA GL2/GL_ONE_MINUS_SRC_ALPHA))

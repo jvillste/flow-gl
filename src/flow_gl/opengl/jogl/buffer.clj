@@ -43,36 +43,36 @@
 (defn bind-buffer [gl target id]
   (.glBindBuffer gl target id))
 
-(defn load-buffer-from-native-buffer [gl id type target usage native-buffer]
+(defn load-buffer [gl id target usage native-buffer]
   (.glBindBuffer gl target id)
   (.glBufferData gl
                  target
-                 (* (type-size type)
+                 (* (type-size (native-buffer/buffer-type native-buffer))
                     (.limit native-buffer))
                  native-buffer
                  usage))
 
-(defn load-buffer [gl id type target usage values]
-  (let [native-buffer (native-buffer/native-buffer-with-values type values)]
-    (.glBindBuffer gl target id)
-    (.glBufferData gl
-                   target
-                   (* (type-size type)
-                      (count values))
-                   native-buffer
-                   usage)))
+#_(defn load-buffer [gl id type target usage values]
+    (let [native-buffer (native-buffer/native-buffer-with-values type values)]
+      (.glBindBuffer gl target id)
+      (.glBufferData gl
+                     target
+                     (* (type-size type)
+                        (count values))
+                     native-buffer
+                     usage)))
 
-(defn load-vertex-array-buffer [gl id type values]
-  (load-buffer gl id type GL2/GL_ARRAY_BUFFER GL2/GL_STATIC_DRAW values))
+#_(defn load-vertex-array-buffer [gl id type values]
+    (load-buffer gl id type GL2/GL_ARRAY_BUFFER GL2/GL_STATIC_DRAW values))
 
-(defn load-vertex-array-buffer-from-native-buffer [gl id type native-buffer]
-  (load-buffer-from-native-buffer gl id type GL2/GL_ARRAY_BUFFER GL2/GL_STATIC_DRAW native-buffer))
+(defn load-vertex-array-buffer [gl id native-buffer]
+  (load-buffer gl id GL2/GL_ARRAY_BUFFER GL2/GL_STATIC_DRAW native-buffer))
 
-(defn load-texture-buffer [gl id type values]
-  (load-buffer gl id type GL2/GL_TEXTURE_BUFFER GL2/GL_STATIC_DRAW values))
+(defn load-texture-buffer [gl id native-buffer]
+  (load-buffer gl id GL2/GL_TEXTURE_BUFFER GL2/GL_STATIC_DRAW native-buffer))
 
-(defn load-element-buffer [gl id values]
-  (load-buffer gl id :int GL2/GL_ELEMENT_ARRAY_BUFFER GL2/GL_STATIC_DRAW values))
+(defn load-element-buffer [gl id native-buffer]
+  (load-buffer gl id GL2/GL_ELEMENT_ARRAY_BUFFER GL2/GL_STATIC_DRAW native-buffer))
 
 (defn update-from-native-buffer [gl id type offset count native-buffer]
   (.glBindBuffer gl GL2/GL_COPY_WRITE_BUFFER id)
@@ -84,7 +84,7 @@
                        count)
                     native-buffer))
 
-(defn update [gl id type offset values]
+#_(defn update [gl id type offset values]
   (update-from-native-buffer gl id type offset (count values) (native-buffer/native-buffer-with-values type values)))
 
 (defn map-for-write [gl id type offset length]

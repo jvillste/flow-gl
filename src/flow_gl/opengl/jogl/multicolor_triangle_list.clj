@@ -2,7 +2,8 @@
   (:require (flow-gl.opengl.jogl [shader :as shader]
                                  [buffer :as buffer]
                                  [opengl :as opengl])
-            [flow-gl.opengl.math :as math])
+            [flow-gl.opengl.math :as math]
+            [flow-gl.graphics.native-buffer :as native-buffer])
   (:import [javax.media.opengl GL2]
            [com.jogamp.common.nio Buffers]))
 
@@ -47,31 +48,36 @@
 
 
 (defn update-coordinates [triangle-list coordinates gl]
-  (buffer/load-vertex-array-buffer gl
-                                   (:vertex-coordinate-buffer-id triangle-list)
-                                   :float
-                                   coordinates)
+  (let [float-buffer (native-buffer/ensure-buffer-capacity-with-values (:float-buffer triangle-list)
+                                                                       coordinates)]
+    (buffer/load-vertex-array-buffer gl
+                                     (:vertex-coordinate-buffer-id triangle-list)
+                                     float-buffer)
 
-  (assoc triangle-list
-    :number-of-triangles (/ (count coordinates)
-                            2
-                            3)))
+    (assoc triangle-list
+      :float-buffer float-buffer
+      :number-of-triangles (/ (count coordinates)
+                              2
+                              3))))
 
 (defn update [triangle-list coordinates colors gl]
+  (let [float-buffer (native-buffer/ensure-buffer-capacity-with-values (:float-buffer triangle-list)
+                                                                       colors)]
+    
+    (buffer/load-vertex-array-buffer gl
+                                     (:vertex-color-buffer-id triangle-list)
+                                     float-buffer)
 
-  (buffer/load-vertex-array-buffer gl
-                                   (:vertex-color-buffer-id triangle-list)
-                                   :float
-                                   colors)
-
-  (update-coordinates triangle-list coordinates gl))
-
+    (-> triangle-list
+        (assoc :float-buffer float-buffer)
+        (update-coordinates coordinates gl))))
 
 (defn create [gl mode]
   (let [shader-program (shader/compile-program gl
                                                vertex-shader-source
                                                fragment-shader-source)]
     (map->TriangleList {:mode mode
+                        :float-buffer (native-buffer/create-native-buffer :float 256)
                         :vertex-coordinate-attribute-index (.glGetAttribLocation gl shader-program "vertex_coordinate_attribute")
                         :vertex-color-attribute-index (.glGetAttribLocation gl shader-program "vertex_color_attribute")
                         :vertex-coordinate-buffer-id (buffer/create-gl-buffer gl)
@@ -137,4 +143,3 @@
   (-> triangle-list
       (update coordinates colors gl)
       (render gl)))
-

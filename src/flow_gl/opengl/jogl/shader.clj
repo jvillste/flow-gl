@@ -21,7 +21,7 @@
 ;;       gl.glUseProgram(shaderprogram);
 
 (defn compile-errors [gl shader-id]
-  (let [result-buffer (native-buffer/native-buffer :int 1)]
+  (let [result-buffer (native-buffer/create-native-buffer :int 1)]
     (.glGetShaderiv gl (int shader-id) (int GL2/GL_COMPILE_STATUS) result-buffer)
     (if (not= (.get result-buffer 0)
               1)
