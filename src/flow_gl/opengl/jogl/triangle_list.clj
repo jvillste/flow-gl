@@ -39,21 +39,20 @@
 
 
 #_(defn update-coordinates [triangle-list coordinates gl]
-  (buffer/load-vertex-array-buffer gl
-                                   (:vertex-coordinate-buffer-id triangle-list)
-                                   :float
-                                   coordinates)
+    (buffer/load-vertex-array-buffer gl
+                                     (:vertex-coordinate-buffer-id triangle-list)
+                                     :float
+                                     coordinates)
 
-  (assoc triangle-list
-    :number-of-triangles (/ (count coordinates)
-                            2
-                            3)))
+    (assoc triangle-list
+      :number-of-triangles (/ (count coordinates)
+                              2
+                              3)))
 
 (defn update-coordinates-from-native-buffer [triangle-list native-buffer gl]
-  (buffer/load-vertex-array-buffer-from-native-buffer gl
-                                                      (:vertex-coordinate-buffer-id triangle-list)
-                                                      :float
-                                                      native-buffer)
+  (buffer/load-vertex-array-buffer gl
+                                   (:vertex-coordinate-buffer-id triangle-list)
+                                   native-buffer)
 
   (assoc triangle-list
     :number-of-triangles (/ (.limit native-buffer)
@@ -110,9 +109,9 @@
   triangle-list)
 
 #_(defn render-coordinates [triangle-list coordinates color gl]
-  (-> triangle-list
-      (update-coordinates coordinates gl)
-      (render-single-color color gl)))
+    (-> triangle-list
+        (update-coordinates coordinates gl)
+        (render-single-color color gl)))
 
 (defn render-coordinates-from-native-buffer [triangle-list native-buffer color gl]
   (-> triangle-list

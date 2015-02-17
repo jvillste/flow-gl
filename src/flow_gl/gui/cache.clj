@@ -63,7 +63,7 @@
   (swap! cache assoc :used #{}))
 
 (defn remove-unused []
-  (println "unused"
+  #_(println "unused"
            (count (->> (keys @cache)
                                 (filter (fn [key]
                                           (and (not (= key :used))

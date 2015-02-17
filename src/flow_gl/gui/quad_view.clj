@@ -94,12 +94,15 @@
             nil)))
 
 (defn texture-key [drawable]
-  (dissoc drawable :x :y :z :has-predefined-texture #_:texture-id))
+  (dissoc drawable :x :y :z :has-predefined-texture :handle-mouse-event #_:texture-id))
 
 (defn unused-drawable-textures [drawable-textures drawables]
   (reduce dissoc drawable-textures (map texture-key drawables)))
 
 (defn has-texture? [quad-view drawable]
+  #_(println "contains?"
+           (contains? (:drawable-textures quad-view) (texture-key drawable))
+           (texture-key drawable))
   (contains? (:drawable-textures quad-view) (texture-key drawable)))
 
 (defn set-texture [drawable-textures drawable texture-id]
@@ -135,11 +138,10 @@
              (rest drawables))
       drawable-textures)))
 
-(defn load-new-textures [quad-view drawables gl]
+(flow-gl.debug/defn-timed load-new-textures [quad-view drawables gl]
   (let [first-texture-id (:next-free-texture-id (:quad-batch quad-view))
         drawables (new-drawables quad-view drawables)
         new-textures (create-textures drawables)]
-    
     (if (empty? new-textures)
       quad-view
       (assoc quad-view
@@ -167,6 +169,7 @@
        drawables))
 
 (defn unload-unused-textures [quad-view]
+  
   (let [unused-drawable-textures (unused-drawable-textures (:drawable-textures quad-view)
                                                            (:drawn-drawables quad-view))
         new-quad-batch (reduce quad-batch/remove-texture
@@ -175,6 +178,8 @@
         new-drawable-textures (reduce unset-texture
                                       (:drawable-textures quad-view)
                                       (keys unused-drawable-textures))]
+
+    (println "unload" (count unused-drawable-textures))
     (assoc quad-view
       :drawn-drawables []
       :quad-batch new-quad-batch

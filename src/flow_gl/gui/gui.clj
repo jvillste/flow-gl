@@ -270,6 +270,7 @@
              function))
 
 (debug/defn-timed start-frame [gpu-state]
+  
   (apply-to-renderers gpu-state
                       #(renderer/start-frame % (:gl gpu-state))))
 
@@ -277,13 +278,13 @@
   (apply-to-renderers gpu-state
                       #(renderer/end-frame % (:gl gpu-state))))
 
-(defn render-drawables-with-renderers  [renderers gl drawables]
-  (let [[quad-view quad nanovg triangle-list] (debug/debug-timed-and-return :render-drawables-with-renderers (renderer/render-frame-drawables drawables
-                                                                                                                                              gl
-                                                                                                                                              [(:quad-view renderers)
-                                                                                                                                               (:quad renderers)
-                                                                                                                                               (:nanovg renderers)
-                                                                                                                                               (:triangle-list renderers)]))]
+(debug/defn-timed render-drawables-with-renderers  [renderers gl drawables]
+  (let [[quad-view quad nanovg triangle-list] (renderer/render-frame-drawables drawables
+                                                                               gl
+                                                                               [(:quad-view renderers)
+                                                                                (:quad renderers)
+                                                                                (:nanovg renderers)
+                                                                                (:triangle-list renderers)])]
     {:quad-view quad-view
      :quad quad
      :nanovg nanovg
@@ -307,7 +308,7 @@
                               (:partitions-to-be-cleared gpu-state))
                       (:gl gpu-state))))
 
-(debug/defn-timed render-drawables [gpu-state]
+(defn render-drawables [gpu-state]
   (let [gl (:gl gpu-state)
         {:keys [width height]} (opengl/size gl)
         render-target (if-let [render-target (:render-target gpu-state)]

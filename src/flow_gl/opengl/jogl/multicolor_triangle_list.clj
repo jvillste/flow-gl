@@ -102,7 +102,8 @@
                                     (:shader-program triangle-list)
                                     "projection_matrix"
                                     (math/projection-matrix-2d width
-                                                               height)))
+                                                               height))
+  triangle-list)
 
 (defn render [triangle-list gl]
   (shader/enable-program gl (:shader-program triangle-list))
