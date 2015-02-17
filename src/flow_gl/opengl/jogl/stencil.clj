@@ -7,20 +7,30 @@
   (:import [javax.media.opengl GL2]))
 
 (defn coordinates-buffer [buffer rectangles]
-  (let [number-of-coordinates (* 12 (count rectangles))
-        buffer (native-buffer/ensure-buffer-capacity buffer
-                                                     number-of-coordinates)]
+  (native-buffer/ensure-buffer-capacity-with-values buffer
+                                                    (mapcat (fn [{:keys [x y width height]}]
+                                                              [x y
+                                                               x (+ y height)
+                                                               (+ x width) y
+
+                                                               x (+ y height)
+                                                               (+ x width) (+ y height)
+                                                               (+ x width) y])
+                                                            rectangles))
+  
+  #_(let [number-of-coordinates (* 12 (count rectangles))
+        buffer ^java.nio.FloatBuffer (native-buffer/ensure-buffer-capacity buffer  number-of-coordinates)]
+    
 
     (doseq [rectangle rectangles]
       (let [{:keys [x y width height]} rectangle]
-        (.put buffer
-              (float-array [x y
-                            x (+ y height)
-                            (+ x width) y
+        (.put buffer #^floats (float-array [x y
+                                            x (+ y height)
+                                            (+ x width) y
 
-                            x (+ y height)
-                            (+ x width) (+ y height)
-                            (+ x width) y]))))
+                                            x (+ y height)
+                                            (+ x width) (+ y height)
+                                            (+ x width) y]))))
     (.rewind buffer)
 
     buffer))
@@ -60,13 +70,3 @@
 
 (defn disable [gl]
   (.glDisable gl GL2/GL_STENCIL_TEST))
-
-
-
-
-
-
-
-
-
-

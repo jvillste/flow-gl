@@ -63,7 +63,7 @@
 (defn update [triangle-list coordinates colors gl]
   (let [float-buffer (native-buffer/ensure-buffer-capacity-with-values (:float-buffer triangle-list)
                                                                        colors)]
-    
+
     (buffer/load-vertex-array-buffer gl
                                      (:vertex-color-buffer-id triangle-list)
                                      float-buffer)
@@ -106,41 +106,41 @@
   triangle-list)
 
 (defn render [triangle-list gl]
-  (shader/enable-program gl (:shader-program triangle-list))
+  (time (do (shader/enable-program gl (:shader-program triangle-list))
 
-  (.glBindBuffer gl GL2/GL_ARRAY_BUFFER (:vertex-coordinate-buffer-id triangle-list))
-  (.glVertexAttribPointer gl
-                          (int (:vertex-coordinate-attribute-index triangle-list))
-                          (int 2)
-                          (int GL2/GL_FLOAT)
-                          false
-                          (int 0)
-                          (long 0))
-  (.glEnableVertexAttribArray gl (:vertex-coordinate-attribute-index triangle-list))
+            (.glBindBuffer gl GL2/GL_ARRAY_BUFFER (:vertex-coordinate-buffer-id triangle-list))
+            (.glVertexAttribPointer gl
+                                    (int (:vertex-coordinate-attribute-index triangle-list))
+                                    (int 2)
+                                    (int GL2/GL_FLOAT)
+                                    false
+                                    (int 0)
+                                    (long 0))
+            (.glEnableVertexAttribArray gl (:vertex-coordinate-attribute-index triangle-list))
 
-  (.glBindBuffer gl GL2/GL_ARRAY_BUFFER (:vertex-color-buffer-id triangle-list))
-  (.glVertexAttribPointer gl
-                          (int (:vertex-color-attribute-index triangle-list))
-                          (int 4)
-                          (int GL2/GL_FLOAT)
-                          false
-                          (int 0)
-                          (long 0))
-  (.glEnableVertexAttribArray gl (:vertex-color-attribute-index triangle-list))
+            (.glBindBuffer gl GL2/GL_ARRAY_BUFFER (:vertex-color-buffer-id triangle-list))
+            (.glVertexAttribPointer gl
+                                    (int (:vertex-color-attribute-index triangle-list))
+                                    (int 4)
+                                    (int GL2/GL_FLOAT)
+                                    false
+                                    (int 0)
+                                    (long 0))
+            (.glEnableVertexAttribArray gl (:vertex-color-attribute-index triangle-list))))
+  
+  (time (do (case (:mode triangle-list)
+              :triangles (.glDrawArrays gl GL2/GL_TRIANGLES 0 (* 3 (:number-of-triangles triangle-list)))
+              :triangle-strip (.glDrawArrays gl GL2/GL_TRIANGLE_STRIP 0 (+ 2 (:number-of-triangles triangle-list)))
+              :triangle-fan (.glDrawArrays gl GL2/GL_TRIANGLE_FAN 0 (:number-of-triangles triangle-list)))
 
-  (case (:mode triangle-list)
-    :triangles (.glDrawArrays gl GL2/GL_TRIANGLES 0 (* 3 (:number-of-triangles triangle-list)))
-    :triangle-strip (.glDrawArrays gl GL2/GL_TRIANGLE_STRIP 0 (+ 2 (:number-of-triangles triangle-list)))
-    :triangle-fan (.glDrawArrays gl GL2/GL_TRIANGLE_FAN 0 (:number-of-triangles triangle-list)))
+            (.glDisableVertexAttribArray gl (:vertex-coordinate-attribute-index triangle-list))
+            (.glDisableVertexAttribArray gl (:vertex-color-attribute-index triangle-list))
 
-  (.glDisableVertexAttribArray gl (:vertex-coordinate-attribute-index triangle-list))
-  (.glDisableVertexAttribArray gl (:vertex-color-attribute-index triangle-list))
-
-  triangle-list)
+            triangle-list)))
 
 
 
-(defn render-coordinates [triangle-list coordinates colors gl]
+(flow-gl.debug/defn-timed render-coordinates [triangle-list coordinates colors gl]
   (-> triangle-list
       (update coordinates colors gl)
       (render gl)))

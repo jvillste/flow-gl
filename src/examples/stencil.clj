@@ -5,6 +5,7 @@
                                  [stencil :as stencil]
                                  [frame-buffer :as frame-buffer]
                                  [triangle-list :as triangle-list])
+            [flow-gl.graphics.native-buffer :as native-buffer]
             [flow-gl.opengl.math :as math]
             (flow-gl.gui [window :as window]))
   (:use clojure.test)
@@ -18,7 +19,6 @@
    x (+ y height)
    (+ x width) (+ y height)
    (+ x width) y])
-
 
 (defn start-view []
   (let [window (jogl-window/create 300
@@ -37,6 +37,7 @@
                                        :y (* y 10)
                                        :width 8
                                        :height 8}))]
+
       (try
         (window/with-gl window gl
           (let [{:keys [width height]} (opengl/size gl)]
@@ -47,11 +48,13 @@
                                gl))
 
             (triangle-list/set-size triangle-list width height gl)
-            (triangle-list/render-coordinates triangle-list
-                                              (quad {:x 0 :y 0 :width width :height height})
-                                              [1 0 1 1]
-                                              gl)
-
+            (triangle-list/render-coordinates-from-native-buffer triangle-list
+                                                                 (native-buffer/create-native-buffer-with-values (quad {:x (float 0)
+                                                                                                                        :y (float 0)
+                                                                                                                        :width (float width)
+                                                                                                                        :height (float height)}))
+                                                                 [1 0 1 1]
+                                                                 gl)
             (stencil/disable gl)))
 
         (window/swap-buffers window)
@@ -66,4 +69,4 @@
 (defn start []
   (start-view))
 
-(run-tests)
+

@@ -84,5 +84,5 @@
                                                                   [255 0 0 255]))))))})
 
 (defn start []
-  #_(gui/start-control app)
-  (.start (Thread. (fn [] (profiler/with-profiler (gui/start-control app))))))
+  (gui/start-control app)
+  #_(.start (Thread. (fn [] (profiler/with-profiler (gui/start-control app))))))

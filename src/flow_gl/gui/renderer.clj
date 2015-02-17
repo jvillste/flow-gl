@@ -107,7 +107,7 @@
     (satisfies? drawable/TriangleListDrawable drawable))
 
   (draw-drawables [this drawables gl]
-    #_(println "drawing triangles" (count drawables))
+    (println "drawing triangles" (count drawables))
     (flow-gl.debug/debug-timed-and-return :tirangle-list-renderer
                                           (let [{:keys [width height]} (opengl/size gl)
                                                 [coordinates colors] (loop [coordinates []
@@ -120,12 +120,13 @@
                                                                                   (rest drawables)))
                                                                          [coordinates colors]))]
 
-                                            (assoc this :triangle-list
-                                                   (-> triangle-list
-                                                       (multicolor-triangle-list/set-size width height gl)
-                                                       (multicolor-triangle-list/render-coordinates coordinates
-                                                                                                    colors
-                                                                                                    gl))))))
+                                            (flow-gl.debug/debug-timed-and-return :tirangle-list-render-coordinates
+                                                                                  (assoc this :triangle-list
+                                                                                         (-> triangle-list
+                                                                                             (multicolor-triangle-list/set-size width height gl)
+                                                                                             (multicolor-triangle-list/render-coordinates coordinates
+                                                                                                                                          colors
+                                                                                                                                          gl)))))))
 
   (start-frame [this gl] this)
 
