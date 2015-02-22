@@ -153,7 +153,8 @@
                                     #_(Thread/sleep 1000)
 
                                     (when @runner-atom
-                                      (@runner-atom gl))
+                                      (@runner-atom gl)
+                                      (reset! runner-atom nil))
 
                                     #_(when (not @runner-atom)
                                         (flow-gl.debug/debug :all "display called without atom" (.getId (java.lang.Thread/currentThread)) (java.util.Date.)))

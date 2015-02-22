@@ -1,7 +1,8 @@
 (ns flow-gl.opengl.jogl.triangle-list
   (:require (flow-gl.opengl.jogl [shader :as shader]
                                  [buffer :as buffer]
-                                 [opengl :as opengl])
+                                 [opengl :as opengl]
+                                 [vertex-array-object :as vertex-array-object])
             [flow-gl.opengl.math :as math])
   (:import [javax.media.opengl GL2]
            [com.jogamp.common.nio Buffers]))
@@ -59,14 +60,33 @@
                             2
                             3)))
 
+(defn initialize-vertex-array-object [triangle-list gl]
+  (vertex-array-object/bind gl (:vertex-array-object triangle-list))
+  (.glBindBuffer gl GL2/GL_ARRAY_BUFFER (:vertex-coordinate-buffer-id triangle-list))
+  (.glVertexAttribPointer gl
+                          (int (:vertex-coordinate-attribute-index triangle-list))
+                          (int 2)
+                          (int GL2/GL_FLOAT)
+                          (boolean GL2/GL_FALSE)
+                          (int 0)
+                          (long 0))
+  (.glEnableVertexAttribArray gl (:vertex-coordinate-attribute-index triangle-list))
+
+  (vertex-array-object/bind gl 0)
+
+  triangle-list)
+
 (defn create [gl mode]
   (let [shader-program (shader/compile-program gl
                                                single-color-vertex-shader-source
                                                single-color-fragment-shader-source)]
-    (map->TriangleList {:mode mode
-                        :vertex-coordinate-attribute-index (.glGetAttribLocation gl shader-program "vertex_coordinate_attribute")
-                        :vertex-coordinate-buffer-id (buffer/create-gl-buffer gl)
-                        :shader-program shader-program})))
+    (-> (map->TriangleList {:mode mode
+                         :vertex-array-object (vertex-array-object/create gl)
+                         :vertex-coordinate-attribute-index (.glGetAttribLocation gl shader-program "vertex_coordinate_attribute")
+                         :vertex-coordinate-buffer-id (buffer/create-gl-buffer gl)
+                            :shader-program shader-program})
+        
+        (initialize-vertex-array-object gl))))
 
 (defn delete [triangle-list gl]
   (buffer/delete gl (:vertex-coordinate-buffer-id triangle-list))
@@ -84,27 +104,19 @@
 (defn render-single-color [triangle-list color gl]
   (shader/enable-program gl (:shader-program triangle-list))
 
+  (vertex-array-object/bind gl (:vertex-array-object triangle-list))
+  
   (apply shader/set-float4-uniform gl
          (:shader-program triangle-list)
          "color"
          color)
-
-  (.glBindBuffer gl GL2/GL_ARRAY_BUFFER (:vertex-coordinate-buffer-id triangle-list))
-  (.glVertexAttribPointer gl
-                          (int (:vertex-coordinate-attribute-index triangle-list))
-                          (int 2)
-                          (int GL2/GL_FLOAT)
-                          (boolean GL2/GL_FALSE)
-                          (int 0)
-                          (long 0))
-  (.glEnableVertexAttribArray gl (:vertex-coordinate-attribute-index triangle-list))
 
   (case (:mode triangle-list)
     :triangles (.glDrawArrays gl GL2/GL_TRIANGLES 0 (* 3 (:number-of-triangles triangle-list)))
     :triangle-strip (.glDrawArrays gl GL2/GL_TRIANGLE_STRIP 0 (+ 2 (:number-of-triangles triangle-list)))
     :triangle-fan (.glDrawArrays gl GL2/GL_TRIANGLE_FAN 0 (:number-of-triangles triangle-list)))
 
-  (.glDisableVertexAttribArray gl (:vertex-coordinate-attribute-index triangle-list))
+  (vertex-array-object/bind gl 0)
 
   triangle-list)
 

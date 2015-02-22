@@ -107,7 +107,6 @@
     (satisfies? drawable/TriangleListDrawable drawable))
 
   (draw-drawables [this drawables gl]
-    (println "drawing triangles" (count drawables))
     (flow-gl.debug/debug-timed-and-return :tirangle-list-renderer
                                           (let [{:keys [width height]} (opengl/size gl)
                                                 [coordinates colors] (loop [coordinates []

@@ -436,7 +436,6 @@
 (defn render-drawables-afterwards [app]
   (fn [state events]
     (let [state (app state events)]
-
       (async/put! (:with-gl-dropping-channel state)
                   {:function render
                    :arguments [(:layout state)]})
@@ -884,7 +883,6 @@
             {:layoutable layoutable
              :state @current-view-state-atom})))
       (with-meta (meta view))))
-
 
 
 (defn initialize-gpu-state [window]

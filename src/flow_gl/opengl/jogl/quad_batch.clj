@@ -206,7 +206,7 @@
                             quad-parameters-buffer
                             :int
                             GL2/GL_ARRAY_BUFFER
-                            GL2/GL_STATIC_DRAW
+                            GL2/GL_DYNAMIC_DRAW
                             (* quad-parameters-size number-of-quads))
     quad-parameters-buffer))
 
@@ -221,6 +221,7 @@
     texture-buffer-id))
 
 (defn create [gl]
+  
   ;;(opengl/initialize gl)
 
   (let [initial-number-of-texels 5000000
@@ -251,7 +252,7 @@
 
                     :allocated-texels initial-number-of-texels}]
 
-    (vertex-array-object/bind gl (:vertex-array-object quad-batch))
+    #_(vertex-array-object/bind gl (:vertex-array-object quad-batch))
     (shader/validate-program gl (:program quad-batch))
     quad-batch))
 
@@ -554,6 +555,8 @@
 
   (.glDrawArraysInstanced gl GL2/GL_TRIANGLE_STRIP 0 4 (:next-free-quad quad-batch))
 
+  (vertex-array-object/bind gl 0)
+
   quad-batch)
 
 (flow-gl.debug/defn-timed draw-quads [quad-batch gl quads width height]
@@ -609,25 +612,27 @@
                                         buffer)
 
       (draw (assoc quad-batch
+              :draw-count (inc (or (:draw-count quad-batch)
+                                   0))
               :int-buffer buffer
               :next-free-quad quad-count) gl width height))))
 
 
 #_(defn remove-index [quad-batch gl index]
-  (let [[width height] (buffer/read gl
-                                    (:quad-parameters-buffer-id quad-batch)
-                                    :int
-                                    (+ width-offset (* quad-parameters-size index))
-                                    2)]
-    (buffer/update gl
-                   (:quad-parameters-buffer-id quad-batch)
-                   :int
-                   (+ width-offset (* quad-parameters-size index))
-                   [0 0])
+    (let [[width height] (buffer/read gl
+                                      (:quad-parameters-buffer-id quad-batch)
+                                      :int
+                                      (+ width-offset (* quad-parameters-size index))
+                                      2)]
+      (buffer/update gl
+                     (:quad-parameters-buffer-id quad-batch)
+                     :int
+                     (+ width-offset (* quad-parameters-size index))
+                     [0 0])
 
-    (-> quad-batch
-        (update-in [:removed-quads] inc)
-        (update-in [:removed-texels] + (* width height)))))
+      (-> quad-batch
+          (update-in [:removed-quads] inc)
+          (update-in [:removed-texels] + (* width height)))))
 
 
 (defn remove-texture [quad-batch texture-id]
@@ -639,65 +644,65 @@
         (update-in [:textures-in-use] dissoc texture-id))))
 
 #_(defn remove-quad [quad-batch gl id]
-  (-> quad-batch
-      (remove-index gl (get (:ids-to-indexes quad-batch)
-                            id))
-      (update-in [:ids-to-indexes] dissoc id)))
+    (-> quad-batch
+        (remove-index gl (get (:ids-to-indexes quad-batch)
+                              id))
+        (update-in [:ids-to-indexes] dissoc id)))
 
 #_(defn change-texture [quad-batch gl id new-image]
-  (let [quad-parameters (read-quad-parameters quad-batch gl id)
+    (let [quad-parameters (read-quad-parameters quad-batch gl id)
 
-        this-is-the-last-texture (= (:texture-offset quad-parameters)
-                                    (- (:next-free-texel quad-batch)
-                                       (* (:width quad-parameters)
-                                          (:height quad-parameters))))]
-    (if (and (<= (* (.getWidth new-image)
-                    (.getHeight new-image))
-                 (* (:width quad-parameters)
-                    (:height quad-parameters))))
+          this-is-the-last-texture (= (:texture-offset quad-parameters)
+                                      (- (:next-free-texel quad-batch)
+                                         (* (:width quad-parameters)
+                                            (:height quad-parameters))))]
+      (if (and (<= (* (.getWidth new-image)
+                      (.getHeight new-image))
+                   (* (:width quad-parameters)
+                      (:height quad-parameters))))
 
-      (do (buffer/update gl
-                         (:texture-buffer-id quad-batch)
-                         :int
-                         (:texture-offset quad-parameters)
-                         (-> new-image (.getRaster) (.getDataBuffer) (.getData)))
+        (do (buffer/update gl
+                           (:texture-buffer-id quad-batch)
+                           :int
+                           (:texture-offset quad-parameters)
+                           (-> new-image (.getRaster) (.getDataBuffer) (.getData)))
 
-          (set-quad-parameters quad-batch gl id
-                               (assoc quad-parameters
-                                 :width (.getWidth new-image)
-                                 :height (.getHeight new-image)))
-
-          (if this-is-the-last-texture
-            (assoc quad-batch
-              :next-free-texel (+ (:texture-offset quad-parameters)
-                                  (* (.getWidth new-image)
-                                     (.getHeight new-image))))
-            quad-batch))
-
-      (do (let [new-texture-offset (if this-is-the-last-texture
-                                     (:texture-offset quad-parameters)
-                                     (:next-free-texel quad-batch))
-
-                new-quad-batch (add-textures (if this-is-the-last-texture
-                                               (assoc quad-batch :next-free-texel (:texture-offset quad-parameters))
-                                               quad-batch)
-                                             gl
-                                             [new-image])]
-
-            (set-quad-parameters new-quad-batch gl id
+            (set-quad-parameters quad-batch gl id
                                  (assoc quad-parameters
-                                   :texture-offset new-texture-offset
                                    :width (.getWidth new-image)
                                    :height (.getHeight new-image)))
-            new-quad-batch)))))
+
+            (if this-is-the-last-texture
+              (assoc quad-batch
+                :next-free-texel (+ (:texture-offset quad-parameters)
+                                    (* (.getWidth new-image)
+                                       (.getHeight new-image))))
+              quad-batch))
+
+        (do (let [new-texture-offset (if this-is-the-last-texture
+                                       (:texture-offset quad-parameters)
+                                       (:next-free-texel quad-batch))
+
+                  new-quad-batch (add-textures (if this-is-the-last-texture
+                                                 (assoc quad-batch :next-free-texel (:texture-offset quad-parameters))
+                                                 quad-batch)
+                                               gl
+                                               [new-image])]
+
+              (set-quad-parameters new-quad-batch gl id
+                                   (assoc quad-parameters
+                                     :texture-offset new-texture-offset
+                                     :width (.getWidth new-image)
+                                     :height (.getHeight new-image)))
+              new-quad-batch)))))
 
 #_(defn move-quad [quad-batch gl index x y]
-  (buffer/update gl
-                 (:quad-parameters-buffer-id quad-batch)
-                 :int
-                 (+ x-offset (* quad-parameters-size index))
-                 [x y])
-  quad-batch)
+    (buffer/update gl
+                   (:quad-parameters-buffer-id quad-batch)
+                   :int
+                   (+ x-offset (* quad-parameters-size index))
+                   [x y])
+    quad-batch)
 
 
 ;; TODO

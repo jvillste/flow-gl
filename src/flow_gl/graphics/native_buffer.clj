@@ -120,13 +120,3 @@
                                             (count values))]
     (put-values native-buffer values)
     native-buffer))
-
-
-
-
-
-
-
-
-
-

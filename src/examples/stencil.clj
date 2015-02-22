@@ -68,5 +68,3 @@
 
 (defn start []
   (start-view))
-
-

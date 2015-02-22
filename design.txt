@@ -124,4 +124,6 @@ TODO
 - current-view-state-atom to the view-context as an atom ala http://www.infoq.com/presentations/clojure-features
   - no need for for-all
 
--use different native buffer per window
+- use other than static draw qualifier for buffers
+
+- use https://github.com/stuartsierra/component

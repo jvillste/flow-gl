@@ -31,8 +31,8 @@
     (let [triangle-list (window/with-gl window gl
                           (multicolor-triangle-list/create gl :triangles))
 
-          rectangles (doall (for [x (range 20)
-                                  y (range 20)]
+          rectangles (doall (for [x (range 300)
+                                  y (range 300)]
                               {:x (* x 3)
                                :y (* y 3)
                                :width 2
@@ -46,16 +46,19 @@
             (opengl/clear gl 0 0 0 1)
 
             (multicolor-triangle-list/set-size triangle-list width height gl)
-            (multicolor-triangle-list/render-coordinates triangle-list
-                                                         (map float [0 0
-                                                                     0 100
-                                                                     100 100])
-                                                         [1 0 0 1
-                                                          1 0 0 1
-                                                          1 0 0 1]
-                                                         #_coordinates
-                                                         #_colors
-                                                         gl)))
+            #_(time (multicolor-triangle-list/render-coordinates triangle-list
+                                                                 (map float [0 0
+                                                                             0 100
+                                                                             100 100])
+                                                                 [1 0 0 1
+                                                                  1 0 0 1
+                                                                  1 0 0 1]
+                                                                 gl))
+
+            (time (multicolor-triangle-list/render-coordinates triangle-list
+                                                               coordinates
+                                                               colors
+                                                               gl))))
 
         (window/swap-buffers window)
 
@@ -72,8 +75,8 @@
 #_(run-tests)
 
 #_(let [length 10000
-      buffer ^java.nio.FloatBuffer (native-buffer/create-native-buffer :float (* 2 length))
-      values (doall (repeat length (float 1)))]
-  (time (doseq [^Float value values]
-          (.put buffer #^floats (float-array [value value]))
-          #_(.put buffer value))))
+        buffer ^java.nio.FloatBuffer (native-buffer/create-native-buffer :float (* 2 length))
+        values (doall (repeat length (float 1)))]
+    (time (doseq [^Float value values]
+            (.put buffer #^floats (float-array [value value]))
+            #_(.put buffer value))))
