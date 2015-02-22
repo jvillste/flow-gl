@@ -213,9 +213,8 @@
                                 (rest children-1)
                                 (rest children-2)))))
 
-
                    [partitions-to-be-redrawn
-                    partitions-to-be-cleared])))
+                    (into partitions-to-be-cleared children-2)])))
 
              [(conj partitions-to-be-redrawn
                     (-> layout-1
