@@ -359,7 +359,7 @@
                      :height (apply max (map :height
                                              child-sizes))})))
 
-(layout/deflayout-with-state SizeDependent [preferred-size-function child-function]
+#_(layout/deflayout-with-state SizeDependent [preferred-size-function child-function]
   (layout [this state requested-width requested-height]
           (binding [gui/current-view-state-atom (atom state)]
             (let [layoutable (child-function state requested-width requested-height)

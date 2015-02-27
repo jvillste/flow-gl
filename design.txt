@@ -121,6 +121,9 @@ Render tree transformer node
 
 TODO
 -----
+
+- return only data from the view functions. Calls to other view functions should be described as data.
+
 - current-view-state-atom to the view-context as an atom ala http://www.infoq.com/presentations/clojure-features
   - no need for for-all
 

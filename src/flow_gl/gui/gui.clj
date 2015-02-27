@@ -429,7 +429,7 @@
                                              (render-frame)
                                              (swap-buffers))
                                          (catch Exception e
-                                           #_(window/close (:window gpu-state))
+                                           (window/close (:window gpu-state))
                                            (throw e)))))
 
 (defn render-drawables-afterwards [app]
@@ -443,8 +443,6 @@
 
 ;; Animation
 
-(def ^:dynamic current-view-state-atom)
-
 (defn choose-sleep-time [sleep-time-1 sleep-time-2]
   (if sleep-time-1
     (if sleep-time-2
@@ -453,7 +451,7 @@
     sleep-time-2))
 
 (defn set-wake-up [view-context sleep-time]
-  (swap! current-view-state-atom
+  (swap! @(:current-view-state-atom view-context)
          (fn [view-state]
            (update-in view-state [:sleep-time] choose-sleep-time sleep-time))))
 
@@ -877,10 +875,11 @@
 
 (defn wrap-with-current-view-state-atom [view]
   (-> (fn [view-context state]
-        (binding [current-view-state-atom (atom state)]
-          (let [layoutable (view view-context state)]
-            {:layoutable layoutable
-             :state @current-view-state-atom})))
+        (let [view-context (assoc view-context
+                             :current-view-state-atom (atom state))
+              layoutable (view view-context state)]
+          {:layoutable layoutable
+           :state (deref (:current-view-state-atom view-context))}))
       (with-meta (meta view))))
 
 
@@ -1040,13 +1039,13 @@
            view-context (assoc parent-view-context
                           :state-path state-path)
 
-           state (-> (or (get-in @current-view-state-atom state-path-part)
+           state (-> (or (get-in (deref (:current-view-state-atom parent-view-context)) state-path-part)
                          (apply constructor view-context
                                 constructor-parameters))
                      (set-new state-overrides))
 
            view-context (if (or (:sleep-time state)
-                                (not (get-in @current-view-state-atom state-path-part)))
+                                (not (get-in (deref (:current-view-state-atom parent-view-context)) state-path-part)))
                           view-context
                           (dissoc view-context :frame-started))
 
@@ -1060,7 +1059,7 @@
 
            {:keys [state layoutable]} ((:decorated-view state) view-context
                                        state)]
-       (swap! current-view-state-atom
+       (swap! (:current-view-state-atom parent-view-context)
               (fn [view-state]
                 (-> view-state
                     (assoc-in state-path-part state)
@@ -1070,5 +1069,3 @@
 
        (assoc layoutable
          :state-path state-path))))
-
-                                        ;set-wake-uppia ei kutsuta jos näkymän tulos tulee välimuistita
