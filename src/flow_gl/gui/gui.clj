@@ -269,7 +269,7 @@
              function))
 
 (debug/defn-timed start-frame [gpu-state]
-  
+
   (apply-to-renderers gpu-state
                       #(renderer/start-frame % (:gl gpu-state))))
 
@@ -435,7 +435,7 @@
 (defn render-drawables-afterwards [app]
   (fn [state events]
     (let [state (app state events)]
-      (async/put! (:with-gl-dropping-channel state)
+      (async/put! (:with-gl-channel state)
                   {:function render
                    :arguments [(:layout state)]})
 
@@ -864,12 +864,12 @@
             state
             children-to-be-removed)))
 
-(defn wrap-with-remove-unused-children [view]
-  (-> (fn [view-context state]
-        (let [view-result (view view-context
-                                (reset-children state))]
-          (update-in view-result [:state] remove-unused-children view-context)))
-      (with-meta (meta view))))
+#_(defn wrap-with-remove-unused-children [view]
+    (-> (fn [view-context state]
+          (let [view-result (view view-context
+                                  (reset-children state))]
+            (update-in view-result [:state] remove-unused-children view-context)))
+        (with-meta (meta view))))
 
 
 
@@ -938,8 +938,8 @@
       (assoc-in [:view-context :constructor-decorator] (comp add-control-channel-to-view-state))
 
       (assoc-in [:view-context :view-decorator]  (comp wrap-with-cached
-                                                       wrap-with-remove-unused-children
-                                                       wrap-with-current-view-state-atom))
+                                                       #_wrap-with-remove-unused-children
+                                                       #_wrap-with-current-view-state-atom))
 
       (assoc-in [:view-context :destructor-decorator]  (comp close-control-channel-beforehand))
 
@@ -961,6 +961,92 @@
                       (limit-frames-per-second-afterwards 1)
                       (render-drawables-afterwards)
                       (wrap-with-close-window-on-exception)))))
+
+
+;; View calls
+
+(defrecord ViewCall [parent-view-context constructor child-id state-overrides constructor-parameters])
+
+(defn call-view
+  ([parent-view-context constructor child-id]
+     (call-view parent-view-context constructor child-id {} []))
+
+  ([parent-view-context constructor child-id state-overrides]
+     (call-view parent-view-context constructor child-id state-overrides []))
+
+  ([parent-view-context constructor child-id state-overrides constructor-parameters]
+     (->ViewCall parent-view-context constructor child-id state-overrides constructor-parameters)))
+
+(defn set-new [target-map override-map]
+  (reduce (fn [target-map [key val]]
+            (if (not= (get target-map key)
+                      val)
+              (assoc target-map key val)
+              target-map))
+          target-map
+          override-map))
+
+(def resolve-view-calls)
+
+(defn resolve-view-call [parent-view-state view-call]
+  (let [state-path-part [:child-states (:child-id view-call)]
+        state-path (concat (:state-path (:parent-view-context view-call)) state-path-part)
+
+        view-context (assoc (:parent-view-context view-call)
+                       :state-path state-path)
+
+        child-view-state (-> (or (get-in parent-view-state state-path-part)
+                                 (let [constructor ((-> (:parent-view-context view-call) :common-view-context :constructor-decorator)
+                                                    (:constructor view-call))]
+                                   (apply constructor view-context
+                                          (:constructor-parameters view-call))))
+                             (set-new (:state-overrides view-call)))
+
+        view-context (if (or (:sleep-time child-view-state)
+                             (not (get-in parent-view-state state-path-part)))
+                       view-context
+                       (dissoc view-context :frame-started))
+
+        child-view-state (dissoc child-view-state :sleep-time)
+
+        child-view-state (if (:decorated-view child-view-state)
+                           child-view-state
+                           (assoc child-view-state :decorated-view ((-> (:parent-view-context view-call) :common-view-context :view-decorator)
+                                                                    (:view child-view-state))))
+
+        layoutable ((:decorated-view child-view-state) view-context child-view-state)
+
+        [child-view-state layoutable] (resolve-view-calls child-view-state layoutable)
+        child-view-state (remove-unused-children child-view-state view-context)]
+
+    [(-> parent-view-state
+         (assoc-in state-path-part child-view-state)
+         (update-in [:children] conj (:child-id view-call))
+         (assoc :sleep-time (choose-sleep-time (:sleep-time parent-view-state)
+                                               (:sleep-time child-view-state))))
+     (assoc layoutable
+       :state-path state-path)]))
+
+(defn resolve-view-calls [view-state layoutable]
+  (if (:children layoutable)
+    (loop [view-state view-state
+           children (:children layoutable)
+           resolved-children []]
+      (if-let [child (first children)]
+        (if (instance? ViewCall child)
+          (let [[view-state child] (resolve-view-call view-state child)]
+            (recur view-state
+                   (rest children)
+                   (conj resolved-children child)))
+          (recur view-state
+                 (rest children)
+                 resolved-children))
+        [view-state
+         (assoc layoutable
+           :children resolved-children)]))
+    [view-state layoutable]))
+
+
 
 (defn control-to-application [constructor]
   (fn [application-state event]
@@ -988,13 +1074,16 @@
                   (assoc state :decorated-view ((-> root-view-context :common-view-context :view-decorator)
                                                 (:view state))))
 
-          view-result ((:decorated-view state)
-                       root-view-context
-                       state)]
+          layoutable ((:decorated-view state)
+                      root-view-context
+                      state)
+          [state layoutable] (resolve-view-calls state layoutable)
+          state (remove-unused-children state root-view-context)]
+
       (assoc application-state
-        :view-state (:state view-result)
-        :layoutable (assoc (:layoutable view-result) :state-path [:view-state])
-        :sleep-time (:sleep-time (:state view-result))))))
+        :view-state state
+        :layoutable (assoc layoutable :state-path [:view-state])
+        :sleep-time (:sleep-time state)))))
 
 (defn start-control [control]
   (start-app (control-to-application control)))
@@ -1013,59 +1102,4 @@
                                                             (apply update-or-apply-in state (:state-path view-context) function arguments)
                                                             (flow-gl.debug/debug-timed "tried to apply to empty state" (vec (:state-path view-context)))))))))
 
-(defn set-new [target-map override-map]
-  (reduce (fn [target-map [key val]]
-            (if (not= (get target-map key)
-                      val)
-              (assoc target-map key val)
-              target-map))
-          target-map
-          override-map))
 
-(defn call-view
-  ([parent-view-context constructor child-id]
-     (call-view parent-view-context constructor child-id {} []))
-
-  ([parent-view-context constructor child-id state-overrides]
-     (call-view parent-view-context constructor child-id state-overrides []))
-
-  ([parent-view-context constructor child-id state-overrides constructor-parameters]
-     (let [state-path-part [:child-states child-id]
-           state-path (concat (:state-path parent-view-context) state-path-part)
-
-           constructor ((-> parent-view-context :common-view-context :constructor-decorator)
-                        constructor)
-
-           view-context (assoc parent-view-context
-                          :state-path state-path)
-
-           state (-> (or (get-in (deref (:current-view-state-atom parent-view-context)) state-path-part)
-                         (apply constructor view-context
-                                constructor-parameters))
-                     (set-new state-overrides))
-
-           view-context (if (or (:sleep-time state)
-                                (not (get-in (deref (:current-view-state-atom parent-view-context)) state-path-part)))
-                          view-context
-                          (dissoc view-context :frame-started))
-
-           state (dissoc state :sleep-time)
-
-           state (if (:decorated-view state)
-                   state
-                   (assoc state :decorated-view ((-> parent-view-context :common-view-context :view-decorator)
-                                                 (:view state))))
-
-
-           {:keys [state layoutable]} ((:decorated-view state) view-context
-                                       state)]
-       (swap! (:current-view-state-atom parent-view-context)
-              (fn [view-state]
-                (-> view-state
-                    (assoc-in state-path-part state)
-                    (update-in [:children] conj child-id)
-                    (assoc :sleep-time (choose-sleep-time (:sleep-time view-state)
-                                                          (:sleep-time state))))))
-
-       (assoc layoutable
-         :state-path state-path))))

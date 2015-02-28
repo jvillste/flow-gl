@@ -58,14 +58,15 @@
 
 (defn counter [view-context]
   {:count 0
-   :view #'counter-view})
+   :view counter-view})
 
 
 (defn app [view-context]
   {:view (fn [view-context state]
-           (l/vertically (for-all [row (range 10)]
+           (l/vertically (for [row (range 2)]
                            (gui/call-view view-context counter row))))})
 
 (defn start []
   (gui/start-control app)
   #_(.start (Thread. (fn [] (profiler/with-profiler (gui/start-control app))))))
+
