@@ -89,9 +89,9 @@
                                                       view-context
                                                       (fn [state event]
                                                         (update-in state [:count] inc)))
-                                (drawable/->Rectangle 10 10 [0 255 0 255])
+                                #_(drawable/->Rectangle 10 10 [0 255 0 255])
                                 (gui/call-view view-context counter :child-1 {:pulse-rate 1000})
-                                (gui/call-view view-context counter :child-2 {:pulse-rate 500})
+                                #_(gui/call-view view-context counter :child-2 {:pulse-rate 500})
                                 #_(transformer/with-transformers
                                     (transformer/->Filter :fade1
                                                           quad/alpha-fragment-shader-source

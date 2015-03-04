@@ -34,16 +34,16 @@
             (let [value (apply f args)]
 
               #_(println "missed " (:name (meta f)) "but found" (->> (keys @cache)
-                                                                   (filter vector?)
-                                                                   (filter (fn [[f2 args2]] (= f2 f)))
-                                                                   (map (fn [[f2 args2]] (take 2 (clojure.data/diff args args2))))
-                                                                   #_(map keys)))
-              #_(when (= (:name (meta f))
-                       "counter-view")
-                (println "missed " (:name (meta f)) "but found" (->> (keys @cache)
                                                                      (filter vector?)
                                                                      (filter (fn [[f2 args2]] (= f2 f)))
-                                                                     (map (fn [[f2 args2]] (take 2 (clojure.data/diff args args2)))))))
+                                                                     (map (fn [[f2 args2]] (take 2 (clojure.data/diff args args2))))
+                                                                     #_(map keys)))
+              #_(when (= (:name (meta f))
+                         "counter-view")
+                  (println "missed " (:name (meta f)) "but found" (->> (keys @cache)
+                                                                       (filter vector?)
+                                                                       (filter (fn [[f2 args2]] (= f2 f)))
+                                                                       (map (fn [[f2 args2]] (take 2 (clojure.data/diff args args2)))))))
 
               (swap! cache assoc [f args] value)
               (flow-gl.debug/add-event [:cache-miss (:name (meta f))])
@@ -59,29 +59,35 @@
   `(def ~name (cached (with-meta (fn ~args ~@body)
                         {:name ~(str name)}))))
 
-(defn clear-usages []
-  (swap! cache assoc :used #{}))
+(defn call-with-cache [cache function & arguments]
+  (let [cache (update-in cache [:used] conj [function arguments])]
+    (if-let [value (get cache [function arguments])]
+      [cache value]
+      (let [value (apply function arguments)
+            cache (assoc cache [function arguments] value)]
+        [cache value]))))
 
-(defn remove-unused []
+(defn clear-usages [cache]
+  (assoc cache :used #{}))
+
+(defn remove-unused [cache]
   #_(println "unused"
-           (count (->> (keys @cache)
-                                (filter (fn [key]
-                                          (and (not (= key :used))
-                                               (not (contains? (:used @cache)
-                                                               key)))))))
-           (count (keys @cache)))
-  
-  (swap! cache (fn [cache]
-                 (reduce dissoc
-                         cache
-                         (->> (keys cache)
-                              (filter (fn [key]
-                                        (and (not (= key :used))
-                                             (not (contains? (:used cache)
-                                                             key))))))))))
+             (count (->> (keys @cache)
+                         (filter (fn [key]
+                                   (and (not (= key :used))
+                                        (not (contains? (:used @cache)
+                                                        key)))))))
+             (count (keys @cache)))
+
+  (reduce dissoc
+          cache
+          (->> (keys cache)
+               (filter (fn [key]
+                         (and (not (= key :used))
+                              (not (contains? (:used cache)
+                                              key))))))))
 
 ;; Testing
-
 
 (comment
   (defn-cached cached-function [data x]

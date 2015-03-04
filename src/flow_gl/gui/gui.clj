@@ -35,11 +35,7 @@
     (apply update-in map path function arguments)
     (apply function map arguments)))
 
-
-
 ;; Events
-
-
 
 (defn wrap-with-separate-events [app]
   (fn [state events]
@@ -824,8 +820,8 @@
                             0)]
         (when (> event-batch
                  100)
-          (cache/remove-unused)
-          (cache/clear-usages))
+          (swap! cache/cache cache/remove-unused)
+          (swap! cache/cache cache/clear-usages))
 
         (assoc state
           :event-batch (if (> event-batch
@@ -928,6 +924,69 @@
 
     (println "exiting render loop")))
 
+;; View calls
+
+(defrecord ViewCall [parent-view-context constructor child-id state-overrides constructor-parameters])
+
+(defn view-call-paths
+  ([layoutable]
+     (view-call-paths layoutable [] []))
+  ([layoutable current-path paths]
+     (if (instance? ViewCall layoutable)
+       (conj paths current-path)
+       (if-let [children (vec (:children layoutable))]
+         (loop [child-index 0
+                paths paths]
+           (if-let [child (get children child-index)]
+             (recur (inc child-index)
+                    (view-call-paths child
+                                     (concat current-path
+                                             [:children child-index])
+                                     paths))
+             paths))
+         paths))))
+
+(deftest view-call-paths-test
+  (is (= '[(:children 1)
+           (:children 2)
+           (:children 3 :children 0)
+           (:children 3 :children 1)]
+         (view-call-paths {:children [{}
+                                      (->ViewCall nil nil nil nil nil)
+                                      (->ViewCall nil nil nil nil nil)
+                                      {:children [(->ViewCall nil nil nil nil nil)
+                                                  (->ViewCall nil nil nil nil nil)]}]}))))
+
+(defn children-to-vectors [layoutable]
+  (if-let [children (:children layoutable)]
+    (loop [children children
+           processed-children []]
+      (if-let [child (first children)]
+        (recur (rest children)
+               (conj processed-children (children-to-vectors child)))
+        (assoc layoutable :children processed-children)))
+    layoutable))
+
+
+
+(deftest children-to-vectors-test
+  (is (= {:children [{:children [{} {}]}]}
+         (children-to-vectors {:children (list {:children (list {} {})})}))))
+
+(defn add-children-to-vectors [view]
+  (-> (fn [view-context state]
+        (-> (view view-context
+                  state)
+            (children-to-vectors)))
+      (with-meta (meta view))))
+
+(defn add-view-call-paths [view]
+  (-> (fn [view-context state]
+        (let [layoutable (view view-context
+                               state)]
+          (assoc layoutable :view-call-paths (view-call-paths layoutable))))
+      (with-meta (meta view))))
+
 (defn start-app [app]
   (-> {}
       (add-window)
@@ -938,6 +997,8 @@
       (assoc-in [:view-context :constructor-decorator] (comp add-control-channel-to-view-state))
 
       (assoc-in [:view-context :view-decorator]  (comp wrap-with-cached
+                                                       add-view-call-paths
+                                                       add-children-to-vectors
                                                        #_wrap-with-remove-unused-children
                                                        #_wrap-with-current-view-state-atom))
 
@@ -965,7 +1026,6 @@
 
 ;; View calls
 
-(defrecord ViewCall [parent-view-context constructor child-id state-overrides constructor-parameters])
 
 (defn call-view
   ([parent-view-context constructor child-id]
@@ -1016,7 +1076,16 @@
 
         layoutable ((:decorated-view child-view-state) view-context child-view-state)
 
+        layoutable (conj layoutable
+                         (dissoc view-call
+                                 :parent-view-context
+                                 :constructor
+                                 :child-id
+                                 :state-overrides
+                                 :constructor-parameters))
+
         [child-view-state layoutable] (resolve-view-calls child-view-state layoutable)
+
         child-view-state (remove-unused-children child-view-state view-context)]
 
     [(-> parent-view-state
@@ -1027,26 +1096,17 @@
      (assoc layoutable
        :state-path state-path)]))
 
+
 (defn resolve-view-calls [view-state layoutable]
-  (if (:children layoutable)
-    (loop [view-state view-state
-           children (:children layoutable)
-           resolved-children []]
-      (if-let [child (first children)]
-        (if (instance? ViewCall child)
-          (let [[view-state child] (resolve-view-call view-state child)]
-            (recur view-state
-                   (rest children)
-                   (conj resolved-children child)))
-          (recur view-state
-                 (rest children)
-                 resolved-children))
-        [view-state
-         (assoc layoutable
-           :children resolved-children)]))
-    [view-state layoutable]))
-
-
+  (loop [view-state view-state
+         view-call-paths (:view-call-paths layoutable)
+         layoutable layoutable]
+    (if-let [view-call-path (first view-call-paths)]
+      (let [[view-state child] (resolve-view-call view-state (get-in layoutable view-call-path))]
+        (recur view-state
+               (rest view-call-paths)
+               (assoc-in layoutable view-call-path child)))
+      [view-state layoutable])))
 
 (defn control-to-application [constructor]
   (fn [application-state event]
@@ -1077,7 +1137,11 @@
           layoutable ((:decorated-view state)
                       root-view-context
                       state)
+
+          layoutable (assoc layoutable :view-call-paths (view-call-paths layoutable))
+
           [state layoutable] (resolve-view-calls state layoutable)
+
           state (remove-unused-children state root-view-context)]
 
       (assoc application-state
@@ -1103,3 +1167,4 @@
                                                             (flow-gl.debug/debug-timed "tried to apply to empty state" (vec (:state-path view-context)))))))))
 
 
+(run-tests)

@@ -22,7 +22,7 @@
   (layouts/->VerticalStack (flatten-contents contents)))
 
 (def-dsl preferred [content]
-  (layouts/->Preferred content))
+  (layouts/->Preferred [content]))
 
 (def-dsl horizontally [& contents]
   (layouts/->HorizontalStack (flatten-contents contents)))

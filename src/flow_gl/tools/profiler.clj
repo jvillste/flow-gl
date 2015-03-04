@@ -141,7 +141,7 @@
 
     {:profiler (create-state)
      :channel channel
-     :view #'profiler-view}))
+     :view profiler-view}))
 
 ;; API
 

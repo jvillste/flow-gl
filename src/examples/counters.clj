@@ -59,7 +59,7 @@
 
 (defn counter [view-context]
   {:count 0
-   :view #'counter-view})
+   :view counter-view})
 
 (defn highlight [element highlight? color]
   (if highlight?
@@ -74,15 +74,15 @@
 
 (defn app [view-context]
   {:view (fn [view-context state]
-           (l/preferred (l/horizontally (for-all [column (range 40)]
+           (l/preferred (l/horizontally (for-all [column (range 10)]
                                                  (-> (l/vertically (for-all [row (range 10)]
                                                                             (-> (gui/call-view view-context counter [row column])
                                                                                 (highlight (= (:mouse-over-row state) row)
-                                                                                             [255 255 0 255])
+                                                                                           [255 255 0 255])
                                                                                 (gui/on-mouse-event :mouse-enter view-context mouse-enter row column))))
                                                      (highlight (= (:mouse-over-column state) column)
-                                                                  [255 0 0 255]))))))})
+                                                                [255 0 0 255]))))))})
 
 (defn start []
-  #_(gui/start-control app)
-  (.start (Thread. (fn [] (profiler/with-profiler (gui/start-control app))))))
+  (gui/start-control app)
+  #_(.start (Thread. (fn [] (profiler/with-profiler (gui/start-control app))))))

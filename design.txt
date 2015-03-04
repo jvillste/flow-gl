@@ -122,11 +122,16 @@ Render tree transformer node
 TODO
 -----
 
-- return only data from the view functions. Calls to other view functions should be described as data.
+- add cached function from layoutable to view call paths
 
-- current-view-state-atom to the view-context as an atom ala http://www.infoq.com/presentations/clojure-features
-  - no need for for-all
+- remove defn-cached and replace with function from cache and function to value
+
+- state backbone with local state on key :local-state and child states on other keys or the key :child-states
 
 - use other than static draw qualifier for buffers
 
 - use https://github.com/stuartsierra/component
+
+
+
+ 

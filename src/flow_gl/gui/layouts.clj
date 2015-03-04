@@ -86,9 +86,10 @@
                      :height (+ (* 2 margin)
                                 (:height child-size))})))
 
-(layout/deflayout-not-memoized Preferred [child]
+(layout/deflayout-not-memoized Preferred [children]
   (layout [this requested-width requested-height]
-          (assoc this :children (let [preferred-size (layoutable/preferred-size child requested-width requested-height)]
+          (assoc this :children (let [child (first children)
+                                      preferred-size (layoutable/preferred-size child requested-width requested-height)]
                                   [(layout/set-dimensions-and-layout child
                                                                      0
                                                                      0
@@ -96,7 +97,7 @@
                                                                      (:height preferred-size))])))
 
   (preferred-size [this available-width available-height]
-                  (layoutable/preferred-size child available-width available-height)))
+                  (layoutable/preferred-size (first children) available-width available-height)))
 
 
 (layout/deflayout-not-memoized Margin [margin-top margin-right margin-bottom margin-left children]

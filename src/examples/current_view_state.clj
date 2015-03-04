@@ -64,6 +64,7 @@
 (defn app [view-context]
   {:view (fn [view-context state]
            (l/vertically (for [row (range 2)]
+                           #_(text row)
                            (gui/call-view view-context counter row))))})
 
 (defn start []
