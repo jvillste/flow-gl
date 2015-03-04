@@ -80,9 +80,9 @@
 
 (defn call-destructors [view-state destructor-decorator]
   (let [destructor (destructor-decorator
-                    (or (:destructor view-state)
+                    (or (-> view-state :local-state :destructor)
                         identity))]
-    (destructor view-state)
+    (destructor (:local-state view-state))
     (doseq [child-view-state (vals (:child-states view-state))]
       (call-destructors child-view-state destructor-decorator))))
 
@@ -640,7 +640,7 @@
                          (:type event :mouse-moved))
                   (let [state-paths-under-mouse (layout-path-to-state-paths (:layout state) (first (:layout-paths-under-mouse state)))]
                     (-> state
-                        (set-mouse-over state-paths-under-mouse)
+                        #_(set-mouse-over state-paths-under-mouse)
                         (apply-mouse-over-layout-event-handlers (:layout state) (:layout-paths-under-mouse state) #_[(first (:layout-paths-under-mouse state))])))
 
                   state)]
@@ -655,7 +655,7 @@
                               [handler arguments])))
 
 (defn handle-mouse-event-with-context [state event view-context handler arguments]
-  (apply update-or-apply-in state (:state-path view-context) handler event arguments))
+  (apply update-or-apply-in state (concat (:state-path view-context) [:local-state]) handler event arguments))
 
 (defn add-mouse-event-handler-with-context [layoutable view-context handler arguments]
   (add-mouse-event-handler layoutable handle-mouse-event-with-context [view-context handler arguments]))
@@ -887,11 +887,15 @@
         (add-renderers)
         (add-stencil))))
 
+(def state-atom (atom nil))
+
 (defn event-loop [initial-state app]
   (let [initial-state (assoc initial-state
                         :with-gl-channel (async/chan 50)
                         :with-gl-dropping-channel (async/chan (async/dropping-buffer 1)))]
     (async/thread (loop [state initial-state]
+                    (reset! state-atom state)
+
                     (if (:close-requested state)
                       (do (println "exiting event loop")
                           (async/close! (:with-gl-channel initial-state))
@@ -1055,12 +1059,13 @@
         view-context (assoc (:parent-view-context view-call)
                        :state-path state-path)
 
-        child-view-state (-> (or (get-in parent-view-state state-path-part)
-                                 (let [constructor ((-> (:parent-view-context view-call) :common-view-context :constructor-decorator)
-                                                    (:constructor view-call))]
-                                   (apply constructor view-context
-                                          (:constructor-parameters view-call))))
-                             (set-new (:state-overrides view-call)))
+        child-view-state (or (get-in parent-view-state state-path-part)
+                             (let [constructor ((-> (:parent-view-context view-call) :common-view-context :constructor-decorator)
+                                                (:constructor view-call))]
+                               {:local-state (apply constructor view-context
+                                                    (:constructor-parameters view-call))}))
+
+        child-view-state (update-in child-view-state [:local-state] set-new (:state-overrides view-call))
 
         view-context (if (or (:sleep-time child-view-state)
                              (not (get-in parent-view-state state-path-part)))
@@ -1072,9 +1077,9 @@
         child-view-state (if (:decorated-view child-view-state)
                            child-view-state
                            (assoc child-view-state :decorated-view ((-> (:parent-view-context view-call) :common-view-context :view-decorator)
-                                                                    (:view child-view-state))))
+                                                                    (-> child-view-state :local-state :view))))
 
-        layoutable ((:decorated-view child-view-state) view-context child-view-state)
+        layoutable ((:decorated-view child-view-state) view-context (:local-state child-view-state))
 
         layoutable (conj layoutable
                          (dissoc view-call
@@ -1113,11 +1118,10 @@
     (let [root-view-context {:state-path [:view-state]
                              :common-view-context (:view-context application-state)}
 
-          constructor ((-> root-view-context :common-view-context :constructor-decorator)
-                       constructor)
-
           state (or (:view-state application-state)
-                    (constructor root-view-context))
+                    (let [constructor ((-> root-view-context :common-view-context :constructor-decorator)
+                                       constructor)]
+                      {:local-state (constructor root-view-context)}))
 
           root-view-context (if (or (:sleep-time state)
                                     (not (contains? application-state :view-state)))
@@ -1132,11 +1136,11 @@
           state (if (:decorated-view state)
                   state
                   (assoc state :decorated-view ((-> root-view-context :common-view-context :view-decorator)
-                                                (:view state))))
+                                                (-> state :local-state :view))))
 
           layoutable ((:decorated-view state)
                       root-view-context
-                      state)
+                      (:local-state state))
 
           layoutable (assoc layoutable :view-call-paths (view-call-paths layoutable))
 
@@ -1144,10 +1148,11 @@
 
           state (remove-unused-children state root-view-context)]
 
-      (assoc application-state
-        :view-state state
-        :layoutable (assoc layoutable :state-path [:view-state])
-        :sleep-time (:sleep-time state)))))
+      (-> application-state
+          (assoc
+              :view-state state
+              :layoutable (assoc layoutable :state-path [:view-state])
+              :sleep-time (:sleep-time state))))))
 
 (defn start-control [control]
   (start-app (control-to-application control)))

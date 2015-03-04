@@ -74,8 +74,8 @@
 
 (defn app [view-context]
   {:view (fn [view-context state]
-           (l/preferred (l/horizontally (for-all [column (range 10)]
-                                                 (-> (l/vertically (for-all [row (range 10)]
+           (l/preferred (l/horizontally (for-all [column (range 2)]
+                                                 (-> (l/vertically (for-all [row (range 2)]
                                                                             (-> (gui/call-view view-context counter [row column])
                                                                                 (highlight (= (:mouse-over-row state) row)
                                                                                            [255 255 0 255])
