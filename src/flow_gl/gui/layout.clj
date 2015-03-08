@@ -259,20 +259,14 @@
         preferred-size-implementation-symbol (gensym)]
     (assert (= layout-name 'layout) (str "invalid layout name" layout-name))
     (assert (= preferred-size-name 'preferred-size) (str "invalid preferred size name" preferred-size-name))
-    (println name)
-    (println "layout parameters" layout-parameters)
-    (println "preferred size parameters" preferred-size-parameters)
 
-    `(do (def ~layout-implementation-symbol (cache/cached (with-meta (fn ~layout-parameters ~@layout-body)
-                                                            ~{:name (str name)
-                                                              :type :layout})))
-         (def ~preferred-size-implementation-symbol (cache/cached (with-meta (fn ~preferred-size-parameters ~@preferred-size-body)
-                                                                    ~{:name (str "preferred-size " name)})))
+    `(do (defn ~layout-implementation-symbol ~layout-parameters ~@layout-body)
+         (defn ~preferred-size-implementation-symbol ~preferred-size-parameters ~@preferred-size-body)
          (defrecord ~name ~parameters
            Layout
            (layout [layoutable# state# width# height#]
              (binding [current-state-atom (atom state#)]
-               (let [layout# (~layout-implementation-symbol
+               (let [layout# (cache/call-with-cache-atom (:cache state#) ~layout-implementation-symbol
                               layoutable# width# height# ~@parameters)]
                  [@current-state-atom
                   layout#])))

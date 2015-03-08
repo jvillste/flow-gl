@@ -122,6 +122,8 @@ Render tree transformer node
 TODO
 -----
 
+- add cache to preferred-size
+
 - add cached function from layoutable to view call paths
 
 - remove defn-cached and replace with function from cache and function to value

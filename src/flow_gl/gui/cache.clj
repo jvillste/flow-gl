@@ -9,16 +9,16 @@
   `(thread-inheritable/inheritable-binding [cache-enabled? false]
                                            ~@body))
 
-(def ^:dynamic cache)
+#_(def ^:dynamic cache)
 
 (defn create []
   (atom {:used #{}}))
 
-(defmacro with-cache [cache-to-be-used & body]
+#_(defmacro with-cache [cache-to-be-used & body]
   `(binding [cache ~cache-to-be-used]
      ~@body))
 
-(defn cached [f]
+#_(defn cached [f]
   (fn [& args]
     (if (and true #_@cache-enabled?
              (bound? #'cache))
@@ -55,7 +55,7 @@
               value)))
       (apply f args))))
 
-(defmacro defn-cached [name args & body]
+#_(defmacro defn-cached [name args & body]
   `(def ~name (cached (with-meta (fn ~args ~@body)
                         {:name ~(str name)}))))
 
@@ -66,6 +66,14 @@
       (let [value (apply function arguments)
             cache (assoc cache [function arguments] value)]
         [cache value]))))
+
+(defn call-with-cache-atom [cache-atom function & arguments]
+  (swap! cache-atom update-in [:used] conj [function arguments])
+  (if-let [value (get @cache-atom [function arguments])]
+    value
+    (let [value (apply function arguments)]
+      (swap! cache-atom assoc [function arguments] value)
+      value)))
 
 (defn clear-usages [cache]
   (assoc cache :used #{}))

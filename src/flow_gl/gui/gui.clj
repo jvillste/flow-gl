@@ -54,11 +54,10 @@
                                            :init opengl/initialize
                                            :reshape opengl/resize)))
 
-(defn close-when-requested-beforehand [app]
-  (fn [state event]
-    (if (= (:type event) :close-requested)
-      (assoc state :close-requested true)
-      (app state event))))
+(defn close-when-requested-beforehand [state]
+  (if (= (-> state :event :type) :close-requested)
+    (assoc state :close-requested true)
+    state))
 
 (defn wrap-with-close-window-on-exception [app]
   (fn [state events]
@@ -88,12 +87,11 @@
     (doseq [child-view-state (vals (:child-states view-state))]
       (call-destructors child-view-state destructor-decorator))))
 
-(defn call-destructors-when-close-requested [app]
-  (fn [state event]
-    (let [state (app state event)]
-      (when (= (:type event) :close-requested)
-        (call-destructors (:view-state state) (-> state :view-context :destructor-decorator)))
-      state)))
+(defn call-destructors-when-close-requested [state]
+  (when (= (-> state :event :type) :close-requested)
+    (call-destructors (:view-state state)
+                      (-> state :view-context :destructor-decorator)))
+  state)
 
 (defn close-control-channel-beforehand [destructor]
   (fn [state]
@@ -101,25 +99,14 @@
       (async/close! control-channel))
     (destructor state)))
 
-(def control-channel-feature {:constructor-decorator add-control-channel-to-view-state
-                              :destructor-decorator close-control-channel-beforehand
-                              :application-decorator call-destructors-when-close-requested})
-
 (defn add-event-channel [state]
   (assoc-in state [:view-context :event-channel]  (window/event-channel (-> state :window))))
 
-(debug/defn-timed apply-view-state-applications-beforehand [app]
-  (fn [state event]
-    (let [state (if (= (:type event)
-                       :apply-to-view-state)
-                  ((:function event) state)
-                  state)]
-      (app state event))))
-
-(def apply-to-view-state-feature {:view-context-decorator add-event-channel
-                                  :application-decorator apply-view-state-applications-beforehand})
-
-
+(debug/defn-timed apply-view-state-applications-beforehand [state]
+  (if (= (-> state :event :type)
+         :apply-to-view-state)
+    ((-> state :event :function) state)
+    state))
 
 
 (def ^:dynamic event-channel-atom (atom nil))
@@ -427,14 +414,12 @@
       (window/close (:window gpu-state))
       (throw e))))
 
-(defn render-drawables-afterwards [app]
-  (fn [state events]
-    (let [state (app state events)]
-      (async/put! (:with-gl-channel state)
-                  {:function render
-                   :arguments [(:layout state)]})
+(debug/defn-timed render-drawables-afterwards [state]
+  (async/put! (:with-gl-channel state)
+              {:function render
+               :arguments [(:layout state)]})
 
-      state)))
+  state)
 
 ;; Animation
 
@@ -450,28 +435,30 @@
          (fn [view-state]
            (update-in view-state [:sleep-time] choose-sleep-time sleep-time))))
 
-(defn limit-frames-per-second-afterwards [app target-frames-per-second]
-  (fn [state events]
-    (let [previous-sleep-time (:sleep-time state)
-          state (-> state
-                    (assoc :frame-started (System/currentTimeMillis))
-                    (dissoc :sleep-time)
-                    (app events))]
-      (if (:sleep-time state)
-        (let [minimum-sleep-time (/ 1000 target-frames-per-second)
-              previous-frame-duration (- (System/currentTimeMillis)
-                                         (or (:last-frame state)
-                                             (System/currentTimeMillis)))
-              sleep-time (max (:sleep-time state)
-                              (- minimum-sleep-time
-                                 (max 0
-                                      (- previous-frame-duration
-                                         (or previous-sleep-time
-                                             0)))))]
-          (assoc state
-            :sleep-time sleep-time
-            :last-frame (System/currentTimeMillis)))
-        state))))
+(defn add-frame-started [state]
+  (assoc state :frame-started (System/currentTimeMillis)))
+
+(defn save-sleep-time [state]
+  (-> state
+      (assoc :previous-sleep-time (:sleep-time state))
+      (dissoc :sleep-time)))
+
+(defn limit-frames-per-second-afterwards [state target-frames-per-second]
+  (if (:sleep-time state)
+    (let [minimum-sleep-time (/ 1000 target-frames-per-second)
+          previous-frame-duration (- (System/currentTimeMillis)
+                                     (or (:last-frame state)
+                                         (System/currentTimeMillis)))
+          sleep-time (max (:sleep-time state)
+                          (- minimum-sleep-time
+                             (max 0
+                                  (- previous-frame-duration
+                                     (or (:previous-sleep-time state)
+                                         0)))))]
+      (assoc state
+        :sleep-time sleep-time
+        :last-frame (System/currentTimeMillis)))
+    state))
 
 #_(defn add-sleep-time-atom [state]
     (assoc-in state [:view-context :sleep-time-atom] (atom nil)))
@@ -486,34 +473,29 @@
 
 ;; Layout
 
-(debug/defn-timed add-layout-afterwards [app]
-  (fn [state event]
-    (let [state (app state event)
-          width (window/width (:window state))
-          height (window/height (:window state))
-          [state layout] (layout/layout (:layoutable state)
-                                        state
-                                        width
-                                        height)
-          layout (-> layout
-                     (assoc :x 0
-                            :y 0
-                            :width width
-                            :height height)
-                     (layout/add-out-of-layout-hints))]
-      (assoc state :layout layout))))
+(debug/defn-timed add-layout-afterwards [state]
+  (let [width (window/width (:window state))
+        height (window/height (:window state))
+        [state layout] (layout/layout (:layoutable state)
+                                      state
+                                      width
+                                      height)
+        layout (-> layout
+                   (assoc :x 0
+                          :y 0
+                          :width width
+                          :height height)
+                   (layout/add-out-of-layout-hints))]
+    (assoc state :layout layout)))
 
 ;; Mouse
 
-(debug/defn-timed add-layout-paths-under-mouse-beforehand [app]
-  (fn [state event]
-    (if (and (:layout state)
-             (= (:source event)
-                :mouse))
-      (-> state
-          (assoc :layout-paths-under-mouse (reverse (layout/layout-paths-in-coordinates (:layout state) (:x event) (:y event))))
-          (app event))
-      (app state event))))
+(debug/defn-timed add-layout-paths-under-mouse-beforehand [state]
+  (if (and (:layout state)
+           (= (-> state :event :source)
+              :mouse))
+    (assoc state :layout-paths-under-mouse (reverse (layout/layout-paths-in-coordinates (:layout state) (-> state :event :x) (-> state :event :y))))
+    state))
 
 (defn path-prefixes [path]
   (loop [prefixes []
@@ -567,14 +549,12 @@
               handlers-and-arguments))
     state))
 
-(debug/defn-timed apply-layout-event-handlers-beforehand [app]
-  (fn [state event]
-    (let [state (if (and (:layout state)
-                         (= (:source event)
-                            :mouse))
-                  (apply-layout-event-handlers state (:layout state) (:layout-paths-under-mouse state) :handle-mouse-event event)
-                  state)]
-      (app state event))))
+(debug/defn-timed apply-layout-event-handlers-beforehand [state]
+  (if (and (:layout state)
+           (= (-> state :event :source)
+              :mouse))
+    (apply-layout-event-handlers state (:layout state) (:layout-paths-under-mouse state) :handle-mouse-event (:event state))
+    state))
 
 
 (defn set-hierarchical-state [state paths new-value child-state-key state-key state-gained-key state-lost-key]
@@ -631,19 +611,17 @@
                  child-path)))
       state-paths)))
 
-(debug/defn-timed apply-mouse-movement-event-handlers-beforehand [app]
-  (fn [state event]
-    (let [state (if (and (:layout state)
-                         (= (:source event)
-                            :mouse)
-                         (:type event :mouse-moved))
-                  (let [state-paths-under-mouse (layout-path-to-state-paths (:layout state) (first (:layout-paths-under-mouse state)))]
-                    (-> state
-                        #_(set-mouse-over state-paths-under-mouse)
-                        (apply-mouse-over-layout-event-handlers (:layout state) (:layout-paths-under-mouse state) #_[(first (:layout-paths-under-mouse state))])))
-
-                  state)]
-      (app state event))))
+(debug/defn-timed apply-mouse-movement-event-handlers-beforehand [state]
+  (if (and (:layout state)
+           (= (-> state :event :source)
+              :mouse)
+           (= (-> state :event :type)
+              :mouse-moved))
+    (let [state-paths-under-mouse (layout-path-to-state-paths (:layout state) (first (:layout-paths-under-mouse state)))]
+      (-> state
+          #_(set-mouse-over state-paths-under-mouse)
+          (apply-mouse-over-layout-event-handlers (:layout state) (:layout-paths-under-mouse state) #_[(first (:layout-paths-under-mouse state))])))
+    state))
 
 ;; mouse api
 
@@ -694,32 +672,28 @@
                (rest focused-state-paths)))
       state)))
 
-(defn apply-keyboard-event-handlers-beforehand [app]
-  (fn [state event]
-    (let [state (if (and (:focused-state-paths state)
-                         (= (:source event)
-                            :keyboard))
-                  (apply-keyboard-event-handlers state event)
-                  state)]
-      (app state event))))
+(debug/defn-timed apply-keyboard-event-handlers-beforehand [state]
+  (if (and (:focused-state-paths state)
+           (= (-> state :event :source)
+              :keyboard))
+    (apply-keyboard-event-handlers state (:event state))
+    state))
 
 (defn set-focus [state focus-paths]
   (move-hierarchical-state state focus-paths :focused-state-paths :child-has-focus :has-focus :on-focus-gained :on-focus-lost))
 
-(debug/defn-timed set-focus-on-mouse-click-beforehand [app]
-  (fn [state event]
-    (let [state (if (and (= (:source event)
-                            :mouse)
-                         (= (:type event)
-                            :mouse-clicked))
-                  (let [state-paths-under-mouse (layout-path-to-state-paths (:layout state)
-                                                                            (first (:layout-paths-under-mouse state)))]
-                    (if (get-in state (concat (last state-paths-under-mouse)
-                                              [:can-gain-focus]))
-                      (set-focus state state-paths-under-mouse)
-                      state))
-                  state)]
-      (app state event))))
+(debug/defn-timed set-focus-on-mouse-click-beforehand [state]
+  (if (and (= (-> state :event :source)
+              :mouse)
+           (= (-> state :event :type)
+              :mouse-clicked))
+    (let [state-paths-under-mouse (layout-path-to-state-paths (:layout state)
+                                                              (first (:layout-paths-under-mouse state)))]
+      (if (get-in state (concat (last state-paths-under-mouse)
+                                [:can-gain-focus]))
+        (set-focus state state-paths-under-mouse)
+        state))
+    state))
 
 ;; moving focus
 
@@ -799,34 +773,31 @@
 ;; Cache
 
 (defn wrap-with-cached [view]
-  (let [cached-view (cache/cached (with-meta view
-                                    (conj (or (meta view)
-                                              {})
-                                          {:type :view})))]
-    (fn [view-context state]
-      (cached-view
-       view-context
-       state))))
+  (fn [view-context state]
+    (cache/call-with-cache-atom (-> view-context :common-view-context :cache)
+                                view
+                                view-context
+                                state)))
 
 (defn add-cache [state]
-  (assoc state :cache (cache/create)))
+  (let [cache (cache/create)]
+    (-> state
+        (assoc :cache cache)
+        (assoc-in [:view-context :cache] cache))))
 
-(defn wrap-with-cache [app]
-  (fn [state events]
-    (cache/with-cache (-> state :cache)
-      (let [state (app state events)
-            event-batch (or (:event-batch state)
-                            0)]
-        (when (> event-batch
-                 100)
-          (swap! cache/cache cache/remove-unused)
-          (swap! cache/cache cache/clear-usages))
+(defn clear-cache [state]
+  (let [event-batch (or (:event-batch state)
+                        0)]
+    (when (> event-batch
+             100)
+      (swap! (:cache state) cache/remove-unused)
+      (swap! (:cache state) cache/clear-usages))
 
-        (assoc state
-          :event-batch (if (> event-batch
-                              100)
-                         0
-                         (inc event-batch)))))))
+    (assoc state
+      :event-batch (if (> event-batch
+                          100)
+                     0
+                     (inc event-batch)))))
 
 (defn propagate-only-when-view-state-changed [app]
   (fn [state event]
@@ -892,6 +863,7 @@
   (let [initial-state (assoc initial-state
                         :with-gl-channel (async/chan 50)
                         :with-gl-dropping-channel (async/chan (async/dropping-buffer 1)))]
+
     (async/thread (loop [state initial-state]
                     (reset! state-atom state)
 
@@ -908,8 +880,8 @@
                                      [{:type :wake-up}]
                                      events)]
 
-                        (recur (debug/debug-timed-and-return :total (app state
-                                                                         events)))))))
+                        (recur (debug/debug-timed-and-return :app (app state
+                                                                       events)))))))
 
     (loop [gpu-state (initialize-gpu-state (:window initial-state))]
       (async/alt!! (:with-gl-dropping-channel initial-state) ([{:keys [function arguments]}]
@@ -990,7 +962,6 @@
       (with-meta (meta view))))
 
 
-
 (defn start-app [app]
   (-> {}
       (add-window)
@@ -1008,24 +979,36 @@
 
       (assoc-in [:view-context :destructor-decorator]  (comp close-control-channel-beforehand))
 
-      (event-loop (-> app
-                      (add-layout-afterwards)
-                      #_(propagate-only-whefn-view-state-changed)
-                      (apply-view-state-applications-beforehand)
-                      (apply-mouse-movement-event-handlers-beforehand)
-                      (apply-layout-event-handlers-beforehand)
-                      (apply-keyboard-event-handlers-beforehand)
-                      #_(move-focus-on-tab-beforehand)
-                      (set-focus-on-mouse-click-beforehand)
-                      (add-layout-paths-under-mouse-beforehand)
-                      (close-when-requested-beforehand)
-                      (call-destructors-when-close-requested)
-                      (wrap-with-separate-events)
-                      (wrap-with-cache)
-                      #_(wrap-with-sleep-time-atom)
-                      (limit-frames-per-second-afterwards 1)
-                      (render-drawables-afterwards)
-                      (wrap-with-close-window-on-exception)))))
+      (event-loop (fn [state events]
+                    (try
+                      (let [state (-> state
+                                      (add-frame-started)
+                                      (save-sleep-time))
+
+                            state (debug/debug-timed-and-return :reduceee  (reduce (fn [state event]
+                                                                                     (-> state
+                                                                                         (assoc :event event)
+                                                                                         (close-when-requested-beforehand)
+                                                                                         (add-layout-paths-under-mouse-beforehand)
+                                                                                         (set-focus-on-mouse-click-beforehand)
+                                                                                         (apply-keyboard-event-handlers-beforehand)
+                                                                                         (apply-layout-event-handlers-beforehand)
+                                                                                         (apply-mouse-movement-event-handlers-beforehand)
+                                                                                         (apply-view-state-applications-beforehand)
+                                                                                         (app)
+                                                                                         (add-layout-afterwards)))
+                                                                                   state
+                                                                                   events))]
+
+                        (-> state
+                            (call-destructors-when-close-requested)
+                            (limit-frames-per-second-afterwards 60)
+                            (render-drawables-afterwards)
+                            (clear-cache)))
+
+                      (catch Exception e
+                        (window/close (:window state))
+                        (throw e)))))))
 
 
 ;; View calls
@@ -1114,7 +1097,7 @@
       [view-state layoutable])))
 
 (defn control-to-application [constructor]
-  (fn [application-state event]
+  (fn [application-state]
     (let [root-view-context {:state-path [:view-state]
                              :common-view-context (:view-context application-state)}
 
