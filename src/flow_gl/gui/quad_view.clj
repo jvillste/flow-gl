@@ -138,7 +138,7 @@
              (rest drawables))
       drawable-textures)))
 
-(flow-gl.debug/defn-timed load-new-textures [quad-view drawables gl]
+(defn load-new-textures [quad-view drawables gl]
   (let [first-texture-id (:next-free-texture-id (:quad-batch quad-view))
         drawables (new-drawables quad-view drawables)
         new-textures (create-textures drawables)]
@@ -201,13 +201,6 @@
                                          width height))))
 
 
-
-#_(defn draw-layout [quad-view layout width height gl]
-    (flow-gl.debug/debug-timed-and-return "draw-quads" (draw-quads quad-view
-                                                                   (flow-gl.debug/debug-timed-and-return "quad-for-layout" (quads-for-layout (assoc layout :x 0 :y 0)))
-                                                                   width
-                                                                   height
-                                                                   gl)))
 
 (defn create [gl]
   {:drawable-textures {}

@@ -35,8 +35,7 @@
         (recur (rest renderers))))))
 
 (defn render-drawables-with-renderers [drawables gl renderers]
-  (let [batches (flow-gl.debug/debug-timed-and-return :create-batches
-                                                      (group-by (partial select-renderer renderers) drawables))]
+  (let [batches (group-by (partial select-renderer renderers) drawables)]
     (loop [renderers renderers
            rendered-renderers []]
       (if-let [renderer (first renderers)]
@@ -57,7 +56,7 @@
              (rest layers))
       renderers)))
 
-(flow-gl.debug/defn-timed create-layers [drawables]
+(defn create-layers [drawables]
   (->> drawables
        (sort-by :z)
        (partition-by :z)))
@@ -80,16 +79,15 @@
     (satisfies? drawable/NanoVGDrawable drawable))
 
   (draw-drawables [this drawables gl]
-    (flow-gl.debug/debug-timed-and-return :nano-vg-renderer
-                                          (let [{:keys [width height]} (opengl/size gl)]
-                                            (NanoVG/beginFrame nanovg width height)
-                                            (doseq [drawable drawables]
-                                              (NanoVG/resetTransform nanovg)
-                                              (NanoVG/translate nanovg
-                                                                (:x drawable)
-                                                                (:y drawable))
-                                              (drawable/draw-nanovg drawable nanovg))
-                                            (NanoVG/endFrame nanovg)))
+    (let [{:keys [width height]} (opengl/size gl)]
+      (NanoVG/beginFrame nanovg width height)
+      (doseq [drawable drawables]
+        (NanoVG/resetTransform nanovg)
+        (NanoVG/translate nanovg
+                          (:x drawable)
+                          (:y drawable))
+        (drawable/draw-nanovg drawable nanovg))
+      (NanoVG/endFrame nanovg))
     this)
 
   (start-frame [this gl] this)
@@ -107,25 +105,23 @@
     (satisfies? drawable/TriangleListDrawable drawable))
 
   (draw-drawables [this drawables gl]
-    (flow-gl.debug/debug-timed-and-return :tirangle-list-renderer
-                                          (let [{:keys [width height]} (opengl/size gl)
-                                                [coordinates colors] (loop [coordinates []
-                                                                            colors []
-                                                                            drawables drawables]
-                                                                       (if-let [drawable (first drawables)]
-                                                                         (let [[new-coordinates new-colors] (drawable/triangles drawable)]
-                                                                           (recur (concat coordinates new-coordinates)
-                                                                                  (concat colors new-colors)
-                                                                                  (rest drawables)))
-                                                                         [coordinates colors]))]
+    (let [{:keys [width height]} (opengl/size gl)
+          [coordinates colors] (loop [coordinates []
+                                      colors []
+                                      drawables drawables]
+                                 (if-let [drawable (first drawables)]
+                                   (let [[new-coordinates new-colors] (drawable/triangles drawable)]
+                                     (recur (concat coordinates new-coordinates)
+                                            (concat colors new-colors)
+                                            (rest drawables)))
+                                   [coordinates colors]))]
 
-                                            (flow-gl.debug/debug-timed-and-return :tirangle-list-render-coordinates
-                                                                                  (assoc this :triangle-list
-                                                                                         (-> triangle-list
-                                                                                             (multicolor-triangle-list/set-size width height gl)
-                                                                                             (multicolor-triangle-list/render-coordinates coordinates
-                                                                                                                                          colors
-                                                                                                                                          gl)))))))
+      (assoc this :triangle-list
+             (-> triangle-list
+                 (multicolor-triangle-list/set-size width height gl)
+                 (multicolor-triangle-list/render-coordinates coordinates
+                                                              colors
+                                                              gl)))))
 
   (start-frame [this gl] this)
 
@@ -144,12 +140,11 @@
 
   (draw-drawables [this drawables gl]
     #_(println "drawing java2d drawables" (count drawables))
-    (flow-gl.debug/debug-timed-and-return :quad-view-renderer
-                                          (do (doto gl
-                                                (.glEnable GL2/GL_BLEND)
-                                                (.glBlendFunc GL2/GL_SRC_ALPHA GL2/GL_ONE_MINUS_SRC_ALPHA))
-                                              (let [{:keys [width height]} (opengl/size gl)]
-                                                (assoc this :quad-view (quad-view/draw-drawables quad-view drawables width height gl))))))
+    (do (doto gl
+          (.glEnable GL2/GL_BLEND)
+          (.glBlendFunc GL2/GL_SRC_ALPHA GL2/GL_ONE_MINUS_SRC_ALPHA))
+        (let [{:keys [width height]} (opengl/size gl)]
+          (assoc this :quad-view (quad-view/draw-drawables quad-view drawables width height gl)))))
 
   (start-frame [this gl]
     this)
@@ -178,25 +173,24 @@
     (instance? Quad  drawable))
 
   (draw-drawables [this drawables gl]
-    (flow-gl.debug/debug-timed-and-return :quad-renderer
-                                          (let [viewport-size (opengl/size gl)]
-                                            (loop [this this
-                                                   drawables drawables]
-                                              (if-let [drawable (first drawables)]
-                                                (let [program (or (get programs (:fragment-shader-source drawable))
-                                                                  (quad/create-program quad (:fragment-shader-source drawable) gl))]
-                                                  (quad/draw gl
-                                                             (:textures drawable)
-                                                             (:uniforms drawable)
-                                                             program
-                                                             (:x drawable) (:y drawable)
-                                                             (:width drawable) (:height drawable)
-                                                             (:width viewport-size) (:height viewport-size))
-                                                  (recur (-> this
-                                                             (update-in [:programs] assoc (:fragment-shader-source drawable) program)
-                                                             (update-in [:used-fragment-shader-sources] conj (:fragment-shader-source drawable)))
-                                                         (rest drawables)))
-                                                this)))))
+    (let [viewport-size (opengl/size gl)]
+      (loop [this this
+             drawables drawables]
+        (if-let [drawable (first drawables)]
+          (let [program (or (get programs (:fragment-shader-source drawable))
+                            (quad/create-program quad (:fragment-shader-source drawable) gl))]
+            (quad/draw gl
+                       (:textures drawable)
+                       (:uniforms drawable)
+                       program
+                       (:x drawable) (:y drawable)
+                       (:width drawable) (:height drawable)
+                       (:width viewport-size) (:height viewport-size))
+            (recur (-> this
+                       (update-in [:programs] assoc (:fragment-shader-source drawable) program)
+                       (update-in [:used-fragment-shader-sources] conj (:fragment-shader-source drawable)))
+                   (rest drawables)))
+          this))))
 
   (start-frame [this gl]
     (assoc this :used-fragment-shader-sources #{}))

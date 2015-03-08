@@ -1,5 +1,7 @@
 (ns flow-gl.gui.gui
-  (:require [clojure.core.async :as async]
+  (:require [io.pedestal.impl.interceptor :as impl-interceptor]
+            [io.pedestal.interceptor :as interceptor]
+            [clojure.core.async :as async]
             (flow-gl.opengl.jogl [opengl :as opengl]
                                  [window :as jogl-window]
                                  [quad :as quad]
@@ -88,7 +90,6 @@
 
 (defn call-destructors-when-close-requested [app]
   (fn [state event]
-    (debug/add-event (:type event))
     (let [state (app state event)]
       (when (= (:type event) :close-requested)
         (call-destructors (:view-state state) (-> state :view-context :destructor-decorator)))
@@ -107,7 +108,7 @@
 (defn add-event-channel [state]
   (assoc-in state [:view-context :event-channel]  (window/event-channel (-> state :window))))
 
-(defn apply-view-state-applications-beforehand [app]
+(debug/defn-timed apply-view-state-applications-beforehand [app]
   (fn [state event]
     (let [state (if (= (:type event)
                        :apply-to-view-state)
@@ -160,65 +161,63 @@
             layout-2)
        [partitions-to-be-redrawn
         partitions-to-be-cleared]
-       (do #_(when (instance? flow_gl.gui.drawable.Text layout-1)
-               (println "was not equal" (type layout-1) (type layout-2) (take 2 (clojure.data/diff layout-1 layout-2))))
-           (if (and (:children layout-1)
-                    (= (type layout-1)
-                       (type layout-2)))
-             (let [transposed-children-1 (map (fn [child]
-                                                (add-vectors child layout-1))
-                                              (:children layout-1))
+       (if (and (:children layout-1)
+                (= (type layout-1)
+                   (type layout-2)))
+         (let [transposed-children-1 (map (fn [child]
+                                            (add-vectors child layout-1))
+                                          (:children layout-1))
 
-                   transposed-children-2 (map (fn [child]
-                                                (add-vectors child layout-2))
-                                              (:children layout-2))
+               transposed-children-2 (map (fn [child]
+                                            (add-vectors child layout-2))
+                                          (:children layout-2))
 
-                   dirty-layers (loop [children-1 transposed-children-1
-                                       children-2 transposed-children-2
-                                       dirty-layers #{}]
-                                  (if-let [child-1 (first children-1)]
-                                    (let [child-2 (first children-2)]
-                                      (if (= child-1 child-2)
-                                        (recur (rest children-1)
-                                               (rest children-2)
-                                               dirty-layers)
-                                        (recur (rest children-1)
-                                               (rest children-2)
-                                               (conj dirty-layers (:z child-1)))))
-                                    dirty-layers))]
-               (loop [partitions-to-be-redrawn partitions-to-be-redrawn
-                      partitions-to-be-cleared partitions-to-be-cleared
-                      children-1 transposed-children-1
-                      children-2 transposed-children-2]
-                 (if-let [child-1 (first children-1)]
-                   (let [child-2 (first children-2)]
-                     (if (not (empty? (disj dirty-layers (:z child-1))))
-                       (recur (conj partitions-to-be-redrawn (assoc child-1 :stenciled (not (= child-1 child-2))))
-                              (if (and child-2
-                                       (not (= child-1 child-2)))
-                                (conj partitions-to-be-cleared child-2)
-                                partitions-to-be-cleared)
-                              (rest children-1)
-                              (rest children-2))
-                       (let [[partitions-to-be-redrawn partitions-to-be-cleared] (dirty-partitions child-1
-                                                                                                   child-2
-                                                                                                   partitions-to-be-redrawn
-                                                                                                   partitions-to-be-cleared)]
-                         (recur partitions-to-be-redrawn
-                                partitions-to-be-cleared
-                                (rest children-1)
-                                (rest children-2)))))
+               dirty-layers (loop [children-1 transposed-children-1
+                                   children-2 transposed-children-2
+                                   dirty-layers #{}]
+                              (if-let [child-1 (first children-1)]
+                                (let [child-2 (first children-2)]
+                                  (if (= child-1 child-2)
+                                    (recur (rest children-1)
+                                           (rest children-2)
+                                           dirty-layers)
+                                    (recur (rest children-1)
+                                           (rest children-2)
+                                           (conj dirty-layers (:z child-1)))))
+                                dirty-layers))]
+           (loop [partitions-to-be-redrawn partitions-to-be-redrawn
+                  partitions-to-be-cleared partitions-to-be-cleared
+                  children-1 transposed-children-1
+                  children-2 transposed-children-2]
+             (if-let [child-1 (first children-1)]
+               (let [child-2 (first children-2)]
+                 (if (not (empty? (disj dirty-layers (:z child-1))))
+                   (recur (conj partitions-to-be-redrawn (assoc child-1 :stenciled (not (= child-1 child-2))))
+                          (if (and child-2
+                                   (not (= child-1 child-2)))
+                            (conj partitions-to-be-cleared child-2)
+                            partitions-to-be-cleared)
+                          (rest children-1)
+                          (rest children-2))
+                   (let [[partitions-to-be-redrawn partitions-to-be-cleared] (dirty-partitions child-1
+                                                                                               child-2
+                                                                                               partitions-to-be-redrawn
+                                                                                               partitions-to-be-cleared)]
+                     (recur partitions-to-be-redrawn
+                            partitions-to-be-cleared
+                            (rest children-1)
+                            (rest children-2)))))
 
-                   [partitions-to-be-redrawn
-                    (into partitions-to-be-cleared children-2)])))
+               [partitions-to-be-redrawn
+                (into partitions-to-be-cleared children-2)])))
 
-             [(conj partitions-to-be-redrawn
-                    (-> layout-1
-                        (assoc :stenciled true)))
-              (if layout-2
-                (conj partitions-to-be-cleared
-                      layout-2)
-                partitions-to-be-cleared)])))))
+         [(conj partitions-to-be-redrawn
+                (-> layout-1
+                    (assoc :stenciled true)))
+          (if layout-2
+            (conj partitions-to-be-cleared
+                  layout-2)
+            partitions-to-be-cleared)]))))
 
 
 (defn drawables-for-layout
@@ -253,8 +252,8 @@
     :render-trees (transformer/render-trees-for-layout layout)))
 
 (defn render-trees-to-drawables [gpu-state]
-  (let [[gpu-state drawables] (debug/debug-timed-and-return :transform (transformer/transform-trees gpu-state
-                                                                                                    (:render-trees gpu-state)))]
+  (let [[gpu-state drawables] (transformer/transform-trees gpu-state
+                                                           (:render-trees gpu-state))]
     (assoc gpu-state
       :drawables drawables)))
 
@@ -264,16 +263,16 @@
              map-vals
              function))
 
-(debug/defn-timed start-frame [gpu-state]
+(defn start-frame [gpu-state]
 
   (apply-to-renderers gpu-state
                       #(renderer/start-frame % (:gl gpu-state))))
 
-(debug/defn-timed end-frame [gpu-state]
+(defn end-frame [gpu-state]
   (apply-to-renderers gpu-state
                       #(renderer/end-frame % (:gl gpu-state))))
 
-(debug/defn-timed render-drawables-with-renderers  [renderers gl drawables]
+(defn render-drawables-with-renderers  [renderers gl drawables]
   (let [[quad-view quad nanovg triangle-list] (renderer/render-frame-drawables drawables
                                                                                gl
                                                                                [(:quad-view renderers)
@@ -286,7 +285,7 @@
      :triangle-list triangle-list}))
 
 
-(debug/defn-timed add-clearing-drawable [gpu-state]
+(defn add-clearing-drawable [gpu-state]
   (let [{:keys [width height]} (opengl/size (:gl gpu-state))]
     (assoc gpu-state
       :drawables (concat [(assoc (drawable/->Rectangle width height [0 0 0 255])
@@ -296,7 +295,7 @@
 (defn add-stencil [gpu-state]
   (assoc gpu-state :stencil (stencil/create (:gl gpu-state))))
 
-(debug/defn-timed set-stencil [gpu-state]
+(defn set-stencil [gpu-state]
   (assoc gpu-state :stencil
          (stencil/set (:stencil gpu-state)
                       (concat (filter :stenciled (:partitions gpu-state))
@@ -329,7 +328,7 @@
       :render-target render-target)))
 
 
-(debug/defn-timed layout-to-partitions [gpu-state]
+(defn layout-to-partitions [gpu-state]
   (let [size (opengl/size (:gl gpu-state))
         [partitions-to-be-redrawn partitions-to-be-cleared] (if (= size (:previous-size gpu-state))
                                                               (dirty-partitions (:layout gpu-state)
@@ -382,7 +381,7 @@
 (defn bake-recurring-partitions [gpu-state]
   (add-partition-textures gpu-state (filter :recurring? (:partitions gpu-state))))
 
-(debug/defn-timed partitions-to-drawables [gpu-state]
+(defn partitions-to-drawables [gpu-state]
   (assoc gpu-state
     :drawables (mapcat (fn [partition]
                          (drawables-for-layout partition)
@@ -420,13 +419,13 @@
       (end-frame)))
 
 (defn render [gpu-state layout]
-  (debug/debug-timed-and-return :total (try
-                                         (-> (assoc gpu-state :layout layout)
-                                             (render-frame)
-                                             (swap-buffers))
-                                         (catch Exception e
-                                           (window/close (:window gpu-state))
-                                           (throw e)))))
+  (try
+    (-> (assoc gpu-state :layout layout)
+        (render-frame)
+        (swap-buffers))
+    (catch Exception e
+      (window/close (:window gpu-state))
+      (throw e))))
 
 (defn render-drawables-afterwards [app]
   (fn [state events]
@@ -487,7 +486,7 @@
 
 ;; Layout
 
-(defn add-layout-afterwards [app]
+(debug/defn-timed add-layout-afterwards [app]
   (fn [state event]
     (let [state (app state event)
           width (window/width (:window state))
@@ -506,7 +505,7 @@
 
 ;; Mouse
 
-(defn add-layout-paths-under-mouse-beforehand [app]
+(debug/defn-timed add-layout-paths-under-mouse-beforehand [app]
   (fn [state event]
     (if (and (:layout state)
              (= (:source event)
@@ -568,7 +567,7 @@
               handlers-and-arguments))
     state))
 
-(defn apply-layout-event-handlers-beforehand [app]
+(debug/defn-timed apply-layout-event-handlers-beforehand [app]
   (fn [state event]
     (let [state (if (and (:layout state)
                          (= (:source event)
@@ -632,7 +631,7 @@
                  child-path)))
       state-paths)))
 
-(defn apply-mouse-movement-event-handlers-beforehand [app]
+(debug/defn-timed apply-mouse-movement-event-handlers-beforehand [app]
   (fn [state event]
     (let [state (if (and (:layout state)
                          (= (:source event)
@@ -707,7 +706,7 @@
 (defn set-focus [state focus-paths]
   (move-hierarchical-state state focus-paths :focused-state-paths :child-has-focus :has-focus :on-focus-gained :on-focus-lost))
 
-(defn set-focus-on-mouse-click-beforehand [app]
+(debug/defn-timed set-focus-on-mouse-click-beforehand [app]
   (fn [state event]
     (let [state (if (and (= (:source event)
                             :mouse)
@@ -909,8 +908,8 @@
                                      [{:type :wake-up}]
                                      events)]
 
-                        (recur (app state
-                                    events))))))
+                        (recur (debug/debug-timed-and-return :total (app state
+                                                                         events)))))))
 
     (loop [gpu-state (initialize-gpu-state (:window initial-state))]
       (async/alt!! (:with-gl-dropping-channel initial-state) ([{:keys [function arguments]}]
@@ -972,7 +971,6 @@
     layoutable))
 
 
-
 (deftest children-to-vectors-test
   (is (= {:children [{:children [{} {}]}]}
          (children-to-vectors {:children (list {:children (list {} {})})}))))
@@ -990,6 +988,8 @@
                                state)]
           (assoc layoutable :view-call-paths (view-call-paths layoutable))))
       (with-meta (meta view))))
+
+
 
 (defn start-app [app]
   (-> {}
@@ -1010,7 +1010,7 @@
 
       (event-loop (-> app
                       (add-layout-afterwards)
-                      #_(propagate-only-when-view-state-changed)
+                      #_(propagate-only-whefn-view-state-changed)
                       (apply-view-state-applications-beforehand)
                       (apply-mouse-movement-event-handlers-beforehand)
                       (apply-layout-event-handlers-beforehand)
@@ -1168,8 +1168,8 @@
   (async/go (async/>! (-> view-context :common-view-context :event-channel)
                       (create-apply-to-view-state-event (fn [state]
                                                           (if (get-in state (:state-path view-context))
-                                                            (apply update-or-apply-in state (:state-path view-context) function arguments)
-                                                            (flow-gl.debug/debug-timed "tried to apply to empty state" (vec (:state-path view-context)))))))))
+                                                            (apply update-or-apply-in state (concat (:state-path view-context) [:local-state]) function arguments)
+                                                            (throw (Exception. (str "tried to apply to empty state" (vec (:state-path view-context)))))))))))
 
 
 (run-tests)
