@@ -122,13 +122,9 @@ Render tree transformer node
 TODO
 -----
 
+- control channel out of the local state
+
 - add cache to preferred-size
-
-- add cached function from layoutable to view call paths
-
-- remove defn-cached and replace with function from cache and function to value
-
-- state backbone with local state on key :local-state and child states on other keys or the key :child-states
 
 - use other than static draw qualifier for buffers
 

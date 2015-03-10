@@ -1,7 +1,5 @@
 (ns flow-gl.gui.gui
-  (:require [io.pedestal.impl.interceptor :as impl-interceptor]
-            [io.pedestal.interceptor :as interceptor]
-            [clojure.core.async :as async]
+  (:require [clojure.core.async :as async]
             (flow-gl.opengl.jogl [opengl :as opengl]
                                  [window :as jogl-window]
                                  [quad :as quad]
@@ -824,11 +822,11 @@
         children-to-be-removed (->> (:old-children state)
                                     (filter (complement child-set)))]
     (-> (reduce (fn [state child-to-be-removed]
-               (do (call-destructors (get-in state [:child-states child-to-be-removed])
-                                     (-> view-context :common-view-context :destructor-decorator))
-                   (update-in state [:child-states] dissoc child-to-be-removed)))
-             state
-             children-to-be-removed)
+                  (do (call-destructors (get-in state [:child-states child-to-be-removed])
+                                        (-> view-context :common-view-context :destructor-decorator))
+                      (update-in state [:child-states] dissoc child-to-be-removed)))
+                state
+                children-to-be-removed)
         (reset-children))))
 
 #_(defn wrap-with-remove-unused-children [view]
@@ -1102,48 +1100,47 @@
 
 (defn control-to-application [constructor]
   (fn [application-state]
-    (debug/debug-timed-and-return :app-core (let [root-view-context {:state-path [:view-state]
-                                                                     :common-view-context (:view-context application-state)}
+    (let [root-view-context {:state-path [:view-state]
+                             :common-view-context (:view-context application-state)}
 
-                                                  state (or (:view-state application-state)
-                                                            (let [constructor ((-> root-view-context :common-view-context :constructor-decorator)
-                                                                               constructor)]
-                                                              {:local-state (constructor root-view-context)}))
+          
+          state (or (:view-state application-state)
+                    (let [constructor ((-> root-view-context :common-view-context :constructor-decorator)
+                                       constructor)]
+                      {:local-state (constructor root-view-context)}))
 
-                                                  root-view-context (if (or (:sleep-time state)
-                                                                            (not (contains? application-state :view-state)))
-                                                                      (assoc root-view-context :frame-started (:frame-started application-state))
-                                                                      root-view-context)
+          root-view-context (if (or (:sleep-time state)
+                                    (not (contains? application-state :view-state)))
+                              (assoc root-view-context :frame-started (:frame-started application-state))
+                              root-view-context)
 
-                                                  state (dissoc state :sleep-time)
+          state (dissoc state :sleep-time)
 
-                                                  #_application-state #_(set-focus application-state
-                                                                                   (initial-focus-paths state))
+          #_application-state #_(set-focus application-state
+                                           (initial-focus-paths state))
 
-                                                  state (if (:decorated-view state)
-                                                          state
-                                                          (assoc state :decorated-view ((-> root-view-context :common-view-context :view-decorator)
-                                                                                        (-> state :local-state :view))))
+          state (if (:decorated-view state)
+                  state
+                  (assoc state :decorated-view ((-> root-view-context :common-view-context :view-decorator)
+                                                (-> state :local-state :view))))
 
-                                                  layoutable (debug/debug-timed-and-return :app-view ((:decorated-view state)
-                                                                                                      root-view-context
-                                                                                                      (:local-state state)))
+          layoutable (debug/debug-timed-and-return :app-view ((:decorated-view state)
+                                                              root-view-context
+                                                              (:local-state state)))
 
-                                                  #_layoutable #_(debug/debug-timed-and-return :view-call-paths (assoc layoutable :view-call-paths (view-call-paths layoutable)))
+          [state layoutable] (debug/debug-timed-and-return :resolve-view-calls (cache/call-with-cache-atom (:cache application-state)
+                                                                                                           #'resolve-view-calls
+                                                                                                           (:cache application-state)
+                                                                                                           state
+                                                                                                           layoutable))
 
-                                                  [state layoutable] (debug/debug-timed-and-return :resolve-view-calls (cache/call-with-cache-atom (:cache application-state)
-                                                                                                                                                   #'resolve-view-calls
-                                                                                                                                                   (:cache application-state)
-                                                                                                                                                   state
-                                                                                                                                                   layoutable))
+          state (debug/debug-timed-and-return :remove-unused-children (remove-unused-children state root-view-context))]
 
-                                                  state (debug/debug-timed-and-return :remove-unused-children (remove-unused-children state root-view-context))]
-
-                                              (-> application-state
-                                                  (assoc
-                                                      :view-state state
-                                                      :layoutable (assoc layoutable :state-path [:view-state])
-                                                      :sleep-time (:sleep-time state)))))))
+      (-> application-state
+          (assoc
+              :view-state state
+              :layoutable (assoc layoutable :state-path [:view-state])
+              :sleep-time (:sleep-time state))))))
 
 (defn start-control [control]
   (start-app (control-to-application control)))

@@ -1,8 +1,7 @@
 (defproject flow-gl "1.0.0-SNAPSHOT"
   :description "FIXME: write description"
   :repositories {"sonatype-oss-public" "https://oss.sonatype.org/content/groups/public/"} ;; for priority-map
-  :dependencies [[io.pedestal/pedestal.service "0.3.1"]
-                 [com.taoensso/timbre "3.3.1"]
+  :dependencies [[com.taoensso/timbre "3.3.1"]
                  [org.clojure/clojure "1.6.0"]
                  [org.clojure/tools.trace "0.7.6"]
                  [org.lwjgl/lwjgl "2.7.1"]
