@@ -823,12 +823,13 @@
   (let [child-set (set (:children state))
         children-to-be-removed (->> (:old-children state)
                                     (filter (complement child-set)))]
-    (reduce (fn [state child-to-be-removed]
-              (do (call-destructors (get-in state [:child-states child-to-be-removed])
-                                    (-> view-context :common-view-context :destructor-decorator))
-                  (update-in state [:child-states] dissoc child-to-be-removed)))
-            state
-            children-to-be-removed)))
+    (-> (reduce (fn [state child-to-be-removed]
+               (do (call-destructors (get-in state [:child-states child-to-be-removed])
+                                     (-> view-context :common-view-context :destructor-decorator))
+                   (update-in state [:child-states] dissoc child-to-be-removed)))
+             state
+             children-to-be-removed)
+        (reset-children))))
 
 #_(defn wrap-with-remove-unused-children [view]
     (-> (fn [view-context state]
@@ -864,24 +865,24 @@
                         :with-gl-channel (async/chan 50)
                         :with-gl-dropping-channel (async/chan (async/dropping-buffer 1)))]
 
-    (async/thread (loop [state initial-state]
-                    (reset! state-atom state)
+    (.start (Thread. (fn [] (loop [state initial-state]
+                              (reset! state-atom state)
 
-                    (if (:close-requested state)
-                      (do (println "exiting event loop")
-                          (async/close! (:with-gl-channel initial-state))
-                          (async/close! (:with-gl-dropping-channel initial-state))
-                          (window/close (:window state)))
+                              (if (:close-requested state)
+                                (do (println "exiting event loop")
+                                    (async/close! (:with-gl-channel initial-state))
+                                    (async/close! (:with-gl-dropping-channel initial-state))
+                                    (window/close (:window state)))
 
-                      (let [events (csp/drain (window/event-channel (:window state))
-                                              (:sleep-time state))
+                                (let [events (csp/drain (window/event-channel (:window state))
+                                                        (:sleep-time state))
 
-                            events (if (empty? events)
-                                     [{:type :wake-up}]
-                                     events)]
+                                      events (if (empty? events)
+                                               [{:type :wake-up}]
+                                               events)]
 
-                        (recur (debug/debug-timed-and-return :app (app state
-                                                                       events)))))))
+                                  (recur (debug/debug-timed-and-return :app (app state
+                                                                                 events)))))))))
 
     (loop [gpu-state (initialize-gpu-state (:window initial-state))]
       (async/alt!! (:with-gl-dropping-channel initial-state) ([{:keys [function arguments]}]
@@ -971,11 +972,11 @@
       #_(add-sleep-time-atom)
       (assoc-in [:view-context :constructor-decorator] (comp add-control-channel-to-view-state))
 
-      (assoc-in [:view-context :view-decorator]  (comp wrap-with-cached
-                                                       add-view-call-paths
-                                                       add-children-to-vectors
-                                                       #_wrap-with-remove-unused-children
-                                                       #_wrap-with-current-view-state-atom))
+      (assoc-in [:view-context :view-decorator] (comp wrap-with-cached
+                                                      add-view-call-paths
+                                                      add-children-to-vectors
+                                                      #_wrap-with-remove-unused-children
+                                                      #_wrap-with-current-view-state-atom))
 
       (assoc-in [:view-context :destructor-decorator]  (comp close-control-channel-beforehand))
 
@@ -985,20 +986,21 @@
                                       (add-frame-started)
                                       (save-sleep-time))
 
-                            state (debug/debug-timed-and-return :reduceee  (reduce (fn [state event]
-                                                                                     (-> state
-                                                                                         (assoc :event event)
-                                                                                         (close-when-requested-beforehand)
-                                                                                         (add-layout-paths-under-mouse-beforehand)
-                                                                                         (set-focus-on-mouse-click-beforehand)
-                                                                                         (apply-keyboard-event-handlers-beforehand)
-                                                                                         (apply-layout-event-handlers-beforehand)
-                                                                                         (apply-mouse-movement-event-handlers-beforehand)
-                                                                                         (apply-view-state-applications-beforehand)
-                                                                                         (app)
-                                                                                         (add-layout-afterwards)))
-                                                                                   state
-                                                                                   events))]
+                            state (reduce (fn [state event]
+                                            (flow-gl.debug/add-event :handle-event)
+                                            (-> state
+                                                (assoc :event event)
+                                                (close-when-requested-beforehand)
+                                                (add-layout-paths-under-mouse-beforehand)
+                                                (set-focus-on-mouse-click-beforehand)
+                                                (apply-keyboard-event-handlers-beforehand)
+                                                (apply-layout-event-handlers-beforehand)
+                                                (apply-mouse-movement-event-handlers-beforehand)
+                                                (apply-view-state-applications-beforehand)
+                                                (app)
+                                                (add-layout-afterwards)))
+                                          state
+                                          events)]
 
                         (-> state
                             (call-destructors-when-close-requested)
@@ -1035,7 +1037,7 @@
 
 (def resolve-view-calls)
 
-(defn resolve-view-call [parent-view-state view-call]
+(defn resolve-view-call [cache parent-view-state view-call]
   (let [state-path-part [:child-states (:child-id view-call)]
         state-path (concat (:state-path (:parent-view-context view-call)) state-path-part)
 
@@ -1072,7 +1074,8 @@
                                  :state-overrides
                                  :constructor-parameters))
 
-        [child-view-state layoutable] (resolve-view-calls child-view-state layoutable)
+        [child-view-state layoutable] #_(cache/call-with-cache-atom cache #'resolve-view-calls cache child-view-state layoutable)
+        (resolve-view-calls cache child-view-state layoutable)
 
         child-view-state (remove-unused-children child-view-state view-context)]
 
@@ -1085,12 +1088,13 @@
        :state-path state-path)]))
 
 
-(defn resolve-view-calls [view-state layoutable]
+(defn resolve-view-calls [cache view-state layoutable]
   (loop [view-state view-state
          view-call-paths (:view-call-paths layoutable)
          layoutable layoutable]
     (if-let [view-call-path (first view-call-paths)]
-      (let [[view-state child] (resolve-view-call view-state (get-in layoutable view-call-path))]
+      (let [[view-state child] (resolve-view-call cache view-state (get-in layoutable view-call-path))
+            #_(cache/call-with-cache-atom cache #'resolve-view-call cache view-state (get-in layoutable view-call-path))]
         (recur view-state
                (rest view-call-paths)
                (assoc-in layoutable view-call-path child)))
@@ -1098,44 +1102,48 @@
 
 (defn control-to-application [constructor]
   (fn [application-state]
-    (let [root-view-context {:state-path [:view-state]
-                             :common-view-context (:view-context application-state)}
+    (debug/debug-timed-and-return :app-core (let [root-view-context {:state-path [:view-state]
+                                                                     :common-view-context (:view-context application-state)}
 
-          state (or (:view-state application-state)
-                    (let [constructor ((-> root-view-context :common-view-context :constructor-decorator)
-                                       constructor)]
-                      {:local-state (constructor root-view-context)}))
+                                                  state (or (:view-state application-state)
+                                                            (let [constructor ((-> root-view-context :common-view-context :constructor-decorator)
+                                                                               constructor)]
+                                                              {:local-state (constructor root-view-context)}))
 
-          root-view-context (if (or (:sleep-time state)
-                                    (not (contains? application-state :view-state)))
-                              (assoc root-view-context :frame-started (:frame-started application-state))
-                              root-view-context)
+                                                  root-view-context (if (or (:sleep-time state)
+                                                                            (not (contains? application-state :view-state)))
+                                                                      (assoc root-view-context :frame-started (:frame-started application-state))
+                                                                      root-view-context)
 
-          state (dissoc state :sleep-time)
+                                                  state (dissoc state :sleep-time)
 
-          #_application-state #_(set-focus application-state
-                                           (initial-focus-paths state))
+                                                  #_application-state #_(set-focus application-state
+                                                                                   (initial-focus-paths state))
 
-          state (if (:decorated-view state)
-                  state
-                  (assoc state :decorated-view ((-> root-view-context :common-view-context :view-decorator)
-                                                (-> state :local-state :view))))
+                                                  state (if (:decorated-view state)
+                                                          state
+                                                          (assoc state :decorated-view ((-> root-view-context :common-view-context :view-decorator)
+                                                                                        (-> state :local-state :view))))
 
-          layoutable ((:decorated-view state)
-                      root-view-context
-                      (:local-state state))
+                                                  layoutable (debug/debug-timed-and-return :app-view ((:decorated-view state)
+                                                                                                      root-view-context
+                                                                                                      (:local-state state)))
 
-          layoutable (assoc layoutable :view-call-paths (view-call-paths layoutable))
+                                                  #_layoutable #_(debug/debug-timed-and-return :view-call-paths (assoc layoutable :view-call-paths (view-call-paths layoutable)))
 
-          [state layoutable] (resolve-view-calls state layoutable)
+                                                  [state layoutable] (debug/debug-timed-and-return :resolve-view-calls (cache/call-with-cache-atom (:cache application-state)
+                                                                                                                                                   #'resolve-view-calls
+                                                                                                                                                   (:cache application-state)
+                                                                                                                                                   state
+                                                                                                                                                   layoutable))
 
-          state (remove-unused-children state root-view-context)]
+                                                  state (debug/debug-timed-and-return :remove-unused-children (remove-unused-children state root-view-context))]
 
-      (-> application-state
-          (assoc
-              :view-state state
-              :layoutable (assoc layoutable :state-path [:view-state])
-              :sleep-time (:sleep-time state))))))
+                                              (-> application-state
+                                                  (assoc
+                                                      :view-state state
+                                                      :layoutable (assoc layoutable :state-path [:view-state])
+                                                      :sleep-time (:sleep-time state)))))))
 
 (defn start-control [control]
   (start-app (control-to-application control)))

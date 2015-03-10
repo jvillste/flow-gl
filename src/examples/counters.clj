@@ -43,11 +43,10 @@
 (defn counter-mouse-handler [state event]
   (update-in state [:count] inc))
 
-(defn counter-view
-  ""
-  {:name "counter-view"}
+(flow-gl.debug/defn-timed counter-view
+  #_""
+  #_{:name "counter-view"}
   [view-context state]
-
   (gui/on-mouse-clicked (text (apply str (if (= 0 (mod (:count state) 2))
                                            "X"
                                            "ZZ"))
@@ -82,7 +81,7 @@
                                                                                 (gui/on-mouse-event :mouse-enter view-context mouse-enter row column))))
                                                      (highlight (= (:mouse-over-column state) column)
                                                                 [255 0 0 255]))))))})
-
 (defn start []
   #_(gui/start-control app)
-  (.start (Thread. (fn [] (profiler/with-profiler (gui/start-control app))))))
+  (.start (Thread. (fn [] (profiler/with-profiler (gui/start-control app)))))
+  #_(profiler/with-profiler (gui/start-control app)))

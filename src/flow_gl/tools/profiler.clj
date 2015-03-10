@@ -80,6 +80,7 @@
                       (gui/on-mouse-event :mouse-clicked
                                           view-context
                                           (fn [state event]
+                                            (println "mouse clicked")
                                             (async/put! (:channel state) {:type :reset})
                                             state)))
                   (l/margin 10 0 0 0
@@ -193,5 +194,5 @@
     (async/put! channel 2)
     (async/put! channel 3)
 
-    (Thread/sleep 200)
+    (Thread/sleep 2000)
     (async/close! channel))

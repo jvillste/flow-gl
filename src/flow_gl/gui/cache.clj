@@ -15,49 +15,49 @@
   (atom {:used #{}}))
 
 #_(defmacro with-cache [cache-to-be-used & body]
-  `(binding [cache ~cache-to-be-used]
-     ~@body))
+    `(binding [cache ~cache-to-be-used]
+       ~@body))
 
 #_(defn cached [f]
-  (fn [& args]
-    (if (and true #_@cache-enabled?
-             (bound? #'cache))
-      (do (swap! cache update-in [:used] conj [f args])
-          (if-let [value (get @cache [f args])]
-            (do (flow-gl.debug/add-event [:cache-hit (:name (meta f))] )
-                #_(if (= (:type (meta f)) :layout)
-                    (flow-gl.gui.transformer/with-transformers
-                      (flow-gl.gui.transformer/->HighlightAll :highlight [0 255 0 100])
+    (fn [& args]
+      (if (and true #_@cache-enabled?
+               (bound? #'cache))
+        (do (swap! cache update-in [:used] conj [f args])
+            (if-let [value (get @cache [f args])]
+              (do (flow-gl.debug/add-event [:cache-hit (:name (meta f))] )
+                  #_(if (= (:type (meta f)) :layout)
+                      (flow-gl.gui.transformer/with-transformers
+                        (flow-gl.gui.transformer/->HighlightAll :highlight [0 255 0 100])
+                        value)
                       value)
-                    value)
-                value)
-            (let [value (apply f args)]
+                  value)
+              (let [value (apply f args)]
 
-              #_(println "missed " (:name (meta f)) "but found" (->> (keys @cache)
-                                                                     (filter vector?)
-                                                                     (filter (fn [[f2 args2]] (= f2 f)))
-                                                                     (map (fn [[f2 args2]] (take 2 (clojure.data/diff args args2))))
-                                                                     #_(map keys)))
-              #_(when (= (:name (meta f))
-                         "counter-view")
-                  (println "missed " (:name (meta f)) "but found" (->> (keys @cache)
+                #_(println "missed " (:name (meta f)) "but found" (->> (keys @cache)
                                                                        (filter vector?)
                                                                        (filter (fn [[f2 args2]] (= f2 f)))
-                                                                       (map (fn [[f2 args2]] (take 2 (clojure.data/diff args args2)))))))
+                                                                       (map (fn [[f2 args2]] (take 2 (clojure.data/diff args args2))))
+                                                                       #_(map keys)))
+                #_(when (= (:name (meta f))
+                           "counter-view")
+                    (println "missed " (:name (meta f)) "but found" (->> (keys @cache)
+                                                                         (filter vector?)
+                                                                         (filter (fn [[f2 args2]] (= f2 f)))
+                                                                         (map (fn [[f2 args2]] (take 2 (clojure.data/diff args args2)))))))
 
-              (swap! cache assoc [f args] value)
-              (flow-gl.debug/add-event [:cache-miss (:name (meta f))])
-              #_(if (= (:type (meta f)) :layout)
-                  (flow-gl.gui.transformer/with-transformers
-                    (flow-gl.gui.transformer/->HighlightAll :highlight [255 0 0 10])
+                (swap! cache assoc [f args] value)
+                (flow-gl.debug/add-event [:cache-miss (:name (meta f))])
+                #_(if (= (:type (meta f)) :layout)
+                    (flow-gl.gui.transformer/with-transformers
+                      (flow-gl.gui.transformer/->HighlightAll :highlight [255 0 0 10])
+                      value)
                     value)
-                  value)
-              value)))
-      (apply f args))))
+                value)))
+        (apply f args))))
 
 #_(defmacro defn-cached [name args & body]
-  `(def ~name (cached (with-meta (fn ~args ~@body)
-                        {:name ~(str name)}))))
+    `(def ~name (cached (with-meta (fn ~args ~@body)
+                          {:name ~(str name)}))))
 
 (defn call-with-cache [cache function & arguments]
   (let [cache (update-in cache [:used] conj [function arguments])]
@@ -70,8 +70,18 @@
 (defn call-with-cache-atom [cache-atom function & arguments]
   (swap! cache-atom update-in [:used] conj [function arguments])
   (if-let [value (get @cache-atom [function arguments])]
-    value
+    (do (flow-gl.debug/add-event [:cache-hit (:name (meta function))])
+        value)
     (let [value (apply function arguments)]
+      (flow-gl.debug/add-event [:cache-miss (:name (meta function))])
+
+      #_(when (= (str (:name (meta function)))
+               "resolve-view-calls")
+        (println "missed " (:name (meta function)))
+        #_(println "missed " (:name (meta function)) "but found" (->> (keys @cache-atom)
+                                                                    (filter vector?)
+                                                                    (filter (fn [[f2 args2]] (= f2 function)))
+                                                                    (map (fn [[f2 args2]] (take 2 (clojure.data/diff (drop 2 arguments) (drop 2 args2))))))))
       (swap! cache-atom assoc [function arguments] value)
       value)))
 
