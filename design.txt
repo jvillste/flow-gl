@@ -122,6 +122,8 @@ Render tree transformer node
 TODO
 -----
 
+- make view functions updatable on the fly
+
 - control channel out of the local state
 
 - add cache to preferred-size

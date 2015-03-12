@@ -559,13 +559,13 @@
            state state]
       (if (seq (rest paths))
         (recur (rest paths)
-               (update-in state (first paths) assoc child-state-key new-value))
-        (update-in state (first paths) (fn [state]
-                                         (let [focus-handler-key (if new-value state-gained-key state-lost-key)]
-                                           (-> (if-let [focus-handler (focus-handler-key state)]
-                                                 (focus-handler state)
-                                                 state)
-                                               (assoc state-key new-value)))))))
+               (update-in state (concat (first paths) [:local-state]) assoc child-state-key new-value))
+        (update-in state (concat (first paths) [:local-state]) (fn [state]
+                                                                 (let [focus-handler-key (if new-value state-gained-key state-lost-key)]
+                                                                   (-> (if-let [focus-handler (focus-handler-key state)]
+                                                                         (focus-handler state)
+                                                                         state)
+                                                                       (assoc state-key new-value)))))))
     state))
 
 (defn move-hierarchical-state [state paths previous-path-parts-key child-state-key state-key state-gained-key state-lost-key]
@@ -649,16 +649,17 @@
 (defn apply-keyboard-event-handlers [state event]
   (loop [state state
          focused-state-paths (:focused-state-paths state)]
-    (if-let [focused-state-path (first focused-state-paths)]
-      (if-let [keyboard-event-handler (get-in state (conj (vec focused-state-path) :handle-keyboard-event))]
-        (if (seq focused-state-path)
-          (let [[child-state continue] (keyboard-event-handler (get-in state focused-state-path)
-                                                               event)
-                state (assoc-in state focused-state-path child-state)]
-            (if continue
-              (recur state
-                     (rest focused-state-paths))
-              state))
+    (if-let [focused-state-path (debug/print-and-return "focused state path" (first focused-state-paths))]
+      (if-let [keyboard-event-handler (get-in state (concat (vec focused-state-path) [:local-state :handle-keyboard-event]))]
+        (let [[child-state continue] (keyboard-event-handler (get-in state (concat focused-state-path [:local-state]))
+                                                             event)
+              state (assoc-in state (concat focused-state-path [:local-state]) child-state)]
+          (if continue
+            (recur state
+                   (rest focused-state-paths))
+            state))
+        #_(if (seq focused-state-path)
+          
           (let [[state continue] (keyboard-event-handler state event)]
             (if continue
               (recur state
@@ -676,6 +677,7 @@
     state))
 
 (defn set-focus [state focus-paths]
+  (println "set focus" focus-paths)
   (move-hierarchical-state state focus-paths :focused-state-paths :child-has-focus :has-focus :on-focus-gained :on-focus-lost))
 
 (debug/defn-timed set-focus-on-mouse-click-beforehand [state]
@@ -683,10 +685,12 @@
               :mouse)
            (= (-> state :event :type)
               :mouse-clicked))
+
     (let [state-paths-under-mouse (layout-path-to-state-paths (:layout state)
                                                               (first (:layout-paths-under-mouse state)))]
+      (println "undr mouse" state-paths-under-mouse)
       (if (get-in state (concat (last state-paths-under-mouse)
-                                [:can-gain-focus]))
+                                [:local-state :can-gain-focus]))
         (set-focus state state-paths-under-mouse)
         state))
     state))
@@ -964,14 +968,10 @@
       (add-cache)
       (set-event-channel-atom)
       (add-event-channel)
-      #_(add-sleep-time-atom)
-      #_(assoc-in [:view-context :constructor-decorator] (comp add-control-channel-to-view-state))
 
       (assoc-in [:view-context :view-decorator] (comp wrap-with-cached
                                                       add-view-call-paths
-                                                      add-children-to-vectors
-                                                      #_wrap-with-remove-unused-children
-                                                      #_wrap-with-current-view-state-atom))
+                                                      add-children-to-vectors))
 
       (event-loop (fn [state events]
                     (try
