@@ -122,8 +122,6 @@ Render tree transformer node
 TODO
 -----
 
-- fix animation
-
 - make view functions updatable on the fly
 
 - make constructors return local state separaterly from event handlers and view

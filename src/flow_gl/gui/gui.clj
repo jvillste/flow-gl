@@ -648,7 +648,7 @@
 (defn apply-keyboard-event-handlers [state event]
   (loop [state state
          focused-state-paths (:focused-state-paths state)]
-    
+
     (if-let [focused-state-path (first focused-state-paths)]
       (if-let [keyboard-event-handler (get-in state (concat (vec focused-state-path) [:local-state :handle-keyboard-event]))]
         (let [[child-state continue] (keyboard-event-handler (get-in state (concat focused-state-path [:local-state]))
@@ -763,13 +763,6 @@
 
 ;; Cache
 
-(defn wrap-with-cached [view]
-  (fn [view-context state]
-    (cache/call-with-cache-atom (-> view-context :common-view-context :cache)
-                                view
-                                view-context
-                                state)))
-
 (defn add-cache [state]
   (let [cache (cache/create)]
     (-> state
@@ -820,14 +813,6 @@
                 state
                 children-to-be-removed)
         (reset-children))))
-
-#_(defn wrap-with-remove-unused-children [view]
-    (-> (fn [view-context state]
-          (let [view-result (view view-context
-                                  (reset-children state))]
-            (update-in view-result [:state] remove-unused-children view-context)))
-        (with-meta (meta view))))
-
 
 
 (defn wrap-with-current-view-state-atom [view]
@@ -935,20 +920,6 @@
   (is (= {:children [{:children [{} {}]}]}
          (children-to-vectors {:children (list {:children (list {} {})})}))))
 
-(defn add-children-to-vectors [view]
-  (-> (fn [view-context state]
-        (-> (view view-context
-                  state)
-            (children-to-vectors)))
-      (with-meta (meta view))))
-
-(defn add-view-call-paths [view]
-  (-> (fn [view-context state]
-        (let [layoutable (view view-context
-                               state)]
-          (assoc layoutable :view-call-paths (view-call-paths layoutable))))
-      (with-meta (meta view))))
-
 
 (defn start-app [app]
   (-> {}
@@ -956,10 +927,6 @@
       (add-cache)
       (set-event-channel-atom)
       (add-event-channel)
-
-      (assoc-in [:view-context :view-decorator] (comp wrap-with-cached
-                                                      add-view-call-paths
-                                                      add-children-to-vectors))
 
       (event-loop (fn [state events]
                     (try
@@ -1016,6 +983,12 @@
           target-map
           override-map))
 
+(defn run-view [view view-context state]
+  (let [layoutable (view view-context state)]
+    (-> layoutable
+        (assoc :view-call-paths (view-call-paths layoutable))
+        (children-to-vectors))))
+
 (def resolve-view-calls)
 
 (defn resolve-view-call [cache parent-view-state view-call]
@@ -1041,12 +1014,7 @@
 
         child-view-state (dissoc child-view-state :sleep-time)
 
-        child-view-state (if (:decorated-view child-view-state)
-                           child-view-state
-                           (assoc child-view-state :decorated-view ((-> (:parent-view-context view-call) :common-view-context :view-decorator)
-                                                                    (-> child-view-state :local-state :view))))
-
-        layoutable ((:decorated-view child-view-state) view-context (:local-state child-view-state))
+        layoutable (cache/call-with-cache-atom cache run-view (-> child-view-state :local-state :view) view-context (:local-state child-view-state))
 
         layoutable (conj layoutable
                          (dissoc view-call
@@ -1097,7 +1065,7 @@
                        :control-channel control-channel}))
 
           #_application-state #_(set-focus application-state
-                                       (initial-focus-paths state))
+                                           (initial-focus-paths state))
 
           root-view-context (if (or (:sleep-time state)
                                     (not (contains? application-state :view-state)))
@@ -1106,20 +1074,16 @@
 
           state (dissoc state :sleep-time)
 
-          state (if (:decorated-view state)
-                  state
-                  (assoc state :decorated-view ((-> root-view-context :common-view-context :view-decorator)
-                                                (-> state :local-state :view))))
 
-          layoutable (debug/debug-timed-and-return :app-view ((:decorated-view state)
-                                                              root-view-context
-                                                              (:local-state state)))
+          layoutable (cache/call-with-cache-atom (:cache application-state) run-view (-> state :local-state :view) root-view-context (:local-state state))
 
           [state layoutable] (debug/debug-timed-and-return :resolve-view-calls (cache/call-with-cache-atom (:cache application-state)
                                                                                                            #'resolve-view-calls
                                                                                                            (:cache application-state)
                                                                                                            state
                                                                                                            layoutable))
+
+          state (assoc state :sleep-time (:sleep-time layoutable))
 
           state (debug/debug-timed-and-return :remove-unused-children (remove-unused-children state root-view-context))]
 
