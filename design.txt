@@ -122,9 +122,13 @@ Render tree transformer node
 TODO
 -----
 
+- fix animation
+
 - make view functions updatable on the fly
 
-- control channel out of the local state
+- make constructors return local state separaterly from event handlers and view
+
+- set initial focus after the view calls are resolved the first time
 
 - add cache to preferred-size
 

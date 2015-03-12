@@ -79,8 +79,7 @@
 
 (defn close-control-channel [view-state]
   (when-let [control-channel (:control-channel view-state)]
-    (do (println "closing control channel" (hash control-channel))
-        (async/close! control-channel))))
+    (async/close! control-channel)))
 
 (defn call-destructors [view-state]
   (when-let [destructor (-> view-state :local-state :destructor)]
@@ -649,7 +648,8 @@
 (defn apply-keyboard-event-handlers [state event]
   (loop [state state
          focused-state-paths (:focused-state-paths state)]
-    (if-let [focused-state-path (debug/print-and-return "focused state path" (first focused-state-paths))]
+    
+    (if-let [focused-state-path (first focused-state-paths)]
       (if-let [keyboard-event-handler (get-in state (concat (vec focused-state-path) [:local-state :handle-keyboard-event]))]
         (let [[child-state continue] (keyboard-event-handler (get-in state (concat focused-state-path [:local-state]))
                                                              event)
@@ -658,13 +658,6 @@
             (recur state
                    (rest focused-state-paths))
             state))
-        #_(if (seq focused-state-path)
-          
-          (let [[state continue] (keyboard-event-handler state event)]
-            (if continue
-              (recur state
-                     (rest focused-state-paths))
-              state)))
         (recur state
                (rest focused-state-paths)))
       state)))
@@ -677,7 +670,6 @@
     state))
 
 (defn set-focus [state focus-paths]
-  (println "set focus" focus-paths)
   (move-hierarchical-state state focus-paths :focused-state-paths :child-has-focus :has-focus :on-focus-gained :on-focus-lost))
 
 (debug/defn-timed set-focus-on-mouse-click-beforehand [state]
@@ -688,7 +680,6 @@
 
     (let [state-paths-under-mouse (layout-path-to-state-paths (:layout state)
                                                               (first (:layout-paths-under-mouse state)))]
-      (println "undr mouse" state-paths-under-mouse)
       (if (get-in state (concat (last state-paths-under-mouse)
                                 [:local-state :can-gain-focus]))
         (set-focus state state-paths-under-mouse)
@@ -868,8 +859,7 @@
                               (reset! state-atom state)
 
                               (if (:close-requested state)
-                                (do (println "exiting event loop")
-                                    (async/close! (:with-gl-channel initial-state))
+                                (do (async/close! (:with-gl-channel initial-state))
                                     (async/close! (:with-gl-dropping-channel initial-state))
                                     (window/close (:window state)))
 
@@ -895,9 +885,7 @@
                                                                                (apply function
                                                                                       (assoc gpu-state :gl gl)
                                                                                       arguments)))))
-                   :priority true))
-
-    (println "exiting render loop")))
+                   :priority true))))
 
 ;; View calls
 
@@ -1071,6 +1059,8 @@
         [child-view-state layoutable] #_(cache/call-with-cache-atom cache #'resolve-view-calls cache child-view-state layoutable)
         (resolve-view-calls cache child-view-state layoutable)
 
+        child-view-state (assoc child-view-state :sleep-time (:sleep-time layoutable))
+
         child-view-state (remove-unused-children child-view-state view-context)]
 
     [(-> parent-view-state
@@ -1106,15 +1096,15 @@
                       {:local-state (constructor view-context)
                        :control-channel control-channel}))
 
+          #_application-state #_(set-focus application-state
+                                       (initial-focus-paths state))
+
           root-view-context (if (or (:sleep-time state)
                                     (not (contains? application-state :view-state)))
                               (assoc root-view-context :frame-started (:frame-started application-state))
                               root-view-context)
 
           state (dissoc state :sleep-time)
-
-          #_application-state #_(set-focus application-state
-                                           (initial-focus-paths state))
 
           state (if (:decorated-view state)
                   state

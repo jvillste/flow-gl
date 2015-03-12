@@ -41,7 +41,6 @@
                       color)))
 
 (defn counter-view [view-context state]
-  (println "counter" state)
   (l/preferred (text (:count state)
                      (if (:has-focus state)
                        [0 255 0 255]
@@ -58,10 +57,10 @@
 (defn app [view-context]
   (merge gui/child-focus-handlers
          {:view (fn [view-context state]
-                  (l/preferred (l/horizontally (for [column (range 2)]
+                  (l/preferred (l/horizontally (for [column (range 10)]
                                                  (gui/call-view view-context counter column)))))}))
 (defn start []
-  (.start (Thread. (fn [] (gui/start-control counter #_app))))
+  (.start (Thread. (fn [] (gui/start-control app))))
 
   #_(.start (Thread. (fn [] (profiler/with-profiler (gui/start-control app)))))
   #_(profiler/with-profiler (gui/start-control app)))

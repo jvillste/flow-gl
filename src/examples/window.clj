@@ -58,20 +58,20 @@
             (let [duration (mod (:frame-started view-context)
                                 (:pulse-rate state))]
 
-              (gui/set-wake-up view-context (- (/ (:pulse-rate state)
-                                                  2)
-                                               duration))
-              (text (str (:count state) (if (> (/ duration
-                                                  (:pulse-rate state))
-                                               0.5)
-                                          "x"
-                                          "")
-                         (if (:mouse-over state)
-                           "o"
-                           ""))
-                    (if (:has-focus state)
-                      [255 255 255 255]
-                      [100 100 100 255]))))))
+              (-> (text (str (:count state) (if (> (/ duration
+                                                   (:pulse-rate state))
+                                                0.5)
+                                           "x"
+                                           "")
+                          (if (:mouse-over state)
+                            "o"
+                            ""))
+                     (if (:has-focus state)
+                       [255 255 255 255]
+                       [100 100 100 255]))
+                  (assoc :sleep-time (- (/ (:pulse-rate state)
+                                           2)
+                                        duration)))))))
 
 
 (defn app [view-context]
