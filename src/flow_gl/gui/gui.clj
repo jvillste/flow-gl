@@ -68,34 +68,32 @@
 
 ;; CSP
 
-(defn add-control-channel-to-view-state [constructor]
-  (fn [view-context & parameters]
-    (let [view-context (assoc view-context
-                         :control-channel (async/chan))]
-      (-> (apply constructor
-                 view-context
-                 parameters)
-          (assoc :control-channel (:control-channel view-context))))))
+#_(defn add-control-channel-to-view-state [constructor]
+    (fn [view-context & parameters]
+      (let [view-context (assoc view-context
+                           :control-channel (async/chan))]
+        (-> (apply constructor
+                   view-context
+                   parameters)
+            (assoc :control-channel (:control-channel view-context))))))
 
-(defn call-destructors [view-state destructor-decorator]
-  (let [destructor (destructor-decorator
-                    (or (-> view-state :local-state :destructor)
-                        identity))]
-    (destructor (:local-state view-state))
-    (doseq [child-view-state (vals (:child-states view-state))]
-      (call-destructors child-view-state destructor-decorator))))
+(defn close-control-channel [view-state]
+  (when-let [control-channel (:control-channel view-state)]
+    (do (println "closing control channel" (hash control-channel))
+        (async/close! control-channel))))
+
+(defn call-destructors [view-state]
+  (when-let [destructor (-> view-state :local-state :destructor)]
+    (destructor (:local-state view-state)))
+
+  (close-control-channel view-state)
+  (doseq [child-view-state (vals (:child-states view-state))]
+    (call-destructors child-view-state)))
 
 (defn call-destructors-when-close-requested [state]
   (when (= (-> state :event :type) :close-requested)
-    (call-destructors (:view-state state)
-                      (-> state :view-context :destructor-decorator)))
+    (call-destructors (:view-state state)))
   state)
-
-(defn close-control-channel-beforehand [destructor]
-  (fn [state]
-    (when-let [control-channel (:control-channel state)]
-      (async/close! control-channel))
-    (destructor state)))
 
 (defn add-event-channel [state]
   (assoc-in state [:view-context :event-channel]  (window/event-channel (-> state :window))))
@@ -822,8 +820,7 @@
         children-to-be-removed (->> (:old-children state)
                                     (filter (complement child-set)))]
     (-> (reduce (fn [state child-to-be-removed]
-                  (do (call-destructors (get-in state [:child-states child-to-be-removed])
-                                        (-> view-context :common-view-context :destructor-decorator))
+                  (do (call-destructors (get-in state [:child-states child-to-be-removed]))
                       (update-in state [:child-states] dissoc child-to-be-removed)))
                 state
                 children-to-be-removed)
@@ -968,15 +965,13 @@
       (set-event-channel-atom)
       (add-event-channel)
       #_(add-sleep-time-atom)
-      (assoc-in [:view-context :constructor-decorator] (comp add-control-channel-to-view-state))
+      #_(assoc-in [:view-context :constructor-decorator] (comp add-control-channel-to-view-state))
 
       (assoc-in [:view-context :view-decorator] (comp wrap-with-cached
                                                       add-view-call-paths
                                                       add-children-to-vectors
                                                       #_wrap-with-remove-unused-children
                                                       #_wrap-with-current-view-state-atom))
-
-      (assoc-in [:view-context :destructor-decorator]  (comp close-control-channel-beforehand))
 
       (event-loop (fn [state events]
                     (try
@@ -1043,10 +1038,11 @@
                        :state-path state-path)
 
         child-view-state (or (get-in parent-view-state state-path-part)
-                             (let [constructor ((-> (:parent-view-context view-call) :common-view-context :constructor-decorator)
-                                                (:constructor view-call))]
-                               {:local-state (apply constructor view-context
-                                                    (:constructor-parameters view-call))}))
+                             (let [constructor (:constructor view-call)
+                                   control-channel (async/chan)]
+                               {:local-state (apply constructor (assoc view-context :control-channel control-channel)
+                                                    (:constructor-parameters view-call))
+                                :control-channel control-channel}))
 
         child-view-state (update-in child-view-state [:local-state] set-new (:state-overrides view-call))
 
@@ -1103,11 +1099,12 @@
     (let [root-view-context {:state-path [:view-state]
                              :common-view-context (:view-context application-state)}
 
-          
           state (or (:view-state application-state)
-                    (let [constructor ((-> root-view-context :common-view-context :constructor-decorator)
-                                       constructor)]
-                      {:local-state (constructor root-view-context)}))
+                    (let [control-channel (async/chan)
+                          view-context (assoc root-view-context
+                                         :control-channel control-channel)]
+                      {:local-state (constructor view-context)
+                       :control-channel control-channel}))
 
           root-view-context (if (or (:sleep-time state)
                                     (not (contains? application-state :view-state)))
