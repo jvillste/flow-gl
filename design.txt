@@ -122,7 +122,7 @@ Render tree transformer node
 TODO
 -----
 
-- make view functions updatable on the fly
+- make root view use same code as resolve view-call
 
 - make constructors return local state separaterly from event handlers and view
 

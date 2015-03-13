@@ -989,6 +989,19 @@
         (assoc :view-call-paths (view-call-paths layoutable))
         (children-to-vectors))))
 
+(defn ensure-child-state [parent-view-state state-path-part view-context constructor constructor-parameters]
+  (or (get-in parent-view-state state-path-part)
+      (let [control-channel (async/chan)]
+        {:local-state (apply constructor (assoc view-context :control-channel control-channel)
+                             constructor-parameters)
+         :control-channel control-channel})))
+
+(defn set-frame-started [view-context frame-started child-view-state parent-view-state state-path-part]
+  (if (or (:sleep-time child-view-state)
+          (not (get-in parent-view-state state-path-part)))
+    (assoc view-context :frame-started frame-started)
+    (dissoc view-context :frame-started)))
+
 (def resolve-view-calls)
 
 (defn resolve-view-call [cache parent-view-state view-call]
@@ -998,23 +1011,28 @@
         view-context (assoc (:parent-view-context view-call)
                        :state-path state-path)
 
-        child-view-state (or (get-in parent-view-state state-path-part)
-                             (let [constructor (:constructor view-call)
-                                   control-channel (async/chan)]
-                               {:local-state (apply constructor (assoc view-context :control-channel control-channel)
-                                                    (:constructor-parameters view-call))
-                                :control-channel control-channel}))
+        child-view-state (ensure-child-state parent-view-state
+                                             state-path-part
+                                             view-context
+                                             (:constructor view-call)
+                                             (:constructor-parameters view-call))
 
         child-view-state (update-in child-view-state [:local-state] set-new (:state-overrides view-call))
 
-        view-context (if (or (:sleep-time child-view-state)
-                             (not (get-in parent-view-state state-path-part)))
-                       view-context
-                       (dissoc view-context :frame-started))
+        view-context (set-frame-started view-context
+                                        (:frame-started (:parent-view-context view-call))
+                                        child-view-state
+                                        parent-view-state
+                                        state-path-part)
+        
 
         child-view-state (dissoc child-view-state :sleep-time)
 
-        layoutable (cache/call-with-cache-atom cache run-view (-> child-view-state :local-state :view) view-context (:local-state child-view-state))
+        layoutable (cache/call-with-cache-atom cache
+                                               run-view
+                                               (-> child-view-state :local-state :view)
+                                               view-context
+                                               (:local-state child-view-state))
 
         layoutable (conj layoutable
                          (dissoc view-call
@@ -1057,25 +1075,28 @@
     (let [root-view-context {:state-path [:view-state]
                              :common-view-context (:view-context application-state)}
 
-          state (or (:view-state application-state)
-                    (let [control-channel (async/chan)
-                          view-context (assoc root-view-context
-                                         :control-channel control-channel)]
-                      {:local-state (constructor view-context)
-                       :control-channel control-channel}))
+          state (ensure-child-state application-state
+                                    [:view-state]
+                                    root-view-context
+                                    constructor
+                                    [])
 
           #_application-state #_(set-focus application-state
                                            (initial-focus-paths state))
 
-          root-view-context (if (or (:sleep-time state)
-                                    (not (contains? application-state :view-state)))
-                              (assoc root-view-context :frame-started (:frame-started application-state))
-                              root-view-context)
+          root-view-context (set-frame-started root-view-context
+                                               (:frame-started application-state)
+                                               state
+                                               application-state
+                                               [:view-state])
+
 
           state (dissoc state :sleep-time)
 
 
           layoutable (cache/call-with-cache-atom (:cache application-state) run-view (-> state :local-state :view) root-view-context (:local-state state))
+
+          state (assoc state :sleep-time (:sleep-time layoutable))
 
           [state layoutable] (debug/debug-timed-and-return :resolve-view-calls (cache/call-with-cache-atom (:cache application-state)
                                                                                                            #'resolve-view-calls
@@ -1083,7 +1104,7 @@
                                                                                                            state
                                                                                                            layoutable))
 
-          state (assoc state :sleep-time (:sleep-time layoutable))
+
 
           state (debug/debug-timed-and-return :remove-unused-children (remove-unused-children state root-view-context))]
 

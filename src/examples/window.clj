@@ -52,29 +52,30 @@
            (text "foo"))})
 
 (defn counter [view-context]
+
   (assoc initial-counter-state
     :view (fn [view-context state]
-
             (let [duration (mod (:frame-started view-context)
                                 (:pulse-rate state))]
 
               (-> (text (str (:count state) (if (> (/ duration
-                                                   (:pulse-rate state))
-                                                0.5)
-                                           "x"
-                                           "")
-                          (if (:mouse-over state)
-                            "o"
-                            ""))
-                     (if (:has-focus state)
-                       [255 255 255 255]
-                       [100 100 100 255]))
+                                                      (:pulse-rate state))
+                                                   0.8)
+                                              "x"
+                                              "")
+                             (if (:mouse-over state)
+                               "o"
+                               ""))
+                        (if (:has-focus state)
+                          [255 255 255 255]
+                          [100 100 100 255]))
                   (assoc :sleep-time (- (/ (:pulse-rate state)
                                            2)
                                         duration)))))))
 
 
 (defn app [view-context]
+
   (async/go-loop []
     (async/alt! (:control-channel view-context) ([_] (println "exiting counter process"))
                 (async/timeout 2000) ([_]
