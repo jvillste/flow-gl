@@ -95,7 +95,7 @@
   state)
 
 (defn add-event-channel [state]
-  (assoc-in state [:view-context :event-channel]  (window/event-channel (-> state :window))))
+  (assoc-in state [:common-view-context :event-channel] (window/event-channel (-> state :window))))
 
 (debug/defn-timed apply-view-state-applications-beforehand [state]
   (if (= (-> state :event :type)
@@ -455,16 +455,6 @@
         :last-frame (System/currentTimeMillis)))
     state))
 
-#_(defn add-sleep-time-atom [state]
-    (assoc-in state [:view-context :sleep-time-atom] (atom nil)))
-
-#_(defn wrap-with-sleep-time-atom [app]
-    (fn [state event]
-      (reset! (-> state :view-context :sleep-time-atom)
-              nil)
-      (-> state
-          (app event)
-          (assoc :sleep-time @(-> state :view-context :sleep-time-atom)))))
 
 ;; Layout
 
@@ -767,7 +757,7 @@
   (let [cache (cache/create)]
     (-> state
         (assoc :cache cache)
-        (assoc-in [:view-context :cache] cache))))
+        (assoc-in [:common-view-context :cache] cache))))
 
 (defn clear-cache [state]
   (let [event-batch (or (:event-batch state)
@@ -1094,7 +1084,7 @@
                                                  [:view-state]
                                                  {:frame-started (:frame-started application-state)
                                                   :state-path []
-                                                  :common-view-context (:view-context application-state)}
+                                                  :common-view-context (:common-view-context application-state)}
                                                  application-state
                                                  constructor
                                                  []
