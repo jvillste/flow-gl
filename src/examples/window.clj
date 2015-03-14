@@ -41,7 +41,7 @@
                       (font/create "LiberationSans-Regular.ttf" 25)
                       color)))
 
-(def initial-counter-state {:count 0
+(def initial-counter-state {:local-state {:count 0}
                             :can-gain-focus true
                             :handle-keyboard-event (fn [state event]
                                                      [(update-in state [:count] inc)

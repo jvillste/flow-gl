@@ -47,7 +47,7 @@
                        [100 100 100 255]))))
 
 (defn counter [view-context]
-  {:count 0
+  {:local-state {:count 0}
    :can-gain-focus true
    :handle-keyboard-event (fn [state event]
                             [(update-in state [:count] inc)

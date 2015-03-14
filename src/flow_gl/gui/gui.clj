@@ -68,21 +68,12 @@
 
 ;; CSP
 
-#_(defn add-control-channel-to-view-state [constructor]
-    (fn [view-context & parameters]
-      (let [view-context (assoc view-context
-                           :control-channel (async/chan))]
-        (-> (apply constructor
-                   view-context
-                   parameters)
-            (assoc :control-channel (:control-channel view-context))))))
-
 (defn close-control-channel [view-state]
   (when-let [control-channel (:control-channel view-state)]
     (async/close! control-channel)))
 
 (defn call-destructors [view-state]
-  (when-let [destructor (-> view-state :local-state :destructor)]
+  (when-let [destructor (-> :destructor view-state)]
     (destructor (:local-state view-state)))
 
   (close-control-channel view-state)
@@ -640,7 +631,7 @@
          focused-state-paths (:focused-state-paths state)]
 
     (if-let [focused-state-path (first focused-state-paths)]
-      (if-let [keyboard-event-handler (get-in state (concat (vec focused-state-path) [:local-state :handle-keyboard-event]))]
+      (if-let [keyboard-event-handler (get-in state (concat (vec focused-state-path) [:handle-keyboard-event]))]
         (let [[child-state continue] (keyboard-event-handler (get-in state (concat focused-state-path [:local-state]))
                                                              event)
               state (assoc-in state (concat focused-state-path [:local-state]) child-state)]
@@ -671,7 +662,7 @@
     (let [state-paths-under-mouse (layout-path-to-state-paths (:layout state)
                                                               (first (:layout-paths-under-mouse state)))]
       (if (get-in state (concat (last state-paths-under-mouse)
-                                [:local-state :can-gain-focus]))
+                                [:can-gain-focus]))
         (set-focus state state-paths-under-mouse)
         state))
     state))
@@ -981,16 +972,21 @@
 
 (defn ensure-child-state [parent-view-state state-path-part view-context constructor constructor-parameters]
   (or (get-in parent-view-state state-path-part)
-      (let [control-channel (async/chan)]
-        {:local-state (apply constructor (assoc view-context :control-channel control-channel)
-                             constructor-parameters)
-         :control-channel control-channel})))
+      (let [control-channel (async/chan)
+            child-state (apply constructor (assoc view-context :control-channel control-channel)
+                               constructor-parameters)
+            child-state (if (:local-state child-state)
+                          child-state
+                          (assoc child-state :local-state {}))]
+        (assoc child-state :control-channel control-channel))))
 
 (defn set-frame-started [view-context frame-started child-view-state parent-view-state state-path-part]
   (if (or (:sleep-time child-view-state)
           (not (get-in parent-view-state state-path-part)))
     (assoc view-context :frame-started frame-started)
     (dissoc view-context :frame-started)))
+
+(def resolve-view-calls)
 
 (defn run-view-call [cache state-path-part parent-view-context parent-view-state constructor constructor-parameters state-overrides]
   (let [state-path (concat (:state-path parent-view-context) state-path-part)
@@ -1017,7 +1013,7 @@
 
         layoutable (cache/call-with-cache-atom cache
                                                run-view
-                                               (-> view-state :local-state :view)
+                                               (:view view-state)
                                                view-context
                                                (:local-state view-state))
 
@@ -1038,7 +1034,7 @@
     [view-state
      layoutable]))
 
-(def resolve-view-calls)
+
 
 (defn resolve-view-call [cache parent-view-state view-call]
   (let [state-path-part [:child-states (:child-id view-call)]
@@ -1064,7 +1060,6 @@
          (assoc :sleep-time (choose-sleep-time (:sleep-time parent-view-state)
                                                (:sleep-time view-state))))
      layoutable]))
-
 
 (defn resolve-view-calls [cache view-state layoutable]
   (loop [view-state view-state
