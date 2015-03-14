@@ -60,7 +60,7 @@
 
               (-> (text (str (:count state) (if (> (/ duration
                                                       (:pulse-rate state))
-                                                   0.8)
+                                                   0.5)
                                               "x"
                                               "")
                              (if (:mouse-over state)
@@ -91,7 +91,7 @@
                                                       (fn [state event]
                                                         (update-in state [:count] inc)))
                                 #_(drawable/->Rectangle 10 10 [0 255 0 255])
-                                (gui/call-view view-context counter :child-1 {:pulse-rate 1000})
+                                (gui/call-view view-context counter :child-1 {:pulse-rate 2000})
                                 #_(gui/call-view view-context counter :child-2 {:pulse-rate 500})
                                 #_(transformer/with-transformers
                                     (transformer/->Filter :fade1
