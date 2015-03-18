@@ -53,8 +53,8 @@
                                           [0.3 0.3 0.3 1]))])))
 
 (defn text-editor [view-context]
-  {:text ""
-   :handle-keyboard-event handle-text-editor-event
+  {:local-state {:text ""}
+   :handle-keyboard-event #'handle-text-editor-event
    :can-gain-focus true
    :view text-editor-view})
 

@@ -140,8 +140,8 @@
           (gui/apply-to-state view-context assoc-in [:profiler] new-profiler)
           (recur))))
 
-    {:profiler (create-state)
-     :channel channel
+    {:local-state {:profiler (create-state)
+                   :channel channel}
      :view profiler-view}))
 
 ;; API

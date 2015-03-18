@@ -1,5 +1,6 @@
 (ns flow-gl.opengl.jogl.quad-batch
   (:require [flow-gl.gui.event-queue :as event-queue]
+            [clojure.core.matrix :as matrix]
             (flow-gl.opengl.jogl [opengl :as opengl]
                                  [window :as window]
                                  [triangle-list :as triangle-list]
@@ -221,7 +222,7 @@
     texture-buffer-id))
 
 (defn create [gl]
-  
+
   ;;(opengl/initialize gl)
 
   (let [initial-number-of-texels 5000000
@@ -518,7 +519,7 @@
     (finish-adding-textures quad-batch texel-count (map #(assoc % :upside-down true)
                                                         textures))))
 
-(defn draw [quad-batch gl width height]
+(defn draw [quad-batch gl width height model-matrix]
 
   (vertex-array-object/bind gl (:vertex-array-object quad-batch))
 
@@ -544,8 +545,14 @@
   (shader/set-float4-matrix-uniform gl
                                     (:program quad-batch)
                                     "projection_matrix"
-                                    (math/projection-matrix-2d width
-                                                               height))
+
+                                    (math/core-matrix-to-opengl-matrix (if model-matrix
+                                                                         (matrix/mmul (math/projection-matrix-2d width
+                                                                                                                 height)
+                                                                                      model-matrix)
+
+                                                                         (math/projection-matrix-2d width
+                                                                                                    height))))
 
   (shader/set-int-uniform gl
                           (:program quad-batch)
@@ -559,63 +566,67 @@
 
   quad-batch)
 
-(defn draw-quads [quad-batch gl quads width height]
-  #_(flow-gl.debug/set-metric :draw-quads (System/currentTimeMillis))
-  #_(flow-gl.debug/set-metric :allocated-quads (:allocated-quads quad-batch))
-  #_(flow-gl.debug/set-metric :quad-count (count quads))
-  (let [quad-count (count quads)
+(defn draw-quads
+  ([quad-batch gl quads width height]
+     (draw-quads quad-batch gl quads width height nil))
 
-        quad-batch (if (< (:allocated-quads quad-batch)
-                          quad-count)
-                     (grow-quad-buffers gl
-                                        quad-batch
-                                        quad-count)
-                     quad-batch)]
+  ([quad-batch gl quads width height model-matrix]
+     #_(flow-gl.debug/set-metric :draw-quads (System/currentTimeMillis))
+     #_(flow-gl.debug/set-metric :allocated-quads (:allocated-quads quad-batch))
+     #_(flow-gl.debug/set-metric :quad-count (count quads))
+     (let [quad-count (count quads)
 
-    (let [count (* quad-parameters-size
-                   quad-count)
-          buffer (native-buffer/ensure-buffer-capacity (:int-buffer quad-batch)
-                                                       count)]
+           quad-batch (if (< (:allocated-quads quad-batch)
+                             quad-count)
+                        (grow-quad-buffers gl
+                                           quad-batch
+                                           quad-count)
+                        quad-batch)]
 
-      (loop [quads quads]
-        (when-let [quad (first quads)]
-          (let [texture (if (contains? quad :texture-id)
-                          (get (:textures-in-use quad-batch)
-                               (:texture-id quad))
-                          {:first-texel 0
-                           :width 0
-                           :height 0
-                           :upside-down false})]
-            (do (.put buffer
-                      (int-array [(or (:parent quad) -1)
-                                  (:x quad)
-                                  (:y quad)
-                                  (:width texture)
-                                  (:height texture)
-                                  (:first-texel texture)
-                                  (or (:width quad)
-                                      (:width texture))
-                                  (or (:height quad)
-                                      (:height texture))
-                                  (if (:upside-down texture)
-                                    1
-                                    0)]))
-                (recur (rest quads))))))
+       (let [count (* quad-parameters-size
+                      quad-count)
+             buffer (native-buffer/ensure-buffer-capacity (:int-buffer quad-batch)
+                                                          count)]
 
-      (.rewind buffer)
+         (loop [quads quads]
+           (when-let [quad (first quads)]
+             (let [texture (if (contains? quad :texture-id)
+                             (get (:textures-in-use quad-batch)
+                                  (:texture-id quad))
+                             {:first-texel 0
+                              :width 0
+                              :height 0
+                              :upside-down false})]
+               (do (.put buffer
+                         (int-array [(or (:parent quad) -1)
+                                     (:x quad)
+                                     (:y quad)
+                                     (:width texture)
+                                     (:height texture)
+                                     (:first-texel texture)
+                                     (or (:width quad)
+                                         (:width texture))
+                                     (or (:height quad)
+                                         (:height texture))
+                                     (if (:upside-down texture)
+                                       1
+                                       0)]))
+                   (recur (rest quads))))))
 
-      (buffer/update-from-native-buffer gl
-                                        (:quad-parameters-buffer-id quad-batch)
-                                        :int
-                                        0
-                                        count
-                                        buffer)
+         (.rewind buffer)
 
-      (draw (assoc quad-batch
-              :draw-count (inc (or (:draw-count quad-batch)
-                                   0))
-              :int-buffer buffer
-              :next-free-quad quad-count) gl width height))))
+         (buffer/update-from-native-buffer gl
+                                           (:quad-parameters-buffer-id quad-batch)
+                                           :int
+                                           0
+                                           count
+                                           buffer)
+
+         (draw (assoc quad-batch
+                 :draw-count (inc (or (:draw-count quad-batch)
+                                      0))
+                 :int-buffer buffer
+                 :next-free-quad quad-count) gl width height model-matrix)))))
 
 
 #_(defn remove-index [quad-batch gl index]

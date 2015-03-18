@@ -122,15 +122,10 @@ Render tree transformer node
 TODO
 -----
 
-- make constructors return local state separaterly from event handlers and view
+- add cache to preferred-size
 
 - set initial focus after the view calls are resolved the first time
 
-- add cache to preferred-size
-
-- use other than static draw qualifier for buffers
-
-- use https://github.com/stuartsierra/component
 
 
 

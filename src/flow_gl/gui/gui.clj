@@ -601,6 +601,9 @@
 
 ;; mouse api
 
+(defn apply-to-view-state [state view-context function & arguments]
+  (apply update-in state (concat (:state-path view-context) [:local-state]) function arguments))
+
 (defn add-mouse-event-handler [layoutable handler arguments]
   (assoc layoutable
     :handle-mouse-event (conj (or (:handle-mouse-event layoutable)
@@ -1037,6 +1040,7 @@
 
 
 (defn resolve-view-call [cache parent-view-state view-call]
+
   (let [state-path-part [:child-states (:child-id view-call)]
         [view-state layoutable] (run-view-call cache
                                                state-path-part
@@ -1106,6 +1110,7 @@
 (defn apply-to-state [view-context function & arguments]
   (async/go (async/>! (-> view-context :common-view-context :event-channel)
                       (create-apply-to-view-state-event (fn [state]
+                                                          (println "applying to local state" (get-in state (concat (:state-path view-context) [:local-state])))
                                                           (if (get-in state (:state-path view-context))
                                                             (apply update-or-apply-in state (concat (:state-path view-context) [:local-state]) function arguments)
                                                             (throw (Exception. (str "tried to apply to empty state" (vec (:state-path view-context)))))))))))

@@ -1,4 +1,4 @@
-(ns examples.counters
+(ns examples.binding
   (:require [clojure.core.async :as async]
             (flow-gl.opengl.jogl [opengl :as opengl]
                                  [window :as jogl-window]
@@ -40,21 +40,25 @@
                       (font/create "LiberationSans-Regular.ttf" 25)
                       color)))
 
-(defn counter-mouse-handler [state event]
-  (update-in state [:count] inc))
+(defn counter-mouse-handler [state state-path event]
+  (let [local-state (get-in state state-path)]
+    (apply (:on-change local-state)
+           state
+           (inc (:count local-state))
+           (:arguments local-state))))
 
 (flow-gl.debug/defn-timed counter-view
   #_""
   #_{:name "counter-view"}
   [view-context state]
-  (gui/on-mouse-clicked (text (apply str (if (= 0 (mod (:count state) 2))
-                                           "X"
-                                           "ZZ"))
-                              (if (:mouse-over state)
-                                [0 255 0 255]
-                                [100 100 100 255]))
-                        view-context
-                        counter-mouse-handler))
+  (-> (text (apply str (if (= 0 (mod (:count state) 2))
+                         "X"
+                         "ZZ"))
+            (if (:mouse-over state)
+              [0 255 0 255]
+              [100 100 100 255]))
+      (gui/on-mouse-clicked view-context
+                            counter-mouse-handler)))
 
 (defn counter [view-context]
   {:local-state {:count 0}
@@ -71,16 +75,21 @@
     :mouse-over-row row
     :mouse-over-column column))
 
+(defn on-change [state new-count view-context]
+  (gui/apply-to-view-state state
+                           view-context
+                           assoc :count new-count))
+
 (defn app [view-context]
-  {:view (fn [view-context state]
-           (l/preferred (l/horizontally (for-all [column (range 2)]
-                                                 (-> (l/vertically (for-all [row (range 2)]
-                                                                            (-> (gui/call-view view-context counter [row column])
-                                                                                (highlight (= (:mouse-over-row state) row)
-                                                                                           [255 255 0 255])
-                                                                                (gui/on-mouse-event :mouse-enter view-context mouse-enter row column))))
-                                                     (highlight (= (:mouse-over-column state) column)
-                                                                [255 0 0 255]))))))})
+  {:local-state {:count 0}
+   :handle-keyboard-event (fn [state event]
+                            [(update-in state [:count] inc)
+                             true])
+   :view (fn [view-context state]
+           (l/preferred (gui/call-view view-context counter :counter {:count (:count state)
+                                                                      :on-change on-change
+                                                                      :arguments view-context})))})
+
 (defn start []
   #_(gui/start-control app)
   #_(.start (Thread. (fn [] (profiler/with-profiler (gui/start-control app)))))
