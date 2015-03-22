@@ -601,8 +601,20 @@
 
 ;; mouse api
 
+(defn local-state-path [view-context]
+  (concat (:state-path view-context)
+          [:local-state]))
+
 (defn apply-to-view-state [state view-context function & arguments]
-  (apply update-in state (concat (:state-path view-context) [:local-state]) function arguments))
+  (apply update-in
+         state
+         (local-state-path view-context)
+         function
+         arguments))
+
+(defn get-view-state [application-state view-context]
+  (get-in application-state
+          (local-state-path view-context)))
 
 (defn add-mouse-event-handler [layoutable handler arguments]
   (assoc layoutable
@@ -611,6 +623,9 @@
                               [handler arguments])))
 
 (defn handle-mouse-event-with-context [state event view-context handler arguments]
+  (apply update-or-apply-in state (concat (:state-path view-context) [:local-state]) handler event arguments))
+
+(defn handle-mouse-event [state event view-context handler arguments]
   (apply update-or-apply-in state (concat (:state-path view-context) [:local-state]) handler event arguments))
 
 (defn add-mouse-event-handler-with-context [layoutable view-context handler arguments]
@@ -627,30 +642,32 @@
 (defn on-mouse-clicked [layoutable view-context handler & arguments]
   (apply on-mouse-event layoutable :mouse-clicked view-context handler arguments))
 
+
+(defn on-mouse-event-2 [layoutable event-type handler & arguments]
+  (add-mouse-event-handler layoutable handle-mouse-event-of-type [event-type handler arguments]))
+
+(defn on-mouse-clicked-2 [layoutable handler & arguments]
+  (apply on-mouse-event-2 layoutable :mouse-clicked handler arguments))
+
 ;; Keyboard
 
-(defn apply-keyboard-event-handlers [state event]
-  (loop [state state
-         focused-state-paths (:focused-state-paths state)]
-
-    (if-let [focused-state-path (first focused-state-paths)]
-      (if-let [keyboard-event-handler (get-in state (concat (vec focused-state-path) [:handle-keyboard-event]))]
-        (let [[child-state continue] (keyboard-event-handler (get-in state (concat focused-state-path [:local-state]))
-                                                             event)
-              state (assoc-in state (concat focused-state-path [:local-state]) child-state)]
-          (if continue
-            (recur state
-                   (rest focused-state-paths))
-            state))
-        (recur state
-               (rest focused-state-paths)))
-      state)))
-
 (debug/defn-timed apply-keyboard-event-handlers-beforehand [state]
-  (if (and (:focused-state-paths state)
-           (= (-> state :event :source)
-              :keyboard))
-    (apply-keyboard-event-handlers state (:event state))
+  (println "apply keyboard beforehand" (:focused-state-paths state))
+  (if (= (-> state :event :source)
+         :keyboard)
+    (loop [state state
+           focused-state-paths (concat [[:view-state]] (:focused-state-paths state))]
+      (if-let [focused-state-path (first focused-state-paths)]
+        (if-let [keyboard-event-handler (get-in state (concat (vec focused-state-path)
+                                                              [:handle-keyboard-event]))]
+          (let [state (keyboard-event-handler state)]
+            (if (:stop-keyboard-event-handling state)
+              (dissoc state :stop-keyboard-event-handling)
+              (recur state
+                     (rest focused-state-paths))))
+          (recur state
+                 (rest focused-state-paths)))
+        state))
     state))
 
 (defn set-focus [state focus-paths]
@@ -858,7 +875,7 @@
 
 ;; View calls
 
-(defrecord ViewCall [parent-view-context constructor child-id state-overrides constructor-parameters])
+(defrecord ViewCall [parent-view-context constructor child-id state-overrides constructor-parameters constructor-overrides])
 
 (defn view-call-paths
   ([layoutable]
@@ -947,16 +964,26 @@
 
 ;; View calls
 
+(defn bind [view-call view-context state parent-state-key child-state-key]
+  (-> view-call
+      (update-in [:state-overrides] assoc child-state-key (parent-state-key state))
+      (update-in [:constructor-overrides] assoc :on-change (fn [state new-value]
+                                                             (apply-to-view-state state
+                                                                                      view-context
+                                                                                      assoc parent-state-key new-value)))))
 
 (defn call-view
   ([parent-view-context constructor child-id]
-     (call-view parent-view-context constructor child-id {} []))
+     (call-view parent-view-context constructor child-id {} [] {}))
 
   ([parent-view-context constructor child-id state-overrides]
-     (call-view parent-view-context constructor child-id state-overrides []))
+     (call-view parent-view-context constructor child-id state-overrides [] {}))
 
   ([parent-view-context constructor child-id state-overrides constructor-parameters]
-     (->ViewCall parent-view-context constructor child-id state-overrides constructor-parameters)))
+     (call-view parent-view-context constructor child-id state-overrides constructor-parameters {}))
+
+  ([parent-view-context constructor child-id state-overrides constructor-parameters constructor-overrides]
+     (->ViewCall parent-view-context constructor child-id state-overrides constructor-parameters constructor-overrides)))
 
 (defn set-new [target-map override-map]
   (reduce (fn [target-map [key val]]
@@ -973,14 +1000,15 @@
         (assoc :view-call-paths (view-call-paths layoutable))
         (children-to-vectors))))
 
-(defn ensure-child-state [parent-view-state state-path-part view-context constructor constructor-parameters]
+(defn ensure-child-state [parent-view-state state-path-part view-context constructor constructor-parameters constructor-overrides]
   (or (get-in parent-view-state state-path-part)
       (let [control-channel (async/chan)
             child-state (apply constructor (assoc view-context :control-channel control-channel)
                                constructor-parameters)
             child-state (if (:local-state child-state)
                           child-state
-                          (assoc child-state :local-state {}))]
+                          (assoc child-state :local-state {}))
+            child-state (update-in child-state [:local-state] set-new constructor-overrides)]
         (assoc child-state :control-channel control-channel))))
 
 (defn set-frame-started [view-context frame-started child-view-state parent-view-state state-path-part]
@@ -991,7 +1019,7 @@
 
 (def resolve-view-calls)
 
-(defn run-view-call [cache state-path-part parent-view-context parent-view-state constructor constructor-parameters state-overrides]
+(defn run-view-call [cache state-path-part parent-view-context parent-view-state constructor constructor-parameters state-overrides constructor-overrides]
   (let [state-path (concat (:state-path parent-view-context) state-path-part)
 
         view-context (assoc parent-view-context
@@ -1001,7 +1029,8 @@
                                        state-path-part
                                        view-context
                                        constructor
-                                       constructor-parameters)
+                                       constructor-parameters
+                                       constructor-overrides)
 
         view-state (update-in view-state [:local-state] set-new state-overrides)
 
@@ -1048,7 +1077,8 @@
                                                parent-view-state
                                                (:constructor view-call)
                                                (:constructor-parameters view-call)
-                                               (:state-overrides view-call))
+                                               (:state-overrides view-call)
+                                               (:constructor-overrides view-call))
 
         layoutable (conj layoutable
                          (dissoc view-call
@@ -1056,7 +1086,8 @@
                                  :constructor
                                  :child-id
                                  :state-overrides
-                                 :constructor-parameters))]
+                                 :constructor-parameters
+                                 :constructor-overrides))]
 
     [(-> parent-view-state
          (assoc-in state-path-part view-state)
@@ -1087,6 +1118,7 @@
                                                  application-state
                                                  constructor
                                                  []
+                                                 {}
                                                  {})
 
           #_application-state #_(set-focus application-state

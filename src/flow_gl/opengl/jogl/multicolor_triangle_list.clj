@@ -136,8 +136,8 @@
   (shader/set-float4-matrix-uniform gl
                                     (:shader-program triangle-list)
                                     "projection_matrix"
-                                    (math/projection-matrix-2d width
-                                                               height))
+                                    (math/core-matrix-to-opengl-matrix (math/projection-matrix-2d width
+                                                                                                  height)))
   triangle-list)
 
 (defn render [triangle-list gl]

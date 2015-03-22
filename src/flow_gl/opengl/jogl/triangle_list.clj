@@ -81,11 +81,11 @@
                                                single-color-vertex-shader-source
                                                single-color-fragment-shader-source)]
     (-> (map->TriangleList {:mode mode
-                         :vertex-array-object (vertex-array-object/create gl)
-                         :vertex-coordinate-attribute-index (.glGetAttribLocation gl shader-program "vertex_coordinate_attribute")
-                         :vertex-coordinate-buffer-id (buffer/create-gl-buffer gl)
+                            :vertex-array-object (vertex-array-object/create gl)
+                            :vertex-coordinate-attribute-index (.glGetAttribLocation gl shader-program "vertex_coordinate_attribute")
+                            :vertex-coordinate-buffer-id (buffer/create-gl-buffer gl)
                             :shader-program shader-program})
-        
+
         (initialize-vertex-array-object gl))))
 
 (defn delete [triangle-list gl]
@@ -98,14 +98,14 @@
   (shader/set-float4-matrix-uniform gl
                                     (:shader-program triangle-list)
                                     "projection_matrix"
-                                    (math/projection-matrix-2d width
-                                                               height)))
+                                    (math/core-matrix-to-opengl-matrix (math/projection-matrix-2d width
+                                                                                                  height))))
 
 (defn render-single-color [triangle-list color gl]
   (shader/enable-program gl (:shader-program triangle-list))
 
   (vertex-array-object/bind gl (:vertex-array-object triangle-list))
-  
+
   (apply shader/set-float4-uniform gl
          (:shader-program triangle-list)
          "color"
