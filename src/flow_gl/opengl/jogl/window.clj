@@ -34,8 +34,8 @@
                     KeyEvent/VK_TAB :tab})
 
 (def mouse-keys {MouseEvent/BUTTON1 :left-button
-                 MouseEvent/BUTTON2 :right-button
-                 MouseEvent/BUTTON3 :middle-button})
+                 MouseEvent/BUTTON2 :middle-button
+                 MouseEvent/BUTTON3 :right-button})
 
 (defn key-code-to-key [key-code key-map]
   (let [key (key-map key-code)]

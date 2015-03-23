@@ -29,23 +29,23 @@
         midje.sweet
         clojure.test))
 
-;; Control test
-
-(defn counter-mouse-handler [state event view-context]
-  (let [local-state (gui/get-view-state state view-context)]
-    ((:on-change local-state)
-     state
-     (inc (:count local-state)))))
-
-(defn counter-view [view-context state]
-  (-> (drawable/->Text (:count state)
-                       (font/create "LiberationSans-Regular.ttf" 25)
-                       [255 255 255 255])
-      (gui/on-mouse-clicked-2 counter-mouse-handler view-context)))
 
 (defn counter [view-context]
-  {:local-state {:count 0}
-   :view counter-view})
+  {:view (fn [view-context state]
+           (-> (drawable/->Text (str (:count state))
+                                (font/create "LiberationSans-Regular.ttf" 25)
+                                [255 255 255 255])
+               (gui/add-mouse-event-handler (fn [state event]
+                                              (if (= :mouse-clicked (:type event))
+                                                (let [function (if (= :left-button (:key event))
+                                                                 (if (:shift event)
+                                                                   (fn [value] (+ value 10))
+                                                                   inc)
+                                                                 (if (:shift event)
+                                                                   (fn [value] (- value 10))
+                                                                   dec))]
+                                                  (gui/update-binding state view-context function :count))
+                                                state)))))})
 
 (defn app [view-context]
   {:local-state {:count 0}
@@ -54,7 +54,4 @@
                             (gui/bind view-context state :count :count))))})
 
 (defn start []
-  #_(gui/start-control app)
-  (.start (Thread. (fn [] (gui/start-control app))))
-  #_(.start (Thread. (fn [] (profiler/with-profiler (gui/start-control app)))))
-  #_(profiler/with-profiler (gui/start-control app)))
+  (.start (Thread. (fn [] (gui/start-control app)))))

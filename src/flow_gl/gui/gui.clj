@@ -616,7 +616,7 @@
   (get-in application-state
           (local-state-path view-context)))
 
-(defn add-mouse-event-handler [layoutable handler arguments]
+(defn add-mouse-event-handler [layoutable handler & arguments]
   (assoc layoutable
     :handle-mouse-event (conj (or (:handle-mouse-event layoutable)
                                   [])
@@ -629,30 +629,29 @@
   (apply update-or-apply-in state (concat (:state-path view-context) [:local-state]) handler event arguments))
 
 (defn add-mouse-event-handler-with-context [layoutable view-context handler arguments]
-  (add-mouse-event-handler layoutable handle-mouse-event-with-context [view-context handler arguments]))
+  (add-mouse-event-handler layoutable handle-mouse-event-with-context view-context handler arguments))
 
 (defn handle-mouse-event-of-type [state event event-type handler arguments]
   (if (= event-type (:type event))
     (apply handler state event arguments)
     state))
 
-(defn on-mouse-event [layoutable event-type view-context handler & arguments]
+(defn on-mouse-event-with-view-context [layoutable event-type view-context handler & arguments]
   (add-mouse-event-handler-with-context layoutable view-context handle-mouse-event-of-type [event-type handler arguments]))
 
-(defn on-mouse-clicked [layoutable view-context handler & arguments]
-  (apply on-mouse-event layoutable :mouse-clicked view-context handler arguments))
+(defn on-mouse-clicked-with-view-context [layoutable view-context handler & arguments]
+  (apply on-mouse-event-with-view-context layoutable :mouse-clicked view-context handler arguments))
 
 
-(defn on-mouse-event-2 [layoutable event-type handler & arguments]
-  (add-mouse-event-handler layoutable handle-mouse-event-of-type [event-type handler arguments]))
+(defn on-mouse-event [layoutable event-type handler & arguments]
+  (add-mouse-event-handler layoutable handle-mouse-event-of-type event-type handler arguments))
 
-(defn on-mouse-clicked-2 [layoutable handler & arguments]
-  (apply on-mouse-event-2 layoutable :mouse-clicked handler arguments))
+(defn on-mouse-clicked [layoutable handler & arguments]
+  (apply on-mouse-event layoutable :mouse-clicked handler arguments))
 
 ;; Keyboard
 
 (debug/defn-timed apply-keyboard-event-handlers-beforehand [state]
-  (println "apply keyboard beforehand" (:focused-state-paths state))
   (if (= (-> state :event :source)
          :keyboard)
     (loop [state state
@@ -967,10 +966,20 @@
 (defn bind [view-call view-context state parent-state-key child-state-key]
   (-> view-call
       (update-in [:state-overrides] assoc child-state-key (parent-state-key state))
-      (update-in [:constructor-overrides] assoc :on-change (fn [state new-value]
-                                                             (apply-to-view-state state
-                                                                                      view-context
-                                                                                      assoc parent-state-key new-value)))))
+      (update-in [:constructor-overrides] assoc [:on-change child-state-key] (fn [state new-value]
+                                                                               (apply-to-view-state state
+                                                                                                    view-context
+                                                                                                    assoc parent-state-key new-value)))))
+
+(defn update-binding [state view-context function key]
+  (let [local-state (get-view-state state view-context)]
+    ((get local-state [:on-change key])
+     state
+     (function (get local-state key)))))
+
+(defn create-update-binding [view-context function key]
+  (fn [state event]
+    (update-binding state view-context function key)))
 
 (defn call-view
   ([parent-view-context constructor child-id]
