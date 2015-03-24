@@ -12,30 +12,26 @@
   (:use flow-gl.utils
         clojure.test))
 
+(defn create-text-editor-keyboard-event-handler [view-context]
+  (fn [state]
+    (let [event (:event state)]
+      (cond
+       (events/key-pressed? event :back-space)
+       (gui/update-binding state
+                           view-context
+                           (fn [text] (apply str (drop-last text)))
+                           :text)
 
+       (and (:character event)
+            (= (:type event)
+               :key-pressed))
+       (gui/update-binding state
+                           view-context
+                           #(str % (:character event))
+                           :text)
 
-(defn handle-new-text [state new-text]
-  (when (:on-change state)
-    #_(async/go (async/>! (:on-change state) new-text))
-    ((:on-change state) new-text))
-  (assoc-in state [:text] new-text))
-
-(defn handle-text-editor-event [state event]
-  (cond
-   (events/key-pressed? event :back-space)
-   [(handle-new-text state (apply str (drop-last (:text state))))
-    false]
-
-   (and (:character event)
-        (= (:type event)
-           :key-pressed))
-   [(handle-new-text state (str (:text state)
-                                (:character event)))
-    false]
-
-   :default
-   [state true]))
-
+       :default
+       state))))
 
 (defn text-editor-view [view-context state]
   (if (:view state)
@@ -43,18 +39,18 @@
     (layouts/->Box 10 [(drawable/->Rectangle 0
                                              0
                                              (cond
-                                              (:has-focus state) [0 0.8 0.8 1]
-                                              (:mouse-over state) [0 0.7 0.7 1]
-                                              :default [0 0.5 0.5 1]))
+                                              (:has-focus state) [0 200 200 255]
+                                              (:mouse-over state) [0 255 255 255]
+                                              :default [0 100 100 255]))
                        (drawable/->Text (:text state)
                                         (font/create "LiberationSans-Regular.ttf" 15)
                                         (if (:has-focus state)
-                                          [0 0 0 255]
-                                          [0.3 0.3 0.3 1]))])))
+                                          [255 255 255 255]
+                                          [100 100 100 255]))])))
 
 (defn text-editor [view-context]
-  {:local-state {:text ""}
-   :handle-keyboard-event #'handle-text-editor-event
+  {:local-state {:text "haa"}
+   :handle-keyboard-event (create-text-editor-keyboard-event-handler view-context)
    :can-gain-focus true
    :view text-editor-view})
 

@@ -38,43 +38,46 @@
   {:view (fn [view-context state]
            (-> (text (:count state))
                (gui/add-mouse-event-handler (fn [state event]
-                                              (if (= :mouse-clicked (:type event))
-                                                (let [function (if (= :left-button (:key event))
-                                                                 (if (:shift event)
-                                                                   (fn [value] (+ value 10))
-                                                                   inc)
-                                                                 (if (:shift event)
-                                                                   (fn [value] (- value 10))
-                                                                   dec))]
-                                                  (gui/update-binding state view-context function :count))
+                                              (if (= (:type event)
+                                                     :mouse-clicked)
+                                                (let [increment (case [(:key event) (:shift event)]
+                                                                  [:left-button false] 1
+                                                                  [:left-button true] 10
+                                                                  [:right-button false] -1
+                                                                  [:right-button true] -10)]
+                                                  (gui/update-binding state
+                                                                      view-context
+                                                                      (fn [old-value] (+ old-value increment))
+                                                                      :count))
                                                 state)))))})
 
 (defn app [view-context]
-  {:local-state {:app-count-1 0
-                 :app-count-2 0}
+  {:local-state {:count-1 0
+                 :count-2 0
+                 :text ""}
    :view (fn [view-context state]
-           (l/vertically (text (str "total:" (+ (:app-count-1 state)
-                                                (:app-count-2 state))))
-                         (-> (gui/call-view view-context counter :counter-1)
-                             (gui/bind view-context state :app-count-1 :count))
-                         
-                         (-> (gui/call-view view-context counter :counter-2)
-                             (gui/bind view-context state :app-count-2 :count))))})
+           (l/vertically (text (str (:text state) ":" (+ (:count-1 state)
+                                                         (:count-2 state))))
+                         (gui/call-and-bind view-context
+                                            state
+                                            :count-1
+                                            :count
+                                            counter
+                                            :counter-1)
+
+                         (gui/call-and-bind view-context
+                                            state
+                                            :count-2
+                                            :count
+                                            counter
+                                            :counter-2)
+
+                         (gui/call-and-bind view-context
+                                            state
+                                            :text
+                                            :text
+                                            controls/text-editor
+                                            :text-editor)))})
 
 (defn start []
   (.start (Thread. (fn [] (gui/start-control app)))))
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

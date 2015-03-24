@@ -994,6 +994,13 @@
   ([parent-view-context constructor child-id state-overrides constructor-parameters constructor-overrides]
      (->ViewCall parent-view-context constructor child-id state-overrides constructor-parameters constructor-overrides)))
 
+(defn call-and-bind [view-context state from-key to-key & call-view-arguments]
+  (-> (apply call-view view-context call-view-arguments)
+      (bind view-context
+                state
+                from-key
+                to-key)))
+
 (defn set-new [target-map override-map]
   (reduce (fn [target-map [key val]]
             (if (not= (get target-map key)
