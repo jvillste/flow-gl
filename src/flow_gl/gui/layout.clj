@@ -7,13 +7,18 @@
 (defprotocol Layout
   (layout [layout state requested-width requested-height]))
 
+(def ^:dynamic cache)
 
-(defn do-layout [layoutable]
-  (second (layout layoutable
+(defn do-layout [layoutable state requested-width requested-height cache-to-be-used]
+  (binding [cache cache-to-be-used]
+    (layout layoutable state requested-width requested-height)))
+
+(defn do-layout-without-state [layoutable]
+  (second (do-layout layoutable
                   {}
                   java.lang.Integer/MAX_VALUE
-                  java.lang.Integer/MAX_VALUE)))
-
+                  java.lang.Integer/MAX_VALUE
+                  (cache/create))))
 #_(extend Object
     Layout {:layout (fn [this state requested-width requsested-height]
                       [state this])})
@@ -254,6 +259,8 @@
   (let [[layout-name layout-parameters & layout-body] layout-implementation
         layout-parameters (vec (concat layout-parameters parameters))
         [preferred-size-name preferred-size-parameters & preferred-size-body] preferred-size-implementation
+        preferred-size-body `(do (flow-gl.debug/add-event [:preferred-size ~name])
+                                 ~@preferred-size-body)
         preferred-size-parameters (vec (concat preferred-size-parameters parameters))
         layout-implementation-symbol (gensym)
         preferred-size-implementation-symbol (gensym)]
@@ -266,14 +273,14 @@
            Layout
            (layout [layoutable# state# width# height#]
              (binding [current-state-atom (atom state#)]
-               (let [layout# (cache/call-with-cache-atom (:cache state#) ~layout-implementation-symbol
+               (let [layout# (cache/call-with-cache-atom cache #_(:cache state#) ~layout-implementation-symbol
                               layoutable# width# height# ~@parameters)]
                  [@current-state-atom
                   layout#])))
 
            layoutable/Layoutable
            (layoutable/preferred-size [this# available-width# available-height#]
-             (~preferred-size-implementation-symbol this# available-width# available-height# ~@parameters))
+             (cache/call-with-cache-atom cache ~preferred-size-implementation-symbol this# available-width# available-height# ~@parameters))
 
            Object
            (toString [this#] (layoutable/describe-layoutable this#))))))

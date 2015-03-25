@@ -77,10 +77,9 @@
                                                       (float (* 100 (/ time total)))
                                                       0))))]
     (l/vertically (-> (text-cell "reset")
-                      (gui/on-mouse-event :mouse-clicked
+                      (gui/on-mouse-event-with-view-context :mouse-clicked
                                           view-context
                                           (fn [state event]
-                                            (println "mouse clicked")
                                             (async/put! (:channel state) {:type :reset})
                                             state)))
                   (l/margin 10 0 0 0

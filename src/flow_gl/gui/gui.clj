@@ -452,10 +452,11 @@
 (debug/defn-timed add-layout-afterwards [state]
   (let [width (window/width (:window state))
         height (window/height (:window state))
-        [state layout] (layout/layout (:layoutable state)
-                                      state
-                                      width
-                                      height)
+        [state layout] (layout/do-layout (:layoutable state)
+                                         state
+                                         width
+                                         height
+                                         (:cache state))
         layout (-> layout
                    (assoc :x 0
                           :y 0
@@ -605,14 +606,14 @@
   (concat (:state-path view-context)
           [:local-state]))
 
-(defn apply-to-view-state [state view-context function & arguments]
+(defn apply-to-local-state [state view-context function & arguments]
   (apply update-in
          state
          (local-state-path view-context)
          function
          arguments))
 
-(defn get-view-state [application-state view-context]
+(defn get-local-state [application-state view-context]
   (get-in application-state
           (local-state-path view-context)))
 
@@ -659,7 +660,7 @@
       (if-let [focused-state-path (first focused-state-paths)]
         (if-let [keyboard-event-handler (get-in state (concat (vec focused-state-path)
                                                               [:handle-keyboard-event]))]
-          (let [state (keyboard-event-handler state)]
+          (let [state (keyboard-event-handler state (:event state))]
             (if (:stop-keyboard-event-handling state)
               (dissoc state :stop-keyboard-event-handling)
               (recur state
@@ -967,12 +968,12 @@
   (-> view-call
       (update-in [:state-overrides] assoc child-state-key (parent-state-key state))
       (update-in [:constructor-overrides] assoc [:on-change child-state-key] (fn [state new-value]
-                                                                               (apply-to-view-state state
-                                                                                                    view-context
-                                                                                                    assoc parent-state-key new-value)))))
+                                                                               (apply-to-local-state state
+                                                                                                     view-context
+                                                                                                     assoc parent-state-key new-value)))))
 
 (defn update-binding [state view-context function key]
-  (let [local-state (get-view-state state view-context)]
+  (let [local-state (get-local-state state view-context)]
     ((get local-state [:on-change key])
      state
      (function (get local-state key)))))
@@ -997,9 +998,9 @@
 (defn call-and-bind [view-context state from-key to-key & call-view-arguments]
   (-> (apply call-view view-context call-view-arguments)
       (bind view-context
-                state
-                from-key
-                to-key)))
+            state
+            from-key
+            to-key)))
 
 (defn set-new [target-map override-map]
   (reduce (fn [target-map [key val]]
@@ -1158,7 +1159,6 @@
 (defn apply-to-state [view-context function & arguments]
   (async/go (async/>! (-> view-context :common-view-context :event-channel)
                       (create-apply-to-view-state-event (fn [state]
-                                                          (println "applying to local state" (get-in state (concat (:state-path view-context) [:local-state])))
                                                           (if (get-in state (:state-path view-context))
                                                             (apply update-or-apply-in state (concat (:state-path view-context) [:local-state]) function arguments)
                                                             (throw (Exception. (str "tried to apply to empty state" (vec (:state-path view-context)))))))))))

@@ -38,9 +38,9 @@
   {:view (fn [view-context state]
            (-> (text (:count state))
                (gui/add-mouse-event-handler (fn [state event]
-                                              (if (= (:type event)
+                                              (if (= (event :type)
                                                      :mouse-clicked)
-                                                (let [increment (case [(:key event) (:shift event)]
+                                                (let [increment (case [(event :key) (event :shift)]
                                                                   [:left-button false] 1
                                                                   [:left-button true] 10
                                                                   [:right-button false] -1
@@ -80,4 +80,6 @@
                                             :text-editor)))})
 
 (defn start []
-  (.start (Thread. (fn [] (gui/start-control app)))))
+  (.start (Thread. (fn []
+                     (profiler/with-profiler (gui/start-control app)))))
+  #_(.start (Thread. (fn [] (gui/start-control app)))))

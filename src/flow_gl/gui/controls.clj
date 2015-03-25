@@ -13,25 +13,24 @@
         clojure.test))
 
 (defn create-text-editor-keyboard-event-handler [view-context]
-  (fn [state]
-    (let [event (:event state)]
-      (cond
-       (events/key-pressed? event :back-space)
-       (gui/update-binding state
-                           view-context
-                           (fn [text] (apply str (drop-last text)))
-                           :text)
+  (fn [state event]
+    (cond
+     (events/key-pressed? event :back-space)
+     (gui/update-binding state
+                         view-context
+                         (fn [text] (apply str (drop-last text)))
+                         :text)
 
-       (and (:character event)
-            (= (:type event)
-               :key-pressed))
-       (gui/update-binding state
-                           view-context
-                           #(str % (:character event))
-                           :text)
+     (and (:character event)
+          (= (:type event)
+             :key-pressed))
+     (gui/update-binding state
+                         view-context
+                         #(str % (:character event))
+                         :text)
 
-       :default
-       state))))
+     :default
+     state)))
 
 (defn text-editor-view [view-context state]
   (if (:view state)
