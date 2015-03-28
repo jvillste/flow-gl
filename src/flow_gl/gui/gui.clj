@@ -1086,6 +1086,7 @@
 
 
 (defn resolve-view-call [cache parent-view-state view-call]
+  (println "resolve view call")
 
   (let [state-path-part [:child-states (:child-id view-call)]
         [view-state layoutable] (run-view-call cache
@@ -1114,6 +1115,10 @@
      layoutable]))
 
 (defn resolve-view-calls [cache view-state layoutable]
+  (println "resolving view calls"
+           (type layoutable)
+           (:view-call-paths layoutable))
+  
   (loop [view-state view-state
          view-call-paths (:view-call-paths layoutable)
          layoutable layoutable]

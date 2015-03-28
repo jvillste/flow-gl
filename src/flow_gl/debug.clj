@@ -24,8 +24,6 @@
   (println (apply str values))
   (last values))
 
-
-
 (def debug-channel (thread-inheritable/thread-inheritable nil))
 
 (defmacro with-debug-channel
