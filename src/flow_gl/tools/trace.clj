@@ -161,9 +161,31 @@
 
 ;; UI
 
-
 (defn text-cell [value]
   (l/margin 1 2 1 2 (controls/text value)))
+
+(defn tab-view [view-context state]
+  (l/vertically (l/horizontally (for [tab-index (range (count (:tabs state)))]
+                                  (let [tab (get (:tabs state)
+                                                 tab-index)]
+                                    (-> (l/margin 1 2 1 2 (controls/text (:title tab)
+                                                                         (if (= (:selected-tab-index state)
+                                                                                tab-index)
+                                                                           [255 255 255 255]
+                                                                           [100 100 100 255])))
+                                        (gui/on-mouse-clicked-with-view-context view-context
+                                                                                (fn [state event]
+                                                                                  (assoc state :selected-tab-index tab-index)))))))
+                (:content (get (:tabs state)
+                               (:selected-tab-index state)))))
+
+(defn tab [view-context]
+  {:local-state {:tabs []
+                 :selected-tab-index 0}
+   :view #'tab-view})
+
+
+
 
 (defn open-button [view-context state call-id]
   (if ((:open-calls state) call-id)
@@ -194,9 +216,8 @@
         "X"))
 
 (defn call-view [view-context state call]
-  (l/vertically (l/horizontally (text-cell (:thread call))
-                                (when (> (count (:child-calls call)) 0)
-                                     (open-button view-context state (:call-id call)))
+  (l/vertically (l/horizontally (when (> (count (:child-calls call)) 0)
+                                  (open-button view-context state (:call-id call)))
                                 (text-cell (apply str
                                                   (flatten [(count (:child-calls call)) ": "
                                                             (name (or (:function-symbol call)
@@ -214,8 +235,39 @@
 
 (defn trace-view [view-context {:keys [trace] :as state}]
   (l/vertically (for [root-call (:root-calls trace)]
-                  (call-view view-context state root-call))))
+                  (when (not ((:hidden-threads state) (:thread root-call)))
+                    (l/horizontally (text-cell (:thread root-call))
+                                    (call-view view-context state root-call))))))
 
+(defn thread-view [view-context state]
+  (layouts/grid (concat [[(l/margin 0 5 0 0 (controls/text "thread"))
+                          (controls/text "hidden")]]
+                        (for [thread (->> (-> state :trace :root-calls)
+                                          (map :thread)
+                                          (apply hash-set))]
+                          [(controls/text thread) (if ((:hidden-threads state) thread)
+                                                    (-> (controls/text "X")
+                                                        (gui/on-mouse-clicked-with-view-context view-context
+                                                                                                (fn [state event]
+                                                                                                  (update-in state [:hidden-threads] disj thread))))
+                                                    (-> (controls/text "O")
+                                                        (gui/on-mouse-clicked-with-view-context view-context
+                                                                                                (fn [state event]
+                                                                                                  (update-in state [:hidden-threads] conj thread)))))]))))
+
+(defn functions-view [view-context state]
+  (l/vertically #_(gui/call-)
+                (for [namespace (sort-by #(.name %) (all-ns))]
+                     (controls/text (.name namespace)))))
+
+
+(defn trace-root-view [view-context state]
+  (l/preferred (gui/call-view view-context tab :tab {:tabs [{:title "trace"
+                                                             :content (trace-view view-context state)}
+                                                            {:title "threads"
+                                                             :content (thread-view view-context state)}
+                                                            {:title "functions"
+                                                             :content (functions-view view-context state)}]})))
 
 (defn create-trace-control [trace-channel]
   (fn [view-context]
@@ -227,8 +279,9 @@
           (recur))))
 
     {:local-state {:trace (create-state)
-                   :open-calls #{}}
-     :view #'trace-view}))
+                   :open-calls #{}
+                   :hidden-threads #{}}
+     :view #'trace-root-view}))
 
 
 (defmacro with-trace [& body]
