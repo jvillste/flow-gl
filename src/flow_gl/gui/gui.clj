@@ -784,6 +784,12 @@
                      0
                      (inc event-batch)))))
 
+(defn clear-cache-when-requested [state]
+  (if (= (-> state :event :type)
+         :request-redraw)
+    (assoc state :cache (cache/create))
+    state))
+
 (defn propagate-only-when-view-state-changed [app]
   (fn [state event]
 
@@ -939,6 +945,7 @@
                                             (flow-gl.debug/add-event :handle-event)
                                             (-> state
                                                 (assoc :event event)
+                                                (clear-cache-when-requested)
                                                 (close-when-requested-beforehand)
                                                 (add-layout-paths-under-mouse-beforehand)
                                                 (set-focus-on-mouse-click-beforehand)
@@ -1086,8 +1093,6 @@
 
 
 (defn resolve-view-call [cache parent-view-state view-call]
-  (println "resolve view call")
-
   (let [state-path-part [:child-states (:child-id view-call)]
         [view-state layoutable] (run-view-call cache
                                                state-path-part
@@ -1115,10 +1120,6 @@
      layoutable]))
 
 (defn resolve-view-calls [cache view-state layoutable]
-  (println "resolving view calls"
-           (type layoutable)
-           (:view-call-paths layoutable))
-  
   (loop [view-state view-state
          view-call-paths (:view-call-paths layoutable)
          layoutable layoutable]
