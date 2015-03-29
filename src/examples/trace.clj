@@ -1,10 +1,19 @@
 (ns examples.trace
-  (:require [flow-gl.tools.trace :as trace]))
+  (:require [flow-gl.tools.trace :as trace]
+            (flow-gl.gui [gui :as gui]
+                         [controls :as controls]
+                         [layout-dsl :as l])))
 
-(defn b [x] (+ 1 x))
+(defn b [x] (+ 1 (:a x)))
 
-(defn a [x] (+ 1 (b x)))
+(defn a [x] (+ 1 (b {:a 1})))
 
-(trace/trace-ns 'examples.trace)
+#_(do (trace/trace-ns 'examples.trace)
+      (trace/with-trace (a 1)))
 
-(trace/with-trace (a 1))
+#_(trace/untrace-ns 'flow-gl.gui.gui)
+
+(do (trace/trace-ns 'flow-gl.gui.gui)
+    (trace/with-trace (gui/start-control (fn [view-context]
+                                           {:view (fn [view-context state]
+                                                    (controls/text "foo"))}))))

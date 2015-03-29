@@ -452,11 +452,14 @@
 (debug/defn-timed add-layout-afterwards [state]
   (let [width (window/width (:window state))
         height (window/height (:window state))
-        [state layout] (layout/do-layout (:layoutable state)
-                                         state
-                                         width
-                                         height
-                                         (:cache state))
+        [state layout] (if (satisfies? layout/Layout (:layoutable state))
+                         (layout/do-layout (:layoutable state)
+                                                state
+                                                width
+                                                height
+                                                (:cache state))
+                         [state (:layoutable state)]
+                         )
         layout (-> layout
                    (assoc :x 0
                           :y 0

@@ -3,7 +3,8 @@
             (flow-gl.opengl.jogl [opengl :as opengl]
                                  [window :as jogl-window]
                                  [quad :as quad])
-            (flow-gl.tools [profiler :as profiler])
+            (flow-gl.tools [profiler :as profiler]
+                           [trace :as trace])
             [datomic.api :as d]
             (flow-gl.gui [drawable :as drawable]
                          [gui :as gui]
@@ -83,9 +84,11 @@
                                                            [255 255 0 255])
                                                 (highlight (= (:mouse-over-column state) column)
                                                            [255 0 0 255])
-                                                (gui/on-mouse-event-with-view-context :mouse-enter view-context mouse-enter row column))))))
-           )})
+                                                (gui/on-mouse-event-with-view-context :mouse-enter view-context mouse-enter row column)))))))})
+
+
 (defn start []
-  (gui/start-control app)
+  (trace/trace-ns 'flow-gl.gui.gui)
+  (trace/with-trace (gui/start-control app))
   #_(.start (Thread. (fn [] (profiler/with-profiler (gui/start-control app)))))
   #_(profiler/with-profiler (gui/start-control app)))

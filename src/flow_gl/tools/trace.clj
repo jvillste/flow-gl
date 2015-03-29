@@ -19,7 +19,6 @@
    :current-calls {}})
 
 (defn add-entry [trace entry]
-  (println trace)
   (if (:call-started entry)
 
     (let [opening-call (-> (select-keys entry [:call-id :function-symbol :arguments :thread])
@@ -104,35 +103,56 @@
      (let [^clojure.lang.Var v (if (var? v) v (resolve v))
            ns (.ns v)
            s  (.sym v)]
-       (if (and (ifn? @v) (-> v meta :macro not) (-> v meta ::traced not))
-         (let [f @v
-               vname (symbol (str ns "/" s))]
-           (doto v
-             (alter-var-root #(fn tracing-wrapper [& args]
-                                (trace-fn-call vname % args)))
-             (alter-meta! assoc ::traced f)))))))
+       (if (and (ifn? @v)
+                (-> v meta :macro not)
+                (-> v meta ::traced not))
+         (do (println "tracing" s)
+             (let [f @v
+                   vname (symbol (str ns "/" s))]
+               (doto v
+                 (alter-var-root #(fn tracing-wrapper [& args]
+                                    (trace-fn-call vname % args)))
+                 (alter-meta! assoc ::traced f))))))))
 
-(defn trace-ns*
-  [ns]
+(defn trace-ns* [ns]
   (let [ns (the-ns ns)]
     (when-not ('#{clojure.core flow-gl.tools.trace} (.name ns))
       (let [ns-fns (->> ns ns-interns vals (filter (fn [v] (and (-> v var-get fn?)
                                                                 (not (-> v meta :macro))))))]
         (doseq [f ns-fns]
+
           (trace-var* f))))))
 
-(defmacro trace-ns
-  "Trace all fns in the given name space."
-  [ns]
+(defmacro trace-ns [ns]
   `(trace-ns* ~ns))
 
+
+(defn  untrace-var*
+  ([ns s]
+     (untrace-var* (ns-resolve ns s)))
+  ([v]
+     (let [^clojure.lang.Var v (if (var? v) v (resolve v))
+           ns (.ns v)
+           s  (.sym v)
+           f  ((meta v) ::traced)]
+       (when f
+         (doto v
+           (alter-var-root (constantly ((meta v) ::traced)))
+           (alter-meta! dissoc ::traced))))))
+
+(defn untrace-ns* [ns]
+  (let [ns-fns (->> ns the-ns ns-interns vals)]
+    (doseq [f ns-fns]
+      (untrace-var* f))))
+
+(defmacro untrace-ns [ns]
+  `(untrace-ns* ~ns))
 
 (defn start-tracer [input-channel trace-channel]
   (.start (Thread. (fn []
                      (async/go-loop [trace (create-state)]
                        (if-let [entry (async/<! input-channel)]
                          (let [new-trace (add-entry trace entry)]
-                           (println "got " entry)
                            (async/>! trace-channel new-trace)
                            (recur new-trace))
                          (async/close! trace-channel)))))))
@@ -145,19 +165,56 @@
 (defn text-cell [value]
   (l/margin 1 2 1 2 (controls/text value)))
 
-(defn call-view [call]
-  (l/vertically (l/horizontally (text-cell (:function-symbol call))
-                                (for [argument (:arguments call)]
-                                  (text-cell argument))
-                                (text-cell (str " -> " (:result call))))
-                (l/margin 0 0 0 10
-                          (l/vertically (for [child (:child-calls call)]
-                                          (call-view child))))))
+(defn open-button [view-context state call-id]
+  (if ((:open-calls state) call-id)
+    (-> (text-cell "-")
+        (gui/on-mouse-clicked-with-view-context view-context
+                                                (fn [state event]
+                                                  (update-in state [:open-calls] disj call-id))))
+
+    (-> (text-cell "+")
+        (gui/on-mouse-clicked-with-view-context view-context
+                                                (fn [state event]
+                                                  (update-in state [:open-calls] conj call-id))))))
+
+(defn value-string [value]
+  (cond (number? value)
+        (str value)
+
+        (map? value)
+        (str "{" (count (keys value)) "}")
+
+        (vector? value)
+        (str "[" (count value) "]")
+
+        #_(seq? value)
+        #_(str "(" (count value) ")")
+
+        :default
+        "X"))
+
+(defn call-view [view-context state call]
+  (l/vertically (l/horizontally (text-cell (:thread call))
+                                (when (> (count (:child-calls call)) 0)
+                                     (open-button view-context state (:call-id call)))
+                                (text-cell (apply str
+                                                  (flatten [(count (:child-calls call)) ": "
+                                                            (name (or (:function-symbol call)
+                                                                      :x))
+                                                            "["
+                                                            (for [argument (:arguments call)]
+                                                              (value-string argument))
+                                                            "] -> "
+                                                            (value-string (:result call))]))))
+                (when ((:open-calls state) (:call-id call))
+                  (l/margin 0 0 0 10
+                            (l/vertically (for [child (:child-calls call)]
+                                            (call-view view-context state child)))))))
 
 
-(defn trace-view [view-context {:keys [trace]}]
+(defn trace-view [view-context {:keys [trace] :as state}]
   (l/vertically (for [root-call (:root-calls trace)]
-                  (call-view root-call))))
+                  (call-view view-context state root-call))))
 
 
 (defn create-trace-control [trace-channel]
@@ -169,7 +226,8 @@
           (gui/apply-to-state view-context assoc :trace new-trace)
           (recur))))
 
-    {:local-state {:trace (create-state)}
+    {:local-state {:trace (create-state)
+                   :open-calls #{}}
      :view #'trace-view}))
 
 
