@@ -47,14 +47,15 @@
   #_""
   #_{:name "counter-view"}
   [view-context state]
-  (gui/on-mouse-clicked-with-view-context (text (apply str (if (= 0 (mod (:count state) 2))
-                                           "X"
-                                           "ZZ"))
-                              (if (:mouse-over state)
-                                [0 255 0 255]
-                                [100 100 100 255]))
-                        view-context
-                        counter-mouse-handler))
+  (gui/on-mouse-clicked-with-view-context (text #_(:count state)
+                                                (apply str (if (= 0 (mod (:count state) 2))
+                                                             "X"
+                                                             "ZZ"))
+                                                (if (:mouse-over state)
+                                                  [0 255 0 255]
+                                                  [100 100 100 255]))
+                                          view-context
+                                          counter-mouse-handler))
 
 (defn counter [view-context]
   {:local-state {:count 0}
@@ -82,6 +83,6 @@
                                                      (highlight (= (:mouse-over-column state) column)
                                                                 [255 0 0 255]))))))})
 (defn start []
-  #_(gui/start-control app)
+  (gui/start-control app)
   #_(.start (Thread. (fn [] (profiler/with-profiler (gui/start-control app)))))
-  (profiler/with-profiler (gui/start-control app)))
+  #_(profiler/with-profiler (gui/start-control app)))

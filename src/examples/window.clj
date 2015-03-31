@@ -41,11 +41,11 @@
                       (font/create "LiberationSans-Regular.ttf" 25)
                       color)))
 
-(def initial-counter-state {:local-state {:count 0}
-                            :can-gain-focus true
-                            :handle-keyboard-event (fn [state event]
-                                                     [(update-in state [:count] inc)
-                                                      true])})
+(defn initial-counter-state [view-context]
+  {:local-state {:count 0}
+   :can-gain-focus true
+   :handle-keyboard-event (fn [state event]
+                            (gui/apply-to-local-state state view-context update-in [:count] inc))})
 
 (defn static [view-context]
   {:view (fn [view-context state]
@@ -53,7 +53,7 @@
 
 (defn counter [view-context]
 
-  (assoc initial-counter-state
+  (assoc (initial-counter-state view-context)
     :view (fn [view-context state]
             (let [duration (mod (:frame-started view-context)
                                 (:pulse-rate state))]
@@ -82,14 +82,14 @@
                                         (gui/apply-to-state view-context update-in [:count] inc)
                                         (recur))))
 
-  (merge initial-counter-state
+  (merge (initial-counter-state view-context)
          gui/child-focus-handlers
          {:view (fn [view-context state]
                   (l/vertically (drawable/->Rectangle 10 10 [0 255 0 255])
-                                (gui/on-mouse-clicked (text (str "count " (:count state)))
-                                                      view-context
-                                                      (fn [state event]
-                                                        (update-in state [:count] inc)))
+                                (gui/on-mouse-clicked-with-view-context (text (str "count " (:count state)))
+                                                                        view-context
+                                                                        (fn [state event]
+                                                                          (update-in state [:count] inc)))
                                 #_(drawable/->Rectangle 10 10 [0 255 0 255])
                                 (gui/call-view view-context counter :child-1 {:pulse-rate 2000})
                                 #_(gui/call-view view-context counter :child-2 {:pulse-rate 500})
@@ -102,12 +102,12 @@
 
 (defn static-app [view-context]
 
-  (merge initial-counter-state
+  (merge (initial-counter-state view-context)
          gui/child-focus-handlers
          {:view (fn [view-context state]
                   (l/vertically (-> (text (str "count " (:count state) (if (:mouse-over state) "x" "")))
 
-                                    (gui/on-mouse-clicked
+                                    (gui/on-mouse-clicked-with-view-context
                                      view-context
                                      (fn [state event]
                                        (update-in state [:count] inc)))

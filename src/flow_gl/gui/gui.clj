@@ -454,10 +454,10 @@
         height (window/height (:window state))
         [state layout] (if (satisfies? layout/Layout (:layoutable state))
                          (layout/do-layout (:layoutable state)
-                                                state
-                                                width
-                                                height
-                                                (:cache state))
+                                           state
+                                           width
+                                           height
+                                           (:cache state))
                          [state (:layoutable state)]
                          )
         layout (-> layout
@@ -684,7 +684,6 @@
 
     (let [state-paths-under-mouse (layout-path-to-state-paths (:layout state)
                                                               (first (:layout-paths-under-mouse state)))]
-      (println "under mouse" state-paths-under-mouse)
       (if (get-in state (concat (last state-paths-under-mouse)
                                 [:can-gain-focus]))
         (set-focus state state-paths-under-mouse)
@@ -814,14 +813,14 @@
                                []))
       (assoc :children [])))
 
-(defn remove-unused-children [state view-context]
-  (let [child-set (set (:children state))
-        children-to-be-removed (->> (:old-children state)
+(defn remove-unused-children [view-state view-context]
+  (let [child-set (set (:children view-state))
+        children-to-be-removed (->> (:old-children view-state)
                                     (filter (complement child-set)))]
-    (-> (reduce (fn [state child-to-be-removed]
-                  (do (call-destructors (get-in state [:child-states child-to-be-removed]))
-                      (update-in state [:child-states] dissoc child-to-be-removed)))
-                state
+    (-> (reduce (fn [view-state child-to-be-removed]
+                  (do (call-destructors (get-in view-state [:child-states child-to-be-removed]))
+                      (update-in view-state [:child-states] dissoc child-to-be-removed)))
+                view-state
                 children-to-be-removed)
         (reset-children))))
 
@@ -1047,8 +1046,9 @@
 
 (def resolve-view-calls)
 
-(defn run-view-call [cache state-path-part parent-view-context parent-view-state constructor constructor-parameters state-overrides constructor-overrides]
-  (let [state-path (concat (:state-path parent-view-context) state-path-part)
+(defn run-view-call [cache state-path-part parent-view-context application-state constructor constructor-parameters state-overrides constructor-overrides]
+  (let [parent-view-state (get-in application-state (:state-path parent-view-context))
+        state-path (concat (:state-path parent-view-context) state-path-part)
 
         view-context (assoc parent-view-context
                        :state-path state-path)
@@ -1080,28 +1080,30 @@
         view-state (assoc view-state
                      :sleep-time (:sleep-time layoutable))
 
-        [view-state layoutable] (cache/call-with-cache-atom cache
-                                                            #'resolve-view-calls
-                                                            cache
-                                                            view-state
-                                                            layoutable)
+        application-state (assoc-in application-state state-path view-state)
+        
+        [application-state layoutable] (cache/call-with-cache-atom cache
+                                                                   #'resolve-view-calls
+                                                                   cache
+                                                                   application-state
+                                                                   layoutable)
 
-        view-state (remove-unused-children view-state view-context)
+        application-state (update-in application-state state-path remove-unused-children view-context)
 
         layoutable (assoc layoutable
                      :state-path state-path)]
 
-    [view-state
+    [application-state
      layoutable]))
 
 
 
-(defn resolve-view-call [cache parent-view-state view-call]
+(defn resolve-view-call [cache application-state view-call]
   (let [state-path-part [:child-states (:child-id view-call)]
-        [view-state layoutable] (run-view-call cache
+        [application-state layoutable] (run-view-call cache
                                                state-path-part
                                                (:parent-view-context view-call)
-                                               parent-view-state
+                                               application-state
                                                (:constructor view-call)
                                                (:constructor-parameters view-call)
                                                (:state-overrides view-call)
@@ -1116,28 +1118,31 @@
                                  :constructor-parameters
                                  :constructor-overrides))]
 
-    [(-> parent-view-state
-         (assoc-in state-path-part view-state)
-         (update-in [:children] conj (:child-id view-call))
-         (assoc :sleep-time (choose-sleep-time (:sleep-time parent-view-state)
-                                               (:sleep-time view-state))))
+    [(update-in application-state
+                (-> view-call :parent-view-context :state-path)
+                (fn [parent-view-state]
+                  (-> parent-view-state
+                      (update-in [:children] conj (:child-id view-call))
+                      (assoc :sleep-time (choose-sleep-time (:sleep-time parent-view-state)
+                                                            (get-in parent-view-state (conj state-path-part :sleep-time)))))))
+
      layoutable]))
 
-(defn resolve-view-calls [cache view-state layoutable]
-  (loop [view-state view-state
+(defn resolve-view-calls [cache application-state layoutable]
+  (loop [application-state application-state
          view-call-paths (:view-call-paths layoutable)
          layoutable layoutable]
     (if-let [view-call-path (first view-call-paths)]
-      (let [[view-state child] (resolve-view-call cache view-state (get-in layoutable view-call-path))
-            #_(cache/call-with-cache-atom cache #'resolve-view-call cache view-state (get-in layoutable view-call-path))]
-        (recur view-state
+      (let [[application-state child] (resolve-view-call cache application-state (get-in layoutable view-call-path))
+            #_(cache/call-with-cache-atom cache #'resolve-view-call cache application-state (get-in layoutable view-call-path))]
+        (recur application-state
                (rest view-call-paths)
                (assoc-in layoutable view-call-path child)))
-      [view-state layoutable])))
+      [application-state layoutable])))
 
 (defn control-to-application [constructor]
   (fn [application-state]
-    (let [[view-state layoutable] (run-view-call (:cache application-state)
+    (let [[application-state layoutable] (run-view-call (:cache application-state)
                                                  [:view-state]
                                                  {:frame-started (:frame-started application-state)
                                                   :state-path []
@@ -1152,9 +1157,8 @@
                                            (initial-focus-paths view-state))]
 
       (-> application-state
-          (assoc :view-state view-state
-                 :layoutable layoutable
-                 :sleep-time (:sleep-time view-state))))))
+          (assoc :layoutable layoutable
+                 :sleep-time (get-in application-state [:view-state :sleep-time]))))))
 
 (defn start-control [control]
   (start-app (control-to-application control)))

@@ -45,6 +45,7 @@
                                                                   [:left-button true] 10
                                                                   [:right-button false] -1
                                                                   [:right-button true] -10)]
+                                                  (println "updating binding" (:state-path view-context))
                                                   (gui/update-binding state
                                                                       view-context
                                                                       (fn [old-value] (+ old-value increment))
@@ -80,6 +81,6 @@
                                             :text-editor)))})
 
 (defn start []
-  (.start (Thread. (fn []
-                     (profiler/with-profiler (gui/start-control app)))))
-  #_(.start (Thread. (fn [] (gui/start-control app)))))
+  #_(.start (Thread. (fn []
+                       (profiler/with-profiler (gui/start-control app)))))
+  (.start (Thread. (fn [] (gui/start-control app)))))
