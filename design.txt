@@ -122,7 +122,7 @@ Render tree transformer node
 TODO
 -----
 
-- add cache to preferred-size
+- how to force view refres after mouse event handler with side effects ala tracing a function in tools.trace
 
 - set initial focus after the view calls are resolved the first time
 

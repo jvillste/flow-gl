@@ -114,11 +114,14 @@
                                     (trace-fn-call vname % args)))
                  (alter-meta! assoc ::traced f))))))))
 
+(defn namespace-function-vars [namespace]
+  (->> namespace ns-interns vals (filter (fn [v] (and (-> v var-get fn?)
+                                                      (not (-> v meta :macro)))))))
+
 (defn trace-ns* [ns]
   (let [ns (the-ns ns)]
     (when-not ('#{clojure.core flow-gl.tools.trace} (.name ns))
-      (let [ns-fns (->> ns ns-interns vals (filter (fn [v] (and (-> v var-get fn?)
-                                                                (not (-> v meta :macro))))))]
+      (let [ns-fns (namespace-function-vars ns)]
         (doseq [f ns-fns]
 
           (trace-var* f))))))
@@ -147,6 +150,13 @@
 
 (defmacro untrace-ns [ns]
   `(untrace-ns* ~ns))
+
+
+(defn traced?
+  "Returns true if the given var is currently traced, false otherwise"
+  [v]
+  (let [^clojure.lang.Var v (if (var? v) v (resolve v))]
+    (-> v meta ::traced nil? not)))
 
 (defn start-tracer [input-channel trace-channel]
   (.start (Thread. (fn []
@@ -262,12 +272,35 @@
                                    :text
                                    controls/text-editor
                                    :namespace-filter)
-                (for [namespace  (->> (all-ns)
-                                      (filter #(if (not (= "" (:namespace-filter state)))
-                                                 (.contains (str (.name %)) (:namespace-filter state))
-                                                 true))
-                                      (sort-by #(.name %)))]
-                  (controls/text (.name namespace)))))
+                (l/horizontally (l/vertically (for [namespace  (->> (all-ns)
+                                                                    (filter #(if (not (= "" (:namespace-filter state)))
+                                                                               (.contains (str (.name %)) (:namespace-filter state))
+                                                                               true))
+                                                                    (sort-by #(.name %)))]
+                                                (-> (controls/text (.name namespace)
+                                                                   (if (= (:selected-namespace state)
+                                                                          namespace)
+                                                                     [255 255 255 255]
+                                                                     [100 100 100 255]))
+                                                    (gui/on-mouse-clicked-with-view-context view-context
+                                                                                            (fn [state event]
+                                                                                              (assoc state :selected-namespace namespace))))))
+                                (when-let [selected-namespace (:selected-namespace state)]
+                                  (layouts/grid (concat [[(l/margin 0 5 0 0 (controls/text "function"))
+                                                          (controls/text "traced?")]]
+                                                        (for [function-var (namespace-function-vars selected-namespace)]
+                                                          [(controls/text (-> function-var meta :name))
+                                                           (if (traced? function-var)
+                                                             (-> (controls/text "X")
+                                                                 (gui/on-mouse-clicked (fn [state event]
+                                                                                         (println "untracing")
+                                                                                         (untrace-var* function-var)
+                                                                                         state)))
+                                                             (-> (controls/text "O")
+                                                                 (gui/on-mouse-clicked (fn [state event]
+                                                                                         (println "tracing")
+                                                                                         (trace-var* function-var)
+                                                                                         state))))])))))))
 
 
 (defn trace-root-view [view-context state]
