@@ -256,9 +256,18 @@
                                                                                                   (update-in state [:hidden-threads] conj thread)))))]))))
 
 (defn functions-view [view-context state]
-  (l/vertically #_(gui/call-)
-                (for [namespace (sort-by #(.name %) (all-ns))]
-                     (controls/text (.name namespace)))))
+  (l/vertically (gui/call-and-bind view-context
+                                   state
+                                   :namespace-filter
+                                   :text
+                                   controls/text-editor
+                                   :namespace-filter)
+                (for [namespace  (->> (all-ns)
+                                      (filter #(if (not (= "" (:namespace-filter state)))
+                                                 (.contains (str (.name %)) (:namespace-filter state))
+                                                 true))
+                                      (sort-by #(.name %)))]
+                  (controls/text (.name namespace)))))
 
 
 (defn trace-root-view [view-context state]
@@ -280,7 +289,8 @@
 
     {:local-state {:trace (create-state)
                    :open-calls #{}
-                   :hidden-threads #{}}
+                   :hidden-threads #{}
+                   :namespace-filter "flow"}
      :view #'trace-root-view}))
 
 

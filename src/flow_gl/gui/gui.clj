@@ -684,6 +684,7 @@
 
     (let [state-paths-under-mouse (layout-path-to-state-paths (:layout state)
                                                               (first (:layout-paths-under-mouse state)))]
+      (println "under mouse" state-paths-under-mouse)
       (if (get-in state (concat (last state-paths-under-mouse)
                                 [:can-gain-focus]))
         (set-focus state state-paths-under-mouse)
