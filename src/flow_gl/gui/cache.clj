@@ -67,6 +67,15 @@
             cache (assoc cache [function arguments] value)]
         [cache value]))))
 
+(defn clear-cache [cache function]
+  (reduce (fn [cache [cached-function arguments]]
+            (if (= function cached-function)
+              (dissoc cache [cached-function arguments])
+              cache))
+          cache
+          (->> (keys cache)
+               (filter vector?))))
+
 (defn call-with-cache-atom [cache-atom function & arguments]
   (swap! cache-atom update-in [:used] conj [function arguments])
   (if-let [value (get @cache-atom [function arguments])]

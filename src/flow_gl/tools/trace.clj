@@ -6,6 +6,7 @@
                          [layout :as layout]
                          [layouts :as layouts]
                          [gui :as gui]
+                         [cache :as cache]
                          [events :as events]
                          [layoutable :as layoutable]
                          [controls :as controls]
@@ -19,25 +20,29 @@
    :current-calls {}})
 
 (defn add-entry [trace entry]
-  (if (:call-started entry)
+  (if (:clear-trace entry)
+    (create-state)
+    (if (:call-id entry)
+      (if (:call-started entry)
 
-    (let [opening-call (-> (select-keys entry [:call-id :function-symbol :arguments :thread])
-                           (assoc :parent (get-in trace [:current-calls (:thread entry)])
-                                  :child-calls []
-                                  :call-started (:time entry)))]
-      (-> trace
-          (update-in [:open-calls] assoc (:call-id entry) opening-call)
-          (update-in [:current-calls] assoc (:thread entry) (:call-id entry))))
+        (let [opening-call (-> (select-keys entry [:call-id :function-symbol :arguments :thread])
+                               (assoc :parent (get-in trace [:current-calls (:thread entry)])
+                                      :child-calls []
+                                      :call-started (:time entry)))]
+          (-> trace
+              (update-in [:open-calls] assoc (:call-id entry) opening-call)
+              (update-in [:current-calls] assoc (:thread entry) (:call-id entry))))
 
-    (let [ending-call (-> (get-in trace [:open-calls (:call-id entry)])
-                          (assoc :call-ended (:time entry)
-                                 :result (:result entry)))]
-      (let [trace (-> trace
-                      (update-in [:open-calls] dissoc (:call-id entry))
-                      (update-in [:current-calls] assoc (:thread entry) (:parent ending-call)))]
-        (if (:parent ending-call)
-          (update-in trace [:open-calls (:parent ending-call) :child-calls] conj ending-call)
-          (update-in trace [:root-calls] conj ending-call))))))
+        (let [ending-call (-> (get-in trace [:open-calls (:call-id entry)])
+                              (assoc :call-ended (:time entry)
+                                     :result (:result entry)))]
+          (let [trace (-> trace
+                          (update-in [:open-calls] dissoc (:call-id entry))
+                          (update-in [:current-calls] assoc (:thread entry) (:parent ending-call)))]
+            (if (:parent ending-call)
+              (update-in trace [:open-calls (:parent ending-call) :child-calls] conj ending-call)
+              (update-in trace [:root-calls] conj ending-call)))))
+      trace)))
 
 (deftest add-entry-test
   (is (= {:root-calls
@@ -219,32 +224,41 @@
         (vector? value)
         (str "[" (count value) "]")
 
+        (function? value)
+        "fn"
+        
         #_(seq? value)
         #_(str "(" (count value) ")")
 
         :default
-        "X"))
+        (str (.getSimpleName (type value)))))
 
 (defn call-view [view-context state call]
   (l/vertically (l/horizontally (when (> (count (:child-calls call)) 0)
                                   (open-button view-context state (:call-id call)))
                                 (text-cell (apply str
                                                   (flatten [(count (:child-calls call)) ": "
+                                                            "("
                                                             (name (or (:function-symbol call)
                                                                       :x))
-                                                            "["
-                                                            (for [argument (:arguments call)]
-                                                              (value-string argument))
-                                                            "] -> "
+                                                            " "
+                                                            (interpose " " (for [argument (:arguments call)]
+                                                                             (value-string argument)))
+                                                            ") -> "
                                                             (value-string (:result call))]))))
                 (when ((:open-calls state) (:call-id call))
-                  (l/margin 0 0 0 10
+                  (l/margin 0 0 0 20
                             (l/vertically (for [child (:child-calls call)]
                                             (call-view view-context state child)))))))
 
 
 (defn trace-view [view-context {:keys [trace] :as state}]
-  (l/vertically (for [root-call (:root-calls trace)]
+  (l/vertically (-> (controls/text "clear" button-text-color)
+                    (gui/on-mouse-clicked-with-view-context view-context
+                                                            (fn [state event]
+                                                              (async/put! (:input-channel state) {:clear-trace true})
+                                                              state)))
+                (for [root-call (:root-calls trace)]
                   (when (not ((:hidden-threads state) (:thread root-call)))
                     (l/horizontally (text-cell (:thread root-call))
                                     (call-view view-context state root-call))))))
@@ -265,6 +279,11 @@
                                                                                                 (fn [state event]
                                                                                                   (update-in state [:hidden-threads] conj thread)))))]))))
 
+(declare trace-root-view)
+
+(def button-text-color [100 255 255 255])
+(def header-text-color [200 200 200 255])
+
 (defn functions-view [view-context state]
   (l/vertically (gui/call-and-bind view-context
                                    state
@@ -272,35 +291,48 @@
                                    :text
                                    controls/text-editor
                                    :namespace-filter)
-                (l/horizontally (l/vertically (for [namespace  (->> (all-ns)
-                                                                    (filter #(if (not (= "" (:namespace-filter state)))
-                                                                               (.contains (str (.name %)) (:namespace-filter state))
-                                                                               true))
-                                                                    (sort-by #(.name %)))]
-                                                (-> (controls/text (.name namespace)
-                                                                   (if (= (:selected-namespace state)
-                                                                          namespace)
-                                                                     [255 255 255 255]
-                                                                     [100 100 100 255]))
-                                                    (gui/on-mouse-clicked-with-view-context view-context
-                                                                                            (fn [state event]
-                                                                                              (assoc state :selected-namespace namespace))))))
+                (l/horizontally (l/margin 0 10 0 0 (l/vertically (for [namespace  (->> (all-ns)
+                                                                     (filter #(if (not (= "" (:namespace-filter state)))
+                                                                                (.contains (str (.name %)) (:namespace-filter state))
+                                                                                true))
+                                                                     (sort-by #(.name %)))]
+                                                 (-> (controls/text (.name namespace)
+                                                                    (if (= (:selected-namespace state)
+                                                                           namespace)
+                                                                      [255 255 255 255]
+                                                                      [100 100 100 255]))
+                                                     (gui/on-mouse-clicked-with-view-context view-context
+                                                                                             (fn [state event]
+                                                                                               (assoc state :selected-namespace namespace)))))))
                                 (when-let [selected-namespace (:selected-namespace state)]
-                                  (layouts/grid (concat [[(l/margin 0 5 0 0 (controls/text "function"))
-                                                          (controls/text "traced?")]]
-                                                        (for [function-var (namespace-function-vars selected-namespace)]
-                                                          [(controls/text (-> function-var meta :name))
-                                                           (if (traced? function-var)
-                                                             (-> (controls/text "X")
-                                                                 (gui/on-mouse-clicked (fn [state event]
-                                                                                         (println "untracing")
-                                                                                         (untrace-var* function-var)
-                                                                                         state)))
-                                                             (-> (controls/text "O")
-                                                                 (gui/on-mouse-clicked (fn [state event]
-                                                                                         (println "tracing")
-                                                                                         (trace-var* function-var)
-                                                                                         state))))])))))))
+
+                                  (l/vertically (l/horizontally (l/margin 0 5 0 0 (-> (controls/text "trace all" button-text-color)
+                                                                                      (gui/on-mouse-clicked-with-view-context view-context
+                                                                                                                              (fn [state event]
+                                                                                                                                (trace-ns selected-namespace)
+                                                                                                                                (assoc state :refresh-time (.getTime (java.util.Date.)))))))
+                                                                (-> (controls/text "untrace all" button-text-color)
+                                                                    (gui/on-mouse-clicked-with-view-context view-context
+                                                                                                            (fn [state event]
+                                                                                                              (untrace-ns selected-namespace)
+                                                                                                              (assoc state :refresh-time (.getTime (java.util.Date.)))))))
+                                                (layouts/grid (concat [[(l/margin 0 5 0 0 (controls/text "function" header-text-color))
+                                                                        (controls/text "traced?" header-text-color)]]
+                                                                      (for [function-var (namespace-function-vars selected-namespace)]
+                                                                        [(controls/text (-> function-var meta :name))
+                                                                         (if (traced? function-var)
+                                                                           (-> (controls/text "X")
+                                                                               (gui/on-mouse-clicked-with-view-context view-context
+                                                                                                                       (fn [state event]
+                                                                                                                         (untrace-var* function-var)
+                                                                                                                         (assoc state :refresh-time (.getTime (java.util.Date.))))))
+
+                                                                           (-> (controls/text "O")
+                                                                               (gui/on-mouse-clicked-with-view-context view-context
+                                                                                                                       (fn [state event]
+                                                                                                                         (trace-var* function-var)
+                                                                                                                         (assoc state :refresh-time (.getTime (java.util.Date.)))))))]))))
+                                  ))))
 
 
 (defn trace-root-view [view-context state]
@@ -311,7 +343,7 @@
                                                             {:title "functions"
                                                              :content (functions-view view-context state)}]})))
 
-(defn create-trace-control [trace-channel]
+(defn create-trace-control [input-channel trace-channel]
   (fn [view-context]
     (let [throttled-channel (csp/throttle-at-constant-rate trace-channel 500)]
 
@@ -321,6 +353,7 @@
           (recur))))
 
     {:local-state {:trace (create-state)
+                   :input-channel input-channel
                    :open-calls #{}
                    :hidden-threads #{}
                    :namespace-filter "flow"}
@@ -332,7 +365,7 @@
          trace-channel# (async/chan)]
      (start-tracer input-channel# trace-channel#)
      (.start (Thread. (fn []
-                        (gui/start-control (create-trace-control trace-channel#)))))
+                        (gui/start-control (create-trace-control input-channel# trace-channel#)))))
 
      #_(async/>!! input-channel# {})
      (debug/with-debug-channel input-channel# ~@body)
