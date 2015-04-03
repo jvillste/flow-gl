@@ -35,4 +35,8 @@
   (when (and outer inner)
     (layouts/->Box margin [outer inner])))
 
+(def-dsl minimum-size [width height content]
+  (when content
+    (layouts/->MinimumSize width height [content])))
+
 

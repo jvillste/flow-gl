@@ -15,6 +15,20 @@
   (preferred-size [this available-width available-height]
                   {:width width :height height}))
 
+(layout/deflayout-not-memoized MinimumSize [width height children]
+  (layout [this requested-width requested-height]
+          (update-in this
+                     [:children 0]
+                     #(let [preferred-size (layoutable/preferred-size % requested-width requested-height)]
+                        (layout/set-dimensions-and-layout % 0 0
+                                                          (max width (:width preferred-size))
+                                                          (max height (:height preferred-size))))))
+
+  (preferred-size [this available-width available-height]
+                  (let [preferred-size (layoutable/preferred-size (first children) available-width available-height)]
+                    {:width (max width (:width preferred-size))
+                     :height (max height (:height preferred-size))})))
+
 (layout/deflayout-not-memoized FloatRight [children]
   (layout [this requested-width requested-height]
           (update-in this
@@ -35,17 +49,18 @@
                      :height (max (:height left-size)
                                   (:height right-size))})))
 
-(layout/deflayout-not-memoized FloatLeft [left right]
-
+(layout/deflayout-not-memoized FloatLeft [children]
   (layout [this requested-width requested-height]
-          (let [left-width (:width (layoutable/preferred-size left java.lang.Integer/MAX_VALUE requested-height))
-                right-width (- requested-width left-width)]
-            (assoc this :children
-                   [(layout/set-dimensions-and-layout left 0 0 left-width requested-height)
-                    (layout/set-dimensions-and-layout right left-width 0 right-width requested-height)])))
+          (update-in this [:children]
+                     (fn [[left right]]
+                       (let [left-width (:width (layoutable/preferred-size left java.lang.Integer/MAX_VALUE requested-height))
+                             right-width (- requested-width left-width)]
+                         [(layout/set-dimensions-and-layout left 0 0 left-width requested-height)
+                          (layout/set-dimensions-and-layout right left-width 0 right-width requested-height)]))))
 
   (preferred-size [this available-width available-height]
-                  (let [left-size (layoutable/preferred-size left available-width available-height)
+                  (let [[left right] children
+                        left-size (layoutable/preferred-size left available-width available-height)
                         right-size (layoutable/preferred-size right (- available-width (:width left-size)) available-height)]
                     {:width (+ (:width left-size)
                                (:width right-size))
@@ -361,16 +376,16 @@
                                              child-sizes))})))
 
 #_(layout/deflayout-with-state SizeDependent [preferred-size-function child-function]
-  (layout [this state requested-width requested-height]
-          (binding [gui/current-view-state-atom (atom state)]
-            (let [layoutable (child-function state requested-width requested-height)
-                  [state child-layout] (layout/set-dimensions-and-layout layoutable @gui/current-view-state-atom
-                                                                         0 0 requested-width requested-height)]
-              [state
-               (assoc this :children [child-layout])])))
+    (layout [this state requested-width requested-height]
+            (binding [gui/current-view-state-atom (atom state)]
+              (let [layoutable (child-function state requested-width requested-height)
+                    [state child-layout] (layout/set-dimensions-and-layout layoutable @gui/current-view-state-atom
+                                                                           0 0 requested-width requested-height)]
+                [state
+                 (assoc this :children [child-layout])])))
 
-  (preferred-size [this available-width available-height]
-                  (preferred-size-function available-width available-height)))
+    (preferred-size [this available-width available-height]
+                    (preferred-size-function available-width available-height)))
 
 
 (layout/deflayout-not-memoized Translate [translate-x translate-y child]

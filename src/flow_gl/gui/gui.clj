@@ -73,7 +73,7 @@
     (async/close! control-channel)))
 
 (defn call-destructors [view-state]
-  (when-let [destructor (-> :destructor view-state)]
+  (when-let [destructor (:destructor view-state)]
     (destructor (:local-state view-state)))
 
   (close-control-channel view-state)
@@ -930,6 +930,38 @@
   (is (= {:children [{:children [{} {}]}]}
          (children-to-vectors {:children (list {:children (list {} {})})}))))
 
+(defn handle-events [state events app]
+  (try
+    (let [state (-> state
+                    (add-frame-started)
+                    (save-sleep-time))
+
+          state (reduce (fn [state event]
+                          (flow-gl.debug/add-event :handle-event)
+                          (-> state
+                              (assoc :event event)
+                              (clear-cache-when-requested)
+                              (close-when-requested-beforehand)
+                              (add-layout-paths-under-mouse-beforehand)
+                              (set-focus-on-mouse-click-beforehand)
+                              (apply-keyboard-event-handlers-beforehand)
+                              (apply-layout-event-handlers-beforehand)
+                              (apply-mouse-movement-event-handlers-beforehand)
+                              (apply-view-state-applications-beforehand)
+                              (app)
+                              (add-layout-afterwards)))
+                        state
+                        events)]
+
+      (-> state
+          (call-destructors-when-close-requested)
+          (limit-frames-per-second-afterwards 60)
+          (render-drawables-afterwards)
+          (clear-cache)))
+
+    (catch Exception e
+      (window/close (:window state))
+      (throw e))))
 
 (defn start-app [app]
   (-> {}
@@ -937,39 +969,8 @@
       (add-cache)
       (set-event-channel-atom)
       (add-event-channel)
-
       (event-loop (fn [state events]
-                    (try
-                      (let [state (-> state
-                                      (add-frame-started)
-                                      (save-sleep-time))
-
-                            state (reduce (fn [state event]
-                                            (flow-gl.debug/add-event :handle-event)
-                                            (-> state
-                                                (assoc :event event)
-                                                (clear-cache-when-requested)
-                                                (close-when-requested-beforehand)
-                                                (add-layout-paths-under-mouse-beforehand)
-                                                (set-focus-on-mouse-click-beforehand)
-                                                (apply-keyboard-event-handlers-beforehand)
-                                                (apply-layout-event-handlers-beforehand)
-                                                (apply-mouse-movement-event-handlers-beforehand)
-                                                (apply-view-state-applications-beforehand)
-                                                (app)
-                                                (add-layout-afterwards)))
-                                          state
-                                          events)]
-
-                        (-> state
-                            (call-destructors-when-close-requested)
-                            (limit-frames-per-second-afterwards 60)
-                            (render-drawables-afterwards)
-                            (clear-cache)))
-
-                      (catch Exception e
-                        (window/close (:window state))
-                        (throw e)))))))
+                    (handle-events state events app)))))
 
 
 ;; View calls
@@ -1081,7 +1082,7 @@
                      :sleep-time (:sleep-time layoutable))
 
         application-state (assoc-in application-state state-path view-state)
-        
+
         [application-state layoutable] (cache/call-with-cache-atom cache
                                                                    #'resolve-view-calls
                                                                    cache
@@ -1101,13 +1102,13 @@
 (defn resolve-view-call [cache application-state view-call]
   (let [state-path-part [:child-states (:child-id view-call)]
         [application-state layoutable] (run-view-call cache
-                                               state-path-part
-                                               (:parent-view-context view-call)
-                                               application-state
-                                               (:constructor view-call)
-                                               (:constructor-parameters view-call)
-                                               (:state-overrides view-call)
-                                               (:constructor-overrides view-call))
+                                                      state-path-part
+                                                      (:parent-view-context view-call)
+                                                      application-state
+                                                      (:constructor view-call)
+                                                      (:constructor-parameters view-call)
+                                                      (:state-overrides view-call)
+                                                      (:constructor-overrides view-call))
 
         layoutable (conj layoutable
                          (dissoc view-call
@@ -1143,15 +1144,15 @@
 (defn control-to-application [constructor]
   (fn [application-state]
     (let [[application-state layoutable] (run-view-call (:cache application-state)
-                                                 [:view-state]
-                                                 {:frame-started (:frame-started application-state)
-                                                  :state-path []
-                                                  :common-view-context (:common-view-context application-state)}
-                                                 application-state
-                                                 constructor
-                                                 []
-                                                 {}
-                                                 {})
+                                                        [:view-state]
+                                                        {:frame-started (:frame-started application-state)
+                                                         :state-path []
+                                                         :common-view-context (:common-view-context application-state)}
+                                                        application-state
+                                                        constructor
+                                                        []
+                                                        {}
+                                                        {})
 
           #_application-state #_(set-focus application-state
                                            (initial-focus-paths view-state))]

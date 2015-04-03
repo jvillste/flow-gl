@@ -262,8 +262,8 @@
         #_preferred-size-body #_`(do (flow-gl.debug/add-event [:preferred-size ~name])
                                  ~@preferred-size-body)
         preferred-size-parameters (vec (concat preferred-size-parameters parameters))
-        layout-implementation-symbol (gensym)
-        preferred-size-implementation-symbol (gensym)]
+        layout-implementation-symbol (symbol (str name "-layout"))
+        preferred-size-implementation-symbol (symbol (str name "-preferred-size"))]
     (assert (= layout-name 'layout) (str "invalid layout name" layout-name))
     (assert (= preferred-size-name 'preferred-size) (str "invalid preferred size name" preferred-size-name))
 

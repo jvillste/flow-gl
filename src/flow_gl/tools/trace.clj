@@ -176,8 +176,17 @@
 
 ;; UI
 
-(defn text-cell [value]
-  (l/margin 1 2 1 2 (controls/text value)))
+(def button-text-color [100 255 255 255])
+(def header-text-color [200 200 200 255])
+(def selected-value-color [200 200 0 255])
+(def default-color [255 255 255 255])
+
+(defn text-cell
+  ([value]
+     (text-cell value [255 255 255 255]))
+
+  ([value color]
+     (l/margin 1 2 1 2 (controls/text value color))))
 
 (defn tab-view [view-context state]
   (l/vertically (l/horizontally (for [tab-index (range (count (:tabs state)))]
@@ -202,54 +211,140 @@
 
 
 
-(defn open-button [view-context state call-id]
+(defn open-button [view-context state call-id child-count]
   (if ((:open-calls state) call-id)
-    (-> (text-cell "-")
+    (-> (text-cell (str "-" child-count))
         (gui/on-mouse-clicked-with-view-context view-context
                                                 (fn [state event]
                                                   (update-in state [:open-calls] disj call-id))))
 
-    (-> (text-cell "+")
+    (-> (text-cell (str "+" child-count))
         (gui/on-mouse-clicked-with-view-context view-context
                                                 (fn [state event]
                                                   (update-in state [:open-calls] conj call-id))))))
+
+
+(defn map-type-name [map-value]
+  (let [type-name (.getSimpleName (type map-value))]
+    (if (or (= type-name "PersistentArrayMap")
+            (= type-name "PersistentHashMap"))
+      ""
+      type-name)))
 
 (defn value-string [value]
   (cond (number? value)
         (str value)
 
+        (keyword? value)
+        (str value)
+
+        (string? value)
+        value
+
         (map? value)
-        (str "{" (count (keys value)) "}")
+        (str (map-type-name value) "{" (count (keys value)) "}")
 
         (vector? value)
         (str "[" (count value) "]")
 
         (function? value)
         "fn"
-        
+
+        (nil? value)
+        "nil"
+
         #_(seq? value)
         #_(str "(" (count value) ")")
 
         :default
         (str (.getSimpleName (type value)))))
 
+
+
+(defn value-view [view-context open-values value]
+  (if (or (number? value)
+          (keyword? value)
+          (string? value))
+    (text-cell (value-string value))
+    (if (open-values value)
+      (cond (map? value)
+            (l/vertically (-> (text-cell (str "- " (map-type-name value) " {"))
+                              (gui/on-mouse-clicked-with-view-context view-context
+                                                                      (fn [state event]
+                                                                        (update-in state [:open-values] disj value))))
+                          (l/margin 0 0 0 20 (l/vertically (for [key (keys value)]
+                                                             (l/horizontally (value-view view-context open-values key)
+                                                                             (value-view view-context open-values (get value key))))))
+                          (text-cell "}"))
+
+            (vector? value)
+            (l/vertically (-> (text-cell "- [")
+                              (gui/on-mouse-clicked-with-view-context view-context
+                                                                      (fn [state event]
+                                                                        (update-in state [:open-values] disj value))))
+                          (l/margin 0 0 0 20 (l/vertically (for [content value]
+                                                             (value-view view-context open-values content))))
+                          
+                          (text-cell "]"))
+
+
+            :default (-> (text-cell (str "-" (value-string value)))
+                         (gui/on-mouse-clicked-with-view-context view-context
+                                                                 (fn [state event]
+                                                                   (update-in state [:open-values] disj value)))))
+      (-> (text-cell (value-string value))
+          (gui/on-mouse-clicked-with-view-context view-context
+                                                  (fn [state event]
+                                                    (update-in state [:open-values] conj value)))))))
+
+(defn value-inspector-view [view-context state]
+  (l/vertically (controls/text (str "hash " (hash (:value state))))
+                (value-view view-context
+                            (:open-values state)
+                            (:value state))))
+
+(defn value-inspector [view-context]
+  {:local-state {:value 0
+                 :open-values #{}}
+   :view #'value-inspector-view})
+
+
 (defn call-view [view-context state call]
-  (l/vertically (l/horizontally (when (> (count (:child-calls call)) 0)
-                                  (open-button view-context state (:call-id call)))
-                                (text-cell (apply str
-                                                  (flatten [(count (:child-calls call)) ": "
-                                                            "("
-                                                            (name (or (:function-symbol call)
-                                                                      :x))
-                                                            " "
-                                                            (interpose " " (for [argument (:arguments call)]
-                                                                             (value-string argument)))
-                                                            ") -> "
-                                                            (value-string (:result call))]))))
+  (l/vertically (l/horizontally (l/minimum-size 25 0 (if (> (count (:child-calls call)) 0)
+                                                       (open-button view-context state (:call-id call) (count (:child-calls call)))
+                                                       (drawable/->Empty 0 0)))
+
+                                (layouts/->MinimumSize 20 0 [(text-cell (- (:call-ended call)
+                                                                           (:call-started call)))])
+
+                                (text-cell (str "("
+                                                (name (or (:function-symbol call)
+                                                          :x))
+                                                " "))
+                                (interpose (drawable/->Empty 5 0)
+                                           (for [argument (:arguments call)]
+                                             (-> (text-cell (value-string argument) (if (= argument
+                                                                                           (:selected-value state))
+                                                                                      selected-value-color
+                                                                                      default-color))
+                                                 (gui/on-mouse-clicked-with-view-context view-context
+                                                                                         (fn [state event]
+                                                                                           (assoc state :selected-value argument))))))
+                                (text-cell ") -> ")
+                                (-> (text-cell (value-string (:result call))
+                                               (if (= (:result call)
+                                                      (:selected-value state))
+                                                 selected-value-color
+                                                 default-color))
+                                    (gui/on-mouse-clicked-with-view-context view-context
+                                                                            (fn [state event]
+                                                                              (assoc state :selected-value (:result call))))))
                 (when ((:open-calls state) (:call-id call))
                   (l/margin 0 0 0 20
                             (l/vertically (for [child (:child-calls call)]
                                             (call-view view-context state child)))))))
+
+
 
 
 (defn trace-view [view-context {:keys [trace] :as state}]
@@ -257,11 +352,13 @@
                     (gui/on-mouse-clicked-with-view-context view-context
                                                             (fn [state event]
                                                               (async/put! (:input-channel state) {:clear-trace true})
-                                                              state)))
-                (for [root-call (:root-calls trace)]
-                  (when (not ((:hidden-threads state) (:thread root-call)))
-                    (l/horizontally (text-cell (:thread root-call))
-                                    (call-view view-context state root-call))))))
+                                                              (assoc state :selected-value nil))))
+                (layouts/->FloatLeft [(l/vertically (for [root-call (:root-calls trace)]
+                                                      (when (not ((:hidden-threads state) (:thread root-call)))
+                                                        (l/horizontally (text-cell (:thread root-call))
+                                                                        (call-view view-context state root-call)))))
+                                      (l/horizontally (l/margin 0 3 0 3 (drawable/->Rectangle 3 10 [255 255 255 255]))
+                                                      (gui/call-view view-context value-inspector :value-inspector {:value (:selected-value state)}))])))
 
 (defn thread-view [view-context state]
   (layouts/grid (concat [[(l/margin 0 5 0 0 (controls/text "thread"))
@@ -281,8 +378,7 @@
 
 (declare trace-root-view)
 
-(def button-text-color [100 255 255 255])
-(def header-text-color [200 200 200 255])
+
 
 (defn functions-view [view-context state]
   (l/vertically (gui/call-and-bind view-context
@@ -292,18 +388,18 @@
                                    controls/text-editor
                                    :namespace-filter)
                 (l/horizontally (l/margin 0 10 0 0 (l/vertically (for [namespace  (->> (all-ns)
-                                                                     (filter #(if (not (= "" (:namespace-filter state)))
-                                                                                (.contains (str (.name %)) (:namespace-filter state))
-                                                                                true))
-                                                                     (sort-by #(.name %)))]
-                                                 (-> (controls/text (.name namespace)
-                                                                    (if (= (:selected-namespace state)
-                                                                           namespace)
-                                                                      [255 255 255 255]
-                                                                      [100 100 100 255]))
-                                                     (gui/on-mouse-clicked-with-view-context view-context
-                                                                                             (fn [state event]
-                                                                                               (assoc state :selected-namespace namespace)))))))
+                                                                                       (filter #(if (not (= "" (:namespace-filter state)))
+                                                                                                  (.contains (str (.name %)) (:namespace-filter state))
+                                                                                                  true))
+                                                                                       (sort-by #(.name %)))]
+                                                                   (-> (controls/text (.name namespace)
+                                                                                      (if (= (:selected-namespace state)
+                                                                                             namespace)
+                                                                                        [255 255 255 255]
+                                                                                        selected-value-color))
+                                                                       (gui/on-mouse-clicked-with-view-context view-context
+                                                                                                               (fn [state event]
+                                                                                                                 (assoc state :selected-namespace namespace)))))))
                                 (when-let [selected-namespace (:selected-namespace state)]
 
                                   (l/vertically (l/horizontally (l/margin 0 5 0 0 (-> (controls/text "trace all" button-text-color)
