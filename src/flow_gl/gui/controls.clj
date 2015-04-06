@@ -41,7 +41,7 @@
                                               (:has-focus state) [0 200 200 255]
                                               (:mouse-over state) [0 255 255 255]
                                               :default [0 100 100 255]))
-                       (drawable/->Text (:text state)
+                       (drawable/->Text (or (:text state) "")
                                         (font/create "LiberationSans-Regular.ttf" 15)
                                         (if (:has-focus state)
                                           [255 255 255 255]

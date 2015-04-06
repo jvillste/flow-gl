@@ -14,6 +14,11 @@
 
 #_(trace/untrace-ns 'flow-gl.gui.gui)
 
+(defn view [view-context state]
+  (layouts/grid (conj (repeat 10 (repeat 10 (controls/text "bar")))
+                      (conj (take 9 (repeat (controls/text "bar")))
+                            (controls/text (:count state))))))
+
 (.start (Thread. (fn []
                    (do (trace/trace-ns 'flow-gl.gui.layouts)
                        (trace/trace-ns 'flow-gl.gui.gui)
@@ -21,19 +26,5 @@
                                                               {:local-state {:count 0}
                                                                :handle-keyboard-event (fn [state event]
                                                                                         (gui/apply-to-local-state state view-context update-in [:count] inc))
-                                                               
-                                                               :view (fn [view-context state]
-                                                                       (layouts/grid [[(controls/text (:count state))
-                                                                                       (controls/text "foo")]
-                                                                                      [(controls/text "bar")
-                                                                                       (controls/text "baz")]]))})))))))
 
-
-
-
-
-
-
-
-
-
+                                                               :view #'view})))))))

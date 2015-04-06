@@ -632,7 +632,7 @@
 (defn handle-mouse-event [state event view-context handler arguments]
   (apply update-or-apply-in state (concat (:state-path view-context) [:local-state]) handler event arguments))
 
-(defn add-mouse-event-handler-with-context [layoutable view-context handler arguments]
+(defn add-mouse-event-handler-with-context [layoutable view-context handler & arguments]
   (add-mouse-event-handler layoutable handle-mouse-event-with-context view-context handler arguments))
 
 (defn handle-mouse-event-of-type [state event event-type handler arguments]
@@ -641,7 +641,7 @@
     state))
 
 (defn on-mouse-event-with-view-context [layoutable event-type view-context handler & arguments]
-  (add-mouse-event-handler-with-context layoutable view-context handle-mouse-event-of-type [event-type handler arguments]))
+  (apply add-mouse-event-handler-with-context layoutable view-context handle-mouse-event-of-type [event-type handler arguments]))
 
 (defn on-mouse-clicked-with-view-context [layoutable view-context handler & arguments]
   (apply on-mouse-event-with-view-context layoutable :mouse-clicked view-context handler arguments))
@@ -845,6 +845,23 @@
 
 (def state-atom (atom nil))
 
+(defn compress-mouse-wheel-events [events]
+  (let [{mouse-wheel-moved-events true other-events false} (group-by #(= :mouse-wheel-moved (:type %))
+                                                                     events)]
+    (if (seq mouse-wheel-moved-events)
+      (conj other-events
+            (reduce (fn [compressed-mouse-wheel-moved-event mouse-wheel-moved-event]
+                      (-> compressed-mouse-wheel-moved-event
+                          (update-in [:x-distance] + (:x-distance mouse-wheel-moved-event))
+                          (update-in [:y-distance] + (:y-distance mouse-wheel-moved-event))
+                          (update-in [:z-distance] + (:z-distance mouse-wheel-moved-event))))
+                    (assoc (first mouse-wheel-moved-events)
+                      :x-distance 0
+                      :y-distance 0
+                      :z-distance 0)
+                    mouse-wheel-moved-events))
+      other-events)))
+
 (defn event-loop [initial-state app]
   (let [initial-state (assoc initial-state
                         :with-gl-channel (async/chan 50)
@@ -858,8 +875,9 @@
                                     (async/close! (:with-gl-dropping-channel initial-state))
                                     (window/close (:window state)))
 
-                                (let [events (csp/drain (window/event-channel (:window state))
-                                                        (:sleep-time state))
+                                (let [events (-> (csp/drain (window/event-channel (:window state))
+                                                            (:sleep-time state))
+                                                 (compress-mouse-wheel-events))
 
                                       events (if (empty? events)
                                                [{:type :wake-up}]
@@ -977,7 +995,7 @@
 
 (defn bind [view-call view-context state parent-state-key child-state-key]
   (-> view-call
-      (update-in [:state-overrides] assoc child-state-key (parent-state-key state))
+      (update-in [:state-overrides] assoc child-state-key (get state parent-state-key))
       (update-in [:constructor-overrides] assoc [:on-change child-state-key] (fn [state new-value]
                                                                                (apply-to-local-state state
                                                                                                      view-context
@@ -1072,7 +1090,7 @@
 
         view-state (dissoc view-state :sleep-time)
 
-        layoutable (cache/call-with-cache-atom cache
+        layoutable (cache/call-ith-cache-atom cache
                                                run-view
                                                (:view view-state)
                                                view-context
@@ -1130,6 +1148,7 @@
      layoutable]))
 
 (defn resolve-view-calls [cache application-state layoutable]
+  (println "resolving " (type layoutable))
   (loop [application-state application-state
          view-call-paths (:view-call-paths layoutable)
          layoutable layoutable]
@@ -1138,7 +1157,9 @@
             #_(cache/call-with-cache-atom cache #'resolve-view-call cache application-state (get-in layoutable view-call-path))]
         (recur application-state
                (rest view-call-paths)
-               (assoc-in layoutable view-call-path child)))
+               (if (= [] view-call-path)
+                 child
+                 (assoc-in layoutable view-call-path child)) ))
       [application-state layoutable])))
 
 (defn control-to-application [constructor]

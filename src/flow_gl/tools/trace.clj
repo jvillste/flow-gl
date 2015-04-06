@@ -239,7 +239,16 @@
         (str value)
 
         (string? value)
-        value
+        (str "\"" value "\"")
+
+        (set? value)
+        (str "#{" (count value) "}")
+        
+        (instance? clojure.lang.Atom value)
+        "(atom)"
+
+        (instance? clojure.lang.Var value)
+        "(var)"
 
         (map? value)
         (str (map-type-name value) "{" (count (keys value)) "}")
@@ -253,41 +262,78 @@
         (nil? value)
         "nil"
 
-        #_(seq? value)
-        #_(str "(" (count value) ")")
+        (list? value)
+        (str "(" (count value) ")")
 
         :default
         (str (.getSimpleName (type value)))))
 
 
 
-(defn value-view [view-context open-values value]
+(defn value-view [view-context open-values value root-value]
   (if (or (number? value)
           (keyword? value)
           (string? value))
     (text-cell (value-string value))
-    (if (open-values value)
+    (if (or root-value
+            (open-values value))
       (cond (map? value)
-            (l/vertically (-> (text-cell (str "- " (map-type-name value) " {"))
+            (l/vertically (-> (text-cell (str "-" (map-type-name value) "{"))
                               (gui/on-mouse-clicked-with-view-context view-context
                                                                       (fn [state event]
                                                                         (update-in state [:open-values] disj value))))
                           (l/margin 0 0 0 20 (l/vertically (for [key (keys value)]
-                                                             (l/horizontally (value-view view-context open-values key)
-                                                                             (value-view view-context open-values (get value key))))))
+                                                             (l/horizontally (value-view view-context open-values key false)
+                                                                             (value-view view-context open-values (get value key) false)))))
                           (text-cell "}"))
 
             (vector? value)
-            (l/vertically (-> (text-cell "- [")
+            (l/vertically (-> (text-cell "-[")
                               (gui/on-mouse-clicked-with-view-context view-context
                                                                       (fn [state event]
                                                                         (update-in state [:open-values] disj value))))
                           (l/margin 0 0 0 20 (l/vertically (for [content value]
-                                                             (value-view view-context open-values content))))
+                                                             (value-view view-context open-values content false))))
                           
                           (text-cell "]"))
 
+            (list? value)
+            (l/vertically (-> (text-cell "-(")
+                              (gui/on-mouse-clicked-with-view-context view-context
+                                                                      (fn [state event]
+                                                                        (update-in state [:open-values] disj value))))
+                          (l/margin 0 0 0 20 (l/vertically (for [content value]
+                                                             (value-view view-context open-values content false))))
+                          
+                          (text-cell ")"))
 
+
+            (instance?  clojure.lang.Atom value)
+            (l/vertically (-> (text-cell "(atom")
+                              (gui/on-mouse-clicked-with-view-context view-context
+                                                                      (fn [state event]
+                                                                        (update-in state [:open-values] disj value))))
+                          (l/margin 0 0 0 20 (value-view view-context open-values @value false))
+                          (text-cell ")"))
+
+            (instance?  clojure.lang.Var value)
+            (l/vertically (-> (text-cell "(var")
+                              (gui/on-mouse-clicked-with-view-context view-context
+                                                                      (fn [state event]
+                                                                        (update-in state [:open-values] disj value))))
+                          (l/margin 0 0 0 20 (value-view view-context open-values @value false))
+                          (text-cell ")"))
+
+            (set? value)
+            (l/vertically (-> (text-cell "#{")
+                              (gui/on-mouse-clicked-with-view-context view-context
+                                                                      (fn [state event]
+                                                                        (update-in state [:open-values] disj value))))
+                          (l/margin 0 0 0 20 (l/vertically (for [content value]
+                                                             (value-view view-context open-values content false))))
+                          
+                          (text-cell "}"))
+            
             :default (-> (text-cell (str "-" (value-string value)))
                          (gui/on-mouse-clicked-with-view-context view-context
                                                                  (fn [state event]
@@ -301,7 +347,8 @@
   (l/vertically (controls/text (str "hash " (hash (:value state))))
                 (value-view view-context
                             (:open-values state)
-                            (:value state))))
+                            (:value state)
+                            true)))
 
 (defn value-inspector [view-context]
   {:local-state {:value 0

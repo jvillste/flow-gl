@@ -2,7 +2,8 @@
   (:require  (flow-gl.gui [layout :as layout]
                           [gui :as gui]
                           [layoutable :as layoutable]
-                          [drawable :as drawable]))
+                          [drawable :as drawable]
+                          [cache :as cache]))
   (:use clojure.test))
 
 
@@ -297,7 +298,7 @@
                           (:width (layoutable/preferred-size element
                                                              java.lang.Integer/MAX_VALUE
                                                              java.lang.Integer/MAX_VALUE)))
-                        (:members @size-group) )
+                        (:members size-group) )
                    0)))
 
 (defn size-group-height [size-group]
@@ -305,7 +306,7 @@
                           (:height (layoutable/preferred-size element
                                                               java.lang.Integer/MAX_VALUE
                                                               java.lang.Integer/MAX_VALUE)))
-                        (:members @size-group))
+                        (:members size-group))
                    0)))
 
 (layout/deflayout-not-memoized SizeGroupMember [size-group mode children]
@@ -321,10 +322,10 @@
   (preferred-size [this available-width available-height]
                   (let [child-size (layoutable/preferred-size (first children) available-width available-width)]
                     {:width (if (#{:width :both} mode)
-                              (size-group-width size-group)
+                              (cache/call-with-cache-atom layout/cache size-group-width @size-group)
                               (:width child-size))
                      :height (if (#{:height :both} mode)
-                               (size-group-height size-group)
+                               (cache/call-with-cache-atom layout/cache size-group-height @size-group)
                                (:height child-size))})))
 
 (defn create-size-group []
@@ -375,17 +376,15 @@
                      :height (apply max (map :height
                                              child-sizes))})))
 
-#_(layout/deflayout-with-state SizeDependent [preferred-size-function child-function]
-    (layout [this state requested-width requested-height]
-            (binding [gui/current-view-state-atom (atom state)]
-              (let [layoutable (child-function state requested-width requested-height)
-                    [state child-layout] (layout/set-dimensions-and-layout layoutable @gui/current-view-state-atom
-                                                                           0 0 requested-width requested-height)]
-                [state
-                 (assoc this :children [child-layout])])))
+(layout/deflayout-with-state SizeDependent [preferred-size-function child-function]
+  (layout [this state requested-width requested-height]
+          (let [layoutable (child-function state requested-width requested-height)
+                [state child-layout] (layout/set-dimensions-and-layout layoutable state 0 0 requested-width requested-height)]
+            [state
+             (assoc this :children [child-layout])]))
 
-    (preferred-size [this available-width available-height]
-                    (preferred-size-function available-width available-height)))
+  (preferred-size [this available-width available-height]
+                  (preferred-size-function available-width available-height)))
 
 
 (layout/deflayout-not-memoized Translate [translate-x translate-y child]

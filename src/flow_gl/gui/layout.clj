@@ -259,8 +259,6 @@
   (let [[layout-name layout-parameters & layout-body] layout-implementation
         layout-parameters (vec (concat layout-parameters parameters))
         [preferred-size-name preferred-size-parameters & preferred-size-body] preferred-size-implementation
-        #_preferred-size-body #_`(do (flow-gl.debug/add-event [:preferred-size ~name])
-                                 ~@preferred-size-body)
         preferred-size-parameters (vec (concat preferred-size-parameters parameters))
         layout-implementation-symbol (symbol (str name "-layout"))
         preferred-size-implementation-symbol (symbol (str name "-preferred-size"))]
