@@ -170,6 +170,7 @@
    :view #'barless-scroll-panel-view})
 
 (defn barless-root-view [view-context state]
+  (println "common" (keys view-context))
   (gui/call-view view-context
                  barless-scroll-panel
                  :scroll-panel

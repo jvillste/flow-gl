@@ -1065,9 +1065,9 @@
 
 (def resolve-view-calls)
 
-(defn run-view-call [cache state-path-part parent-view-context application-state constructor constructor-parameters state-overrides constructor-overrides]
-  (let [parent-view-state (get-in application-state (:state-path parent-view-context))
-        state-path (concat (:state-path parent-view-context) state-path-part)
+(defn run-view-call [cache parent-state-path state-path-part parent-view-context application-state constructor constructor-parameters state-overrides constructor-overrides]
+  (let [parent-view-state (get-in application-state parent-state-path)
+        state-path (concat parent-state-path state-path-part)
 
         view-context (assoc parent-view-context
                        :state-path state-path)
@@ -1090,7 +1090,7 @@
 
         view-state (dissoc view-state :sleep-time)
 
-        layoutable (cache/call-ith-cache-atom cache
+        layoutable (cache/call-with-cache-atom cache
                                                run-view
                                                (:view view-state)
                                                view-context
@@ -1105,6 +1105,7 @@
                                                                    #'resolve-view-calls
                                                                    cache
                                                                    application-state
+                                                                   state-path
                                                                    layoutable)
 
         application-state (update-in application-state state-path remove-unused-children view-context)
@@ -1117,9 +1118,10 @@
 
 
 
-(defn resolve-view-call [cache application-state view-call]
+(defn resolve-view-call [cache application-state parent-state-path view-call]
   (let [state-path-part [:child-states (:child-id view-call)]
         [application-state layoutable] (run-view-call cache
+                                                      parent-state-path
                                                       state-path-part
                                                       (:parent-view-context view-call)
                                                       application-state
@@ -1147,24 +1149,24 @@
 
      layoutable]))
 
-(defn resolve-view-calls [cache application-state layoutable]
-  (println "resolving " (type layoutable))
+(defn resolve-view-calls [cache application-state state-path layoutable]
   (loop [application-state application-state
          view-call-paths (:view-call-paths layoutable)
          layoutable layoutable]
     (if-let [view-call-path (first view-call-paths)]
-      (let [[application-state child] (resolve-view-call cache application-state (get-in layoutable view-call-path))
+      (let [[application-state child] (resolve-view-call cache application-state state-path (get-in layoutable view-call-path))
             #_(cache/call-with-cache-atom cache #'resolve-view-call cache application-state (get-in layoutable view-call-path))]
         (recur application-state
                (rest view-call-paths)
                (if (= [] view-call-path)
                  child
-                 (assoc-in layoutable view-call-path child)) ))
+                 (assoc-in layoutable view-call-path child))))
       [application-state layoutable])))
 
 (defn control-to-application [constructor]
   (fn [application-state]
     (let [[application-state layoutable] (run-view-call (:cache application-state)
+                                                        []
                                                         [:view-state]
                                                         {:frame-started (:frame-started application-state)
                                                          :state-path []
