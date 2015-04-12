@@ -77,7 +77,7 @@
     (destructor (:local-state view-state)))
 
   (close-control-channel view-state)
-  (doseq [child-view-state (vals (:child-states view-state))]
+  (doseq [child-view-state (vals (-> view-state :children :child-states))]
     (call-destructors child-view-state)))
 
 (defn call-destructors-when-close-requested [state]
@@ -704,15 +704,15 @@
 
 (def child-focus-handlers
   {:first-focusable-child (fn [state]
-                            [:child-states (first (:children state))])
-   :next-focusable-child (fn [this currently-focused-path-part]
-                           (let [child-index (first (positions #{currently-focused-path-part} (map #(conj [:child-states] %)
-                                                                                                   (:children this))))]
+                            [:children :child-states (first (-> state :children :child-ids))])
+   :next-focusable-child (fn [state currently-focused-path-part]
+                           (let [child-index (first (positions #{currently-focused-path-part} (map #(conj [:children :child-states] %)
+                                                                                                   (-> state :children :child-ids))))]
                              (let [new-child-index (inc child-index)]
                                (if (= new-child-index
-                                      (count (:children this)))
+                                      (count (-> state :children :child-ids)))
                                  nil
-                                 [:child-states (get (:children this)
+                                 [:children :child-states (get (-> state :children :child-ids)
                                                      new-child-index)]))))})
 
 (defn initial-focus-paths [state]
@@ -809,17 +809,17 @@
 
 (defn reset-children [state]
   (-> state
-      (assoc :old-children (or (:children state)
-                               []))
-      (assoc :children [])))
+      (assoc-in [:children :old-child-ids]  (or (-> state :children :child-ids)
+                                                []))
+      (assoc-in [:children :child-ids] [])))
 
 (defn remove-unused-children [view-state view-context]
-  (let [child-set (set (:children view-state))
-        children-to-be-removed (->> (:old-children view-state)
+  (let [child-set (set (-> view-state :children :child-ids))
+        children-to-be-removed (->> (-> view-state :children :old-child-ids)
                                     (filter (complement child-set)))]
     (-> (reduce (fn [view-state child-to-be-removed]
-                  (do (call-destructors (get-in view-state [:child-states child-to-be-removed]))
-                      (update-in view-state [:child-states] dissoc child-to-be-removed)))
+                  (do (call-destructors (get-in view-state [:children :child-states child-to-be-removed]))
+                      (update-in view-state [:children :child-states] dissoc child-to-be-removed)))
                 view-state
                 children-to-be-removed)
         (reset-children))))
@@ -1119,7 +1119,7 @@
 
 
 (defn resolve-view-call [cache application-state parent-state-path view-call]
-  (let [state-path-part [:child-states (:child-id view-call)]
+  (let [state-path-part [:children :child-states (:child-id view-call)]
         [application-state layoutable] (run-view-call cache
                                                       parent-state-path
                                                       state-path-part
@@ -1143,7 +1143,7 @@
                 (-> view-call :parent-view-context :state-path)
                 (fn [parent-view-state]
                   (-> parent-view-state
-                      (update-in [:children] conj (:child-id view-call))
+                      (update-in [:children :child-ids] conj (:child-id view-call))
                       (assoc :sleep-time (choose-sleep-time (:sleep-time parent-view-state)
                                                             (get-in parent-view-state (conj state-path-part :sleep-time)))))))
 

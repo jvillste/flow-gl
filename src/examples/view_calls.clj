@@ -1,5 +1,6 @@
 (ns examples.view-calls
   (:require [clojure.core.async :as async]
+            [flow-gl.tools.trace :as trace]
             (flow-gl.opengl.jogl [opengl :as opengl]
                                  [window :as jogl-window]
                                  [quad :as quad])
@@ -73,14 +74,18 @@
                                             counter
                                             :counter-2)
 
-                         (gui/call-and-bind view-context
-                                            state
-                                            :text
-                                            :text
-                                            controls/text-editor
-                                            :text-editor)))})
+                         (when (even? (:count-1 state))
+                           (gui/call-and-bind view-context
+                                              state
+                                              :text
+                                              :text
+                                              controls/text-editor
+                                              :text-editor))))})
 
 (defn start []
   #_(.start (Thread. (fn []
                        (profiler/with-profiler (gui/start-control app)))))
-  (.start (Thread. (fn [] (gui/start-control app)))))
+
+  (.start (Thread. (fn []
+                     (trace/trace-ns 'flow-gl.gui.gui)
+                     (trace/with-trace (gui/start-control app))))))
