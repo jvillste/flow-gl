@@ -250,6 +250,9 @@
         (instance? clojure.lang.Var value)
         "(var)"
 
+        (instance? clojure.lang.LazySeq value)
+        (str "(lazy-seq " (count (take 20 value)) ")")
+
         (map? value)
         (str (map-type-name value) "{" (count (keys value)) "}")
 
@@ -297,6 +300,17 @@
                           
                           (text-cell "]"))
 
+            (instance? clojure.lang.LazySeq value)
+            (l/vertically (-> (text-cell "(lazy-seq")
+                              (gui/on-mouse-clicked-with-view-context view-context
+                                                                      (fn [state event]
+                                                                        (update-in state [:open-values] disj value))))
+                          (l/margin 0 0 0 20 (l/vertically (for [content value]
+                                                             (value-view view-context open-values content false))))
+                          
+                          (text-cell ")"))
+
+            
             (list? value)
             (l/vertically (-> (text-cell "-(")
                               (gui/on-mouse-clicked-with-view-context view-context

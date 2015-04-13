@@ -35,23 +35,32 @@
                    (font/create "LiberationSans-Regular.ttf" 25)
                    [255 255 255 255]))
 
+(def state-atom (atom nil))
+
+
+(defn counter-view [view-context state]
+  (l/horizontally (gui/call-and-bind view-context
+                                     state
+                                     :text
+                                     :text
+                                     controls/text-editor
+                                     :text-editor)
+                  (-> (text (:count state))
+                      (gui/add-mouse-event-handler (fn [state event]
+                                                     (if (= (event :type)
+                                                            :mouse-clicked)
+                                                       (let [increment (case [(event :key) (event :shift)]
+                                                                         [:left-button false] 1
+                                                                         [:left-button true] 10
+                                                                         [:right-button false] -1
+                                                                         [:right-button true] -10)]
+                                                         (gui/update-binding state
+                                                                             view-context
+                                                                             (fn [old-value] (+ old-value increment))
+                                                                             :count))
+                                                       state))))))
 (defn counter [view-context]
-  {:view (fn [view-context state]
-           (-> (text (:count state))
-               (gui/add-mouse-event-handler (fn [state event]
-                                              (if (= (event :type)
-                                                     :mouse-clicked)
-                                                (let [increment (case [(event :key) (event :shift)]
-                                                                  [:left-button false] 1
-                                                                  [:left-button true] 10
-                                                                  [:right-button false] -1
-                                                                  [:right-button true] -10)]
-                                                  (println "updating binding" (:state-path view-context))
-                                                  (gui/update-binding state
-                                                                      view-context
-                                                                      (fn [old-value] (+ old-value increment))
-                                                                      :count))
-                                                state)))))})
+  {:view #'counter-view})
 
 (defn app [view-context]
   {:local-state {:count-1 0
@@ -87,5 +96,10 @@
                        (profiler/with-profiler (gui/start-control app)))))
 
   (.start (Thread. (fn []
-                     (trace/trace-ns 'flow-gl.gui.gui)
-                     (trace/with-trace (gui/start-control app))))))
+                     #_(trace/untrace-ns 'flow-gl.gui.gui)
+                     (trace/trace-var* 'flow-gl.gui.gui/resolve-view-calls)
+                     (trace/trace-var* #'counter-view)
+                     (trace/with-trace (gui/start-control app)))))
+
+  #_(.start (Thread. (fn []
+                       (gui/start-control app)))))
