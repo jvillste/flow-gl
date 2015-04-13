@@ -897,7 +897,7 @@
 
 ;; View calls
 
-(defrecord ViewCall [parent-view-context constructor child-id state-overrides constructor-parameters constructor-overrides])
+(defrecord ViewCall [constructor child-id state-overrides constructor-parameters constructor-overrides])
 
 (defn view-call-paths
   ([layoutable]
@@ -1007,20 +1007,20 @@
     (update-binding state view-context function key)))
 
 (defn call-view
-  ([parent-view-context constructor child-id]
-     (call-view parent-view-context constructor child-id {} [] {}))
+  ([constructor child-id]
+     (call-view constructor child-id {} [] {}))
 
-  ([parent-view-context constructor child-id state-overrides]
-     (call-view parent-view-context constructor child-id state-overrides [] {}))
+  ([constructor child-id state-overrides]
+     (call-view constructor child-id state-overrides [] {}))
 
-  ([parent-view-context constructor child-id state-overrides constructor-parameters]
-     (call-view parent-view-context constructor child-id state-overrides constructor-parameters {}))
+  ([constructor child-id state-overrides constructor-parameters]
+     (call-view constructor child-id state-overrides constructor-parameters {}))
 
-  ([parent-view-context constructor child-id state-overrides constructor-parameters constructor-overrides]
-     (->ViewCall parent-view-context constructor child-id state-overrides constructor-parameters constructor-overrides)))
+  ([constructor child-id state-overrides constructor-parameters constructor-overrides]
+     (->ViewCall constructor child-id state-overrides constructor-parameters constructor-overrides)))
 
 (defn call-and-bind [view-context state from-key to-key & call-view-arguments]
-  (-> (apply call-view view-context call-view-arguments)
+  (-> (apply call-view call-view-arguments)
       (bind view-context
             state
             from-key
@@ -1125,7 +1125,6 @@
 
         layoutable (conj layoutable
                          (dissoc view-call
-                                 :parent-view-context
                                  :constructor
                                  :child-id
                                  :state-overrides

@@ -170,9 +170,7 @@
    :view #'barless-scroll-panel-view})
 
 (defn barless-root-view [view-context state]
-  (println "common" (keys view-context))
-  (gui/call-view view-context
-                 barless-scroll-panel
+  (gui/call-view barless-scroll-panel
                  :scroll-panel
                  {:content (l/vertically (for [i (range 5)]
                                            (gui/call-and-bind view-context state i :text controls/text-editor i)))}))
@@ -183,12 +181,13 @@
 #_(flow-gl.debug/set-active-channels :all)
 
 (defn start []
-  #_(.start (Thread. (fn []
-                       (trace/trace-ns 'flow-gl.gui.gui)
+  (.start (Thread. (fn []
+                       #_(trace/trace-ns 'flow-gl.gui.gui)
+                       (trace/trace-var* 'flow-gl.gui.gui/resolve-view-calls)
                        (trace/with-trace
                          (gui/start-control barless-root)))))
 
-  (.start (Thread. (fn []
+  #_(.start (Thread. (fn []
                      (gui/start-control barless-root)))))
 
 
