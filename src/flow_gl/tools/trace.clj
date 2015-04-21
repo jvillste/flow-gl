@@ -409,6 +409,7 @@
 
 
 (defn trace-view [view-context {:keys [trace] :as state}]
+  (println "trace-view " (schema.core/fn-validation?))
   (l/vertically (-> (controls/text "clear" button-text-color)
                     (gui/on-mouse-clicked-with-view-context view-context
                                                             (fn [state event]
@@ -419,7 +420,7 @@
                                                         (l/horizontally (text-cell (:thread root-call))
                                                                         (call-view view-context state root-call)))))
                                       (l/horizontally (l/margin 0 3 0 3 (drawable/->Rectangle 3 10 [255 255 255 255]))
-                                                      (gui/call-view view-context value-inspector :value-inspector {:value (:selected-value state)}))])))
+                                                      (gui/call-view  value-inspector :value-inspector {:value (:selected-value state)}))])))
 
 (defn thread-view [view-context state]
   (layouts/grid (concat [[(l/margin 0 5 0 0 (controls/text "thread"))
@@ -488,12 +489,11 @@
                                                                                (gui/on-mouse-clicked-with-view-context view-context
                                                                                                                        (fn [state event]
                                                                                                                          (trace-var* function-var)
-                                                                                                                         (assoc state :refresh-time (.getTime (java.util.Date.)))))))]))))
-                                  ))))
+                                                                                                                         (assoc state :refresh-time (.getTime (java.util.Date.)))))))]))))))))
 
 
 (defn trace-root-view [view-context state]
-  (l/preferred (gui/call-view view-context tab :tab {:tabs [{:title "trace"
+  (l/preferred (gui/call-view tab :tab  {:tabs [{:title "trace"
                                                              :content (trace-view view-context state)}
                                                             {:title "threads"
                                                              :content (thread-view view-context state)}

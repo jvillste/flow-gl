@@ -122,14 +122,10 @@ Render tree transformer node
 TODO
 -----
 
-- add frame started as a separate parameter to run-view-call
-- add common view context as a separate parameter to run-view-call
-ok - add parent state-path as a separate parameter to run-view-call. this can be derived from the view call hierarchy.
+- scroll bars to scroll view
+-- make size dependent work again
 
-- Make run-view-call cacheable by not giving it the whole application state
--- How to make it possible to bind controls to their grand parents' state? For example controls inside scroll panels or tab panels.
---- run-view-call needs only the called views state i.e. the parent views child states and their child states.
---- It must be convenient to provide child controls view-context as the parent view-context for a view call. The child control here would be for example a scroll panel.
+- make scroll view clip the scrolled area
 
 - how to force view refres after mouse event handler with side effects ala tracing a function in tools.trace
 

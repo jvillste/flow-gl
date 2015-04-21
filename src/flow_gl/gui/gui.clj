@@ -19,7 +19,8 @@
             [clojure.string :as string]
             (flow-gl.graphics [font :as font]
                               [buffered-image :as buffered-image])
-            [flow-gl.debug :as debug])
+            [flow-gl.debug :as debug]
+            [schema.core :as s])
   (:import [java.io File]
            [java.util.concurrent Executors]
            [java.lang Runnable]
@@ -27,6 +28,7 @@
   (:use flow-gl.utils
         midje.sweet
         clojure.test))
+
 
 (defn create-state-path-part [child-id]
   [:children :child-states child-id])
@@ -407,9 +409,9 @@
       (throw e))))
 
 (debug/defn-timed render-drawables-afterwards [state]
-  (async/put! (:with-gl-channel state)
-              {:function render
-               :arguments [(:layout state)]})
+  (async/>!! (:with-gl-channel state)
+             {:function render
+              :arguments [(:layout state)]})
 
   state)
 
@@ -859,10 +861,13 @@
 
 (defn event-loop [initial-state app]
   (let [initial-state (assoc initial-state
-                        :with-gl-channel (async/chan 50)
+                        :with-gl-channel (async/chan)
                         :with-gl-dropping-channel (async/chan (async/dropping-buffer 1)))]
 
     (.start (Thread. (fn [] (loop [state initial-state]
+
+                              #_(Thread/sleep 100)
+
                               (reset! state-atom state)
 
                               (if (:close-requested state)
@@ -890,6 +895,7 @@
 
                    (:with-gl-channel initial-state) ([{:keys [function arguments]}]
                                                        (when function (recur (window/with-gl (:window initial-state) gl
+                                                                               #_(Thread/sleep 100)
                                                                                (apply function
                                                                                       (assoc gpu-state :gl gl)
                                                                                       arguments)))))
@@ -1006,6 +1012,24 @@
   (fn [state event]
     (update-binding state view-context function key)))
 
+(s/defn call-view
+  ([constructor :- s/Int child-id]
+     (call-view constructor child-id {} [] {}))
+
+  ([constructor :- s/Int child-id state-overrides]
+     (call-view constructor child-id state-overrides [] {}))
+
+  ([constructor :- s/Int child-id state-overrides constructor-parameters]
+     (call-view constructor child-id state-overrides constructor-parameters {}))
+
+  ([constructor :- s/Int
+    child-id
+    state-overrides :- {}
+    constructor-parameters :- []
+    constructor-overrides :- {}]
+     #_{:pre [(fn? constructor)]}
+     (->ViewCall constructor child-id state-overrides constructor-parameters constructor-overrides)))
+
 (defn call-view
   ([constructor child-id]
      (call-view constructor child-id {} [] {}))
@@ -1017,6 +1041,7 @@
      (call-view constructor child-id state-overrides constructor-parameters {}))
 
   ([constructor child-id state-overrides constructor-parameters constructor-overrides]
+     {:pre [(fn? constructor)]}
      (->ViewCall constructor child-id state-overrides constructor-parameters constructor-overrides)))
 
 (defn call-and-bind [view-context state from-key to-key & call-view-arguments]
@@ -1086,7 +1111,7 @@
         view-state (assoc view-state
                      :sleep-time (:sleep-time layoutable))
 
-        
+
 
         [child-children layoutable] (cache/call-with-cache-atom cache
                                                                 #'resolve-view-calls

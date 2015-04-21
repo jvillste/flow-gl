@@ -7,7 +7,8 @@
                          [gui :as gui]
                          [events :as events]
                          [layoutable :as layoutable])
-            [flow-gl.tools.trace :as trace]
+            (flow-gl.tools [profiler :as profiler]
+                           [trace :as trace])
             (flow-gl.graphics [font :as font]))
   (:use flow-gl.utils
         clojure.test))
@@ -160,6 +161,8 @@
                                                                    (fn [state event]
                                                                      (if (= (:type event)
                                                                             :mouse-wheel-moved)
+                                                                       #_(do (println "moved" (:time event))
+                                                                             state)
                                                                        (update-in state [:scroll-position] (fn [position]
                                                                                                              (max 0 (+ position
                                                                                                                        (:y-distance event)))))
@@ -172,8 +175,10 @@
 (defn barless-root-view [view-context state]
   (gui/call-view barless-scroll-panel
                  :scroll-panel
-                 {:content (l/vertically (for [i (range 5)]
-                                           (gui/call-and-bind view-context state i :text controls/text-editor i)))}))
+                 {:content (l/vertically (for [i (range 20)]
+                                           (controls/text i)))
+                  #_(l/vertically (for [i (range 5)]
+                                    (gui/call-and-bind view-context state i :text controls/text-editor i)))}))
 
 (defn barless-root [view-context]
   {:view #'barless-root-view})
@@ -181,17 +186,25 @@
 #_(flow-gl.debug/set-active-channels :all)
 
 (defn start []
-  (.start (Thread. (fn []
-                       #_(trace/trace-ns 'flow-gl.gui.gui)
-                       (trace/trace-var* 'flow-gl.gui.gui/resolve-view-calls)
-                       (trace/with-trace
-                         (gui/start-control barless-root)))))
-
   #_(.start (Thread. (fn []
-                     (gui/start-control barless-root)))))
+                     (trace/trace-ns 'flow-gl.gui.gui)
+                     #_(trace/trace-var* 'flow-gl.gui.gui/resolve-view-calls)
+                     (trace/with-trace
+                       (gui/start-control barless-root)))))
+
+  (.start (Thread. (fn []
+                     (gui/start-control barless-root))))
+
+  #_(profiler/with-profiler (gui/start-control barless-root)))
+
+
+#_(schema.core/with-fn-validation (trace/with-trace
+                                    (println "foo" (schema.core/fn-validation?))
+                                    (Thread/sleep 5000)
+                                    (println "foo 2" (schema.core/fn-validation?))))
+
 
 
 #_(run-tests)
 
 ;; flow-gl.debug/debug-timed
-
