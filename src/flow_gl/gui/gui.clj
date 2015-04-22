@@ -466,8 +466,7 @@
                                            width
                                            height
                                            (:cache state))
-                         [state (:layoutable state)]
-                         )
+                         [state (:layoutable state)])
         layout (-> layout
                    (assoc :x 0
                           :y 0
@@ -1175,27 +1174,31 @@
                                                            (:sleep-time child-layoutable)))))))
       [children layoutable])))
 
-(defn control-to-application [constructor]
-  (fn [application-state]
-    (let [[children layoutable] (run-view-call (:cache application-state)
-                                               []
-                                               (or (:children application-state)
-                                                   {})
-                                               :root
-                                               (:common-view-context application-state)
-                                               (:frame-started application-state)
-                                               constructor
-                                               []
-                                               {}
-                                               {})
+(defn control-to-application
+  ([constructor]
+     (control-to-application constructor {}))
+  
+  ([constructor constructor-overrides]
+     (fn [application-state]
+       (let [[children layoutable] (run-view-call (:cache application-state)
+                                                  []
+                                                  (or (:children application-state)
+                                                      {})
+                                                  :root
+                                                  (:common-view-context application-state)
+                                                  (:frame-started application-state)
+                                                  constructor
+                                                  []
+                                                  {} 
+                                                  constructor-overrides)
 
-          #_application-state #_(set-focus application-state
-                                           (initial-focus-paths view-state))]
+             #_application-state #_(set-focus application-state
+                                              (initial-focus-paths view-state))]
 
-      (assoc application-state
-        :children children
-        :layoutable layoutable
-        :sleep-time (get-in application-state [:children :child-states :root :sleep-time])))))
+         (assoc application-state
+           :children children
+           :layoutable layoutable
+           :sleep-time (get-in application-state [:children :child-states :root :sleep-time]))))))
 
 (defn start-control [control]
   (start-app (control-to-application control)))

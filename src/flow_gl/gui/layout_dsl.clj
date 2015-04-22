@@ -24,6 +24,11 @@
 (def-dsl preferred [content]
   (layouts/->Preferred [content]))
 
+(def-dsl absolute [& contents]
+  (let [contents (flatten-contents contents)]
+    (when (seq contents)
+      (layouts/->Absolute contents))))
+
 (def-dsl horizontally [& contents]
   (layouts/->HorizontalStack (flatten-contents contents)))
 

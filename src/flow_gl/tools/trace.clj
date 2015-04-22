@@ -528,5 +528,20 @@
      (debug/with-debug-channel input-channel# ~@body)
      (async/close! input-channel#)))
 
+
+(defn inspect-value [value]
+  (.start (Thread. (fn []
+                     (gui/start-app (gui/control-to-application value-inspector {:value value}))))))
+
 (run-tests)
 (gui/redraw-last-started-view)
+
+
+
+
+
+
+
+
+
+

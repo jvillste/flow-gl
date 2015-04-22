@@ -376,7 +376,7 @@
                      :height (apply max (map :height
                                              child-sizes))})))
 
-(layout/deflayout-with-state SizeDependent [preferred-size-function child-function]
+#_(layout/deflayout-with-state SizeDependent [preferred-size-function child-function]
   (layout [this state requested-width requested-height]
           (let [layoutable (child-function state requested-width requested-height)
                 [state child-layout] (layout/set-dimensions-and-layout layoutable state 0 0 requested-width requested-height)]
@@ -385,6 +385,18 @@
 
   (preferred-size [this available-width available-height]
                   (preferred-size-function available-width available-height)))
+
+(layout/deflayout-not-memoized SizeDependent [layout-function children]
+  (layout [this requested-width requested-height]
+          (assoc this :children
+                 [(layout/set-dimensions-and-layout (layout-function (first children) requested-width requested-height)
+                                                    0
+                                                    0
+                                                    requested-width
+                                                    requested-height)]))
+
+  (preferred-size [vertical-stack available-width available-height]
+                  (layoutable/preferred-size (first children) available-width available-height)))
 
 
 (layout/deflayout-not-memoized Translate [translate-x translate-y child]

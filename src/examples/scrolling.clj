@@ -155,30 +155,52 @@
                                                                                                (text i)))})})))
 
 (defn barless-scroll-panel-view [view-context state]
-  (layouts/->Margin (- (:scroll-position state)) 0 0 0
-                    [(-> (:content state)
-                         (gui/add-mouse-event-handler-with-context view-context
-                                                                   (fn [state event]
-                                                                     (if (= (:type event)
-                                                                            :mouse-wheel-moved)
-                                                                       #_(do (println "moved" (:time event))
-                                                                             state)
-                                                                       (update-in state [:scroll-position] (fn [position]
-                                                                                                             (max 0 (+ position
-                                                                                                                       (:y-distance event)))))
-                                                                       state))))]))
+  (layouts/->SizeDependent (fn [child requested-width requested-height]
+                             (let [{preferred-width :width preferred-height :height} (layoutable/preferred-size child requested-width requested-height)]
+                               (l/superimpose (layouts/->Margin (- (:scroll-position-y state)) 0 0 (- (:scroll-position-x state))
+                                                                [(l/preferred child)])
+                                              (-> (l/absolute (when (< requested-height preferred-height)
+                                                                (assoc (drawable/->Rectangle 10 requested-height [255 0 0 100])
+                                                                  :x (- requested-width 10)
+                                                                  :y 0))
+                                                              (when (< requested-width preferred-width)
+                                                                (assoc (drawable/->Rectangle requested-width 10 [255 0 0 100])
+                                                                  :x 0
+                                                                  :y (- requested-height 10))))
+                                                  (gui/add-mouse-event-handler-with-context view-context
+                                                                                            (fn [state event]
+                                                                                              (if (= (:type event)
+                                                                                                     :mouse-wheel-moved)
+                                                                                                (-> state
+                                                                                                    (update-in [:scroll-position-x] (fn [position]
+                                                                                                                                            (max 0 (+ position
+                                                                                                                                                      (:x-distance event)))))
+                                                                                                    (update-in [:scroll-position-y] (fn [position]
+                                                                                                                                            (max 0 (+ position
+                                                                                                                                                      (:y-distance event))))))
+                                                                                                
+                                                                                                state)))))))
+                           [(:content state)]))
 
 (defn barless-scroll-panel [view-context]
-  {:local-state {:scroll-position 0}
+  {:local-state {:scroll-position-x 0
+                 :scroll-position-y 0}
    :view #'barless-scroll-panel-view})
 
 (defn barless-root-view [view-context state]
-  (gui/call-view barless-scroll-panel
-                 :scroll-panel
-                 {:content (l/vertically (for [i (range 20)]
-                                           (controls/text i)))
-                  #_(l/vertically (for [i (range 5)]
-                                    (gui/call-and-bind view-context state i :text controls/text-editor i)))}))
+  (l/horizontally (gui/call-view barless-scroll-panel
+                               :scroll-panel-1
+                               {:content (l/vertically (for [i (range 20)]
+                                                         (controls/text (str "as fasf asdf asf asdf asdf ads faas fas fasdf" i))))
+                                #_(l/vertically (for [i (range 5)]
+                                                  (gui/call-and-bind view-context state i :text controls/text-editor i)))})
+                
+                (gui/call-view barless-scroll-panel
+                               :scroll-panel-2
+                               {:content (l/vertically (for [i (range 20)]
+                                                         (controls/text (str "as fasf asdf asf asdf asdf ads faas fas fasdf" i))))
+                                #_(l/vertically (for [i (range 5)]
+                                                  (gui/call-and-bind view-context state i :text controls/text-editor i)))})))
 
 (defn barless-root [view-context]
   {:view #'barless-root-view})
@@ -187,21 +209,15 @@
 
 (defn start []
   #_(.start (Thread. (fn []
-                     (trace/trace-ns 'flow-gl.gui.gui)
-                     #_(trace/trace-var* 'flow-gl.gui.gui/resolve-view-calls)
-                     (trace/with-trace
-                       (gui/start-control barless-root)))))
+                       (trace/trace-ns 'flow-gl.gui.gui)
+                       #_(trace/trace-var* 'flow-gl.gui.gui/resolve-view-calls)
+                       (trace/with-trace
+                         (gui/start-control barless-root)))))
 
   (.start (Thread. (fn []
                      (gui/start-control barless-root))))
 
   #_(profiler/with-profiler (gui/start-control barless-root)))
-
-
-#_(schema.core/with-fn-validation (trace/with-trace
-                                    (println "foo" (schema.core/fn-validation?))
-                                    (Thread/sleep 5000)
-                                    (println "foo 2" (schema.core/fn-validation?))))
 
 
 
