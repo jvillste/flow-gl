@@ -570,7 +570,13 @@
     (move-hierarchical-state state mouse-over-paths :mouse-over-paths :mouse-over-child :mouse-over :on-mouse-enter :on-mouse-leave)
     state))
 
+(defn common-prefix [paths]
+  (for [parts (apply map vector paths)
+        :while (apply = parts)]
+    (first parts)))
+
 (defn apply-mouse-over-layout-event-handlers [state layout new-mouse-over-layout-paths]
+  (println "mouse over" new-mouse-over-layout-paths)
   (if (not (= new-mouse-over-layout-paths
               (:mouse-over-layout-paths state)))
     (let [old-mouse-over-layout-paths-set (apply hash-set (:mouse-over-layout-paths state))
@@ -1177,7 +1183,7 @@
 (defn control-to-application
   ([constructor]
      (control-to-application constructor {}))
-  
+
   ([constructor constructor-overrides]
      (fn [application-state]
        (let [[children layoutable] (run-view-call (:cache application-state)
@@ -1189,7 +1195,7 @@
                                                   (:frame-started application-state)
                                                   constructor
                                                   []
-                                                  {} 
+                                                  {}
                                                   constructor-overrides)
 
              #_application-state #_(set-focus application-state

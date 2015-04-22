@@ -122,6 +122,8 @@ Render tree transformer node
 TODO
 -----
 
+- mouse enter and leave events should not propagate to parents that are unaffected by the mouse movement
+
 - scroll bars to scroll view
 -- make size dependent work again
 

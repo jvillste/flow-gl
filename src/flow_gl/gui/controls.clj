@@ -3,6 +3,7 @@
             (flow-gl.gui [drawable :as drawable]
                          [layout :as layout]
                          [layouts :as layouts]
+                         [layout-dsl :as l]
                          [gui :as gui]
                          [events :as events]
                          [layoutable :as layoutable])
@@ -62,6 +63,75 @@
                       (font/create "LiberationSans-Regular.ttf" 15)
                       color)))
 
+
+
+(defn scroll-panel-view [view-context state]
+  (layouts/->SizeDependent (fn [child requested-width requested-height]
+                             (let [{preferred-width :width preferred-height :height} (layoutable/preferred-size child requested-width requested-height)
+                                   maximum-x-scroll (- preferred-width requested-width)
+                                   maximum-y-scroll (- preferred-height requested-height)
+                                   scroll-bar-width 5
+                                   scroll-bar-color [255 255 255 120]]
+                               (-> (l/superimpose (layouts/->Margin (- (:scroll-position-y state)) 0 0 (- (:scroll-position-x state))
+                                                                    [(l/preferred child)])
+                                                  (when true #_(:mouse-over state)
+                                                        (l/absolute (when (< requested-height preferred-height)
+                                                                      (let [scroll-bar-length (* requested-height
+                                                                                                 (/ requested-height preferred-height))]
+                                                                        (assoc (drawable/->Rectangle scroll-bar-width
+                                                                                                     scroll-bar-length
+                                                                                                     scroll-bar-color)
+                                                                          :x (- requested-width scroll-bar-width)
+
+                                                                          :y (* (/ (:scroll-position-y state)
+                                                                                   maximum-y-scroll)
+                                                                                (- requested-height
+                                                                                   scroll-bar-length)))))
+                                                                    (when (< requested-width preferred-width)
+                                                                      (let [scroll-bar-length (* requested-width
+                                                                                                 (/ requested-width preferred-width))]
+                                                                        (assoc (drawable/->Rectangle scroll-bar-length
+                                                                                                     scroll-bar-width
+                                                                                                     scroll-bar-color)
+                                                                          :x (* (/ (:scroll-position-x state)
+                                                                                   maximum-x-scroll)
+                                                                                (- requested-width
+                                                                                   scroll-bar-length))
+                                                                          :y (- requested-height scroll-bar-width)))))))
+                                   (gui/add-mouse-event-handler-with-context view-context
+                                                                             (fn [state event]
+                                                                               (cond (= (:type event)
+                                                                                        :mouse-wheel-moved)
+                                                                                     (-> state
+                                                                                         (update-in [:scroll-position-x] (fn [position]
+                                                                                                                           (max 0 (min maximum-x-scroll
+                                                                                                                                       (- position
+                                                                                                                                          (:x-distance event))))))
+                                                                                         (update-in [:scroll-position-y] (fn [position]
+                                                                                                                           (max 0 (min maximum-y-scroll
+                                                                                                                                       (- position
+                                                                                                                                          (:y-distance event)))))))
+
+                                                                                     (= (:type event)
+                                                                                        :mouse-enter)
+                                                                                     (assoc state :mouse-over true)
+
+                                                                                     (= (:type event)
+                                                                                        :mouse-leave)
+                                                                                     (assoc state :mouse-over false)
+
+                                                                                     :default state))))))
+                           [(:content state)]))
+
+(defn create-scroll-panel [view-context]
+  {:local-state {:scroll-position-x 0
+                 :scroll-position-y 0}
+   :view #'scroll-panel-view})
+
+(defn scroll-panel [id content]
+  (gui/call-view create-scroll-panel
+                 id
+                 {:content content}))
 
 
 
