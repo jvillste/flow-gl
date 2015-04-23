@@ -6,7 +6,9 @@
                          [controls :as controls]
                          [gui :as gui]
                          [events :as events]
-                         [layoutable :as layoutable])
+                         [layoutable :as layoutable]
+                         [transformer :as transformer])
+            [flow-gl.opengl.jogl.quad :as quad]
             (flow-gl.tools [profiler :as profiler]
                            [trace :as trace])
             (flow-gl.graphics [font :as font]))
@@ -155,7 +157,11 @@
                                                                                                (text i)))})})))
 
 (defn scroll-panel-view [view-context state]
-  (layouts/->SizeDependent (fn [child requested-width requested-height]
+  (transformer/with-transformers
+    (transformer/->Filter :fade1
+                          quad/alpha-fragment-shader-source
+                          [:1f "alpha" 1])
+    (layouts/->SizeDependent (fn [child requested-width requested-height]
                              (let [{preferred-width :width preferred-height :height} (layoutable/preferred-size child requested-width requested-height)
                                    maximum-x-scroll (- preferred-width requested-width)
                                    maximum-y-scroll (- preferred-height requested-height)
@@ -164,29 +170,29 @@
                                (-> (l/superimpose (layouts/->Margin (- (:scroll-position-y state)) 0 0 (- (:scroll-position-x state))
                                                                     [(l/preferred child)])
                                                   (when true #_(:mouse-over state)
-                                                    (l/absolute (when (< requested-height preferred-height)
-                                                                  (let [scroll-bar-length (* requested-height
-                                                                                             (/ requested-height preferred-height))]
-                                                                    (assoc (drawable/->Rectangle scroll-bar-width
-                                                                                                 scroll-bar-length
-                                                                                                 scroll-bar-color)
-                                                                      :x (- requested-width scroll-bar-width)
+                                                        (l/absolute (when (< requested-height preferred-height)
+                                                                      (let [scroll-bar-length (* requested-height
+                                                                                                 (/ requested-height preferred-height))]
+                                                                        (assoc (drawable/->Rectangle scroll-bar-width
+                                                                                                     scroll-bar-length
+                                                                                                     scroll-bar-color)
+                                                                          :x (- requested-width scroll-bar-width)
 
-                                                                      :y (* (/ (:scroll-position-y state)
-                                                                               maximum-y-scroll)
-                                                                            (- requested-height
-                                                                               scroll-bar-length)))))
-                                                                (when (< requested-width preferred-width)
-                                                                  (let [scroll-bar-length (* requested-width
-                                                                                             (/ requested-width preferred-width))]
-                                                                    (assoc (drawable/->Rectangle scroll-bar-length
-                                                                                                 scroll-bar-width
-                                                                                                 scroll-bar-color)
-                                                                      :x (* (/ (:scroll-position-x state)
-                                                                               maximum-x-scroll)
-                                                                            (- requested-width
-                                                                               scroll-bar-length))
-                                                                      :y (- requested-height scroll-bar-width)))))))
+                                                                          :y (* (/ (:scroll-position-y state)
+                                                                                   maximum-y-scroll)
+                                                                                (- requested-height
+                                                                                   scroll-bar-length)))))
+                                                                    (when (< requested-width preferred-width)
+                                                                      (let [scroll-bar-length (* requested-width
+                                                                                                 (/ requested-width preferred-width))]
+                                                                        (assoc (drawable/->Rectangle scroll-bar-length
+                                                                                                     scroll-bar-width
+                                                                                                     scroll-bar-color)
+                                                                          :x (* (/ (:scroll-position-x state)
+                                                                                   maximum-x-scroll)
+                                                                                (- requested-width
+                                                                                   scroll-bar-length))
+                                                                          :y (- requested-height scroll-bar-width)))))))
                                    (gui/add-mouse-event-handler-with-context view-context
                                                                              (fn [state event]
                                                                                (cond (= (:type event)
@@ -212,7 +218,7 @@
                                                                                          (assoc state :mouse-over false))
 
                                                                                      :default state))))))
-                           [(:content state)]))
+                           [(:content state)])))
 
 (defn scroll-panel [view-context]
   {:local-state {:scroll-position-x 0
@@ -222,14 +228,14 @@
 (defn barless-root-view [view-context state]
 
   #_(controls/scroll-panel :scroll-panel-1 (l/vertically (for [i (range 20)]
-                                                         (controls/text (str "as fasf asdf asf asdf asdf ads faas fas fasdf" i)))))
-  
-  (gui/call-view scroll-panel
-                 :scroll-panel-1
-                 {:content (l/vertically (for [i (range 20)]
-                                           (controls/text (str "as fasf asdf asf asdf asdf ads faas fas fasdf" i))))
-                  #_(l/vertically (for [i (range 5)]
-                                    (gui/call-and-bind view-context state i :text controls/text-editor i)))})
+                                                           (controls/text (str "as fasf asdf asf asdf asdf ads faas fas fasdf" i)))))
+
+  (l/margin 50 50 50 50 (gui/call-view scroll-panel
+                                       :scroll-panel-1
+                                       {:content (l/vertically (for [i (range 20)]
+                                                                 (controls/text (str "as fasf asdf asf asdf asdf ads faas fas fasdf" i))))
+                                        #_(l/vertically (for [i (range 5)]
+                                                          (gui/call-and-bind view-context state i :text controls/text-editor i)))}))
 
   #_(l/horizontally (gui/call-view scroll-panel
                                    :scroll-panel-1

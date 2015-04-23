@@ -44,4 +44,8 @@
   (when content
     (layouts/->MinimumSize width height [content])))
 
+(def-dsl float-left [left right]
+  (layouts/->FloatLeft [left right]))
 
+(def-dsl float-top [top bottom]
+  (layouts/->FloatLeft [top bottom]))

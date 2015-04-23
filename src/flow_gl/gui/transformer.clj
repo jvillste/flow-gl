@@ -167,7 +167,7 @@
                              :y (- (:y drawable) y)
                              :x (- (:x drawable) x)))
                          drawables)
-          old-render-target (get-in gpu-state [:key :render-target])
+          old-render-target (get-in gpu-state [key :render-target])
           render-target (if (and old-render-target
                                  (= (:width old-render-target)
                                     width)
@@ -191,7 +191,7 @@
 
         [(-> gpu-state
              (assoc :renderers renderers)
-             (assoc-in [:key :render-target] render-target))
+             (assoc-in [key :render-target] render-target))
          [(drawable/->Quad ["texture" (:texture render-target)]
                            uniforms
                            fragment-shader-source

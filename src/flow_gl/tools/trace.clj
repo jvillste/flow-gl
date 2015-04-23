@@ -189,19 +189,19 @@
      (l/margin 1 2 1 2 (controls/text value color))))
 
 (defn tab-view [view-context state]
-  (l/vertically (l/horizontally (for [tab-index (range (count (:tabs state)))]
-                                  (let [tab (get (:tabs state)
-                                                 tab-index)]
-                                    (-> (l/margin 1 2 1 2 (controls/text (:title tab)
-                                                                         (if (= (:selected-tab-index state)
-                                                                                tab-index)
-                                                                           [255 255 255 255]
-                                                                           [100 100 100 255])))
-                                        (gui/on-mouse-clicked-with-view-context view-context
-                                                                                (fn [state event]
-                                                                                  (assoc state :selected-tab-index tab-index)))))))
-                (:content (get (:tabs state)
-                               (:selected-tab-index state)))))
+  (layouts/->FloatTop [(l/horizontally (for [tab-index (range (count (:tabs state)))]
+                                         (let [tab (get (:tabs state)
+                                                        tab-index)]
+                                           (-> (l/margin 1 2 1 2 (controls/text (:title tab)
+                                                                                (if (= (:selected-tab-index state)
+                                                                                       tab-index)
+                                                                                  [255 255 255 255]
+                                                                                  [100 100 100 255])))
+                                               (gui/on-mouse-clicked-with-view-context view-context
+                                                                                       (fn [state event]
+                                                                                         (assoc state :selected-tab-index tab-index)))))))
+                       (:content (get (:tabs state)
+                                      (:selected-tab-index state)))]))
 
 (defn tab [view-context]
   {:local-state {:tabs []
@@ -243,7 +243,7 @@
 
         (set? value)
         (str "#{" (count value) "}")
-        
+
         (instance? clojure.lang.Atom value)
         "(atom)"
 
@@ -297,7 +297,7 @@
                                                                         (update-in state [:open-values] disj value))))
                           (l/margin 0 0 0 20 (l/vertically (for [content value]
                                                              (value-view view-context open-values content false))))
-                          
+
                           (text-cell "]"))
 
             (instance? clojure.lang.LazySeq value)
@@ -307,10 +307,10 @@
                                                                         (update-in state [:open-values] disj value))))
                           (l/margin 0 0 0 20 (l/vertically (for [content value]
                                                              (value-view view-context open-values content false))))
-                          
+
                           (text-cell ")"))
 
-            
+
             (list? value)
             (l/vertically (-> (text-cell "-(")
                               (gui/on-mouse-clicked-with-view-context view-context
@@ -318,7 +318,7 @@
                                                                         (update-in state [:open-values] disj value))))
                           (l/margin 0 0 0 20 (l/vertically (for [content value]
                                                              (value-view view-context open-values content false))))
-                          
+
                           (text-cell ")"))
 
 
@@ -345,9 +345,9 @@
                                                                         (update-in state [:open-values] disj value))))
                           (l/margin 0 0 0 20 (l/vertically (for [content value]
                                                              (value-view view-context open-values content false))))
-                          
+
                           (text-cell "}"))
-            
+
             :default (-> (text-cell (str "-" (value-string value)))
                          (gui/on-mouse-clicked-with-view-context view-context
                                                                  (fn [state event]
@@ -409,18 +409,19 @@
 
 
 (defn trace-view [view-context {:keys [trace] :as state}]
-  (println "trace-view " (schema.core/fn-validation?))
-  (l/vertically (-> (controls/text "clear" button-text-color)
-                    (gui/on-mouse-clicked-with-view-context view-context
-                                                            (fn [state event]
-                                                              (async/put! (:input-channel state) {:clear-trace true})
-                                                              (assoc state :selected-value nil))))
-                (layouts/->FloatLeft [(l/vertically (for [root-call (:root-calls trace)]
-                                                      (when (not ((:hidden-threads state) (:thread root-call)))
-                                                        (l/horizontally (text-cell (:thread root-call))
-                                                                        (call-view view-context state root-call)))))
-                                      (l/horizontally (l/margin 0 3 0 3 (drawable/->Rectangle 3 10 [255 255 255 255]))
-                                                      (gui/call-view  value-inspector :value-inspector {:value (:selected-value state)}))])))
+  (layouts/->FloatTop [(-> (controls/text "clear" button-text-color)
+                           (gui/on-mouse-clicked-with-view-context view-context
+                                                                   (fn [state event]
+                                                                     (async/put! (:input-channel state) {:clear-trace true})
+                                                                     (assoc state :selected-value nil))))
+                       (layouts/->FloatLeft [(controls/scroll-panel :call-scroll-panel
+                                                                    (l/vertically (for [root-call (:root-calls trace)]
+                                                                                    (when (not ((:hidden-threads state) (:thread root-call)))
+                                                                                      (l/horizontally (text-cell (:thread root-call))
+                                                                                                      (call-view view-context state root-call))))))
+                                             (l/float-left (l/margin 0 3 0 3 (drawable/->Rectangle 3 10 [255 255 255 255]))
+                                                           (controls/scroll-panel :value-inspector-scroll-panel
+                                                                                  (gui/call-view  value-inspector :value-inspector {:value (:selected-value state)})))])]))
 
 (defn thread-view [view-context state]
   (layouts/grid (concat [[(l/margin 0 5 0 0 (controls/text "thread"))
@@ -494,11 +495,11 @@
 
 (defn trace-root-view [view-context state]
   (l/preferred (gui/call-view tab :tab  {:tabs [{:title "trace"
-                                                             :content (trace-view view-context state)}
-                                                            {:title "threads"
-                                                             :content (thread-view view-context state)}
-                                                            {:title "functions"
-                                                             :content (functions-view view-context state)}]})))
+                                                 :content (trace-view view-context state)}
+                                                {:title "threads"
+                                                 :content (thread-view view-context state)}
+                                                {:title "functions"
+                                                 :content (functions-view view-context state)}]})))
 
 (defn create-trace-control [input-channel trace-channel]
   (fn [view-context]
@@ -535,13 +536,3 @@
 
 (run-tests)
 (gui/redraw-last-started-view)
-
-
-
-
-
-
-
-
-
-

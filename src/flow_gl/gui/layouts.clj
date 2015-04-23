@@ -69,16 +69,18 @@
                      :height (max (:height left-size)
                                   (:height right-size))})))
 
-(layout/deflayout-not-memoized FloatTop [top bottom]
+(layout/deflayout-not-memoized FloatTop [children]
   (layout [this requested-width requested-height]
-          (let [top-height (:height (layoutable/preferred-size top requested-width java.lang.Integer/MAX_VALUE))
-                bottom-height (- requested-height top-height)]
-            (assoc this :children
-                   [(layout/set-dimensions-and-layout top 0 0 requested-width top-height)
-                    (layout/set-dimensions-and-layout bottom 0 top-height requested-width bottom-height)])))
+          (update-in this [:children]
+                     (fn [[top bottom]]
+                       (let [top-height (:height (layoutable/preferred-size top requested-width java.lang.Integer/MAX_VALUE))
+                             bottom-height (- requested-height top-height)]
+                         [(layout/set-dimensions-and-layout top 0 0 requested-width top-height)
+                          (layout/set-dimensions-and-layout bottom 0 top-height requested-width bottom-height)]))))
 
   (preferred-size [this available-width available-height]
-                  (let [top-size (layoutable/preferred-size top available-width available-height)
+                  (let [[top bottom] children
+                        top-size (layoutable/preferred-size top available-width available-height)
                         bottom-size (layoutable/preferred-size bottom available-width (- available-height (:height top-size)))]
                     {:width (max (:width top-size)
                                  (:width bottom-size))
@@ -109,8 +111,10 @@
                                   [(layout/set-dimensions-and-layout child
                                                                      0
                                                                      0
-                                                                     (:width preferred-size)
-                                                                     (:height preferred-size))])))
+                                                                     (min requested-width
+                                                                          (:width preferred-size))
+                                                                     (min requested-height
+                                                                          (:height preferred-size)))])))
 
   (preferred-size [this available-width available-height]
                   (layoutable/preferred-size (first children) available-width available-height)))

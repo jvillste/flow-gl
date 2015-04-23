@@ -91,8 +91,8 @@
                                                                         (fn [state event]
                                                                           (update-in state [:count] inc)))
                                 #_(drawable/->Rectangle 10 10 [0 255 0 255])
-                                (gui/call-view view-context counter :child-1 {:pulse-rate 2000})
-                                #_(gui/call-view view-context counter :child-2 {:pulse-rate 500})
+                                (gui/call-view counter :child-1 {:pulse-rate 2000})
+                                #_(gui/call-view counter :child-2 {:pulse-rate 500})
                                 #_(transformer/with-transformers
                                     (transformer/->Filter :fade1
                                                           quad/alpha-fragment-shader-source
@@ -116,8 +116,8 @@
                                      view-context
                                      (fn [state event]
                                        state)))
-                                (gui/call-view view-context static :static)
-                                (gui/call-view view-context counter :child-1 {:pulse-rate 1000})
+                                (gui/call-view static :static)
+                                (gui/call-view counter :child-1 {:pulse-rate 1000})
                                 (text (-> view-context :application-state :mouse-over-layout-paths vec))
                                 (text (-> view-context :application-state :mouse-over-paths vec))))}))
 
