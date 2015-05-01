@@ -15,20 +15,59 @@
 
 (defn do-layout-without-state [layoutable]
   (second (do-layout layoutable
-                  {}
-                  java.lang.Integer/MAX_VALUE
-                  java.lang.Integer/MAX_VALUE
-                  (cache/create))))
+                     {}
+                     java.lang.Integer/MAX_VALUE
+                     java.lang.Integer/MAX_VALUE
+                     (cache/create))))
 #_(extend Object
     Layout {:layout (fn [this state requested-width requsested-height]
                       [state this])})
 
 ;; UTILITIES
 
+#_(defn find-layoutable-paths
+    ([layoutable predicate]
+     (find-layoutable-paths layoutable predicate [] []))
+    ([layoutable predicate current-path paths]
+     (let [paths (if (predicate layoutable)
+                   (conj paths current-path)
+                   paths)]
+       (if-let [children (vec (:children layoutable))]
+         (loop [child-index 0
+                paths paths]
+           (if-let [child (get children child-index)]
+             (recur (inc child-index)
+                    (find-layoutable-paths child
+                                           predicate
+                                           (concat current-path
+                                                   [:children child-index])
+                                           paths))
+             paths))
+         paths))))
+
+(defn find-layoutable-paths
+  ([layoutable predicate]
+   (find-layoutable-paths layoutable predicate [] []))
+  ([layoutable predicate current-path paths]
+   (if (predicate layoutable)
+     (conj paths current-path)
+     (if-let [children (vec (:children layoutable))]
+       (loop [child-index 0
+              paths paths]
+         (if-let [child (get children child-index)]
+           (recur (inc child-index)
+                  (find-layoutable-paths child
+                                         predicate
+                                         (concat current-path
+                                                 [:children child-index])
+                                         paths))
+           paths))
+       paths))))
+
 (defn add-global-coordinates [layout global-x global-y]
   (-> (assoc layout
-        :global-x global-x
-        :global-y global-y)
+             :global-x global-x
+             :global-y global-y)
       (update-in [:children]
                  (fn [children]
                    (for [child children]
@@ -53,20 +92,20 @@
 
 (defn set-dimensions-and-layout
   ([layout-instance x y width height]
-     (-> layout-instance
-         (cond-> (satisfies? Layout layout-instance)
-                 (layout-with-current-state width
-                                            height))
-         (assoc :x x
-                :y y
-                :width width
-                :height height)))
+   (-> layout-instance
+       (cond-> (satisfies? Layout layout-instance)
+         (layout-with-current-state width
+                                    height))
+       (assoc :x x
+              :y y
+              :width width
+              :height height)))
 
   ([layout-instance state x y width height]
-     (binding [current-state-atom (atom state)]
-       (let [child-layout (set-dimensions-and-layout layout-instance x y width height)]
-         [@current-state-atom
-          child-layout]))))
+   (binding [current-state-atom (atom state)]
+     (let [child-layout (set-dimensions-and-layout layout-instance x y width height)]
+       [@current-state-atom
+        child-layout]))))
 
 
 (defn in-coordinates [x y layoutable]
@@ -272,7 +311,7 @@
            (layout [layoutable# state# width# height#]
              (binding [current-state-atom (atom state#)]
                (let [layout# (cache/call-with-cache-atom cache #_(:cache state#) ~layout-implementation-symbol
-                              layoutable# width# height# ~@parameters)]
+                                                         layoutable# width# height# ~@parameters)]
                  [@current-state-atom
                   layout#])))
 
@@ -311,8 +350,8 @@
                    (:has-children-out-of-layout hinted-child)
                    (:out-of-layout hinted-child))))
       (cond-> layout
-              has-children-out-of-layout (assoc :has-children-out-of-layout true)
-              (seq hinted-children) (assoc :children hinted-children)))))
+        has-children-out-of-layout (assoc :has-children-out-of-layout true)
+        (seq hinted-children) (assoc :children hinted-children)))))
 
 (deftest add-out-of-layout-hints-test
   (is (= (add-out-of-layout-hints {:x 0 :y 0 :width 20 :height 40

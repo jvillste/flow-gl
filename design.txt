@@ -122,10 +122,18 @@ Render tree transformer node
 TODO
 -----
 
+- run transformers after layout
+
+- partial updating of render targets / frame buffer objects
+
+- blitting frame buffer objects with fragment shaders by using the FBO bound texture as a quad texture
+
+- tiled rendering where each tile is a render target
+
 - mouse enter and leave events should not propagate to parents that are unaffected by the mouse movement
 
-- scroll bars to scroll view
--- make size dependent work again
+OK - scroll bars to scroll view
+OK -- make size dependent work again
 
 - make scroll view clip the scrolled area
 

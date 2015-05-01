@@ -258,8 +258,8 @@
 
 (defn start []
   #_(.start (Thread. (fn []
-                       (trace/trace-ns 'flow-gl.gui.gui)
-                       #_(trace/trace-var* 'flow-gl.gui.gui/resolve-view-calls)
+                       #_(trace/trace-ns 'flow-gl.gui.gui)
+                       (trace/trace-var* 'flow-gl.gui.gui/drawables-for-layout)
                        (trace/with-trace
                          (gui/start-control barless-root)))))
 

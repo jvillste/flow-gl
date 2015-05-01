@@ -1,6 +1,7 @@
 (ns flow-gl.gui.transformer
   (:require
    (flow-gl.gui [renderer :as renderer]
+                [layout :as layout]
                 [drawable :as drawable])
 
    (flow-gl.opengl.jogl [opengl :as opengl]
@@ -20,6 +21,12 @@
     :x (+ x (:x node))
     :y (+ y (:y node))
     :z (+ z (or (:z node) 0))))
+
+(defn transformer-paths [layoutable]
+  (layout/find-layoutable-paths layoutable :transformer))
+
+(defn apply-transformers-2 [gpu-state path layoutable]
+  (loop []))
 
 (def render-trees-for-layout)
 

@@ -126,102 +126,103 @@
 
 (defn add-vectors [vector-1 vector-2]
   (assoc vector-1
-    :x (+ (default-to-zero (:x vector-1))
-          (default-to-zero (:x vector-2)))
-    :y (+ (default-to-zero (:y vector-1))
-          (default-to-zero (:y vector-2)))
-    :z (+ (default-to-zero (:z vector-1))
-          (default-to-zero (:z vector-2)))))
+         :x (+ (default-to-zero (:x vector-1))
+               (default-to-zero (:x vector-2)))
+         :y (+ (default-to-zero (:y vector-1))
+               (default-to-zero (:y vector-2)))
+         :z (+ (default-to-zero (:z vector-1))
+               (default-to-zero (:z vector-2)))))
 
 (defn dirty-partitions
   ([layout-1 layout-2]
-     (dirty-partitions layout-1 layout-2 [] []))
+   (dirty-partitions layout-1 layout-2 [] []))
 
   ([layout-1 layout-2 partitions-to-be-redrawn partitions-to-be-cleared]
-     (if (= layout-1
-            layout-2)
-       [partitions-to-be-redrawn
-        partitions-to-be-cleared]
-       (if (and (:children layout-1)
-                (= (type layout-1)
-                   (type layout-2)))
-         (let [transposed-children-1 (map (fn [child]
-                                            (add-vectors child layout-1))
-                                          (:children layout-1))
+   (if (= layout-1
+          layout-2)
+     [partitions-to-be-redrawn
+      partitions-to-be-cleared]
+     (if (and (:children layout-1)
+              (= (type layout-1)
+                 (type layout-2)))
+       (let [transposed-children-1 (map (fn [child]
+                                          (add-vectors child layout-1))
+                                        (:children layout-1))
 
-               transposed-children-2 (map (fn [child]
-                                            (add-vectors child layout-2))
-                                          (:children layout-2))
+             transposed-children-2 (map (fn [child]
+                                          (add-vectors child layout-2))
+                                        (:children layout-2))
 
-               dirty-layers (loop [children-1 transposed-children-1
-                                   children-2 transposed-children-2
-                                   dirty-layers #{}]
-                              (if-let [child-1 (first children-1)]
-                                (let [child-2 (first children-2)]
-                                  (if (= child-1 child-2)
-                                    (recur (rest children-1)
-                                           (rest children-2)
-                                           dirty-layers)
-                                    (recur (rest children-1)
-                                           (rest children-2)
-                                           (conj dirty-layers (:z child-1)))))
-                                dirty-layers))]
-           (loop [partitions-to-be-redrawn partitions-to-be-redrawn
-                  partitions-to-be-cleared partitions-to-be-cleared
-                  children-1 transposed-children-1
-                  children-2 transposed-children-2]
-             (if-let [child-1 (first children-1)]
-               (let [child-2 (first children-2)]
-                 (if (not (empty? (disj dirty-layers (:z child-1))))
-                   (recur (conj partitions-to-be-redrawn (assoc child-1 :stenciled (not (= child-1 child-2))))
-                          (if (and child-2
-                                   (not (= child-1 child-2)))
-                            (conj partitions-to-be-cleared child-2)
-                            partitions-to-be-cleared)
+             dirty-layers (loop [children-1 transposed-children-1
+                                 children-2 transposed-children-2
+                                 dirty-layers #{}]
+                            (if-let [child-1 (first children-1)]
+                              (let [child-2 (first children-2)]
+                                (if (= child-1 child-2)
+                                  (recur (rest children-1)
+                                         (rest children-2)
+                                         dirty-layers)
+                                  (recur (rest children-1)
+                                         (rest children-2)
+                                         (conj dirty-layers (:z child-1)))))
+                              dirty-layers))]
+         (loop [partitions-to-be-redrawn partitions-to-be-redrawn
+                partitions-to-be-cleared partitions-to-be-cleared
+                children-1 transposed-children-1
+                children-2 transposed-children-2]
+           (if-let [child-1 (first children-1)]
+             (let [child-2 (first children-2)]
+               (if (not (empty? (disj dirty-layers (:z child-1))))
+                 (recur (conj partitions-to-be-redrawn (assoc child-1 :stenciled (not (= child-1 child-2))))
+                        (if (and child-2
+                                 (not (= child-1 child-2)))
+                          (conj partitions-to-be-cleared child-2)
+                          partitions-to-be-cleared)
+                        (rest children-1)
+                        (rest children-2))
+                 (let [[partitions-to-be-redrawn partitions-to-be-cleared] (dirty-partitions child-1
+                                                                                             child-2
+                                                                                             partitions-to-be-redrawn
+                                                                                             partitions-to-be-cleared)]
+                   (recur partitions-to-be-redrawn
+                          partitions-to-be-cleared
                           (rest children-1)
-                          (rest children-2))
-                   (let [[partitions-to-be-redrawn partitions-to-be-cleared] (dirty-partitions child-1
-                                                                                               child-2
-                                                                                               partitions-to-be-redrawn
-                                                                                               partitions-to-be-cleared)]
-                     (recur partitions-to-be-redrawn
-                            partitions-to-be-cleared
-                            (rest children-1)
-                            (rest children-2)))))
+                          (rest children-2)))))
 
-               [partitions-to-be-redrawn
-                (into partitions-to-be-cleared children-2)])))
+             [partitions-to-be-redrawn
+              (into partitions-to-be-cleared children-2)])))
 
-         [(conj partitions-to-be-redrawn
-                (-> layout-1
-                    (assoc :stenciled true)))
-          (if layout-2
-            (conj partitions-to-be-cleared
-                  layout-2)
-            partitions-to-be-cleared)]))))
+       [(conj partitions-to-be-redrawn
+              (-> layout-1
+                  (assoc :stenciled true)))
+        (if layout-2
+          (conj partitions-to-be-cleared
+                layout-2)
+          partitions-to-be-cleared)]))))
 
 
 (defn drawables-for-layout
   ([layout]
-     (drawables-for-layout layout 0 0 0 []))
+   (drawables-for-layout layout 0 0 0 []))
 
   ([layout parent-x parent-y parent-z drawables]
-     (if (:children layout)
-       (let [parent-x (+ parent-x (:x layout))
-             parent-y (+ parent-y (:y layout))
-             parent-z (+ parent-z (or (:z layout) 0))]
-         (loop [drawables drawables
-                children (:children layout)]
-           (if-let [child (first children)]
-             (let [drawables (drawables-for-layout child parent-x parent-y parent-z drawables)]
-               (recur drawables
-                      (rest children)))
-             drawables)))
-       (conj drawables
-             (assoc layout
-               :x (+ parent-x (:x layout))
-               :y (+ parent-y (:y layout))
-               :z (+ parent-z (or (:z layout) 0)))))))
+   (println "layout" (type layout) parent-x parent-y parent-z (select-keys layout  [:x :y :z]))
+   (if (:children layout)
+     (let [parent-x (+ parent-x (:x layout))
+           parent-y (+ parent-y (:y layout))
+           parent-z (+ parent-z (or (:z layout) 0))]
+       (loop [drawables drawables
+              children (:children layout)]
+         (if-let [child (first children)]
+           (let [drawables (drawables-for-layout child parent-x parent-y parent-z drawables)]
+             (recur drawables
+                    (rest children)))
+           drawables)))
+     (conj drawables
+           (assoc layout
+                  :x (+ parent-x (:x layout))
+                  :y (+ parent-y (:y layout))
+                  :z (+ parent-z (or (:z layout) 0)))))))
 
 (defn add-drawables-for-layout-afterwards [app]
   (fn [state events]
@@ -230,13 +231,13 @@
 
 (defn layout-to-render-trees [gpu-state layout]
   (assoc gpu-state
-    :render-trees (transformer/render-trees-for-layout layout)))
+         :render-trees (transformer/render-trees-for-layout layout)))
 
 (defn render-trees-to-drawables [gpu-state]
   (let [[gpu-state drawables] (transformer/transform-trees gpu-state
                                                            (:render-trees gpu-state))]
     (assoc gpu-state
-      :drawables drawables)))
+           :drawables drawables)))
 
 (defn apply-to-renderers [gpu-state function]
   (update-in gpu-state
@@ -269,9 +270,9 @@
 (defn add-clearing-drawable [gpu-state]
   (let [{:keys [width height]} (opengl/size (:gl gpu-state))]
     (assoc gpu-state
-      :drawables (concat [(assoc (drawable/->Rectangle width height [0 0 0 255])
-                            :x 0 :y 0 :z -1 :width width :height height)]
-                         (:drawables gpu-state)))))
+           :drawables (concat [(assoc (drawable/->Rectangle width height [0 0 0 255])
+                                      :x 0 :y 0 :z -1 :width width :height height)]
+                              (:drawables gpu-state)))))
 
 (defn add-stencil [gpu-state]
   (assoc gpu-state :stencil (stencil/create (:gl gpu-state))))
@@ -306,7 +307,7 @@
     (render-target/blit render-target gl)
 
     (assoc gpu-state
-      :render-target render-target)))
+           :render-target render-target)))
 
 
 (defn layout-to-partitions [gpu-state]
@@ -321,14 +322,14 @@
                                                                  :height (:height size)}]])]
 
     (assoc gpu-state
-      :partitions partitions-to-be-redrawn
-      :partitions-to-be-cleared partitions-to-be-cleared
-      :previous-layout (:layout gpu-state)
-      :previous-size size)))
+           :partitions partitions-to-be-redrawn
+           :partitions-to-be-cleared partitions-to-be-cleared
+           :previous-layout (:layout gpu-state)
+           :previous-size size)))
 
 (defn partition-to-render-trees [gpu-state partition]
   (assoc gpu-state
-    :render-trees (transformer/render-trees-for-layout partition)))
+         :render-trees (transformer/render-trees-for-layout partition)))
 
 (defn add-partition-textures [gpu-state partitions]
   (let [quad-view (get-in gpu-state [:renderers :quad-view :quad-view])
@@ -344,7 +345,7 @@
                                                                          0 1 0 0)
                                                            (-> gpu-state
                                                                (layout-to-render-trees (assoc partition
-                                                                                         :x 0 :y 0 :z 0))
+                                                                                              :x 0 :y 0 :z 0))
                                                                (render-trees-to-drawables)
                                                                (render-drawables)))
                                   (update-in [:renderers :quad-view :quad-view]
@@ -364,25 +365,25 @@
 
 (defn partitions-to-drawables [gpu-state]
   (assoc gpu-state
-    :drawables (mapcat (fn [partition]
-                         (drawables-for-layout partition)
+         :drawables (mapcat (fn [partition]
+                              (drawables-for-layout partition)
 
-                         #_(if (:recurring? partition)
-                             [#_(assoc partition
-                                  :has-predefined-texture true)]
-                             (do #_(opengl/clear-rectangle (:gl gpu-state)
-                                                           (:x partition)
-                                                           (:y partition)
-                                                           (:width partition)
-                                                           (:height partition)
-                                                           0 0 1 1)
-                                 (concat [(assoc (drawable/->Rectangle (:width partition)
-                                                                       (:height partition)
-                                                                       [0 0 0 255])
-                                            :x (:x partition)
-                                            :y (:y partition))]
-                                         (drawables-for-layout partition)))))
-                       (:partitions gpu-state))))
+                              #_(if (:recurring? partition)
+                                  [#_(assoc partition
+                                            :has-predefined-texture true)]
+                                  (do #_(opengl/clear-rectangle (:gl gpu-state)
+                                                                (:x partition)
+                                                                (:y partition)
+                                                                (:width partition)
+                                                                (:height partition)
+                                                                0 0 1 1)
+                                      (concat [(assoc (drawable/->Rectangle (:width partition)
+                                                                            (:height partition)
+                                                                            [0 0 0 255])
+                                                      :x (:x partition)
+                                                      :y (:y partition))]
+                                              (drawables-for-layout partition)))))
+                            (:partitions gpu-state))))
 
 (defn swap-buffers [gpu-state]
   (window/swap-buffers (:window gpu-state))
@@ -450,8 +451,8 @@
                                      (or (:previous-sleep-time state)
                                          0)))))]
       (assoc state
-        :sleep-time sleep-time
-        :last-frame (System/currentTimeMillis)))
+             :sleep-time sleep-time
+             :last-frame (System/currentTimeMillis)))
     state))
 
 
@@ -635,9 +636,9 @@
 
 (defn add-mouse-event-handler [layoutable handler & arguments]
   (assoc layoutable
-    :handle-mouse-event (conj (or (:handle-mouse-event layoutable)
-                                  [])
-                              [handler arguments])))
+         :handle-mouse-event (conj (or (:handle-mouse-event layoutable)
+                                       [])
+                                   [handler arguments])))
 
 (defn handle-mouse-event-with-context [state event view-context handler arguments]
   (apply update-or-apply-in state (concat (:state-path view-context) [:local-state]) handler event arguments))
@@ -795,10 +796,10 @@
       (swap! (:cache state) cache/clear-usages))
 
     (assoc state
-      :event-batch (if (> event-batch
-                          100)
-                     0
-                     (inc event-batch)))))
+           :event-batch (if (> event-batch
+                               100)
+                          0
+                          (inc event-batch)))))
 
 (defn clear-cache-when-requested [state]
   (if (= (-> state :event :type)
@@ -830,7 +831,7 @@
 (defn wrap-with-current-view-state-atom [view]
   (-> (fn [view-context state]
         (let [view-context (assoc view-context
-                             :current-view-state-atom (atom state))
+                                  :current-view-state-atom (atom state))
               layoutable (view view-context state)]
           {:layoutable layoutable
            :state (deref (:current-view-state-atom view-context))}))
@@ -858,16 +859,16 @@
                           (update-in [:y-distance] + (:y-distance mouse-wheel-moved-event))
                           (update-in [:z-distance] + (:z-distance mouse-wheel-moved-event))))
                     (assoc (first mouse-wheel-moved-events)
-                      :x-distance 0
-                      :y-distance 0
-                      :z-distance 0)
+                           :x-distance 0
+                           :y-distance 0
+                           :z-distance 0)
                     mouse-wheel-moved-events))
       other-events)))
 
 (defn event-loop [initial-state app]
   (let [initial-state (assoc initial-state
-                        :with-gl-channel (async/chan)
-                        :with-gl-dropping-channel (async/chan (async/dropping-buffer 1)))]
+                             :with-gl-channel (async/chan)
+                             :with-gl-dropping-channel (async/chan (async/dropping-buffer 1)))]
 
     (.start (Thread. (fn [] (loop [state initial-state]
 
@@ -893,40 +894,28 @@
 
     (loop [gpu-state (initialize-gpu-state (:window initial-state))]
       (async/alt!! (:with-gl-dropping-channel initial-state) ([{:keys [function arguments]}]
-                                                                (when function (recur (window/with-gl (:window initial-state) gl
-                                                                                        (apply function
-                                                                                               (assoc gpu-state :gl gl)
-                                                                                               arguments)))))
+                                                              (when function (recur (window/with-gl (:window initial-state) gl
+                                                                                      (apply function
+                                                                                             (assoc gpu-state :gl gl)
+                                                                                             arguments)))))
 
                    (:with-gl-channel initial-state) ([{:keys [function arguments]}]
-                                                       (when function (recur (window/with-gl (:window initial-state) gl
-                                                                               #_(Thread/sleep 100)
-                                                                               (apply function
-                                                                                      (assoc gpu-state :gl gl)
-                                                                                      arguments)))))
+                                                     (when function (recur (window/with-gl (:window initial-state) gl
+                                                                             #_(Thread/sleep 100)
+                                                                             (apply function
+                                                                                    (assoc gpu-state :gl gl)
+                                                                                    arguments)))))
                    :priority true))))
 
 ;; View calls
 
 (defrecord ViewCall [constructor child-id state-overrides constructor-parameters constructor-overrides])
 
+
+
 (defn view-call-paths
   ([layoutable]
-     (view-call-paths layoutable [] []))
-  ([layoutable current-path paths]
-     (if (instance? ViewCall layoutable)
-       (conj paths current-path)
-       (if-let [children (vec (:children layoutable))]
-         (loop [child-index 0
-                paths paths]
-           (if-let [child (get children child-index)]
-             (recur (inc child-index)
-                    (view-call-paths child
-                                     (concat current-path
-                                             [:children child-index])
-                                     paths))
-             paths))
-         paths))))
+   (layout/find-layoutable-paths layoutable #(instance? ViewCall %))))
 
 (deftest view-call-paths-test
   (is (= '[(:children 1)
@@ -1007,6 +996,7 @@
                                                                                                      view-context
                                                                                                      assoc parent-state-key new-value)))))
 
+
 (defn update-binding [state view-context function key]
   (let [local-state (get-local-state state view-context)]
     ((get local-state [:on-change key])
@@ -1017,37 +1007,37 @@
   (fn [state event]
     (update-binding state view-context function key)))
 
-(s/defn call-view
-  ([constructor :- s/Int child-id]
+#_(s/defn call-view
+    ([constructor :- s/Int child-id]
      (call-view constructor child-id {} [] {}))
 
-  ([constructor :- s/Int child-id state-overrides]
+    ([constructor :- s/Int child-id state-overrides]
      (call-view constructor child-id state-overrides [] {}))
 
-  ([constructor :- s/Int child-id state-overrides constructor-parameters]
+    ([constructor :- s/Int child-id state-overrides constructor-parameters]
      (call-view constructor child-id state-overrides constructor-parameters {}))
 
-  ([constructor :- s/Int
-    child-id
-    state-overrides :- {}
-    constructor-parameters :- []
-    constructor-overrides :- {}]
+    ([constructor :- s/Int
+      child-id
+      state-overrides :- {}
+      constructor-parameters :- []
+      constructor-overrides :- {}]
      #_{:pre [(fn? constructor)]}
      (->ViewCall constructor child-id state-overrides constructor-parameters constructor-overrides)))
 
 (defn call-view
   ([constructor child-id]
-     (call-view constructor child-id {} [] {}))
+   (call-view constructor child-id {} [] {}))
 
   ([constructor child-id state-overrides]
-     (call-view constructor child-id state-overrides [] {}))
+   (call-view constructor child-id state-overrides [] {}))
 
   ([constructor child-id state-overrides constructor-parameters]
-     (call-view constructor child-id state-overrides constructor-parameters {}))
+   (call-view constructor child-id state-overrides constructor-parameters {}))
 
   ([constructor child-id state-overrides constructor-parameters constructor-overrides]
-     {:pre [(fn? constructor)]}
-     (->ViewCall constructor child-id state-overrides constructor-parameters constructor-overrides)))
+   {:pre [(fn? constructor)]}
+   (->ViewCall constructor child-id state-overrides constructor-parameters constructor-overrides)))
 
 (defn call-and-bind [view-context state from-key to-key & call-view-arguments]
   (-> (apply call-view call-view-arguments)
@@ -1114,7 +1104,7 @@
                                                (:local-state view-state))
 
         view-state (assoc view-state
-                     :sleep-time (:sleep-time layoutable))
+                          :sleep-time (:sleep-time layoutable))
 
 
 
@@ -1135,7 +1125,7 @@
         children (assoc-in children [:child-states child-id] view-state)
 
         layoutable (assoc layoutable
-                     :state-path state-path)]
+                          :state-path state-path)]
 
     [children
      layoutable]))
@@ -1182,29 +1172,29 @@
 
 (defn control-to-application
   ([constructor]
-     (control-to-application constructor {}))
+   (control-to-application constructor {}))
 
   ([constructor constructor-overrides]
-     (fn [application-state]
-       (let [[children layoutable] (run-view-call (:cache application-state)
-                                                  []
-                                                  (or (:children application-state)
-                                                      {})
-                                                  :root
-                                                  (:common-view-context application-state)
-                                                  (:frame-started application-state)
-                                                  constructor
-                                                  []
-                                                  {}
-                                                  constructor-overrides)
+   (fn [application-state]
+     (let [[children layoutable] (run-view-call (:cache application-state)
+                                                []
+                                                (or (:children application-state)
+                                                    {})
+                                                :root
+                                                (:common-view-context application-state)
+                                                (:frame-started application-state)
+                                                constructor
+                                                []
+                                                {}
+                                                constructor-overrides)
 
-             #_application-state #_(set-focus application-state
-                                              (initial-focus-paths view-state))]
+           #_application-state #_(set-focus application-state
+                                            (initial-focus-paths view-state))]
 
-         (assoc application-state
-           :children children
-           :layoutable layoutable
-           :sleep-time (get-in application-state [:children :child-states :root :sleep-time]))))))
+       (assoc application-state
+              :children children
+              :layoutable layoutable
+              :sleep-time (get-in application-state [:children :child-states :root :sleep-time]))))))
 
 (defn start-control [control]
   (start-app (control-to-application control)))
