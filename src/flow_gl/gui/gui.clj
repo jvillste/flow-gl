@@ -206,7 +206,6 @@
    (drawables-for-layout layout 0 0 0 []))
 
   ([layout parent-x parent-y parent-z drawables]
-   (println "layout" (type layout) parent-x parent-y parent-z (select-keys layout  [:x :y :z]))
    (if (:children layout)
      (let [parent-x (+ parent-x (:x layout))
            parent-y (+ parent-y (:y layout))
@@ -577,7 +576,6 @@
     (first parts)))
 
 (defn apply-mouse-over-layout-event-handlers [state layout new-mouse-over-layout-paths]
-  (println "mouse over" new-mouse-over-layout-paths)
   (if (not (= new-mouse-over-layout-paths
               (:mouse-over-layout-paths state)))
     (let [old-mouse-over-layout-paths-set (apply hash-set (:mouse-over-layout-paths state))
