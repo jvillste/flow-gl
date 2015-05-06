@@ -26,7 +26,6 @@
            [java.lang Runnable]
            [java.nio ByteBuffer])
   (:use flow-gl.utils
-        midje.sweet
         clojure.test))
 
 
@@ -495,7 +494,7 @@
                (rest xs)))
       prefixes)))
 
-(fact (path-prefixes [[1 2] [3] [4]])
+#_(fact (path-prefixes [[1 2] [3] [4]])
       => [[[1 2]]
           [[1 2] [3]]
           [[1 2] [3] [4]]])
@@ -736,7 +735,7 @@
              (conj focus-paths focus-path-part))
       focus-paths)))
 
-(fact (initial-focus-paths {:first-focusable-child (fn [_] [:children 1])
+#_(fact (initial-focus-paths {:first-focusable-child (fn [_] [:children 1])
                             :children [{:first-focusable-child (fn [_] [:children 0])
                                         :children [{}]}
                                        {:first-focusable-child (fn [_] [:children 0])
@@ -756,7 +755,7 @@
                                                           next-focus-path-part)))))
         (next-focus-path-parts state parent-focus-path-parts)))))
 
-(fact (let [state (conj (seq-focus-handlers :children1)
+#_(fact (let [state (conj (seq-focus-handlers :children1)
                         {:children1 [(conj (seq-focus-handlers :children2)
                                            {:children2 [{}{}{}]})
                                      (conj (seq-focus-handlers :children2)
@@ -1212,4 +1211,4 @@
                                                             (throw (Exception. (str "tried to apply to empty state" (vec (:state-path view-context)))))))))))
 
 
-(run-tests)
+#_(run-tests)

@@ -534,5 +534,5 @@
   (.start (Thread. (fn []
                      (gui/start-app (gui/control-to-application value-inspector {:value value}))))))
 
-(run-tests)
+#_(run-tests)
 (gui/redraw-last-started-view)

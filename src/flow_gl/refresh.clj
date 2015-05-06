@@ -1,6 +1,5 @@
 (ns flow-gl.refresh
-  (:require [clojure.tools.namespace.repl :as repl]
-            midje.repl))
+  (:require [clojure.tools.namespace.repl :as repl]))
 
 
 (defn refresh []
