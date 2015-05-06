@@ -2,19 +2,11 @@
   (:require [clojure.tools.namespace.repl :as repl]
             midje.repl))
 
-(defn load-facts []
-  #_(midje.repl/load-facts #_'flow-gl.dataflow.triple-dataflow
-                         #_'flow-gl.dataflow.base-dataflow
-                         'flow-gl.utils))
 
 (defn refresh []
 
-  (repl/set-refresh-dirs #_"src"
-                         #_"src/flow_gl/dataflow"
-                         "src/flow_gl/gui"
-                         "src/flow_gl/opengl"
-                         #_"src/flow_gl/graphics")
+  (repl/set-refresh-dirs "src/flow_gl/")
 
-                                        ;(disable-reload! flow-gl.dataflow.hierarchical-dataflow)
+  #_(repl/disable-reload! flow-gl.dataflow.hierarchical-dataflow)
 
-  (repl/refresh :after 'flow-gl.refresh/load-facts))
+  (repl/refresh))

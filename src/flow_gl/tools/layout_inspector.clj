@@ -52,19 +52,19 @@
                                       (concat layout-path [:children index])
                                       state)))))))
 
-(def layout (layout/do-layout (l/horizontally (text "foo") (text "bar"))))
+(def layout (layout/do-layout-without-state  (l/horizontally (text "foo") (text "bar"))))
 
-(gui/def-control layout-inspector
+#_(gui/def-control layout-inspector
   ([view-context control-channel]
      {})
 
   ([view-context state]
      (layout-view layout [] {:layout-path-under-mouse [:children 0]})))
 
-(defn start-view []
+#_(defn start-view []
   (gui/start-view #'create-layout-inspector #'layout-inspector-view))
 
-(defn start []
+#_(defn start []
   (.start (Thread. (fn []
                      (start-view)))))
 

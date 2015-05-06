@@ -25,32 +25,13 @@
 
 ;; UTILITIES
 
-#_(defn find-layoutable-paths
-    ([layoutable predicate]
-     (find-layoutable-paths layoutable predicate [] []))
-    ([layoutable predicate current-path paths]
-     (let [paths (if (predicate layoutable)
-                   (conj paths current-path)
-                   paths)]
-       (if-let [children (vec (:children layoutable))]
-         (loop [child-index 0
-                paths paths]
-           (if-let [child (get children child-index)]
-             (recur (inc child-index)
-                    (find-layoutable-paths child
-                                           predicate
-                                           (concat current-path
-                                                   [:children child-index])
-                                           paths))
-             paths))
-         paths))))
-
 (defn find-layoutable-paths
   ([layoutable predicate]
    (find-layoutable-paths layoutable predicate [] []))
   ([layoutable predicate current-path paths]
-   (if (predicate layoutable)
-     (conj paths current-path)
+   (let [paths (if (predicate layoutable)
+                 (conj paths current-path)
+                 paths)]
      (if-let [children (vec (:children layoutable))]
        (loop [child-index 0
               paths paths]
@@ -63,6 +44,7 @@
                                          paths))
            paths))
        paths))))
+
 
 (defn add-global-coordinates [layout global-x global-y]
   (-> (assoc layout

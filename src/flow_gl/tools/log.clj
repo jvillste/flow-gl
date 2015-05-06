@@ -42,7 +42,7 @@
         (let [parent-block (last blocks)]
           (recur (pop blocks)
                  (update-in parent-block [:children] conj (assoc open-block
-                                                            :end-time (:time entry)))
+                                                                 :end-time (:time entry)))
                  (rest entries)))
 
         nil
@@ -75,7 +75,7 @@
         (let [parent-block (last open-blocks)]
           (recur (pop open-blocks)
                  (update-in parent-block [:children] conj (assoc open-block
-                                                            :end-time (:time entry)))
+                                                                 :end-time (:time entry)))
                  (rest entries)))
 
         nil
@@ -163,30 +163,30 @@
                                                                                 state)
                                                                               state))))
 
-                            (apply l/vertically (loop [previous-child-end-time (:start-time block)
-                                                       children (:children block)
-                                                       child-block-views []]
-                                                  (if-let [child (first children)]
-                                                    (recur (:end-time child)
-                                                           (rest children)
-                                                           (conj child-block-views
-                                                                 (l/margin (* y-scale (- (:start-time child)
-                                                                                         previous-child-end-time))
-                                                                           0
-                                                                           0
-                                                                           indent
-                                                                           (layouts/->Preferred (block-view view-context child (inc depth) y-scale width)))))
-                                                    child-block-views)))])))
+                            (l/vertically-implementation (loop [previous-child-end-time (:start-time block)
+                                                                children (:children block)
+                                                                child-block-views []]
+                                                           (if-let [child (first children)]
+                                                             (recur (:end-time child)
+                                                                    (rest children)
+                                                                    (conj child-block-views
+                                                                          (l/margin (* y-scale (- (:start-time child)
+                                                                                                  previous-child-end-time))
+                                                                                    0
+                                                                                    0
+                                                                                    indent
+                                                                                    (layouts/->Preferred (block-view view-context child (inc depth) y-scale width)))))
+                                                             child-block-views)))])))
 
 (defn text-block-view [block depth]
   (let [indent 10]
-    (apply l/vertically (concat [(controls/text (str "message" (:message block)))]
-                                (for [child (:children block)]
-                                  (l/margin 0
-                                            0
-                                            0
-                                            indent
-                                            (layouts/->Preferred (text-block-view child (inc depth)))))))))
+    (apply l/vertically-implementation (concat [(controls/text (str "message" (:message block)))]
+                                               (for [child (:children block)]
+                                                 (l/margin 0
+                                                           0
+                                                           0
+                                                           indent
+                                                           (layouts/->Preferred (text-block-view child (inc depth)))))))))
 
 (defn scroll-pane [view-context]
   {:x-translation 0
@@ -213,13 +213,13 @@
                  (gui/add-mouse-event-handler-with-context view-context
                                                            (fn [state event]
                                                              (cond
-                                                              (and (= (:type event) :mouse-wheel-moved)
-                                                                   (not (:control event)))
-                                                              (-> state
-                                                                  (update-in [:x-translation] + (:x-distance event))
-                                                                  (update-in [:y-translation] + (:y-distance event)))
+                                                               (and (= (:type event) :mouse-wheel-moved)
+                                                                    (not (:control event)))
+                                                               (-> state
+                                                                   (update-in [:x-translation] + (:x-distance event))
+                                                                   (update-in [:y-translation] + (:y-distance event)))
 
-                                                              :default state))))))})
+                                                               :default state))))))})
 
 #_(debug/reset-log)
 #_(def log @debug/log)
@@ -264,50 +264,50 @@
                                  (-> (gui/call-view view-context scroll-pane :scroll-pane
                                                     {:content
                                                      (fn [x1 y1 x2 y2]
-                                                       (apply l/horizontally (for [root-block thread-blocks]
-                                                                               (let [blocks (:children root-block)
-                                                                                     first-visible-time (/ y1 y-scale)
-                                                                                     last-visible-time (/ y2 y-scale)
-                                                                                     visible-blocks (filter (fn [{:keys [start-time end-time]}]
-                                                                                                              (and (< start-time
-                                                                                                                      last-visible-time)
-                                                                                                                   (> end-time
-                                                                                                                      first-visible-time)))
-                                                                                                            blocks)]
-                                                                                 (let [root-block (assoc root-block
-                                                                                                    :root true
-                                                                                                    :children visible-blocks
-                                                                                                    :start-time (max first-visible-time
-                                                                                                                     (:start-time (first blocks)))
-                                                                                                    :end-time (min last-visible-time
-                                                                                                                   (:end-time (last blocks))))]
+                                                       (apply l/horizontally-implementation (for [root-block thread-blocks]
+                                                                                              (let [blocks (:children root-block)
+                                                                                                    first-visible-time (/ y1 y-scale)
+                                                                                                    last-visible-time (/ y2 y-scale)
+                                                                                                    visible-blocks (filter (fn [{:keys [start-time end-time]}]
+                                                                                                                             (and (< start-time
+                                                                                                                                     last-visible-time)
+                                                                                                                                  (> end-time
+                                                                                                                                     first-visible-time)))
+                                                                                                                           blocks)]
+                                                                                                (let [root-block (assoc root-block
+                                                                                                                        :root true
+                                                                                                                        :children visible-blocks
+                                                                                                                        :start-time (max first-visible-time
+                                                                                                                                         (:start-time (first blocks)))
+                                                                                                                        :end-time (min last-visible-time
+                                                                                                                                       (:end-time (last blocks))))]
 
-                                                                                   (l/margin (* y-scale (:start-time root-block)) 0 0 2
-                                                                                             (block-view view-context root-block 0 y-scale thread-width)))))))})
+                                                                                                  (l/margin (* y-scale (:start-time root-block)) 0 0 2
+                                                                                                            (block-view view-context root-block 0 y-scale thread-width)))))))})
                                      (gui/add-mouse-event-handler-with-context
                                       view-context
                                       (fn [state event]
                                         (cond
-                                         (and (= (:type event) :mouse-wheel-moved)
-                                              (:control event))
-                                         (let [new-y-scale (+ (:y-scale state)
-                                                              (* (:y-scale state)
-                                                                 0.01
-                                                                 (:y-distance event)))]
+                                          (and (= (:type event) :mouse-wheel-moved)
+                                               (:control event))
+                                          (let [new-y-scale (+ (:y-scale state)
+                                                               (* (:y-scale state)
+                                                                  0.01
+                                                                  (:y-distance event)))]
 
-                                           (-> state
-                                               (assoc :y-scale new-y-scale)
-                                               (update-in [:thread-width] + (* 0.1 (:x-distance event)))
-                                               (update-in [:child-states :scroll-pane :y-translation] (fn [y-translation]
-                                                                                                        (new-y-translation (- (:y event) 20)
-                                                                                                                           (:y-scale state)
-                                                                                                                           new-y-scale
-                                                                                                                           y-translation)))))
-
-
+                                            (-> state
+                                                (assoc :y-scale new-y-scale)
+                                                (update-in [:thread-width] + (* 0.1 (:x-distance event)))
+                                                (update-in [:child-states :scroll-pane :y-translation] (fn [y-translation]
+                                                                                                         (new-y-translation (- (:y event) 20)
+                                                                                                                            (:y-scale state)
+                                                                                                                            new-y-scale
+                                                                                                                            y-translation)))))
 
 
-                                         :default state))))))}))
+
+
+                                          :default state))))))}))
 
 
 
@@ -315,11 +315,11 @@
 #_(debug/reset-log)
 (defn start
   ([]
-     (start test-log))
+   (start test-log))
 
   ([log]
-     (.start (Thread. (fn []
-                        (gui/start-control (log-browser log)))))))
+   (.start (Thread. (fn []
+                      (gui/start-control (log-browser log)))))))
 
 #_(when-let [last-event-channel-atom @gui/last-event-channel-atom]
     (async/put! last-event-channel-atom {:type :request-redraw}))

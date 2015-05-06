@@ -2,8 +2,7 @@
   (:require [flow-gl.utils :as utils]
             (flow-gl.gui [drawable :as drawable]
                          [layout :as layout]
-                         [events :as events]
-                         [view :as view])
+                         [events :as events])
 
             (flow-gl.graphics [font :as font]))
   

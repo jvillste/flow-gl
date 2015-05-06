@@ -1,4 +1,5 @@
-(ns flow-gl.gui.events)
+(ns flow-gl.gui.events
+  (:require [flow-gl.debug :as debug]))
 
 (defn key-pressed? [keyboard-event key]
   (and (= (:key keyboard-event)
