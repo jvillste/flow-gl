@@ -66,16 +66,27 @@
     :float float))
 
 
+
+
 (defn put-float-values [^FloatBuffer native-buffer values]
   (doseq [^Float value values]
     (.put native-buffer value))
   (.rewind native-buffer)
   native-buffer)
 
+(defn put-int-values [^IntBuffer native-buffer values]
+  (doseq [^Integer value values]
+    (.put native-buffer value))
+  (.rewind native-buffer)
+  native-buffer)
+
 (defn put-values [native-buffer values]
-  (if (= :float (buffer-type native-buffer))
-    (put-float-values native-buffer values)
+  #_(println "putting " (count values) (buffer-type native-buffer) (.capacity native-buffer))
+  (case (buffer-type native-buffer)
+    :float (put-float-values native-buffer values)
+    :int (put-int-values native-buffer values)
     (let [coerce (coercion (buffer-type native-buffer))]
+
       (doseq [value values]
         (.put native-buffer value (coerce value)))
       (.rewind native-buffer)

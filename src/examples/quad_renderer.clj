@@ -1,7 +1,7 @@
-(ns examples.render-targets-with-renderers
+(ns examples.quad-renderer
   (:require [clojure.data.priority-map :as priority-map]
             (flow-gl.opengl.jogl [opengl :as opengl]
-                                 [window :as window]
+                                 [window :as jogl-window]
                                  [quad-batch :as quad-batch]
                                  [render-target :as render-target]
                                  [texture :as texture]
@@ -10,6 +10,7 @@
                               [buffered-image :as buffered-image])
             (flow-gl.gui [drawable :as drawable]
                          [layout :as layout]
+                         [window :as window]
                          [layouts :as layouts]
                          [layoutable :as layoutable]
                          [quad-view :as quad-view]
@@ -42,7 +43,7 @@
                        0 0 200 200))))
 
 (defn start-view []
-  (let [window (window/create 300
+  (let [window (jogl-window/create 300
                               400
                               :profile :gl3
                               :init opengl/initialize
@@ -56,11 +57,12 @@
       (loop []
         (let [frame-started (System/currentTimeMillis)]
           (let [drawable (drawable-for-time texture frame-started)]
-            (window/set-display window gl
+            (window/with-gl window gl
                                 (opengl/clear gl 0 0 0 1)
                                 (swap! renderers
                                        (fn [renderers]
-                                         (renderer/render-frame [drawable] gl renderers)))))
+                                         (renderer/render-frame [drawable] gl renderers))))
+            (window/swap-buffers window))
 
           (when (window/visible? window)
             (do (wait-for-next-frame frame-started)

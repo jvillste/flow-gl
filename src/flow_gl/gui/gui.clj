@@ -282,7 +282,14 @@
                               (:partitions-to-be-cleared gpu-state))
                       (:gl gpu-state))))
 
-(defn render-drawables [gpu-state]
+(defn render-drawables [render-target-state gl]
+  (let [render-target-state (-> (set-stencil render-target-state)
+                      (add-clearing-drawable))
+        render-target-state (update-in render-target-state [:renderers] render-drawables-with-renderers gl (:drawables render-target-state))]
+    (stencil/disable gl)
+    render-target-state))
+
+(defn render-drawables-to-default-frame-buffer [gpu-state]
   (let [gl (:gl gpu-state)
         {:keys [width height]} (opengl/size gl)
         render-target (if-let [render-target (:render-target gpu-state)]
@@ -295,12 +302,7 @@
                               (render-target/create width height gl)))
                         (render-target/create width height gl))
         gpu-state (render-target/render-to render-target gl
-
-                                           (let [gpu-state (-> (set-stencil gpu-state)
-                                                               (add-clearing-drawable))
-                                                 gpu-state (update-in gpu-state [:renderers] render-drawables-with-renderers gl (:drawables gpu-state))]
-                                             (stencil/disable (:gl gpu-state))
-                                             gpu-state))]
+                                           (render-drawables gpu-state gl))]
 
     (render-target/blit render-target gl)
 
@@ -308,22 +310,14 @@
            :render-target render-target)))
 
 
-(defn layout-to-partitions [gpu-state]
-  (let [size (opengl/size (:gl gpu-state))
-        [partitions-to-be-redrawn partitions-to-be-cleared] (if (= size (:previous-size gpu-state))
-                                                              (dirty-partitions (:layout gpu-state)
-                                                                                (:previous-layout gpu-state))
-                                                              [[(:layout gpu-state)]
-                                                               [{:x 0
-                                                                 :y 0
-                                                                 :width (:width size)
-                                                                 :height (:height size)}]])]
+(defn layout-to-partitions [render-target-state]
+  (let [[partitions-to-be-redrawn partitions-to-be-cleared] (dirty-partitions (:layout render-target-state)
+                                                                              (:previous-layout render-target-state))]
 
-    (assoc gpu-state
+    (assoc render-target-state
            :partitions partitions-to-be-redrawn
            :partitions-to-be-cleared partitions-to-be-cleared
-           :previous-layout (:layout gpu-state)
-           :previous-size size)))
+           :previous-layout (:layout render-target-state))))
 
 (defn partition-to-render-trees [gpu-state partition]
   (assoc gpu-state
@@ -345,7 +339,7 @@
                                                                (layout-to-render-trees (assoc partition
                                                                                               :x 0 :y 0 :z 0))
                                                                (render-trees-to-drawables)
-                                                               (render-drawables)))
+                                                               (render-drawables-to-default-frame-buffer)))
                                   (update-in [:renderers :quad-view :quad-view]
                                              quad-view/add-gl-texture
                                              partition
@@ -363,39 +357,36 @@
 
 (defn partitions-to-drawables [gpu-state]
   (assoc gpu-state
-         :drawables (mapcat (fn [partition]
-                              (drawables-for-layout partition)
-
-                              #_(if (:recurring? partition)
-                                  [#_(assoc partition
-                                            :has-predefined-texture true)]
-                                  (do #_(opengl/clear-rectangle (:gl gpu-state)
-                                                                (:x partition)
-                                                                (:y partition)
-                                                                (:width partition)
-                                                                (:height partition)
-                                                                0 0 1 1)
-                                      (concat [(assoc (drawable/->Rectangle (:width partition)
-                                                                            (:height partition)
-                                                                            [0 0 0 255])
-                                                      :x (:x partition)
-                                                      :y (:y partition))]
-                                              (drawables-for-layout partition)))))
+         :drawables (mapcat drawables-for-layout
                             (:partitions gpu-state))))
 
 (defn swap-buffers [gpu-state]
   (window/swap-buffers (:window gpu-state))
   gpu-state)
 
-
+(defn apply-transformers-to-gpu-state [gpu-state]
+  (loop [layout (:layout gpu-state)
+         gpu-state gpu-state
+         transformer-paths (->> (:transformer-paths layout)
+                                (sort-by count)
+                                (reverse))]
+    (if-let [transformer-path (first transformer-paths)]
+      (let [transformer (get-in layout (concat transformer-path [:transformer :transformer]))
+            [transformed-layout gpu-state] (transformer (get-in layout transformer-path) gpu-state)]
+        (recur  
+         (assoc-in layout transformer-path transformed-layout)
+         gpu-state
+         (rest transformer-paths)))
+      (assoc gpu-state :layout layout))))
 
 (defn render-frame [gpu-state]
   (-> gpu-state
       (start-frame)
+      (apply-transformers-to-gpu-state)
       (layout-to-partitions)
       #_(bake-recurring-partitions)
       (partitions-to-drawables)
-      (render-drawables)
+      (render-drawables-to-default-frame-buffer)
       (end-frame)))
 
 (defn render [gpu-state layout]
@@ -495,9 +486,9 @@
       prefixes)))
 
 #_(fact (path-prefixes [[1 2] [3] [4]])
-      => [[[1 2]]
-          [[1 2] [3]]
-          [[1 2] [3] [4]]])
+        => [[[1 2]]
+            [[1 2] [3]]
+            [[1 2] [3] [4]]])
 
 (defn layout-path-to-handlers [layout-path layout handler-key]
   (->> (map (fn [path]
@@ -736,11 +727,11 @@
       focus-paths)))
 
 #_(fact (initial-focus-paths {:first-focusable-child (fn [_] [:children 1])
-                            :children [{:first-focusable-child (fn [_] [:children 0])
-                                        :children [{}]}
-                                       {:first-focusable-child (fn [_] [:children 0])
-                                        :children [{}]}]})
-      => [[:children 1] [:children 0]])
+                              :children [{:first-focusable-child (fn [_] [:children 0])
+                                          :children [{}]}
+                                         {:first-focusable-child (fn [_] [:children 0])
+                                          :children [{}]}]})
+        => [[:children 1] [:children 0]])
 
 (defn next-focus-path-parts [state previous-focus-path-parts]
   (when (seq previous-focus-path-parts)
@@ -756,16 +747,16 @@
         (next-focus-path-parts state parent-focus-path-parts)))))
 
 #_(fact (let [state (conj (seq-focus-handlers :children1)
-                        {:children1 [(conj (seq-focus-handlers :children2)
-                                           {:children2 [{}{}{}]})
-                                     (conj (seq-focus-handlers :children2)
-                                           {:children2 [{}{}(conj (seq-focus-handlers :children3)
-                                                                  {:children3 [{}{}{}]})]})]})]
+                          {:children1 [(conj (seq-focus-handlers :children2)
+                                             {:children2 [{}{}{}]})
+                                       (conj (seq-focus-handlers :children2)
+                                             {:children2 [{}{}(conj (seq-focus-handlers :children3)
+                                                                    {:children3 [{}{}{}]})]})]})]
 
-        (next-focus-path-parts state [[:children1 0] [:children2 1]])  => [[:children1 0] [:children2 2]]
-        (next-focus-path-parts state [[:children1 0] [:children2 2]])  => [[:children1 1] [:children2 0]]
-        (next-focus-path-parts state [[:children1 1] [:children2 1]])  => [[:children1 1] [:children2 2] [:children3 0]]
-        (next-focus-path-parts state [[:children1 1] [:children2 2] [:children3 2]])  => nil))
+          (next-focus-path-parts state [[:children1 0] [:children2 1]])  => [[:children1 0] [:children2 2]]
+          (next-focus-path-parts state [[:children1 0] [:children2 2]])  => [[:children1 1] [:children2 0]]
+          (next-focus-path-parts state [[:children1 1] [:children2 1]])  => [[:children1 1] [:children2 2] [:children3 0]]
+          (next-focus-path-parts state [[:children1 1] [:children2 2] [:children3 2]])  => nil))
 
 (defn move-focus-on-tab-beforehand [app]
   (fn [state event]
@@ -910,9 +901,8 @@
 
 
 
-(defn view-call-paths
-  ([layoutable]
-   (layout/find-layoutable-paths layoutable #(instance? ViewCall %))))
+(defn view-call-paths [layoutable]
+  (layout/find-layoutable-paths layoutable #(instance? ViewCall %)))
 
 (deftest view-call-paths-test
   (is (= '[(:children 1)
@@ -1056,6 +1046,7 @@
   (let [layoutable (view view-context state)]
     (-> layoutable
         (assoc :view-call-paths (view-call-paths layoutable))
+        (assoc :transformer-paths (layout/find-layoutable-paths layoutable :transformer))
         (children-to-vectors))))
 
 (defn call-constructor [view-context constructor constructor-parameters constructor-overrides]

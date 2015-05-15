@@ -60,7 +60,7 @@
 
 ")
 
-  (def fragment-shader-source "
+(def fragment-shader-source "
   #version 140
 
   in vec2 texture_coordinate;
@@ -74,7 +74,7 @@
   }
 ")
 
-  (def upside-down-fragment-shader-source "
+(def upside-down-fragment-shader-source "
   #version 140
 
   in vec2 texture_coordinate;
@@ -88,7 +88,7 @@
   }
 ")
 
-  (def alpha-fragment-shader-source "
+(def alpha-fragment-shader-source "
   #version 140
 
   in vec2 texture_coordinate;
@@ -141,8 +141,8 @@
   (shader/set-float4-matrix-uniform gl
                                     shader-program
                                     "projection_matrix"
-                                    (math/projection-matrix-2d frame-buffer-width
-                                                               frame-buffer-height))
+                                    (math/core-matrix-to-opengl-matrix (math/projection-matrix-2d frame-buffer-width
+                                                                                                  frame-buffer-height)))
 
   (shader/set-float4-uniform gl
                              shader-program
@@ -161,44 +161,44 @@
 
 #_(defn start []
 
-  (let [window-width 600
-        window-height 600
-        window (window/create window-width
-                              window-height
-                              :profile :gl3
-                              :close-automatically true
-                              :init opengl/initialize)]
+    (let [window-width 600
+          window-height 600
+          window (window/create window-width
+                                window-height
+                                :profile :gl3
+                                :close-automatically true
+                                :init opengl/initialize)]
 
-    (try
-      (window/set-display window gl
-                          (let [quad (create gl)
-                                program (create-program quad alpha-fragment-shader-source gl)
-                                {:keys [width height]} (opengl/size gl)
-                                texture (texture/create-for-file "pumpkin.png" gl)]
+      (try
+        (window/set-display window gl
+                            (let [quad (create gl)
+                                  program (create-program quad alpha-fragment-shader-source gl)
+                                  {:keys [width height]} (opengl/size gl)
+                                  texture (texture/create-for-file "pumpkin.png" gl)]
 
-                            (opengl/clear gl 0 0 1 1)
+                              (opengl/clear gl 0 0 1 1)
 
-                            (draw gl
-                                  ["texture" texture]
-                                  [:1f "alpha" 0.5]
-                                  program
-                                  0 0
-                                  128 128
-                                  width height)
+                              (draw gl
+                                    ["texture" texture]
+                                    [:1f "alpha" 0.5]
+                                    program
+                                    0 0
+                                    128 128
+                                    width height)
 
-                            (draw gl
-                                  ["texture" texture]
-                                  [:1f "alpha" 1.0]
-                                  program
-                                  0 128
-                                  228 228
-                                  width height)
+                              (draw gl
+                                    ["texture" texture]
+                                    [:1f "alpha" 1.0]
+                                    program
+                                    0 128
+                                    228 228
+                                    width height)
 
-                            (shader/delete-program gl program)
-                            (delete quad gl)))
+                              (shader/delete-program gl program)
+                              (delete quad gl)))
 
-      (println "exiting")
+        (println "exiting")
 
-      (catch Exception e
-        (window/close window)
-        (throw e)))))
+        (catch Exception e
+          (window/close window)
+          (throw e)))))

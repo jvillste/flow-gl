@@ -34,7 +34,7 @@
 
 (defn load-from-buffered-image [gl texture image]
   (load gl texture  (.getWidth image) (.getHeight image)
-        (native-buffer/create-native-buffer-with-values :int (-> image (.getRaster) (.getDataBuffer) (.getData)))))
+        (native-buffer/create-native-buffer-with-values (-> image (.getRaster) (.getDataBuffer) (.getData)))))
 
 (defn copy-to-buffer [gl texture buffer offset]
   (.glBindTexture gl GL2/GL_TEXTURE_2D texture)
