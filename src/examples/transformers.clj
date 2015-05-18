@@ -39,6 +39,7 @@
                                                                                             :width (:width layout)
                                                                                             :height (:height layout))
                                                                                      gpu-state])}))))
+
                             (assoc :transformer {:id :transformer-1
                                                  :transformer (fn [layout gpu-state]
                                                                 (let [gl (:gl gpu-state)
