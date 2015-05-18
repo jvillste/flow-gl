@@ -282,12 +282,15 @@
                               (:partitions-to-be-cleared gpu-state))
                       (:gl gpu-state))))
 
-(defn render-drawables [render-target-state gl]
-  (let [render-target-state (-> (set-stencil render-target-state)
-                      (add-clearing-drawable))
-        render-target-state (update-in render-target-state [:renderers] render-drawables-with-renderers gl (:drawables render-target-state))]
-    (stencil/disable gl)
-    render-target-state))
+(defn render-drawables [gpu-state]
+  (update-in gpu-state [:renderers] render-drawables-with-renderers (:gl gpu-state) (:drawables gpu-state)))
+
+(defn render-drawables-with-stencil [gpu-state]
+  (let [gpu-state (-> (set-stencil gpu-state)
+                      (add-clearing-drawable)
+                      (render-drawables))]
+    (stencil/disable (:gl gpu-state))
+    gpu-state))
 
 (defn render-drawables-to-default-frame-buffer [gpu-state]
   (let [gl (:gl gpu-state)
@@ -302,7 +305,9 @@
                               (render-target/create width height gl)))
                         (render-target/create width height gl))
         gpu-state (render-target/render-to render-target gl
-                                           (render-drawables gpu-state gl))]
+                                           (when (not= render-target (:render-target gpu-state))
+                                             (opengl/clear gl 0 0 0 255))
+                                           (render-drawables-with-stencil gpu-state))]
 
     (render-target/blit render-target gl)
 
