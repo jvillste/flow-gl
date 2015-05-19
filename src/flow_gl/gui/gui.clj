@@ -369,8 +369,8 @@
   (window/swap-buffers (:window gpu-state))
   gpu-state)
 
-(defn apply-transformers-to-gpu-state [gpu-state]
-  (loop [layout (:layout gpu-state)
+(defn apply-transformers-to-layout [layout gpu-state]
+  (loop [layout layout
          gpu-state gpu-state
          transformer-paths (->> (:transformer-paths layout)
                                 (sort-by count)
@@ -378,11 +378,46 @@
     (if-let [transformer-path (first transformer-paths)]
       (let [transformer (get-in layout (concat transformer-path [:transformer :transformer]))
             [transformed-layout gpu-state] (transformer (get-in layout transformer-path) gpu-state)]
-        (recur  
-         (assoc-in layout transformer-path transformed-layout)
+        (recur
+         (if (empty? transformer-path)
+           transformed-layout
+           (assoc-in layout transformer-path transformed-layout))
          gpu-state
          (rest transformer-paths)))
-      (assoc gpu-state :layout layout))))
+      [layout gpu-state])))
+
+(defn apply-transformers-to-view-calls [layout gpu-state]
+  (let [[layout gpu-state] (loop [layout layout
+                                  gpu-state gpu-state
+                                  view-call-paths (:view-call-paths layout)]
+                             (if-let [view-call-path (first view-call-paths)]
+                               (let [[transformed-layout gpu-state] (apply-transformers-to-view-calls (get-in layout view-call-path) gpu-state)]
+                                 (recur  
+                                  (if (empty? view-call-path)
+                                    transformed-layout
+                                    (assoc-in layout view-call-path transformed-layout)) 
+                                  gpu-state
+                                  (rest view-call-paths)))
+                               [layout gpu-state]))]
+    (apply-transformers-to-layout layout gpu-state)))
+
+(defn apply-transformers-to-gpu-state [gpu-state]
+  (let [[layout gpu-state] (apply-transformers-to-view-calls (:layout gpu-state) gpu-state)]
+    (assoc gpu-state :layout layout))
+
+  #_(loop [layout (:layout gpu-state)
+           gpu-state gpu-state
+           transformer-paths (->> (:transformer-paths layout)
+                                  (sort-by count)
+                                  (reverse))]
+      (if-let [transformer-path (first transformer-paths)]
+        (let [transformer (get-in layout (concat transformer-path [:transformer :transformer]))
+              [transformed-layout gpu-state] (transformer (get-in layout transformer-path) gpu-state)]
+          (recur  
+           (assoc-in layout transformer-path transformed-layout)
+           gpu-state
+           (rest transformer-paths)))
+        (assoc gpu-state :layout layout))))
 
 (defn render-frame [gpu-state]
   (-> gpu-state
