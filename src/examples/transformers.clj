@@ -25,26 +25,11 @@
 
 (defn barless-root-view [view-context state]
   (l/margin 10 10 10 10 (-> (l/vertically (for [i (range 20)]
-                                            (-> (controls/text (str "as fasf asdf asf asdf asdf ads faas fas fasdf" i))
-                                                (assoc :transformer {:id [:text-transformer i] 
-                                                                     :transformer (fn [layout gpu-state]
-                                                                                    [(assoc (l/superimpose (assoc layout
-                                                                                                                  :x 0 :y 0)
-                                                                                                           (assoc (drawable/->Rectangle (:width layout)
-                                                                                                                                        (:height layout)
-                                                                                                                                        [255 0 0 50])
-                                                                                                                  :x 0 :y 0) )
-                                                                                            :x (:x layout)
-                                                                                            :y (:y layout)
-                                                                                            :width (:width layout)
-                                                                                            :height (:height layout))
-                                                                                     gpu-state])}))))
+                                            (controls/text (str "as fasf asdf asf asdf asdf ads faas fas fasdf" i))))
 
                             (assoc :transformer {:id :transformer-1
-                                                 :transformer (fn [layout gpu-state]
+                                                 :transformer (fn [layout gpu-state state]
                                                                 (let [gl (:gl gpu-state)
-                                                                      state (or (get gpu-state :transformer-1)
-                                                                                {})
                                                                       width (:width layout)
                                                                       height (:height layout)
                                                                       render-target (if-let [render-target (:render-target state)]
@@ -70,7 +55,8 @@
                                                                                      :2f "dir" [1.0 0.0]]
                                                                                     quad/blur-fragment-shader-source
                                                                                     (:x layout) (:y layout) width height)
-                                                                   (assoc gpu-state :transformer-1 state)]))}))))
+                                                                   gpu-state
+                                                                   state]))}))))
 
 (defn barless-root [view-context]
   {:view #'barless-root-view})

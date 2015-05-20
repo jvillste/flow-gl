@@ -124,6 +124,8 @@ TODO
 
 - run transformers after layout
 -- run transformers in view calls
+-- allow multiple transformers for a single layoutable
+-- call transformer destructors
 
 - partial updating of render targets / frame buffer objects
 

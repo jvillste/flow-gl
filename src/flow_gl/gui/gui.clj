@@ -11,6 +11,7 @@
                          [renderer :as renderer]
                          [window :as window]
                          [layout :as layout]
+                         [layouts :as layouts]
                          [events :as events]
                          [layoutable :as layoutable]
                          [cache :as cache]
@@ -24,7 +25,8 @@
   (:import [java.io File]
            [java.util.concurrent Executors]
            [java.lang Runnable]
-           [java.nio ByteBuffer])
+           [java.nio ByteBuffer]
+           [flow_gl.gui.layouts SizeDependent])
   (:use flow-gl.utils
         clojure.test))
 
@@ -369,29 +371,48 @@
   (window/swap-buffers (:window gpu-state))
   gpu-state)
 
-(defn apply-transformers-to-layout [layout gpu-state]
+(defn apply-transformers-to-layout [layout gpu-state path]
+  (println "transformer paths" (type layout) path (:transformer-paths layout))
   (loop [layout layout
          gpu-state gpu-state
-         transformer-paths (->> (:transformer-paths layout)
-                                (sort-by count)
-                                (reverse))]
-    (if-let [transformer-path (first transformer-paths)]
-      (let [transformer (get-in layout (concat transformer-path [:transformer :transformer]))
-            [transformed-layout gpu-state] (transformer (get-in layout transformer-path) gpu-state)]
+         transformer-layout-paths (->> (:transformer-paths layout)
+                                       (sort-by count)
+                                       (reverse))]
+
+    (if-let [transformer-layout-path (first transformer-layout-paths)]
+      (let [transformer-specification (get-in layout (concat transformer-layout-path [:transformer]))
+            transformer (:transformer transformer-specification)
+            transformer-state-path (conj path (:id transformer-specification))
+            transformer-state (or (get-in gpu-state [:transformer-states transformer-state-path])
+                                  {})
+            [transformed-layout gpu-state transformer-state] (transformer (get-in layout transformer-layout-path)
+                                                                          gpu-state
+                                                                          transformer-state)]
         (recur
-         (if (empty? transformer-path)
+         (if (empty? transformer-layout-path)
            transformed-layout
-           (assoc-in layout transformer-path transformed-layout))
-         gpu-state
-         (rest transformer-paths)))
+           (assoc-in layout transformer-layout-path transformed-layout))
+         (-> gpu-state
+             (assoc-in [:transformer-states transformer-state-path :state] transformer-state)
+             (assoc-in [:transformer-states transformer-state-path :destructor] (:destructor transformer-specification))
+             (update-in [:used-transformer-state-paths] conj transformer-state-path))
+         (rest transformer-layout-paths)))
       [layout gpu-state])))
 
-(defn apply-transformers-to-view-calls [layout gpu-state]
+(defn apply-transformers-to-view-call-hierarchy [layout gpu-state path]
+  (println "size dependent paths" path (:size-dependent-paths layout))
   (let [[layout gpu-state] (loop [layout layout
                                   gpu-state gpu-state
-                                  view-call-paths (:view-call-paths layout)]
+                                  view-call-paths (->> (concat (:view-call-paths layout)
+                                                               (:size-dependent-paths layout))
+                                                       (filter (complement empty?)))]
                              (if-let [view-call-path (first view-call-paths)]
-                               (let [[transformed-layout gpu-state] (apply-transformers-to-view-calls (get-in layout view-call-path) gpu-state)]
+                               (let [child-layout (get-in layout view-call-path)
+                                     [transformed-layout gpu-state] (apply-transformers-to-view-call-hierarchy child-layout
+                                                                                                               gpu-state
+                                                                                                               (if-let [child-id (:child-id child-layout)] ;; size dependents don't have child ids
+                                                                                                                 (conj path child-id)
+                                                                                                                 path))]
                                  (recur  
                                   (if (empty? view-call-path)
                                     transformed-layout
@@ -399,25 +420,23 @@
                                   gpu-state
                                   (rest view-call-paths)))
                                [layout gpu-state]))]
-    (apply-transformers-to-layout layout gpu-state)))
+    (apply-transformers-to-layout layout gpu-state path)))
 
 (defn apply-transformers-to-gpu-state [gpu-state]
-  (let [[layout gpu-state] (apply-transformers-to-view-calls (:layout gpu-state) gpu-state)]
-    (assoc gpu-state :layout layout))
-
-  #_(loop [layout (:layout gpu-state)
-           gpu-state gpu-state
-           transformer-paths (->> (:transformer-paths layout)
-                                  (sort-by count)
-                                  (reverse))]
-      (if-let [transformer-path (first transformer-paths)]
-        (let [transformer (get-in layout (concat transformer-path [:transformer :transformer]))
-              [transformed-layout gpu-state] (transformer (get-in layout transformer-path) gpu-state)]
-          (recur  
-           (assoc-in layout transformer-path transformed-layout)
-           gpu-state
-           (rest transformer-paths)))
-        (assoc gpu-state :layout layout))))
+  (let [gpu-state (assoc gpu-state :used-transformer-state-paths #{})
+        [layout gpu-state] (apply-transformers-to-view-call-hierarchy (:layout gpu-state) gpu-state [])
+        gpu-state (update-in gpu-state [:transformer-states] (fn [transformer-states]
+                                                               (reduce (fn [transformer-states state-path]
+                                                                         (if (contains? (:used-transformer-state-paths gpu-state)
+                                                                                        state-path)
+                                                                           transformer-states
+                                                                           (do (if-let [destructor (get-in transformer-states [state-path :destructor])]
+                                                                                 (destructor (get-in transformer-states [state-path :state])
+                                                                                             (:gl gpu-state)))
+                                                                               (dissoc transformer-states state-path))))
+                                                                       transformer-states
+                                                                       (keys transformer-states))))]
+    (assoc gpu-state :layout layout)))
 
 (defn render-frame [gpu-state]
   (-> gpu-state
@@ -1083,10 +1102,12 @@
           override-map))
 
 (defn run-view [view view-context state]
+
   (let [layoutable (view view-context state)]
     (-> layoutable
         (assoc :view-call-paths (view-call-paths layoutable))
         (assoc :transformer-paths (layout/find-layoutable-paths layoutable :transformer))
+        (assoc :size-dependent-paths (layout/find-layoutable-paths layoutable #(instance? SizeDependent %)))
         (children-to-vectors))))
 
 (defn call-constructor [view-context constructor constructor-parameters constructor-overrides]
@@ -1174,7 +1195,7 @@
         layoutable (conj layoutable
                          (dissoc view-call
                                  :constructor
-                                 :child-id
+                                 ;; :child-id  we need this when applying transformers
                                  :state-overrides
                                  :constructor-parameters
                                  :constructor-overrides))]

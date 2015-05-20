@@ -1,6 +1,5 @@
 (ns flow-gl.gui.layouts
   (:require  (flow-gl.gui [layout :as layout]
-                          [gui :as gui]
                           [layoutable :as layoutable]
                           [drawable :as drawable]
                           [cache :as cache]))
@@ -95,7 +94,7 @@
                            (let [inner-size (layoutable/preferred-size inner (- requested-width (* 2 margin)) (- requested-height (* 2 margin)))]
                              [(layout/set-dimensions-and-layout outer 0 0 requested-width requested-height)
                               (assoc (layout/set-dimensions-and-layout inner margin margin (:width inner-size) (:height inner-size))
-                                :z 1)])))))
+                                     :z 1)])))))
 
   (preferred-size [this available-width available-height]
                   (let [child-size (layoutable/preferred-size (second children) (- available-width (* 2 margin)) (- available-height (* 2 margin)))]
@@ -368,7 +367,7 @@
           (assoc this :children
                  (vec (map-indexed (fn [index child]
                                      (assoc (layout/set-dimensions-and-layout child 0 0 requested-width requested-height)
-                                       :z index))
+                                            :z index))
                                    children))))
 
   (preferred-size [this available-width available-height]
@@ -381,23 +380,25 @@
                                              child-sizes))})))
 
 #_(layout/deflayout-with-state SizeDependent [preferred-size-function child-function]
-  (layout [this state requested-width requested-height]
-          (let [layoutable (child-function state requested-width requested-height)
-                [state child-layout] (layout/set-dimensions-and-layout layoutable state 0 0 requested-width requested-height)]
-            [state
-             (assoc this :children [child-layout])]))
+    (layout [this state requested-width requested-height]
+            (let [layoutable (child-function state requested-width requested-height)
+                  [state child-layout] (layout/set-dimensions-and-layout layoutable state 0 0 requested-width requested-height)]
+              [state
+               (assoc this :children [child-layout])]))
 
-  (preferred-size [this available-width available-height]
-                  (preferred-size-function available-width available-height)))
+    (preferred-size [this available-width available-height]
+                    (preferred-size-function available-width available-height)))
 
 (layout/deflayout-not-memoized SizeDependent [layout-function children]
   (layout [this requested-width requested-height]
-          (assoc this :children
-                 [(layout/set-dimensions-and-layout (layout-function (first children) requested-width requested-height)
-                                                    0
-                                                    0
-                                                    requested-width
-                                                    requested-height)]))
+          (let [this (assoc this :children [(layout/set-dimensions-and-layout (layout-function (first children) requested-width requested-height)
+                                                                              0
+                                                                              0
+                                                                              requested-width
+                                                                              requested-height)])]
+            (println "size dependent transformer paths" (layout/find-layoutable-paths this :transformer))
+            (assoc this
+                   :transformer-paths (layout/find-layoutable-paths this :transformer))))
 
   (preferred-size [vertical-stack available-width available-height]
                   (layoutable/preferred-size (first children) available-width available-height)))
