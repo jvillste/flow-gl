@@ -153,7 +153,9 @@
   sum += texture(texture, vec2(tc.x + 3.0*blur*hstep, tc.y + 3.0*blur*vstep)) * 0.0540540541;
   sum += texture(texture, vec2(tc.x + 4.0*blur*hstep, tc.y + 4.0*blur*vstep)) * 0.0162162162;
 
-  outColor = vec4(sum.rgb, 1.0);
+  // outColor = vec4(1.0, 0.0, 0.0, 1.0) * 1.5 * vec4(sum.rgb, 1.0);
+  outColor = 1.5 * vec4(sum.rgb, 1.0);
+  // outColor = sum;
 }")
 
 (defn create [gl]

@@ -396,7 +396,6 @@
                                                                               0
                                                                               requested-width
                                                                               requested-height)])]
-            (println "size dependent transformer paths" (layout/find-layoutable-paths this :transformer))
             (assoc this
                    :transformer-paths (layout/find-layoutable-paths this :transformer))))
 

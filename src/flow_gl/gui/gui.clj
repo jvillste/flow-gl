@@ -372,7 +372,7 @@
   gpu-state)
 
 (defn apply-transformers-to-layout [layout gpu-state path]
-  (println "transformer paths" (type layout) path (:transformer-paths layout))
+  #_(println "transformer paths" (type layout) path (:transformer-paths layout))
   (loop [layout layout
          gpu-state gpu-state
          transformer-layout-paths (->> (:transformer-paths layout)
@@ -400,7 +400,7 @@
       [layout gpu-state])))
 
 (defn apply-transformers-to-view-call-hierarchy [layout gpu-state path]
-  (println "size dependent paths" path (:size-dependent-paths layout))
+  #_(println "size dependent paths" path (:size-dependent-paths layout))
   (let [[layout gpu-state] (loop [layout layout
                                   gpu-state gpu-state
                                   view-call-paths (->> (concat (:view-call-paths layout)

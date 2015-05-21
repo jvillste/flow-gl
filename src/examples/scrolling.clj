@@ -142,11 +142,14 @@
     {:local-state {:scroll-position 0}
      :view #'scroll-panel-view})
 
-(defn text [value]
-  (layouts/->Margin 2 2 0 0
-                    [(drawable/->Text (str value)
-                                      (font/create "LiberationSans-Regular.ttf" 15)
-                                      [255 255 255 255])]))
+(defn text
+  ([value]
+   (text value [255 255 255 255]))
+
+  ([value color]
+   (drawable/->Text (str value)
+                    (font/create "LiberationSans-Regular.ttf" 35)
+                    color)))
 
 #_(gui/def-control root
     ([view-context control-channel]
@@ -193,6 +196,89 @@
                  (when-let [render-target (:render-target state)]
                    (render-target/delete render-target gl)))})
 
+(defn ensure-render-target [render-target width height gl]
+  (if render-target
+    (if (and (= width
+                (:width render-target))
+             (= height
+                (:height render-target)))
+      render-target
+      (do (render-target/delete render-target gl)
+          (render-target/create width height gl)))
+    (render-target/create width height gl)))
+
+(defn bloom [radius]
+  {:transformer (fn [layout gpu-state state]
+                  (let [gl (:gl gpu-state)
+                        width (:width layout)
+                        height (:height layout)
+                        render-target-1 (ensure-render-target (:render-target-1 state) width height gl)
+                        render-target-2 (ensure-render-target (:render-target-2 state) width height #_(/ width 4) #_(/ height 4) gl)
+                        gpu-state (render-target/render-to render-target-1 gl
+                                                           (opengl/clear gl 0 0 0 0)
+                                                           (-> (assoc gpu-state :drawables (gui/drawables-for-layout (assoc layout
+                                                                                                                            :x 0
+                                                                                                                            :y 0)))
+                                                               (gui/render-drawables)))
+
+                        gpu-state (render-target/render-to render-target-2 gl
+                                                           (opengl/clear gl 0 0 0 0)
+                                                           (-> (assoc gpu-state :drawables [(drawable/->Quad ["texture" (:texture render-target-1)]
+                                                                                                             [:1f "resolution" width
+                                                                                                              :1f "radius" radius
+                                                                                                              :2f "dir" [1.0 0.0]]
+                                                                                                             ;;quad/fragment-shader-source
+                                                                                                             quad/blur-fragment-shader-source
+                                                                                                             0 0 width height #_(/ width 4) #_(/ height 4))])
+                                                               (gui/render-drawables)))
+
+                        gpu-state (render-target/render-to render-target-1 gl
+                                                           (opengl/clear gl 0 0 0 0)
+                                                           (-> (assoc gpu-state :drawables [(drawable/->Quad ["texture" (:texture render-target-2)]
+                                                                                                             [:1f "resolution" width
+                                                                                                              :1f "radius" radius
+                                                                                                              :2f "dir" [0.0 1.0]]
+                                                                                                             ;;quad/fragment-shader-source
+                                                                                                             quad/blur-fragment-shader-source
+                                                                                                             0 0 width height)])
+                                                               (gui/render-drawables)))]
+                    
+                    [{:x (:x layout)
+                      :y (:y layout)
+                      :width width
+                      :height height
+                      :children [#_(assoc (drawable/->Quad ["texture" (:texture render-target-1)]
+                                                           [:1f "resolution" width
+                                                            :1f "radius" radius
+                                                            :2f "dir" [1.0 0.0]]
+                                                           ;;quad/fragment-shader-source
+                                                           quad/blur-fragment-shader-source
+                                                           0 0 width height)
+                                          :content-hash (hash layout))
+                                 
+                                 (assoc (drawable/->Quad ["texture" (:texture render-target-1)]
+                                                         [;; :1f "resolution" width
+                                                          ;; :1f "radius" 0
+                                                          ;; :2f "dir" [1.0 0.0]
+                                                          ]
+                                                         quad/fragment-shader-source
+                                                         ;; quad/blur-fragment-shader-source
+                                                         0 0 width height)
+                                        :content-hash (hash layout))
+                                 
+                                 (assoc layout
+                                        :z 1
+                                        :x 0
+                                        :y 0)]} 
+                     gpu-state
+                     (assoc state
+                            :render-target-1 render-target-1
+                            :render-target-2 render-target-2)]))
+   
+   :destructor (fn [state gl]
+                 (when-let [render-target (:render-target state)]
+                   (render-target/delete render-target gl)))})
+
 (defn scroll-panel-view [view-context state]
   (layouts/->SizeDependent (fn [child requested-width requested-height]
                              (let [{preferred-width :width preferred-height :height} (layoutable/preferred-size child requested-width requested-height)
@@ -200,10 +286,10 @@
                                    maximum-y-scroll (- preferred-height requested-height)
                                    scroll-bar-width 5
                                    scroll-bar-color [255 255 255 120]]
-                               (-> (l/superimpose (layouts/->Margin (- (:scroll-position-y state)) 0 0 (- (:scroll-position-x state))
-                                                                    [(-> (l/preferred child)
-                                                                         (assoc :transformer (assoc (blur (/ (:scroll-position-y state) 100))
-                                                                                                    :id :transformer-2)))])
+                               (-> (l/superimpose (-> (layouts/->Margin (- (:scroll-position-y state)) 0 0 (- (:scroll-position-x state))
+                                                                        [(l/preferred child)])
+                                                      (assoc :transformer (assoc (bloom (/ (:scroll-position-y state) 100))
+                                                                                 :id :transformer-2)))
                                                   (when true #_(:mouse-over state)
                                                         (l/absolute (when (< requested-height preferred-height)
                                                                       (let [scroll-bar-length (* requested-height
@@ -269,7 +355,7 @@
   (l/margin 50 50 50 50 (gui/call-view scroll-panel
                                        :scroll-panel-1
                                        {:content (l/vertically (for [i (range 40)]
-                                                                 (controls/text (str "as fasf asdf asf asdf asdf ads faas fas fasdf" i))))}))
+                                                                 (text (str "as fasf asdf asf asdf asdf ads faas fas fasdf" i))))}))
   
   #_(l/vertically (l/margin 50 50 50 50 (gui/call-view scroll-panel
                                                        :scroll-panel-1
