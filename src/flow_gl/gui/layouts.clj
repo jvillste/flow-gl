@@ -389,9 +389,9 @@
     (preferred-size [this available-width available-height]
                     (preferred-size-function available-width available-height)))
 
-(layout/deflayout-not-memoized SizeDependent [layout-function children]
+(layout/deflayout-not-memoized SizeDependent [layout-function preferred-child]
   (layout [this requested-width requested-height]
-          (let [this (assoc this :children [(layout/set-dimensions-and-layout (layout-function (first children) requested-width requested-height)
+          (let [this (assoc this :children [(layout/set-dimensions-and-layout (layout-function requested-width requested-height)
                                                                               0
                                                                               0
                                                                               requested-width
@@ -399,8 +399,8 @@
             (assoc this
                    :transformer-paths (layout/find-layoutable-paths this :transformer))))
 
-  (preferred-size [vertical-stack available-width available-height]
-                  (layoutable/preferred-size (first children) available-width available-height)))
+  (preferred-size [this available-width available-height]
+                  (layoutable/preferred-size preferred-child available-width available-height)))
 
 
 (layout/deflayout-not-memoized Translate [translate-x translate-y child]

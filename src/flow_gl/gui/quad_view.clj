@@ -179,7 +179,6 @@
                                       (:drawable-textures quad-view)
                                       (keys unused-drawable-textures))]
 
-    (println "unload" (count unused-drawable-textures))
     (assoc quad-view
       :drawn-drawables []
       :quad-batch new-quad-batch
