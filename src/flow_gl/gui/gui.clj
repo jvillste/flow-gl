@@ -11,7 +11,6 @@
                          [renderer :as renderer]
                          [window :as window]
                          [layout :as layout]
-                         [layouts :as layouts]
                          [events :as events]
                          [layoutable :as layoutable]
                          [cache :as cache]
@@ -959,10 +958,6 @@
 (defrecord ViewCall [constructor child-id state-overrides constructor-parameters constructor-overrides])
 
 
-
-(defn view-call-paths [layoutable]
-  (layout/find-layoutable-paths layoutable #(instance? ViewCall %)))
-
 (deftest view-call-paths-test
   (is (= '[(:children 1)
            (:children 2)
@@ -1101,13 +1096,17 @@
           target-map
           override-map))
 
+(defn add-layout-paths [layoutable]
+  (assoc layoutable
+         :view-call-paths (layout/find-layoutable-paths layoutable #(instance? ViewCall %))
+         :transformer-paths (layout/find-layoutable-paths layoutable :transformer)
+         :size-dependent-paths (layout/find-layoutable-paths layoutable #(instance? SizeDependent %))))
+
 (defn run-view [view view-context state]
 
   (let [layoutable (view view-context state)]
     (-> layoutable
-        (assoc :view-call-paths (view-call-paths layoutable))
-        (assoc :transformer-paths (layout/find-layoutable-paths layoutable :transformer))
-        (assoc :size-dependent-paths (layout/find-layoutable-paths layoutable #(instance? SizeDependent %)))
+        (add-layout-paths)
         (children-to-vectors))))
 
 (defn call-constructor [view-context constructor constructor-parameters constructor-overrides]

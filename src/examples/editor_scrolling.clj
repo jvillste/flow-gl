@@ -112,8 +112,19 @@
                    (render-target/delete render-target gl)))})
 
 (defn scroll-panel-view [view-context state]
-  (layouts/->SizeDependent (fn [requested-width requested-height]
-                             (let [{preferred-width :width preferred-height :height} (layoutable/preferred-size (:content state) requested-width requested-height)
+  
+  (layouts/->SizeDependent view-context
+                           (fn [available-width available-height]
+                             {:width available-width
+                              :height available-height}
+                             #_(layoutable/preferred-size (:content state)
+                                                          available-width
+                                                          available-height))
+                           
+                           (fn [requested-width requested-height]
+                             (let [{preferred-width :width preferred-height :height} (layoutable/preferred-size (:content state)
+                                                                                                                requested-width
+                                                                                                                requested-height)
                                    maximum-x-scroll (- preferred-width requested-width)
                                    maximum-y-scroll (- preferred-height requested-height)
                                    scroll-bar-width 5
@@ -171,8 +182,7 @@
                                                                                      (do #_(println "mouse leave")
                                                                                          (assoc state :mouse-over false))
 
-                                                                                     :default state))))))
-                           [(:content state)]))
+                                                                                     :default state))))))))
 
 (defn scroll-panel [view-context]
   {:local-state {:scroll-position-x 0
@@ -184,8 +194,9 @@
 
   (l/margin 50 50 50 50 (gui/call-view scroll-panel
                                        :scroll-panel-1
-                                       {:content #_(l/vertically (for [i (range 40)]
-                                                                 (text (str "as fasf asdf asf asdf asdf ads faas fas fasdf" i))))
+                                       {:content
+                                        #_(l/vertically (for [i (range 40)]
+                                                          (text (str "as fasf asdf asf asdf asdf ads faas fas fasdf" i))))
                                         (l/vertically (for [i (range 5)]
                                                         (gui/call-and-bind view-context state i :text controls/text-editor i)))}))
   

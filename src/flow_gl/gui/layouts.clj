@@ -2,7 +2,8 @@
   (:require  (flow-gl.gui [layout :as layout]
                           [layoutable :as layoutable]
                           [drawable :as drawable]
-                          [cache :as cache]))
+                          [cache :as cache]
+                          [gui :as gui]))
   (:use clojure.test))
 
 
@@ -379,28 +380,48 @@
                      :height (apply max (map :height
                                              child-sizes))})))
 
-#_(layout/deflayout-with-state SizeDependent [preferred-size-function child-function]
-    (layout [this state requested-width requested-height]
-            (let [layoutable (child-function state requested-width requested-height)
-                  [state child-layout] (layout/set-dimensions-and-layout layoutable state 0 0 requested-width requested-height)]
-              [state
-               (assoc this :children [child-layout])]))
+(defn resolve-view-calls [view-context state layoutable]
+  (let [layoutable (-> layoutable
+                       (gui/add-layout-paths))
+        children-path (concat (:state-path view-context) [:children])
+        children (get-in state children-path)
+        [children layoutable] (gui/resolve-view-calls (:cache state)
+                                                      children
+                                                      (:state-path view-context)
+                                                      (:common-view-context state)
+                                                      (:frame-started state)
+                                                      layoutable)
+        state (assoc-in state children-path children)]
+    [state
+     layoutable]))
 
-    (preferred-size [this available-width available-height]
-                    (preferred-size-function available-width available-height)))
-
-(layout/deflayout-not-memoized SizeDependent [layout-function preferred-child]
-  (layout [this requested-width requested-height]
-          (let [this (assoc this :children [(layout/set-dimensions-and-layout (layout-function requested-width requested-height)
-                                                                              0
-                                                                              0
-                                                                              requested-width
-                                                                              requested-height)])]
-            (assoc this
-                   :transformer-paths (layout/find-layoutable-paths this :transformer))))
+(layout/deflayout-with-state SizeDependent [view-context preferred-size-function child-function]
+  (layout [this state requested-width requested-height]
+          (let [child-layoutable (child-function requested-width requested-height)
+                [state child-layout] (layout/set-dimensions-and-layout child-layoutable
+                                                                       state
+                                                                       0
+                                                                       0
+                                                                       requested-width
+                                                                       requested-height)]
+            [state
+             (assoc this :children [child-layout])]))
 
   (preferred-size [this available-width available-height]
-                  (layoutable/preferred-size preferred-child available-width available-height)))
+                  (preferred-size-function available-width available-height)))
+
+#_(layout/deflayout-not-memoized SizeDependent [layout-function preferred-child]
+    (layout [this requested-width requested-height]
+            (let [this (assoc this :children [(layout/set-dimensions-and-layout (layout-function requested-width requested-height)
+                                                                                0
+                                                                                0
+                                                                                requested-width
+                                                                                requested-height)])]
+              (assoc this
+                     :transformer-paths (layout/find-layoutable-paths this :transformer))))
+
+    (preferred-size [this available-width available-height]
+                    (layoutable/preferred-size preferred-child available-width available-height)))
 
 
 (layout/deflayout-not-memoized Translate [translate-x translate-y child]
@@ -422,7 +443,7 @@
 
 #_(deflayout DockBottom [layoutable]
 
-    (layout [dock-bottom requested-width requested-height  ]
+    (layout [dock-bottom requested-width requested-height]
             (let [height (layoutable/preferred-height layoutable )]
               (assoc dock-bottom :layoutable
                      (layout/set-dimensions-and-layout layoutable
