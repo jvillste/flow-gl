@@ -122,9 +122,9 @@
                                                           available-height))
                            
                            (fn [requested-width requested-height]
-                             (let [{preferred-width :width preferred-height :height} (layoutable/preferred-size (:content state)
-                                                                                                                requested-width
-                                                                                                                requested-height)
+                             (let [{preferred-width :width preferred-height :height} {:width 100 :height 200} #_(layoutable/preferred-size (:content state)
+                                                                                                                                           requested-width
+                                                                                                                                           requested-height)
                                    maximum-x-scroll (- preferred-width requested-width)
                                    maximum-y-scroll (- preferred-height requested-height)
                                    scroll-bar-width 5
@@ -190,9 +190,10 @@
    :view #'scroll-panel-view})
 
 (defn barless-root-view [view-context state]
+  (l/vertically (for [i (range 5)]
+                  (gui/call-and-bind view-context state i :text controls/text-editor i)))
 
-
-  (l/margin 50 50 50 50 (gui/call-view scroll-panel
+  #_(l/margin 50 50 50 50 (gui/call-view scroll-panel
                                        :scroll-panel-1
                                        {:content
                                         #_(l/vertically (for [i (range 40)]

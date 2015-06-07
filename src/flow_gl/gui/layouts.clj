@@ -382,7 +382,8 @@
 
 (defn resolve-view-calls [view-context state layoutable]
   (let [layoutable (-> layoutable
-                       (gui/add-layout-paths))
+                       gui/add-layout-paths
+                       gui/children-to-vectors)
         children-path (concat (:state-path view-context) [:children])
         children (get-in state children-path)
         [children layoutable] (gui/resolve-view-calls (:cache state)
@@ -398,6 +399,7 @@
 (layout/deflayout-with-state SizeDependent [view-context preferred-size-function child-function]
   (layout [this state requested-width requested-height]
           (let [child-layoutable (child-function requested-width requested-height)
+                [state child-layoutable] (resolve-view-calls view-context state child-layoutable)
                 [state child-layout] (layout/set-dimensions-and-layout child-layoutable
                                                                        state
                                                                        0

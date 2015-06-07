@@ -54,8 +54,8 @@
 ;; Window
 
 (defn add-window [state]
-  (assoc state :window (jogl-window/create 300
-                                           400
+  (assoc state :window (jogl-window/create 700
+                                           700
                                            :profile :gl3
                                            :init opengl/initialize
                                            :reshape opengl/resize)))
@@ -371,7 +371,6 @@
   gpu-state)
 
 (defn apply-transformers-to-layout [layout gpu-state path]
-  #_(println "transformer paths" (type layout) path (:transformer-paths layout))
   (loop [layout layout
          gpu-state gpu-state
          transformer-layout-paths (->> (:transformer-paths layout)
@@ -399,7 +398,6 @@
       [layout gpu-state])))
 
 (defn apply-transformers-to-view-call-hierarchy [layout gpu-state path]
-  #_(println "size dependent paths" path (:size-dependent-paths layout))
   (let [[layout gpu-state] (loop [layout layout
                                   gpu-state gpu-state
                                   view-call-paths (->> (concat (:view-call-paths layout)
