@@ -190,10 +190,10 @@
    :view #'scroll-panel-view})
 
 (defn barless-root-view [view-context state]
-  (l/vertically (for [i (range 5)]
+  #_(l/vertically (for [i (range 5)]
                   (gui/call-and-bind view-context state i :text controls/text-editor i)))
 
-  #_(l/margin 50 50 50 50 (gui/call-view scroll-panel
+  (l/margin 50 50 50 50 (gui/call-view scroll-panel
                                        :scroll-panel-1
                                        {:content
                                         #_(l/vertically (for [i (range 40)]
@@ -222,13 +222,13 @@
 
 
 (defn start []
-  #_(.start (Thread. (fn []
-                       (trace/trace-ns 'flow-gl.gui.gui)
-                       #_(trace/trace-var* 'flow-gl.gui.gui/resolve-view-calls)
+  (.start (Thread. (fn []
+                       #_(trace/trace-ns 'flow-gl.gui.gui)
+                       (trace/trace-var* 'flow-gl.gui.gui/set-focus-if-can-gain-focus)
                        (trace/with-trace
                          (gui/start-control barless-root)))))
 
-  (.start (Thread. (fn []
+  #_(.start (Thread. (fn []
                      (gui/start-control barless-root))))
 
   #_(profiler/with-profiler (gui/start-control barless-root)))

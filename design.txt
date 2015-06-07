@@ -132,6 +132,8 @@ resolve-view-call
 do-layout
 
 How to get the preferred size of a scroll panel contents that include view calls to figure out the scroll bar lenths?
+Removing unused child states should be done only after layout
+- make gui/remove-unused-child-states recursively go through children and call it once after layout every 100 events
 
 - run transformers after layout
 -- run transformers in view calls

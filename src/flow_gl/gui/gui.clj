@@ -54,7 +54,7 @@
 ;; Window
 
 (defn add-window [state]
-  (assoc state :window (jogl-window/create 700
+  (assoc state :window (jogl-window/create 1200
                                            700
                                            :profile :gl3
                                            :init opengl/initialize
@@ -732,7 +732,18 @@
     state))
 
 (defn set-focus [state focus-paths]
+  (println "setting focus" focus-paths)
   (move-hierarchical-state state focus-paths :focused-state-paths :child-has-focus :has-focus :on-focus-gained :on-focus-lost))
+
+(defn set-focus-if-can-gain-focus [state]
+  (do (println "under mouse" (:layout-paths-under-mouse state) (type (get-in (:layout state) (first (:layout-paths-under-mouse state)))))
+      (let [state-paths-under-mouse (layout-path-to-state-paths (:layout state)
+                                                                (first (:layout-paths-under-mouse state)))]
+        (println "state paths" state-paths-under-mouse)
+        (if (get-in state (concat (last state-paths-under-mouse)
+                                  [:can-gain-focus]))
+          (set-focus state state-paths-under-mouse)
+          state))))
 
 (debug/defn-timed set-focus-on-mouse-click-beforehand [state]
   (if (and (= (-> state :event :source)
@@ -740,12 +751,7 @@
            (= (-> state :event :type)
               :mouse-clicked))
 
-    (let [state-paths-under-mouse (layout-path-to-state-paths (:layout state)
-                                                              (first (:layout-paths-under-mouse state)))]
-      (if (get-in state (concat (last state-paths-under-mouse)
-                                [:can-gain-focus]))
-        (set-focus state state-paths-under-mouse)
-        state))
+    (set-focus-if-can-gain-focus state)
     state))
 
 ;; moving focus
@@ -1164,7 +1170,7 @@
                                                                 frame-started-for-children
                                                                 layoutable)
 
-        child-children (remove-unused-child-states child-children)
+        #_child-children #_(remove-unused-child-states child-children)
 
         view-state (assoc view-state :children child-children)
 

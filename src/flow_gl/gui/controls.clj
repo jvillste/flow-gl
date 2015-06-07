@@ -129,7 +129,8 @@
    :view #'scroll-panel-view})
 
 (defn scroll-panel [id content]
-  (gui/call-view create-scroll-panel
+  content
+  #_(gui/call-view create-scroll-panel
                  id
                  {:content content}))
 
