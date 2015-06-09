@@ -113,7 +113,7 @@
 
 (defn scroll-panel-view [view-context state]
   
-  (layouts/->SizeDependent view-context
+  (gui/->SizeDependent view-context
                            (fn [available-width available-height]
                              {:width available-width
                               :height available-height}

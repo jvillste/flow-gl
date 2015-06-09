@@ -24,8 +24,7 @@
   (:import [java.io File]
            [java.util.concurrent Executors]
            [java.lang Runnable]
-           [java.nio ByteBuffer]
-           [flow_gl.gui.layouts SizeDependent])
+           [java.nio ByteBuffer])
   (:use flow-gl.utils
         clojure.test))
 
@@ -732,18 +731,15 @@
     state))
 
 (defn set-focus [state focus-paths]
-  (println "setting focus" focus-paths)
   (move-hierarchical-state state focus-paths :focused-state-paths :child-has-focus :has-focus :on-focus-gained :on-focus-lost))
 
 (defn set-focus-if-can-gain-focus [state]
-  (do (println "under mouse" (:layout-paths-under-mouse state) (type (get-in (:layout state) (first (:layout-paths-under-mouse state)))))
-      (let [state-paths-under-mouse (layout-path-to-state-paths (:layout state)
-                                                                (first (:layout-paths-under-mouse state)))]
-        (println "state paths" state-paths-under-mouse)
-        (if (get-in state (concat (last state-paths-under-mouse)
-                                  [:can-gain-focus]))
-          (set-focus state state-paths-under-mouse)
-          state))))
+  (let [state-paths-under-mouse (layout-path-to-state-paths (:layout state)
+                                                            (first (:layout-paths-under-mouse state)))]
+    (if (get-in state (concat (last state-paths-under-mouse)
+                              [:can-gain-focus]))
+      (set-focus state state-paths-under-mouse)
+      state)))
 
 (debug/defn-timed set-focus-on-mouse-click-beforehand [state]
   (if (and (= (-> state :event :source)
@@ -962,17 +958,6 @@
 (defrecord ViewCall [constructor child-id state-overrides constructor-parameters constructor-overrides])
 
 
-(deftest view-call-paths-test
-  (is (= '[(:children 1)
-           (:children 2)
-           (:children 3 :children 0)
-           (:children 3 :children 1)]
-         (view-call-paths {:children [{}
-                                      (->ViewCall nil nil nil nil nil)
-                                      (->ViewCall nil nil nil nil nil)
-                                      {:children [(->ViewCall nil nil nil nil nil)
-                                                  (->ViewCall nil nil nil nil nil)]}]}))))
-
 (defn children-to-vectors [layoutable]
   (if-let [children (:children layoutable)]
     (loop [children children
@@ -1100,11 +1085,60 @@
           target-map
           override-map))
 
+(deftype SizeDependent [])
+
 (defn add-layout-paths [layoutable]
   (assoc layoutable
          :view-call-paths (layout/find-layoutable-paths layoutable #(instance? ViewCall %))
          :transformer-paths (layout/find-layoutable-paths layoutable :transformer)
          :size-dependent-paths (layout/find-layoutable-paths layoutable #(instance? SizeDependent %))))
+
+(declare resolve-view-calls)
+
+(defn resolve-size-dependent-view-calls [view-context state layoutable]
+  (let [layoutable (-> layoutable
+                       add-layout-paths
+                       children-to-vectors)
+        children-path (concat (:state-path view-context) [:children])
+        children (get-in state children-path)
+        [children layoutable] (resolve-view-calls (:cache state)
+                                                  children
+                                                  (:state-path view-context)
+                                                  (:common-view-context state)
+                                                  (:frame-started state)
+                                                  layoutable)
+        state (assoc-in state children-path children)]
+    [state
+     layoutable]))
+
+(layout/deflayout-with-state SizeDependent [view-context preferred-size-function child-function]
+  (layout [this state requested-width requested-height]
+          (let [child-layoutable (child-function requested-width requested-height)
+                [state child-layoutable] (resolve-size-dependent-view-calls view-context state child-layoutable)
+                [state child-layout] (layout/set-dimensions-and-layout child-layoutable
+                                                                       state
+                                                                       0
+                                                                       0
+                                                                       requested-width
+                                                                       requested-height)]
+            [state
+             (assoc this :children [child-layout])]))
+
+  (preferred-size [this available-width available-height]
+                  (preferred-size-function available-width available-height)))
+
+#_(layout/deflayout-not-memoized SizeDependent [layout-function preferred-child]
+    (layout [this requested-width requested-height]
+            (let [this (assoc this :children [(layout/set-dimensions-and-layout (layout-function requested-width requested-height)
+                                                                                0
+                                                                                0
+                                                                                requested-width
+                                                                                requested-height)])]
+              (assoc this
+                     :transformer-paths (layout/find-layoutable-paths this :transformer))))
+
+    (preferred-size [this available-width available-height]
+                    (layoutable/preferred-size preferred-child available-width available-height)))
 
 (defn run-view [view view-context state]
 
@@ -1125,7 +1159,7 @@
 
 
 
-(def resolve-view-calls)
+
 
 (defn run-view-call [cache parent-state-path children child-id common-view-context frame-started constructor constructor-parameters state-overrides constructor-overrides]
   (let [state-path (concat parent-state-path (create-state-path-part child-id))

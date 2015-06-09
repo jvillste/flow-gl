@@ -2,8 +2,7 @@
   (:require  (flow-gl.gui [layout :as layout]
                           [layoutable :as layoutable]
                           [drawable :as drawable]
-                          [cache :as cache]
-                          [gui :as gui]))
+                          [cache :as cache]))
   (:use clojure.test))
 
 
@@ -380,50 +379,7 @@
                      :height (apply max (map :height
                                              child-sizes))})))
 
-(defn resolve-view-calls [view-context state layoutable]
-  (let [layoutable (-> layoutable
-                       gui/add-layout-paths
-                       gui/children-to-vectors)
-        children-path (concat (:state-path view-context) [:children])
-        children (get-in state children-path)
-        [children layoutable] (gui/resolve-view-calls (:cache state)
-                                                      children
-                                                      (:state-path view-context)
-                                                      (:common-view-context state)
-                                                      (:frame-started state)
-                                                      layoutable)
-        state (assoc-in state children-path children)]
-    [state
-     layoutable]))
 
-(layout/deflayout-with-state SizeDependent [view-context preferred-size-function child-function]
-  (layout [this state requested-width requested-height]
-          (let [child-layoutable (child-function requested-width requested-height)
-                [state child-layoutable] (resolve-view-calls view-context state child-layoutable)
-                [state child-layout] (layout/set-dimensions-and-layout child-layoutable
-                                                                       state
-                                                                       0
-                                                                       0
-                                                                       requested-width
-                                                                       requested-height)]
-            [state
-             (assoc this :children [child-layout])]))
-
-  (preferred-size [this available-width available-height]
-                  (preferred-size-function available-width available-height)))
-
-#_(layout/deflayout-not-memoized SizeDependent [layout-function preferred-child]
-    (layout [this requested-width requested-height]
-            (let [this (assoc this :children [(layout/set-dimensions-and-layout (layout-function requested-width requested-height)
-                                                                                0
-                                                                                0
-                                                                                requested-width
-                                                                                requested-height)])]
-              (assoc this
-                     :transformer-paths (layout/find-layoutable-paths this :transformer))))
-
-    (preferred-size [this available-width available-height]
-                    (layoutable/preferred-size preferred-child available-width available-height)))
 
 
 (layout/deflayout-not-memoized Translate [translate-x translate-y child]

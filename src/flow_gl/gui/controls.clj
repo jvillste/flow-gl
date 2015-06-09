@@ -66,7 +66,7 @@
 
 
 (defn scroll-panel-view [view-context state]
-  (layouts/->SizeDependent (fn [child requested-width requested-height]
+  (gui/->SizeDependent (fn [child requested-width requested-height]
                              (let [{preferred-width :width preferred-height :height} (layoutable/preferred-size child requested-width requested-height)
                                    maximum-x-scroll (- preferred-width requested-width)
                                    maximum-y-scroll (- preferred-height requested-height)
