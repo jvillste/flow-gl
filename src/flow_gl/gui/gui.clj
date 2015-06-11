@@ -716,7 +716,7 @@
   (if (= (-> state :event :source)
          :keyboard)
     (loop [state state
-           focused-state-paths (concat [root-view-state-path] (:focused-state-paths state))]
+           focused-state-paths (:focused-state-paths state)]
       (if-let [focused-state-path (first focused-state-paths)]
         (if-let [keyboard-event-handler (get-in state (concat (vec focused-state-path)
                                                               [:handle-keyboard-event]))]
@@ -860,19 +860,30 @@
   (-> children
       (assoc :old-child-ids  (or (:child-ids children)
                                  [])
-             :child-ids [])))
+             :child-ids []
+             :view-calls-resolved? false)))
 
 (defn remove-unused-child-states [children]
-  (let [child-set (set (:child-ids children ))
-        children-to-be-removed (->> (:old-child-ids children)
-                                    (filter (complement child-set)))]
-    (-> (reduce (fn [children child-to-be-removed]
-                  (do (call-destructors (get-in children [:child-states child-to-be-removed]))
-                      (update-in children [:child-states] dissoc child-to-be-removed)))
-                children
-                children-to-be-removed)
-        (reset-child-ids))))
+  (if (:view-calls-resolved? children)
+    (let [child-set (set (:child-ids children))
+          children-to-be-removed (->> (:old-child-ids children)
+                                      (filter (complement child-set)))
+          children (-> (reduce (fn [children child-to-be-removed]
+                                 (println "removing child" child-to-be-removed)
+                                 (do (call-destructors (get-in children [:child-states child-to-be-removed]))
+                                     (update-in children [:child-states] dissoc child-to-be-removed)))
+                               children
+                               children-to-be-removed)
+                       (reset-child-ids))
+          children (reduce (fn [children child-id]
+                             (update-in children [:child-states child-id :children] remove-unused-child-states))
+                           children
+                           child-set)]
+      children)
+    children))
 
+(defn remove-unused-child-states-afterwards [state]
+  (update-in state [:children :child-states :root :children] remove-unused-child-states))
 
 (defn wrap-with-current-view-state-atom [view]
   (-> (fn [view-context state]
@@ -992,7 +1003,8 @@
                               (apply-mouse-movement-event-handlers-beforehand)
                               (apply-view-state-applications-beforehand)
                               (app)
-                              (add-layout-afterwards)))
+                              (add-layout-afterwards)
+                              (remove-unused-child-states-afterwards)))
                         state
                         events)]
 
@@ -1107,6 +1119,7 @@
                                                   (:common-view-context state)
                                                   (:frame-started state)
                                                   layoutable)
+        children (assoc children :view-calls-resolved? true)
         state (assoc-in state children-path children)]
     [state
      layoutable]))
@@ -1204,8 +1217,10 @@
                                                                 frame-started-for-children
                                                                 layoutable)
 
-        #_child-children #_(remove-unused-child-states child-children)
-
+        child-children (if (empty? (:size-dependent-paths layoutable))
+                         (assoc child-children :view-calls-resolved? true)
+                         child-children)
+        
         view-state (assoc view-state :children child-children)
 
         children (assoc-in children [:child-states child-id] view-state)
@@ -1254,7 +1269,9 @@
                      (assoc-in view-call-path child-layoutable)
                      (assoc :sleep-time (choose-sleep-time (:sleep-time layoutable)
                                                            (:sleep-time child-layoutable)))))))
-      [children layoutable])))
+      
+      [children
+       layoutable])))
 
 (defn control-to-application
   ([constructor]
@@ -1275,7 +1292,8 @@
                                                 constructor-overrides)
 
            #_application-state #_(set-focus application-state
-                                            (initial-focus-paths view-state))]
+                                            [root-view-state-path]
+                                            #_(initial-focus-paths view-state))]
 
        (assoc application-state
               :children children

@@ -238,6 +238,9 @@
         (keyword? value)
         (str value)
 
+        (instance? java.lang.Boolean value)
+        (str value)
+
         (string? value)
         (str "\"" value "\"")
 
