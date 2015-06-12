@@ -539,7 +539,9 @@
   (if (and (:layout state)
            (= (-> state :event :source)
               :mouse))
-    (assoc state :layout-paths-under-mouse (reverse (layout/layout-paths-in-coordinates (:layout state) (-> state :event :x) (-> state :event :y))))
+    (assoc state :layout-paths-under-mouse (reverse (layout/layout-paths-in-coordinates (:layout state)
+                                                                                        (-> state :event :x)
+                                                                                        (-> state :event :y))))
     state))
 
 (defn path-prefixes [path]
@@ -747,12 +749,23 @@
   (move-hierarchical-state state focus-paths :focused-state-paths :child-has-focus :has-focus :on-focus-gained :on-focus-lost))
 
 (defn set-focus-if-can-gain-focus [state]
-  (let [state-paths-under-mouse (layout-path-to-state-paths (:layout state)
+  (let [state-paths-that-can-gain-focus (->> (map (fn [layout-path]
+                                                    (layout-path-to-state-paths (:layout state)
+                                                                                layout-path))
+                                                  (:layout-paths-under-mouse state))
+                                             (filter (fn [state-paths]
+                                                       (get-in state (concat (last state-paths)
+                                                                             [:can-gain-focus])))))
+        #_state-paths-under-mouse #_(layout-path-to-state-paths (:layout state)
                                                             (first (:layout-paths-under-mouse state)))]
-    (if (get-in state (concat (last state-paths-under-mouse)
+    (if (empty? state-paths-that-can-gain-focus)
+      state
+      (set-focus state (last state-paths-that-can-gain-focus))
+      
+      #_(get-in state (concat (last state-paths-under-mouse)
                               [:can-gain-focus]))
-      (set-focus state state-paths-under-mouse)
-      state)))
+      #_(set-focus state state-paths-under-mouse)
+      #_state)))
 
 (debug/defn-timed set-focus-on-mouse-click-beforehand [state]
   (if (and (= (-> state :event :source)

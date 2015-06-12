@@ -310,14 +310,15 @@
 
 
 (defn start []
-  #_(.start (Thread. (fn []
+  (.start (Thread. (fn []
                      (trace/untrace-ns 'flow-gl.gui.gui)
-                     (trace/trace-var* 'flow-gl.gui.gui/partitions-to-drawables)
+                     (trace/trace-var* 'flow-gl.gui.gui/set-focus-if-can-gain-focus)
+                     (trace/trace-var* 'flow-gl.gui.gui/set-focus)
                      #_(trace/trace-var* 'flow-gl.gui.gui/resolve-size-dependent-view-calls)
                      (trace/with-trace
                        (gui/start-control barless-root)))))
   
-  (.start (Thread. (fn []
+  #_(.start (Thread. (fn []
                        (gui/start-control barless-root))))
 
   #_(profiler/with-profiler (gui/start-control barless-root)))

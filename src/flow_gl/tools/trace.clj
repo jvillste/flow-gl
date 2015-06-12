@@ -103,21 +103,21 @@
 
 (defn trace-var*
   ([ns s]
-     (trace-var* (ns-resolve ns s)))
+   (trace-var* (ns-resolve ns s)))
   ([v]
-     (let [^clojure.lang.Var v (if (var? v) v (resolve v))
-           ns (.ns v)
-           s  (.sym v)]
-       (if (and (ifn? @v)
-                (-> v meta :macro not)
-                (-> v meta ::traced not))
-         (do (println "tracing" s)
-             (let [f @v
-                   vname (symbol (str ns "/" s))]
-               (doto v
-                 (alter-var-root #(fn tracing-wrapper [& args]
-                                    (trace-fn-call vname % args)))
-                 (alter-meta! assoc ::traced f))))))))
+   (let [^clojure.lang.Var v (if (var? v) v (resolve v))
+         ns (.ns v)
+         s  (.sym v)]
+     (if (and (ifn? @v)
+              (-> v meta :macro not)
+              (-> v meta ::traced not))
+       (do (println "tracing" s)
+           (let [f @v
+                 vname (symbol (str ns "/" s))]
+             (doto v
+               (alter-var-root #(fn tracing-wrapper [& args]
+                                  (trace-fn-call vname % args)))
+               (alter-meta! assoc ::traced f))))))))
 
 (defn namespace-function-vars [namespace]
   (->> namespace ns-interns vals (filter (fn [v] (and (-> v var-get fn?)
@@ -137,16 +137,16 @@
 
 (defn  untrace-var*
   ([ns s]
-     (untrace-var* (ns-resolve ns s)))
+   (untrace-var* (ns-resolve ns s)))
   ([v]
-     (let [^clojure.lang.Var v (if (var? v) v (resolve v))
-           ns (.ns v)
-           s  (.sym v)
-           f  ((meta v) ::traced)]
-       (when f
-         (doto v
-           (alter-var-root (constantly ((meta v) ::traced)))
-           (alter-meta! dissoc ::traced))))))
+   (let [^clojure.lang.Var v (if (var? v) v (resolve v))
+         ns (.ns v)
+         s  (.sym v)
+         f  ((meta v) ::traced)]
+     (when f
+       (doto v
+         (alter-var-root (constantly ((meta v) ::traced)))
+         (alter-meta! dissoc ::traced))))))
 
 (defn untrace-ns* [ns]
   (let [ns-fns (->> ns the-ns ns-interns vals)]
@@ -183,10 +183,10 @@
 
 (defn text-cell
   ([value]
-     (text-cell value [255 255 255 255]))
+   (text-cell value [255 255 255 255]))
 
   ([value color]
-     (l/margin 1 2 1 2 (controls/text value color))))
+   (l/margin 1 2 1 2 (controls/text value color))))
 
 (defn tab-view [view-context state]
   (layouts/->FloatTop [(l/horizontally (for [tab-index (range (count (:tabs state)))]
@@ -259,6 +259,9 @@
         (map? value)
         (str (map-type-name value) "{" (count (keys value)) "}")
 
+        (instance? clojure.lang.Cons value)
+        (str "(cons " (count value) ")")
+        
         (vector? value)
         (str "[" (count value) "]")
 
@@ -275,6 +278,15 @@
         (str (.getSimpleName (type value)))))
 
 
+(defn open-collection [name view-context open-values value]
+  (l/vertically (-> (text-cell (str "(" name))
+                    (gui/on-mouse-clicked-with-view-context view-context
+                                                            (fn [state event]
+                                                              (update-in state [:open-values] disj value))))
+                (l/margin 0 0 0 20 (l/vertically (for [content value]
+                                                   (value-view view-context open-values content false))))
+
+                (text-cell ")")))
 
 (defn value-view [view-context open-values value root-value]
   (if (or (number? value)
@@ -304,15 +316,10 @@
                           (text-cell "]"))
 
             (instance? clojure.lang.LazySeq value)
-            (l/vertically (-> (text-cell "(lazy-seq")
-                              (gui/on-mouse-clicked-with-view-context view-context
-                                                                      (fn [state event]
-                                                                        (update-in state [:open-values] disj value))))
-                          (l/margin 0 0 0 20 (l/vertically (for [content value]
-                                                             (value-view view-context open-values content false))))
+            (open-collection "lazy-seq" view-context open-values value)
 
-                          (text-cell ")"))
-
+            (instance? clojure.lang.Cons value)
+            (open-collection "cons" view-context open-values value)
 
             (list? value)
             (l/vertically (-> (text-cell "-(")
