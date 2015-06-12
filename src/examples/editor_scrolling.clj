@@ -41,6 +41,7 @@
 
 (defn bloom [radius]
   {:transformer (fn [layout gpu-state state]
+                  (println "bloom" (:height layout))
                   (let [gl (:gl gpu-state)
                         width (:width layout)
                         height (:height layout)
@@ -111,11 +112,67 @@
                  (when-let [render-target (:render-target state)]
                    (render-target/delete render-target gl)))})
 
+(defn clip []
+  {:transformer (fn [layout gpu-state state]
+                  (let [gl (:gl gpu-state)
+                        width (:width layout)
+                        height (:height layout)
+                        render-target-1 (ensure-render-target (:render-target-1 state) width height gl)
+                        gpu-state (render-target/render-to render-target-1 gl
+                                                           (opengl/clear gl 0 0 0 0)
+                                                           (-> (assoc gpu-state :drawables (gui/drawables-for-layout (assoc layout
+                                                                                                                            :x 0
+                                                                                                                            :y 0)))
+                                                               (gui/render-drawables)))]
+                    
+                    [(drawable/->Quad ["texture" (:texture render-target-1)]
+                                      [;; :1f "resolution" width
+                                       ;; :1f "radius" 0
+                                       ;; :2f "dir" [1.0 0.0]
+                                       ]
+                                      quad/fragment-shader-source
+                                      ;; quad/blur-fragment-shader-source
+                                      0 0 width height)
+                     #_{:x (:x layout)
+                        :y (:y layout)
+                        :width width
+                        :height height
+                        :children [#_(assoc (drawable/->Quad ["texture" (:texture render-target-1)]
+                                                             [:1f "resolution" width
+                                                              :1f "radius" radius
+                                                              :2f "dir" [1.0 0.0]]
+                                                             ;;quad/fragment-shader-source
+                                                             quad/blur-fragment-shader-source
+                                                             0 0 width height)
+                                            :content-hash (hash layout))
+                                   
+                                   (assoc (drawable/->Quad ["texture" (:texture render-target-1)]
+                                                           [;; :1f "resolution" width
+                                                            ;; :1f "radius" 0
+                                                            ;; :2f "dir" [1.0 0.0]
+                                                            ]
+                                                           quad/fragment-shader-source
+                                                           ;; quad/blur-fragment-shader-source
+                                                           0 0 width height)
+                                          :content-hash (hash layout))
+                                   
+                                   (assoc layout
+                                          :z 1
+                                          :x 0
+                                          :y 0)]} 
+                     gpu-state
+                     (assoc state
+                            :render-target-1 render-target-1)]))
+   
+   :destructor (fn [state gl]
+                 (when-let [render-target (:render-target state)]
+                   (render-target/delete render-target gl)))})
 
-(defrecord ScrollPanel [view-context children]
+
+(defrecord ScrollPanel [view-context state children]
   layout/Layout
   (layout [this application-state requested-width requested-height]
-    (let [state (gui/get-local-state application-state view-context)
+    (let [#_state #_(gui/get-local-state application-state view-context)
           child-layoutable (let [{preferred-width :width preferred-height :height} (layoutable/preferred-size (first children)
                                                                                                               requested-width
                                                                                                               requested-height)
@@ -125,7 +182,8 @@
                                  scroll-bar-color [255 255 255 120]]
                              (-> (l/superimpose (-> (layouts/->Margin (- (:scroll-position-y state)) 0 0 (- (:scroll-position-x state))
                                                                       [(l/preferred (first children))])
-                                                    (assoc :transformer (assoc (bloom (/ (:scroll-position-y state) 100))
+                                                    (assoc :transformer (assoc (clip) #_(bloom (/ (:scroll-position-y state)
+                                                                                            100))
                                                                                :id :transformer-2)))
                                                 (when true #_(:mouse-over state)
                                                       (l/absolute (when (< requested-height preferred-height)
@@ -177,7 +235,9 @@
                                                                                        (assoc state :mouse-over false))
 
                                                                                    :default state)))))
-          [application-state child-layoutable] (gui/resolve-size-dependent-view-calls view-context application-state child-layoutable)
+          this (assoc this :children [child-layoutable])
+          [application-state this] (gui/resolve-size-dependent-view-calls view-context application-state this)
+          child-layoutable (first (:children this))
           [application-state child-layout] (layout/set-dimensions-and-layout child-layoutable
                                                                              application-state
                                                                              0
@@ -195,8 +255,8 @@
 
 
 (defn scroll-panel-view [view-context state]
-  (assoc (->ScrollPanel view-context [(:content state)])
-         :size-dependnet? true))
+  (assoc (->ScrollPanel view-context state [(:content state)])
+         :size-dependent? true))
 
 (defn scroll-panel [view-context]
   {:local-state {:scroll-position-x 0
@@ -208,12 +268,17 @@
                     (gui/call-and-bind view-context state i :text controls/text-editor i)))
 
   (l/margin 50 50 50 50 (gui/call-view scroll-panel
-                                       :scroll-panel-1
-                                       {:content
-                                        #_(l/vertically (for [i (range 40)]
+                                         :scroll-panel-1
+                                         {:content
+                                          #_(l/vertically (for [i (range 40)]
                                                           (text (str "as fasf asdf asf asdf asdf ads faas fas fasdf" i))))
-                                        (l/vertically (for [i (range (:editor-count state))]
-                                                        (gui/call-and-bind view-context state i :text controls/text-editor i)))}))
+                                          (l/vertically (for [i (range (:editor-count state))]
+                                                            (gui/call-and-bind view-context state i :text controls/text-editor i)))}))
+
+  #_(l/margin 50 50 50 50 (-> (l/vertically (for [i (range 40)]
+                                            (text (str "as fasf asdf asf asdf asdf ads faas fas fasdf" i))))
+                            (assoc :transformer (assoc (clip) #_(bloom 5)
+                                                       :id :transformer-1))))
   
 
   #_(l/horizontally (gui/call-view scroll-panel
@@ -246,14 +311,14 @@
 
 (defn start []
   #_(.start (Thread. (fn []
-                       #_(trace/trace-ns 'flow-gl.gui.gui)
-                       (trace/trace-var* 'flow-gl.gui.gui/remove-unused-child-states)
-                       (trace/trace-var* 'flow-gl.gui.gui/resolve-size-dependent-view-calls)
-                       (trace/with-trace
-                         (gui/start-control barless-root)))))
+                     (trace/untrace-ns 'flow-gl.gui.gui)
+                     (trace/trace-var* 'flow-gl.gui.gui/partitions-to-drawables)
+                     #_(trace/trace-var* 'flow-gl.gui.gui/resolve-size-dependent-view-calls)
+                     (trace/with-trace
+                       (gui/start-control barless-root)))))
   
   (.start (Thread. (fn []
-                     (gui/start-control barless-root))))
+                       (gui/start-control barless-root))))
 
   #_(profiler/with-profiler (gui/start-control barless-root)))
 

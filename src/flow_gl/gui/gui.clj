@@ -1116,7 +1116,7 @@
   (assoc layoutable
          :view-call-paths (layout/find-layoutable-paths layoutable #(instance? ViewCall %))
          :transformer-paths (layout/find-layoutable-paths layoutable :transformer)
-         :size-dependent-paths (layout/find-layoutable-paths layoutable #(instance? SizeDependent %))))
+         :size-dependent-paths (layout/find-layoutable-paths layoutable :size-dependent?)))
 
 (declare resolve-view-calls)
 
