@@ -122,14 +122,10 @@ Render tree transformer node
 TODO
 -----
 
-- resolve view-calls in size dependent layout
+Unify size dependent and normal layout implementation
+- view call resolving from run-view-call to do-layout
 
-run-view-call
-run-view
-view-call-paths
-resolve-view-calls
-resolve-view-call
-do-layout
+Setting focus with mouse after adding to layout in size dependent does not work
 
 How to get the preferred size of a scroll panel contents that include view calls to figure out the scroll bar lenths?
 Removing unused child states should be done only after layout

@@ -292,18 +292,25 @@
     (stencil/disable (:gl gpu-state))
     gpu-state))
 
+(defn render-target-must-be-recreated [gpu-state]
+  (let [gl (:gl gpu-state)
+        {:keys [width height]} (opengl/size gl)]
+    (if-let [render-target (:render-target gpu-state)]
+      (or (not= width
+                (:width render-target))
+          (not= height
+                (:height render-target)))
+      true)))
+
 (defn render-drawables-to-default-frame-buffer [gpu-state]
   (let [gl (:gl gpu-state)
         {:keys [width height]} (opengl/size gl)
-        render-target (if-let [render-target (:render-target gpu-state)]
-                        (if (and (= width
-                                    (:width render-target))
-                                 (= height
-                                    (:height render-target)))
-                          render-target
-                          (do (render-target/delete render-target gl)
-                              (render-target/create width height gl)))
-                        (render-target/create width height gl))
+        render-target (if (render-target-must-be-recreated gpu-state)
+                        (do (when-let [render-target (:render-target gpu-state)]
+                              (render-target/delete render-target gl)
+                              (render-target/create width height gl))
+                            (render-target/create width height gl))
+                        (:render-target gpu-state)) 
         gpu-state (render-target/render-to render-target gl
                                            (when (not= render-target (:render-target gpu-state))
                                              (opengl/clear gl 0 0 0 255))
@@ -315,14 +322,20 @@
            :render-target render-target)))
 
 
-(defn layout-to-partitions [render-target-state]
-  (let [[partitions-to-be-redrawn partitions-to-be-cleared] (dirty-partitions (:layout render-target-state)
-                                                                              (:previous-layout render-target-state))]
+(defn layout-to-partitions [gpu-state]
+  (if (render-target-must-be-recreated gpu-state)
+    (assoc gpu-state
+           :partitions [(assoc (:layout gpu-state)
+                               :stenciled true)]
+           :partitions-to-be-cleared []
+           :previous-layout (:layout gpu-state))
+    (let [[partitions-to-be-redrawn partitions-to-be-cleared] (dirty-partitions (:layout gpu-state)
+                                                                                (:previous-layout gpu-state))]
 
-    (assoc render-target-state
-           :partitions partitions-to-be-redrawn
-           :partitions-to-be-cleared partitions-to-be-cleared
-           :previous-layout (:layout render-target-state))))
+      (assoc gpu-state
+             :partitions partitions-to-be-redrawn
+             :partitions-to-be-cleared partitions-to-be-cleared
+             :previous-layout (:layout gpu-state)))))
 
 (defn partition-to-render-trees [gpu-state partition]
   (assoc gpu-state
