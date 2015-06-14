@@ -14,17 +14,9 @@
             (flow-gl.tools [profiler :as profiler]
                            [trace :as trace])
             (flow-gl.graphics [font :as font]))
+  (:import [javax.media.opengl GL2])
   (:use flow-gl.utils
         clojure.test))
-
-(defn text
-  ([value]
-   (text value [255 255 255 255]))
-
-  ([value color]
-   (drawable/->Text (str value)
-                    (font/create "LiberationSans-Regular.ttf" 35)
-                    color)))
 
 
 
@@ -112,12 +104,28 @@
                  (when-let [render-target (:render-target state)]
                    (render-target/delete render-target gl)))})
 
-(defn clip []
+
+  (def clip-fragment-shader-source "
+  #version 140
+
+  in vec2 texture_coordinate;
+
+  uniform sampler2D texture;
+
+  out vec4 outColor;
+
+  void main() {
+  vec4 color = texture(texture, texture_coordinate);
+  outColor = vec4(color.r, color.g, color.b, color.a);
+  }
+")
+
+(def clip
   {:transformer (fn [layout gpu-state state]
                   (let [gl (:gl gpu-state)
                         width (:width layout)
                         height (:height layout)
-                        render-target-1 (ensure-render-target (:render-target-1 state) width height gl)
+                        render-target-1 (ensure-render-target (:render-target state) width height gl)
                         gpu-state (render-target/render-to render-target-1 gl
                                                            (opengl/clear gl 0 0 0 0)
                                                            (-> (assoc gpu-state :drawables (gui/drawables-for-layout (assoc layout
@@ -126,43 +134,12 @@
                                                                (gui/render-drawables)))]
                     
                     [(drawable/->Quad ["texture" (:texture render-target-1)]
-                                      [;; :1f "resolution" width
-                                       ;; :1f "radius" 0
-                                       ;; :2f "dir" [1.0 0.0]
-                                       ]
-                                      quad/fragment-shader-source
-                                      ;; quad/blur-fragment-shader-source
-                                      0 0 width height)
-                     #_{:x (:x layout)
-                        :y (:y layout)
-                        :width width
-                        :height height
-                        :children [#_(assoc (drawable/->Quad ["texture" (:texture render-target-1)]
-                                                             [:1f "resolution" width
-                                                              :1f "radius" radius
-                                                              :2f "dir" [1.0 0.0]]
-                                                             ;;quad/fragment-shader-source
-                                                             quad/blur-fragment-shader-source
-                                                             0 0 width height)
-                                            :content-hash (hash layout))
-                                   
-                                   (assoc (drawable/->Quad ["texture" (:texture render-target-1)]
-                                                           [;; :1f "resolution" width
-                                                            ;; :1f "radius" 0
-                                                            ;; :2f "dir" [1.0 0.0]
-                                                            ]
-                                                           quad/fragment-shader-source
-                                                           ;; quad/blur-fragment-shader-source
-                                                           0 0 width height)
-                                          :content-hash (hash layout))
-                                   
-                                   (assoc layout
-                                          :z 1
-                                          :x 0
-                                          :y 0)]} 
+                                      []
+                                      clip-fragment-shader-source
+                                      (:x layout) (:y layout) width height)
                      gpu-state
                      (assoc state
-                            :render-target-1 render-target-1)]))
+                            :render-target render-target-1)]))
    
    :destructor (fn [state gl]
                  (when-let [render-target (:render-target state)]
@@ -182,8 +159,7 @@
                                  scroll-bar-color [255 255 255 120]]
                              (-> (l/superimpose (-> (layouts/->Margin (- (:scroll-position-y state)) 0 0 (- (:scroll-position-x state))
                                                                       [(l/preferred (first children))])
-                                                    (assoc :transformer (assoc (clip) #_(bloom (/ (:scroll-position-y state)
-                                                                                            100))
+                                                    (assoc :transformer (assoc clip
                                                                                :id :transformer-2)))
                                                 (when true #_(:mouse-over state)
                                                       (l/absolute (when (< requested-height preferred-height)
@@ -263,6 +239,18 @@
                  :scroll-position-y 0}
    :view #'scroll-panel-view})
 
+
+(defn text
+  ([value]
+   (text value [255 255 255 255]))
+
+  ([value color]
+   (drawable/->Text (str value)
+                    (font/create "LiberationSans-Regular.ttf" 15)
+                    color)))
+
+
+
 (defn barless-root-view [view-context state]
   #_(l/vertically (for [i (range 5)]
                     (gui/call-and-bind view-context state i :text controls/text-editor i)))
@@ -271,14 +259,18 @@
                                          :scroll-panel-1
                                          {:content
                                           #_(l/vertically (for [i (range 40)]
-                                                          (text (str "as fasf asdf asf asdf asdf ads faas fas fasdf" i))))
+                                                            (text (str "as fasf asdf asf asdf asdf ads faas fas fasdf" i))))
                                           (l/vertically (for [i (range (:editor-count state))]
-                                                            (gui/call-and-bind view-context state i :text controls/text-editor i)))}))
+                                                          (gui/call-and-bind view-context state i :text controls/text-editor i)))}))
 
-  #_(l/margin 50 50 50 50 (-> (l/vertically (for [i (range 40)]
-                                            (text (str "as fasf asdf asf asdf asdf ads faas fas fasdf" i))))
-                            (assoc :transformer (assoc (clip) #_(bloom 5)
-                                                       :id :transformer-1))))
+  
+
+
+  #_(l/box 10 (drawable/->Rectangle 10 10 [255 0 0 255])
+         (l/vertically (text "as fasf asdf asf asdf asdf ads faas fas fasdf")
+                       (-> (text "as fasf asdf asf asdf asdf ads faas fas fasdf")
+                           (assoc :transformer (assoc clip
+                                                      :id :transformer-1)))))
   
 
   #_(l/horizontally (gui/call-view scroll-panel
@@ -310,16 +302,16 @@
 
 
 (defn start []
-  (.start (Thread. (fn []
-                     (trace/untrace-ns 'flow-gl.gui.gui)
-                     (trace/trace-var* 'flow-gl.gui.gui/set-focus-if-can-gain-focus)
-                     (trace/trace-var* 'flow-gl.gui.gui/set-focus)
-                     #_(trace/trace-var* 'flow-gl.gui.gui/resolve-size-dependent-view-calls)
-                     (trace/with-trace
-                       (gui/start-control barless-root)))))
-  
   #_(.start (Thread. (fn []
-                       (gui/start-control barless-root))))
+                       (trace/untrace-ns 'flow-gl.gui.gui)
+                       (trace/trace-var* 'flow-gl.gui.gui/set-focus-if-can-gain-focus)
+                       (trace/trace-var* 'flow-gl.gui.gui/set-focus)
+                       #_(trace/trace-var* 'flow-gl.gui.gui/resolve-size-dependent-view-calls)
+                       (trace/with-trace
+                         (gui/start-control barless-root)))))
+  
+  (.start (Thread. (fn []
+                     (gui/start-control barless-root))))
 
   #_(profiler/with-profiler (gui/start-control barless-root)))
 

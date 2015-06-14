@@ -139,10 +139,10 @@
         (:has-predefined-texture drawable)))
 
   (draw-drawables [this drawables gl]
-    #_(println "drawing java2d drawables" (count drawables))
     (do (doto gl
-          (.glEnable GL2/GL_BLEND)
-          (.glBlendFunc GL2/GL_SRC_ALPHA GL2/GL_ONE_MINUS_SRC_ALPHA))
+          #_(.glEnable GL2/GL_BLEND)
+          #_(.glBlendFuncSeparate GL2/GL_SRC_ALPHA GL2/GL_ONE_MINUS_SRC_ALPHA GL2/GL_ONE GL2/GL_ONE)
+          #_(.glBlendFunc GL2/GL_SRC_ALPHA GL2/GL_ONE_MINUS_SRC_ALPHA))
         (let [{:keys [width height]} (opengl/size gl)]
           (assoc this :quad-view (quad-view/draw-drawables quad-view drawables width height gl)))))
 
@@ -155,11 +155,11 @@
       (if (> frames-since-garbage-collection
              100)
         (assoc this
-          :quad-view (quad-view/unload-unused-textures quad-view)
-          :frames-since-garbage-collection 0)
+               :quad-view (quad-view/unload-unused-textures quad-view)
+               :frames-since-garbage-collection 0)
 
         (assoc this
-          :frames-since-garbage-collection (inc frames-since-garbage-collection)))))
+               :frames-since-garbage-collection (inc frames-since-garbage-collection)))))
 
   (delete [this gl]
     this))
@@ -173,12 +173,15 @@
     (instance? Quad  drawable))
 
   (draw-drawables [this drawables gl]
+    
     (let [viewport-size (opengl/size gl)]
       (loop [this this
              drawables drawables]
         (if-let [drawable (first drawables)]
+          
           (let [program (or (get programs (:fragment-shader-source drawable))
                             (quad/create-program quad (:fragment-shader-source drawable) gl))]
+            
             (quad/draw gl
                        (:textures drawable)
                        (:uniforms drawable)
@@ -190,6 +193,8 @@
                        (update-in [:programs] assoc (:fragment-shader-source drawable) program)
                        (update-in [:used-fragment-shader-sources] conj (:fragment-shader-source drawable)))
                    (rest drawables)))
+          
+          
           this))))
 
   (start-frame [this gl]

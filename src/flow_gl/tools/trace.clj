@@ -277,6 +277,7 @@
         :default
         (str (.getSimpleName (type value)))))
 
+(declare value-view)
 
 (defn open-collection [name view-context open-values value]
   (l/vertically (-> (text-cell (str "(" name))
