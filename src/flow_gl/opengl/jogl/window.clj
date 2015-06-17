@@ -31,7 +31,11 @@
                     KeyEvent/VK_BACK_SPACE :back-space
                     KeyEvent/VK_F1 :f1
                     KeyEvent/VK_F2 :f2
-                    KeyEvent/VK_TAB :tab})
+                    KeyEvent/VK_TAB :tab
+                    KeyEvent/VK_F :f
+                    KeyEvent/VK_N :n
+                    KeyEvent/VK_P :p
+                    KeyEvent/VK_B :b})
 
 (def mouse-keys {MouseEvent/BUTTON1 :left-button
                  MouseEvent/BUTTON2 :middle-button
@@ -56,7 +60,10 @@
                                 (if (.isPrintableKey event)
                                   (.getKeyChar event)
                                   nil)
-                                (.getWhen event)))
+                                (.getWhen event)
+                                (.isShiftDown event)
+                                (.isControlDown event)
+                                (.isAltDown event)))
 
 (defn create-mouse-event [event type]
   (conj (create-event event type)

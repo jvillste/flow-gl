@@ -20,6 +20,35 @@
   (:use flow-gl.utils
         clojure.test))
 
+(def font (font/create "LiberationSans-Regular.ttf" 15))
+
+(defn text
+  ([value]
+   (text value [255 255 255 255]))
+
+  ([value color]
+   (drawable/->Text (str value)
+                    font
+                    color)))
+
+(defn match-keyboard-event [event pattern]
+  (let [values (select-keys event (keys pattern))]
+    (= values pattern)))
+
+(defn match-key-pressed [event modifiers key]
+  (match-keyboard-event event
+                        {:key key
+                         :type :key-pressed
+                         :control (contains? modifiers :control)
+                         :shift (contains? modifiers :shift)
+                         :alt (contains? modifiers :alt)}))
+
+(defn cursor-x [editor-text cursor-row cursor-column]
+  (-> (nth editor-text cursor-row)
+      (.substring 0 cursor-column)
+      (text)
+      (layoutable/preferred-size java.lang.Integer/MAX_VALUE java.lang.Integer/MAX_VALUE)
+      (:width)))
 
 (defn create-text-editor-keyboard-event-handler [view-context]
   (fn [state event]
@@ -29,31 +58,42 @@
       (events/key-pressed? event :back-space)
       (gui/apply-to-local-state state view-context update-in [:text] (fn [text] (apply str (drop-last text))))
 
-      (and (= :down (:key event))
-           (= (:type event)
-              :key-pressed))
+      (match-key-pressed event #{:control} :n)
       (gui/apply-to-local-state state view-context (fn [local-state]
-                                                     (update-in local-state [:cursor-row] (fn [cursor-row]
-                                                                                            (min (inc cursor-row)
-                                                                                                 (count (:text local-state)))))))
+                                                     (let [cursor-position (cursor-x (:text local-state)
+                                                                                     (:cursor-row local-state)
+                                                                                     (:cursor-column local-state))
+                                                           new-cursor-row (min (inc (:cursor-row local-state))
+                                                                               (count (:text local-state)))]
+                                                       (assoc local-state
+                                                              :cursor-row new-cursor-row
+                                                              :cursor-column (font/character-index-at-position font
+                                                                                                               (nth (:text local-state)
+                                                                                                                    new-cursor-row)
+                                                                                                               cursor-position)))))
 
-      (and (= :up (:key event))
-           (= (:type event)
-              :key-pressed))
-      (gui/apply-to-local-state state view-context update-in [:cursor-row] (fn [cursor-row] (max 0 (dec cursor-row))))
+      (match-key-pressed event #{:control} :p)
+      (gui/apply-to-local-state state view-context (fn [local-state]
+                                                     (let [cursor-position (cursor-x (:text local-state)
+                                                                                     (:cursor-row local-state)
+                                                                                     (:cursor-column local-state))
+                                                           new-cursor-row (max 0 (dec (:cursor-row local-state)))]
+                                                       (assoc local-state
+                                                              :cursor-row new-cursor-row
+                                                              :cursor-column (font/character-index-at-position font
+                                                                                                               (nth (:text local-state)
+                                                                                                                    new-cursor-row)
+                                                                                                               cursor-position)))))
 
 
-      (and (= :right (:key event))
-           (= (:type event)
-              :key-pressed))
+
+      (match-key-pressed event #{:control} :f)
       (gui/apply-to-local-state state view-context (fn [local-state]
                                                      (update-in local-state [:cursor-column] (fn [cursor-column]
                                                                                                (min (inc cursor-column)
                                                                                                     (count (get-in local-state [:text (:cursor-row local-state)])))))))
 
-      (and (= :left (:key event))
-           (= (:type event)
-              :key-pressed))
+      (match-key-pressed event #{:control} :b)
       (gui/apply-to-local-state state view-context update-in [:cursor-column] (fn [cursor-column] (max 0 (dec cursor-column))))
       
       (and (:character event)
@@ -72,21 +112,16 @@
       :default
       state)))
 
-(defn text
-  ([value]
-   (text value [255 255 255 255]))
 
-  ([value color]
-   (drawable/->Text (str value)
-                    (font/create "LiberationMono-Regular.ttf" 15)
-                    color)))
+
+
 
 (defn text-editor-view [view-context state]
   (let [{character-width :width character-height :height} (layoutable/preferred-size (text "a") 100 100)]
     (l/superimpose (l/vertically (for [line (:text state)]
                                    (text line)))
-                   (l/absolute (assoc (drawable/->Rectangle character-width character-height [255 0 0 100])
-                                      :x (* character-width (:cursor-column state))
+                   (l/absolute (assoc (drawable/->Rectangle 2 character-height [0 255 0 255])
+                                      :x (cursor-x (:text state) (:cursor-row state) (:cursor-column state))
                                       :y (* character-height (:cursor-row state)))))))
 
 (defn text-editor [view-context]
