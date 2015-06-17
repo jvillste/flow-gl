@@ -56,7 +56,11 @@
     
     (cond
       (events/key-pressed? event :back-space)
-      (gui/apply-to-local-state state view-context update-in [:text] (fn [text] (apply str (drop-last text))))
+      (gui/apply-to-local-state state view-context (fn [local-state]
+                                                     (-> local-state
+                                                         (update-in [:text (:cursor-row local-state)] (fn [line] (str (.substring line 0 (max 0 (dec (:cursor-column local-state))))
+                                                                                                                      (.substring line (:cursor-column local-state)))))
+                                                         (update-in [:cursor-column] (fn [cursor-column] (max 0 (dec cursor-column)))))))
 
       (match-key-pressed event #{:control} :n)
       (gui/apply-to-local-state state view-context (fn [local-state]
@@ -100,14 +104,16 @@
            (= (:type event)
               :key-pressed))
       (gui/apply-to-local-state state view-context (fn [local-state]
-                                                     (update-in local-state [:text] (fn [text]
-                                                                                      (println "text is" text (:cursor-row local-state))
-                                                                                      (update-in text [(:cursor-row local-state)]
-                                                                                                 (fn [line]
-                                                                                                   (println "line is" line (:cursor-column local-state) (:cursor-row local-state))
-                                                                                                   (str (.substring line 0 (:cursor-column local-state))
-                                                                                                        (:character event)
-                                                                                                        (.substring line (+ (:cursor-column local-state))))))))) )
+                                                     (-> local-state
+                                                         (update-in [:text] (fn [text]
+                                                                              (println "text is" text (:cursor-row local-state))
+                                                                              (update-in text [(:cursor-row local-state)]
+                                                                                         (fn [line]
+                                                                                           (println "line is" line (:cursor-column local-state) (:cursor-row local-state))
+                                                                                           (str (.substring line 0 (:cursor-column local-state))
+                                                                                                (:character event)
+                                                                                                (.substring line (+ (:cursor-column local-state))))))))
+                                                         (update-in [:cursor-column] inc))))
 
       :default
       state)))
