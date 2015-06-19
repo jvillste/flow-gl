@@ -152,44 +152,41 @@
 (defn break-lines [text font width]
   (break-lines-by-offsets text (line-offsets text font width)))
 
-#_(defrecord TextLayout [view-context state]
-    layout/Layout
-    (layout [this application-state requested-width requested-height]
-      (let [attributed-string (AttributedString. (:text state))]
-        (.addAttribute TextAttribute/FONT font)
-        (let [graphics (.getGraphics (BufferedImage. 1 1 BufferedImage/TYPE_INT_ARGB))
-              attributed-character-iterator (.getIterator attributed-string)
-              line-break-measurer (LineBreakMeasurer. attributed-character-iterator (.getFontRenderContext graphics))
-              child-layoutable (l/vertically (for [text-layout (.nextLayout line-break-measurer requested-width)]
-                                               (text line)))
-              [application-state child-layout] (layout/set-dimensions-and-layout child-layoutable
-                                                                                 application-state
-                                                                                 0
-                                                                                 0
-                                                                                 requested-width
-                                                                                 requested-height)]
-          [application-state
-           (assoc this :children [child-layout])]))
-      )
+(defrecord TextLayout [contents]
+  layout/Layout
+  (layout [this application-state requested-width requested-height]
+    (let [child-layoutable (l/vertically (for [line (break-lines contents  font requested-width)]
+                                           (text line)))
+          [application-state child-layout] (layout/set-dimensions-and-layout child-layoutable
+                                                                             application-state
+                                                                             0
+                                                                             0
+                                                                             requested-width
+                                                                             requested-height)]
+      [application-state
+       (assoc this :children [child-layout])]))
 
-    layoutable/Layoutable
-    (preferred-size [this available-width available-height]
-      (layoutable/preferred-size (:text state) (first children)
-                                 available-width available-height)))
+  layoutable/Layoutable
+  (preferred-size [this available-width available-height]
+    (layoutable/preferred-size (l/vertically (for [line (break-lines contents font available-width)]
+                                               (text line)))
+                               available-width available-height)))
 
 
 
 (defn text-editor-view [view-context state]
-  (let [{character-width :width character-height :height} (layoutable/preferred-size (text "a") 100 100)]
-    (l/superimpose (l/vertically (for [line (:text state)]
-                                   (text line)))
-                   (l/absolute (assoc (drawable/->Rectangle 2 character-height [0 255 0 255])
-                                      :x (cursor-x (:text state) (:cursor-row state) (:cursor-column state))
-                                      :y (* character-height (:cursor-row state)))))))
+  (l/vertically (for [line (:text state)]
+                  (l/margin 0 0 10 0 (->TextLayout line))))
+  
+  #_(let [{character-width :width character-height :height} (layoutable/preferred-size (text "a") 100 100)]
+      (l/superimpose (l/vertically (for [line (:text state)]
+                                     (text line)))
+                     (l/absolute (assoc (drawable/->Rectangle 2 character-height [0 255 0 255])
+                                        :x (cursor-x (:text state) (:cursor-row state) (:cursor-column state))
+                                        :y (* character-height (:cursor-row state)))))))
 
 (defn text-editor [view-context]
-  {:local-state {:text ["haa"
-                        "hoo"]
+  {:local-state {:text  ["1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16" "1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16"]
                  :cursor-row 0
                  :cursor-column 0}
    :handle-keyboard-event (create-text-editor-keyboard-event-handler view-context)
