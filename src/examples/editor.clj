@@ -16,7 +16,10 @@
                            [trace :as trace])
             (flow-gl.graphics [font :as font])
             [clojure.string :as string])
-  (:import [javax.media.opengl GL2])
+  (:import [javax.media.opengl GL2]
+           [java.text AttributedString]
+           [java.awt.font TextAttribute LineBreakMeasurer]
+           [java.awt.image BufferedImage])
   (:use flow-gl.utils
         clojure.test))
 
@@ -119,6 +122,60 @@
       state)))
 
 
+(defn line-offsets [text font width]
+  (let [attributed-string (AttributedString. text)]
+    (.addAttribute attributed-string TextAttribute/FONT (:font font))
+    (let [graphics (.getGraphics (BufferedImage. 1 1 BufferedImage/TYPE_INT_ARGB))
+          attributed-character-iterator (.getIterator attributed-string)
+          line-break-measurer (LineBreakMeasurer. attributed-character-iterator
+                                                  (.getFontRenderContext graphics))]
+      (loop [position 0
+             positions []]
+        (.setPosition line-break-measurer position)
+        (let [position (.nextOffset line-break-measurer width)]
+          (if (> (.length text)
+                 position)
+            (recur position
+                   (conj positions position))
+            positions))))))
+
+(defn break-lines-by-offsets [text offsets]
+  (loop [lines []
+         start 0
+         offsets offsets]
+    (if-let [offset (first offsets)]
+      (recur (conj lines (.trim (subs text start offset)))
+             offset
+             (rest offsets))
+      (conj lines (.trim (subs text start))))))
+
+(defn break-lines [text font width]
+  (break-lines-by-offsets text (line-offsets text font width)))
+
+#_(defrecord TextLayout [view-context state]
+    layout/Layout
+    (layout [this application-state requested-width requested-height]
+      (let [attributed-string (AttributedString. (:text state))]
+        (.addAttribute TextAttribute/FONT font)
+        (let [graphics (.getGraphics (BufferedImage. 1 1 BufferedImage/TYPE_INT_ARGB))
+              attributed-character-iterator (.getIterator attributed-string)
+              line-break-measurer (LineBreakMeasurer. attributed-character-iterator (.getFontRenderContext graphics))
+              child-layoutable (l/vertically (for [text-layout (.nextLayout line-break-measurer requested-width)]
+                                               (text line)))
+              [application-state child-layout] (layout/set-dimensions-and-layout child-layoutable
+                                                                                 application-state
+                                                                                 0
+                                                                                 0
+                                                                                 requested-width
+                                                                                 requested-height)]
+          [application-state
+           (assoc this :children [child-layout])]))
+      )
+
+    layoutable/Layoutable
+    (preferred-size [this available-width available-height]
+      (layoutable/preferred-size (:text state) (first children)
+                                 available-width available-height)))
 
 
 
