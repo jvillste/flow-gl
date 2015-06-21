@@ -46,8 +46,8 @@
                          :shift (contains? modifiers :shift)
                          :alt (contains? modifiers :alt)}))
 
-(defn cursor-x [editor-text cursor-row cursor-column]
-  (-> (nth editor-text cursor-row)
+(defn cursor-x [line-text cursor-column]
+  (-> line-text
       (.substring 0 cursor-column)
       (text)
       (layoutable/preferred-size java.lang.Integer/MAX_VALUE java.lang.Integer/MAX_VALUE)
@@ -61,34 +61,34 @@
       (events/key-pressed? event :back-space)
       (gui/apply-to-local-state state view-context (fn [local-state]
                                                      (-> local-state
-                                                         (update-in [:text (:cursor-row local-state)] (fn [line] (str (.substring line 0 (max 0 (dec (:cursor-column local-state))))
-                                                                                                                      (.substring line (:cursor-column local-state)))))
+                                                         (update-in [:paragraphs (:cursor-row local-state)] (fn [line] (str (.substring line 0 (max 0 (dec (:cursor-column local-state))))
+                                                                                                                            (.substring line (:cursor-column local-state)))))
                                                          (update-in [:cursor-column] (fn [cursor-column] (max 0 (dec cursor-column)))))))
 
       (match-key-pressed event #{:control} :n)
       (gui/apply-to-local-state state view-context (fn [local-state]
-                                                     (let [cursor-position (cursor-x (:text local-state)
+                                                     (let [cursor-position (cursor-x (:paragraphs local-state)
                                                                                      (:cursor-row local-state)
                                                                                      (:cursor-column local-state))
                                                            new-cursor-row (min (inc (:cursor-row local-state))
-                                                                               (count (:text local-state)))]
+                                                                               (count (:paragraphs local-state)))]
                                                        (assoc local-state
                                                               :cursor-row new-cursor-row
                                                               :cursor-column (font/character-index-at-position font
-                                                                                                               (nth (:text local-state)
+                                                                                                               (nth (:paragraphs local-state)
                                                                                                                     new-cursor-row)
                                                                                                                cursor-position)))))
 
       (match-key-pressed event #{:control} :p)
       (gui/apply-to-local-state state view-context (fn [local-state]
-                                                     (let [cursor-position (cursor-x (:text local-state)
+                                                     (let [cursor-position (cursor-x (:paragraphs local-state)
                                                                                      (:cursor-row local-state)
                                                                                      (:cursor-column local-state))
                                                            new-cursor-row (max 0 (dec (:cursor-row local-state)))]
                                                        (assoc local-state
                                                               :cursor-row new-cursor-row
                                                               :cursor-column (font/character-index-at-position font
-                                                                                                               (nth (:text local-state)
+                                                                                                               (nth (:paragraphs local-state)
                                                                                                                     new-cursor-row)
                                                                                                                cursor-position)))))
 
@@ -98,7 +98,7 @@
       (gui/apply-to-local-state state view-context (fn [local-state]
                                                      (update-in local-state [:cursor-column] (fn [cursor-column]
                                                                                                (min (inc cursor-column)
-                                                                                                    (count (get-in local-state [:text (:cursor-row local-state)])))))))
+                                                                                                    (count (get-in local-state [:paragraphs (:cursor-row local-state)])))))))
 
       (match-key-pressed event #{:control} :b)
       (gui/apply-to-local-state state view-context update-in [:cursor-column] (fn [cursor-column] (max 0 (dec cursor-column))))
@@ -108,14 +108,14 @@
               :key-pressed))
       (gui/apply-to-local-state state view-context (fn [local-state]
                                                      (-> local-state
-                                                         (update-in [:text] (fn [text]
-                                                                              (println "text is" text (:cursor-row local-state))
-                                                                              (update-in text [(:cursor-row local-state)]
-                                                                                         (fn [line]
-                                                                                           (println "line is" line (:cursor-column local-state) (:cursor-row local-state))
-                                                                                           (str (.substring line 0 (:cursor-column local-state))
-                                                                                                (:character event)
-                                                                                                (.substring line (+ (:cursor-column local-state))))))))
+                                                         (update-in [:paragraphs] (fn [text]
+                                                                                    (println "text is" text (:cursor-row local-state))
+                                                                                    (update-in text [(:cursor-row local-state)]
+                                                                                               (fn [line]
+                                                                                                 (println "line is" line (:cursor-column local-state) (:cursor-row local-state))
+                                                                                                 (str (.substring line 0 (:cursor-column local-state))
+                                                                                                      (:character event)
+                                                                                                      (.substring line (+ (:cursor-column local-state))))))))
                                                          (update-in [:cursor-column] inc))))
 
       :default
@@ -152,11 +152,35 @@
 (defn break-lines [text font width]
   (break-lines-by-offsets text (line-offsets text font width)))
 
-(defrecord TextLayout [contents]
+(defn row-and-column [offset line-breaks]
+  (loop [line-breaks line-breaks
+         row 0
+         previous-line-break 0]
+    (if-let [line-break (first line-breaks)]
+      (if (< offset line-break)
+        [row (- offset previous-line-break)]
+        (recur (rest line-breaks)
+               (inc row)
+               line-break))
+      [row (- offset previous-line-break)])))
+
+(defrecord Paragraph [contents cursor-offset]
   layout/Layout
   (layout [this application-state requested-width requested-height]
-    (let [child-layoutable (l/vertically (for [line (break-lines contents  font requested-width)]
+    (let [character-height (:height (layoutable/preferred-size (text "a") java.lang.Integer/MAX_VALUE java.lang.Integer/MAX_VALUE))
+          line-offsets (line-offsets contents font requested-width)
+          lines (break-lines-by-offsets contents line-offsets)
+          child-layoutable (l/vertically (for [line lines]
                                            (text line)))
+          child-layoutable (if cursor-offset
+                             (let [[cursor-row cursor-column] (row-and-column cursor-offset line-offsets)]
+                               (l/superimpose
+                                child-layoutable
+                                (l/absolute (assoc (drawable/->Rectangle 2 character-height [0 255 0 255])
+                                                   :x (cursor-x (get lines cursor-row) cursor-column)
+                                                   :y (* character-height cursor-row)))))
+                             
+                             child-layoutable)
           [application-state child-layout] (layout/set-dimensions-and-layout child-layoutable
                                                                              application-state
                                                                              0
@@ -173,22 +197,16 @@
                                available-width available-height)))
 
 
-
 (defn text-editor-view [view-context state]
-  (l/vertically (for [line (:text state)]
-                  (l/margin 0 0 10 0 (->TextLayout line))))
-  
-  #_(let [{character-width :width character-height :height} (layoutable/preferred-size (text "a") 100 100)]
-      (l/superimpose (l/vertically (for [line (:text state)]
-                                     (text line)))
-                     (l/absolute (assoc (drawable/->Rectangle 2 character-height [0 255 0 255])
-                                        :x (cursor-x (:text state) (:cursor-row state) (:cursor-column state))
-                                        :y (* character-height (:cursor-row state)))))))
+  (l/vertically (for [[paragraph index] (partition 2 (interleave (:paragraphs state) (iterate inc 0)))]
+                  (l/margin 0 0 10 0 (if (= (:cursor-paragraph state) index)
+                                              (->Paragraph paragraph (:cursor-offset state))
+                                              (->Paragraph paragraph nil))))))
 
 (defn text-editor [view-context]
-  {:local-state {:text  ["1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16" "1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16"]
-                 :cursor-row 0
-                 :cursor-column 0}
+  {:local-state {:paragraphs  ["1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16" "1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16"]
+                 :cursor-paragraph 1
+                 :cursor-offset 4}
    :handle-keyboard-event (create-text-editor-keyboard-event-handler view-context)
    :can-gain-focus true
    :view text-editor-view})
