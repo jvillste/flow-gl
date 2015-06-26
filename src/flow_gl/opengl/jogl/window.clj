@@ -5,11 +5,14 @@
             [flow-gl.gui.window :as window])
   (:import [com.jogamp.newt.event WindowAdapter WindowEvent KeyAdapter KeyEvent MouseAdapter MouseEvent]
            [com.jogamp.newt.opengl GLWindow]
+           [com.jogamp.newt.awt NewtCanvasAWT]
+           [java.awt Frame BorderLayout]
+           [javax.swing SwingUtilities]
            [javax.media.opengl GLCapabilities GLProfile GLContext GL GL2 DebugGL2 DebugGL3 DebugGL4 GLEventListener GLAutoDrawable TraceGL2]
            [javax.media.nativewindow WindowClosingProtocol$WindowClosingMode]))
 
 
-(defrecord JoglWindow [gl-window event-channel runner-atom]
+(defrecord JoglWindow [gl-window event-channel runner-atom frame]
   window/Window
   (run-with-gl [this runner]
     (reset! runner-atom runner)
@@ -19,7 +22,10 @@
   (visible? [this] (.isVisible gl-window))
   (width [this] (.getWidth gl-window))
   (height [this] (.getHeight gl-window))
-  (close [this] (.destroy gl-window)))
+  (close [this]
+    (.destroy gl-window)
+    (when frame
+      (.dispose frame))))
 
 (def keyboard-keys {KeyEvent/VK_ENTER :enter
                     KeyEvent/VK_ESCAPE :esc
@@ -91,123 +97,138 @@
   ;; ([width height init reshape event-channel]
   ;;    (create width height init reshape event-channel :gl2))
 
-  ([width height & {:keys [init reshape event-channel profile close-automatically] :or {init identity reshape (fn [gl width height]) event-channel (async/chan 50) profile :gl2 close-automatically false}}]
-     (let [gl-profile (GLProfile/get (case profile
-                                       :gl2 GLProfile/GL2
-                                       :gl3 GLProfile/GL3
-                                       :gl4 GLProfile/GL4))
-           gl-capabilities (doto (GLCapabilities. gl-profile)
-                             (.setDoubleBuffered true)
-                             (.setStencilBits 1))
-           runner-atom (atom (fn [gl]))
-           window (GLWindow/create gl-capabilities)]
+  ([width height & {:keys [init reshape event-channel profile close-automatically use-awt awt-init] :or {init identity reshape (fn [gl width height]) event-channel (async/chan 50) profile :gl2 close-automatically false use-awt false awt-init nil}}]
+   (let [gl-profile (GLProfile/get (case profile
+                                     :gl2 GLProfile/GL2
+                                     :gl3 GLProfile/GL3
+                                     :gl4 GLProfile/GL4))
+         gl-capabilities (doto (GLCapabilities. gl-profile)
+                           (.setDoubleBuffered true)
+                           (.setStencilBits 1))
+         runner-atom (atom (fn [gl]))
+         window (GLWindow/create gl-capabilities)]
 
-       
+     
 
-       (when event-channel
-         (doto window
-           (.addKeyListener (proxy [KeyAdapter] []
-                              (keyPressed [event]
-                                (async/put! event-channel (create-keyboard-event event :key-pressed)))
-                              (keyReleased [event]
-                                (async/put! event-channel (create-keyboard-event event :key-released)))))
-
-           (.addMouseListener (proxy [MouseAdapter] []
-                                (mouseMoved [event]
-                                  (async/put! event-channel (create-mouse-event event :mouse-moved)))
-                                (mouseDragged [event]
-                                  (async/put! event-channel (create-mouse-event event :mouse-dragged)))
-                                (mousePressed [event]
-                                  (async/put! event-channel (create-mouse-event event :mouse-pressed)))
-                                (mouseReleased [event]
-                                  (async/put! event-channel (create-mouse-event event :mouse-released)))
-                                (mouseClicked [event]
-                                  (async/put! event-channel (create-mouse-event event :mouse-clicked)))
-                                (mouseWheelMoved [event]
-                                  (async/put! event-channel (let [[x-distance y-distance z-distance] (.getRotation event)]
-                                                              (assoc (create-mouse-event event :mouse-wheel-moved)
-                                                                :x-distance x-distance
-                                                                :y-distance y-distance
-                                                                :z-distance z-distance
-                                                                :rotation-scale (.getRotationScale event)))))))
-
-           (.addWindowListener (proxy [WindowAdapter] []
-                                 (windowDestroyNotify [event]
-                                   (async/put! event-channel
-                                               (events/create-close-requested-event)))
-                                 (windowResized [event]
-                                   #_(flow-gl.debug/debug-timed "window resized"
-                                                                (.getWidth window)
-                                                                (.getHeight window))
-
-                                   #_(async/go (async/>! event-channel
-                                                         (events/create-resize-requested-event (.getWidth window)
-                                                                                               (.getHeight window)))))))))
-
+     (when event-channel
        (doto window
-         (.addGLEventListener (proxy [GLEventListener] []
-                                (display [^javax.media.opengl.GLAutoDrawable drawable]
+         (.addKeyListener (proxy [KeyAdapter] []
+                            (keyPressed [event]
+                              (async/put! event-channel (create-keyboard-event event :key-pressed)))
+                            (keyReleased [event]
+                              (async/put! event-channel (create-keyboard-event event :key-released)))))
 
-                                  (let [gl (get-gl profile drawable)]
-                                    #_(flow-gl.debug/debug-timed "display start" (flow-gl.opengl.jogl.opengl/size gl))
-                                    #_(doto (get-gl :gl3 drawable)
-                                        (.glClearColor 0 1 0 1)
+         (.addMouseListener (proxy [MouseAdapter] []
+                              (mouseMoved [event]
+                                (async/put! event-channel (create-mouse-event event :mouse-moved)))
+                              (mouseDragged [event]
+                                (async/put! event-channel (create-mouse-event event :mouse-dragged)))
+                              (mousePressed [event]
+                                (async/put! event-channel (create-mouse-event event :mouse-pressed)))
+                              (mouseReleased [event]
+                                (async/put! event-channel (create-mouse-event event :mouse-released)))
+                              (mouseClicked [event]
+                                (async/put! event-channel (create-mouse-event event :mouse-clicked)))
+                              (mouseWheelMoved [event]
+                                (async/put! event-channel (let [[x-distance y-distance z-distance] (.getRotation event)]
+                                                            (assoc (create-mouse-event event :mouse-wheel-moved)
+                                                                   :x-distance x-distance
+                                                                   :y-distance y-distance
+                                                                   :z-distance z-distance
+                                                                   :rotation-scale (.getRotationScale event)))))))
+
+         (.addWindowListener (proxy [WindowAdapter] []
+                               (windowDestroyNotify [event]
+                                 (async/put! event-channel
+                                             (events/create-close-requested-event)))
+                               (windowResized [event]
+                                 #_(flow-gl.debug/debug-timed "window resized"
+                                                              (.getWidth window)
+                                                              (.getHeight window))
+
+                                 #_(async/go (async/>! event-channel
+                                                       (events/create-resize-requested-event (.getWidth window)
+                                                                                             (.getHeight window)))))))))
+
+     (doto window
+       (.addGLEventListener (proxy [GLEventListener] []
+                              (display [^javax.media.opengl.GLAutoDrawable drawable]
+
+                                (let [gl (get-gl profile drawable)]
+                                  #_(flow-gl.debug/debug-timed "display start" (flow-gl.opengl.jogl.opengl/size gl))
+                                  #_(doto (get-gl :gl3 drawable)
+                                      (.glClearColor 0 1 0 1)
+                                      (.glClear GL2/GL_COLOR_BUFFER_BIT))
+                                  #_(Thread/sleep 5)
+                                  #_(.swapBuffers drawable)
+                                  #_(flow-gl.debug/debug-timed "display end" (flow-gl.opengl.jogl.opengl/size gl))
+
+                                  #_(Thread/sleep 1000)
+
+                                  (when @runner-atom
+                                    (@runner-atom gl)
+                                    (reset! runner-atom nil))
+
+                                  #_(when (not @runner-atom)
+                                      (flow-gl.debug/debug :all "display called without atom" (.getId (java.lang.Thread/currentThread)) (java.util.Date.)))
+                                  #_(reset! runner-atom nil)))
+
+                              (init [^javax.media.opengl.GLAutoDrawable drawable]
+                                (let [gl (get-gl profile drawable)]
+                                  (init gl)))
+
+                              (reshape [^javax.media.opengl.GLAutoDrawable drawable x y width height]
+                                #_(let [gl (get-gl profile drawable)]
+                                    #_(when @runner-atom
+                                        (do (@runner-atom gl)
+                                            (.swapBuffers drawable)))
+
+                                    #_(flow-gl.debug/debug-timed "resize start" (flow-gl.opengl.jogl.opengl/size gl))
+                                    #_(doto gl
+                                        (.glClearColor 1 0 0 1)
                                         (.glClear GL2/GL_COLOR_BUFFER_BIT))
-                                    #_(Thread/sleep 5)
                                     #_(.swapBuffers drawable)
-                                    #_(flow-gl.debug/debug-timed "display end" (flow-gl.opengl.jogl.opengl/size gl))
-
-                                    #_(Thread/sleep 1000)
-
-                                    (when @runner-atom
-                                      (@runner-atom gl)
-                                      (reset! runner-atom nil))
-
-                                    #_(when (not @runner-atom)
-                                        (flow-gl.debug/debug :all "display called without atom" (.getId (java.lang.Thread/currentThread)) (java.util.Date.)))
-                                    #_(reset! runner-atom nil)))
-
-                                (init [^javax.media.opengl.GLAutoDrawable drawable]
-                                  (let [gl (get-gl profile drawable)]
-                                    (init gl)))
-
-                                (reshape [^javax.media.opengl.GLAutoDrawable drawable x y width height]
-                                  #_(let [gl (get-gl profile drawable)]
-                                      #_(when @runner-atom
-                                          (do (@runner-atom gl)
-                                              (.swapBuffers drawable)))
-
-                                      #_(flow-gl.debug/debug-timed "resize start" (flow-gl.opengl.jogl.opengl/size gl))
-                                      #_(doto gl
-                                          (.glClearColor 1 0 0 1)
-                                          (.glClear GL2/GL_COLOR_BUFFER_BIT))
-                                      #_(.swapBuffers drawable)
-                                      #_(flow-gl.debug/debug-timed "resize end" (flow-gl.opengl.jogl.opengl/size gl)))
+                                    #_(flow-gl.debug/debug-timed "resize end" (flow-gl.opengl.jogl.opengl/size gl)))
 
 
-                                  #_(flow-gl.debug/debug-timed "reshape" width height)
+                                #_(flow-gl.debug/debug-timed "reshape" width height)
 
-                                  (async/go (async/>! event-channel
-                                                      (events/create-resize-requested-event width height)))
+                                (async/go (async/>! event-channel
+                                                    (events/create-resize-requested-event width height)))
 
-                                  #_(let [gl (get-gl profile drawable)]
-                                      (reshape gl width height)))
+                                #_(let [gl (get-gl profile drawable)]
+                                    (reshape gl width height)))
 
-                                (dispose [drawable])
-                                (displayChanged [drawable mode-changed device-changed])))
+                              (dispose [drawable])
+                              (displayChanged [drawable mode-changed device-changed])))
 
 
-         (.setAutoSwapBufferMode false)
+       (.setAutoSwapBufferMode false))
 
-         (.setSize width height)
-         (.setVisible true))
-
+     (let [frame (if use-awt
+                   (let [frame (Frame.)]
+                     (SwingUtilities/invokeAndWait (fn []
+                                                     (let [canvas (NewtCanvasAWT. window)]
+                                                       (when awt-init
+                                                         (awt-init canvas))
+                                                       (doto frame
+                                                         (.add canvas BorderLayout/CENTER)
+                                                         (.setSize width height)
+                                                         (.setVisible true)))))
+                     frame)
+                   
+                   (do (doto window
+                         (.setSize width height)
+                         (.setVisible true))
+                       nil))]
+       
        (when (not close-automatically)
          (.setDefaultCloseOperation window WindowClosingProtocol$WindowClosingMode/DO_NOTHING_ON_CLOSE))
        
        (->JoglWindow window
                      event-channel
-                     runner-atom))))
+                     runner-atom
+                     frame)))))
 
 
 #_(defn start [app]

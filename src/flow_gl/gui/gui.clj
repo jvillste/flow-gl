@@ -52,12 +52,22 @@
 
 ;; Window
 
-(defn add-window [state]
-  (assoc state :window (jogl-window/create 1200
-                                           700
-                                           :profile :gl3
-                                           :init opengl/initialize
-                                           :reshape opengl/resize)))
+(defn add-window
+  ([state]
+   (assoc state :window (jogl-window/create 1200
+                                            700
+                                            :profile :gl3
+                                            :init opengl/initialize
+                                            :reshape opengl/resize)))
+  
+  ([state awt-init]
+   (assoc state :window (jogl-window/create 1200
+                                            700
+                                            :profile :gl3
+                                            :init opengl/initialize
+                                            :reshape opengl/resize
+                                            :use-awt true
+                                            :awt-init awt-init))))
 
 (defn close-when-requested-beforehand [state]
   (if (= (-> state :event :type) :close-requested)
@@ -757,7 +767,7 @@
                                                        (get-in state (concat (last state-paths)
                                                                              [:can-gain-focus])))))
         #_state-paths-under-mouse #_(layout-path-to-state-paths (:layout state)
-                                                            (first (:layout-paths-under-mouse state)))]
+                                                                (first (:layout-paths-under-mouse state)))]
     (if (empty? state-paths-that-can-gain-focus)
       state
       (set-focus state (last state-paths-that-can-gain-focus))
@@ -1044,14 +1054,17 @@
       (window/close (:window state))
       (throw e))))
 
-(defn start-app [app]
-  (-> {}
-      (add-window)
-      (add-cache)
-      (set-event-channel-atom)
-      (add-event-channel)
-      (event-loop (fn [state events]
-                    (handle-events state events app)))))
+(defn start-app
+  ([app] (start-app app nil))
+  
+  ([app awt-init]
+   (-> {}
+       (add-window awt-init)
+       (add-cache)
+       (set-event-channel-atom)
+       (add-event-channel)
+       (event-loop (fn [state events]
+                     (handle-events state events app))))))
 
 
 ;; View calls
@@ -1326,8 +1339,13 @@
               :layoutable layoutable
               :sleep-time (get-in application-state [:children :child-states :root :sleep-time]))))))
 
-(defn start-control [control]
-  (start-app (control-to-application control)))
+(defn start-control
+  ([control]
+   (start-control control nil))
+  
+  ([control awt-init]
+   (start-app (control-to-application control)
+              awt-init)))
 
 
 ;; control api

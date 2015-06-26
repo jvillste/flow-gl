@@ -53,73 +53,7 @@
       (layoutable/preferred-size java.lang.Integer/MAX_VALUE java.lang.Integer/MAX_VALUE)
       (:width)))
 
-(defn create-text-editor-keyboard-event-handler [view-context]
-  (fn [state event]
-    (println event)
-    
-    (cond
-      (events/key-pressed? event :back-space)
-      (gui/apply-to-local-state state view-context (fn [local-state]
-                                                     (-> local-state
-                                                         (update-in [:paragraphs (:cursor-row local-state)] (fn [line] (str (.substring line 0 (max 0 (dec (:cursor-column local-state))))
-                                                                                                                            (.substring line (:cursor-column local-state)))))
-                                                         (update-in [:cursor-column] (fn [cursor-column] (max 0 (dec cursor-column)))))))
 
-      (match-key-pressed event #{:control} :n)
-      (gui/apply-to-local-state state view-context (fn [local-state]
-                                                     (let [cursor-position (cursor-x (:paragraphs local-state)
-                                                                                     (:cursor-row local-state)
-                                                                                     (:cursor-column local-state))
-                                                           new-cursor-row (min (inc (:cursor-row local-state))
-                                                                               (count (:paragraphs local-state)))]
-                                                       (assoc local-state
-                                                              :cursor-row new-cursor-row
-                                                              :cursor-column (font/character-index-at-position font
-                                                                                                               (nth (:paragraphs local-state)
-                                                                                                                    new-cursor-row)
-                                                                                                               cursor-position)))))
-
-      (match-key-pressed event #{:control} :p)
-      (gui/apply-to-local-state state view-context (fn [local-state]
-                                                     (let [cursor-position (cursor-x (:paragraphs local-state)
-                                                                                     (:cursor-row local-state)
-                                                                                     (:cursor-column local-state))
-                                                           new-cursor-row (max 0 (dec (:cursor-row local-state)))]
-                                                       (assoc local-state
-                                                              :cursor-row new-cursor-row
-                                                              :cursor-column (font/character-index-at-position font
-                                                                                                               (nth (:paragraphs local-state)
-                                                                                                                    new-cursor-row)
-                                                                                                               cursor-position)))))
-
-
-
-      (match-key-pressed event #{:control} :f)
-      (gui/apply-to-local-state state view-context (fn [local-state]
-                                                     (update-in local-state [:cursor-column] (fn [cursor-column]
-                                                                                               (min (inc cursor-column)
-                                                                                                    (count (get-in local-state [:paragraphs (:cursor-row local-state)])))))))
-
-      (match-key-pressed event #{:control} :b)
-      (gui/apply-to-local-state state view-context update-in [:cursor-column] (fn [cursor-column] (max 0 (dec cursor-column))))
-      
-      (and (:character event)
-           (= (:type event)
-              :key-pressed))
-      (gui/apply-to-local-state state view-context (fn [local-state]
-                                                     (-> local-state
-                                                         (update-in [:paragraphs] (fn [text]
-                                                                                    (println "text is" text (:cursor-row local-state))
-                                                                                    (update-in text [(:cursor-row local-state)]
-                                                                                               (fn [line]
-                                                                                                 (println "line is" line (:cursor-column local-state) (:cursor-row local-state))
-                                                                                                 (str (.substring line 0 (:cursor-column local-state))
-                                                                                                      (:character event)
-                                                                                                      (.substring line (+ (:cursor-column local-state))))))))
-                                                         (update-in [:cursor-column] inc))))
-
-      :default
-      state)))
 
 
 (defn line-offsets [text font width]
@@ -164,6 +98,84 @@
                line-break))
       [row (- offset previous-line-break)])))
 
+(defn create-text-editor-keyboard-event-handler [view-context]
+  (fn [state event]
+    (cond
+      (events/key-pressed? event :back-space)
+      (gui/apply-to-local-state state view-context (fn [local-state]
+                                                     (-> local-state
+                                                         (update-in [:paragraphs (:cursor-paragraph local-state)] (fn [paragraph] (str (.substring paragraph 0 (max 0 (dec (:cursor-offset local-state))))
+                                                                                                                                       (.substring paragraph (:cursor-offset local-state)))))
+                                                         (update-in [:cursor-offset] (fn [cursor-offset] (max 0 (dec cursor-offset)))))))
+
+      (match-key-pressed event #{:control} :n)
+      (gui/apply-to-local-state state view-context (fn [local-state]
+                                                     (let [cursor-position (cursor-x (:paragraphs local-state)
+                                                                                     (:cursor-row local-state)
+                                                                                     (:cursor-column local-state))
+                                                           new-cursor-row (min (inc (:cursor-row local-state))
+                                                                               (count (:paragraphs local-state)))]
+                                                       (assoc local-state
+                                                              :cursor-row new-cursor-row
+                                                              :cursor-column (font/character-index-at-position font
+                                                                                                               (nth (:paragraphs local-state)
+                                                                                                                    new-cursor-row)
+                                                                                                               cursor-position)))))
+
+      (match-key-pressed event #{:control} :p)
+      (gui/apply-to-local-state state view-context (fn [local-state]
+                                                     (let [cursor-position (cursor-x (:paragraphs local-state)
+                                                                                     (:cursor-row local-state)
+                                                                                     (:cursor-column local-state))
+                                                           new-cursor-row (max 0 (dec (:cursor-row local-state)))]
+                                                       (assoc local-state
+                                                              :cursor-row new-cursor-row
+                                                              :cursor-column (font/character-index-at-position font
+                                                                                                               (nth (:paragraphs local-state)
+                                                                                                                    new-cursor-row)
+                                                                                                               cursor-position)))))
+
+
+
+      (match-key-pressed event #{:control} :f)
+      (gui/apply-to-local-state state view-context (fn [local-state]
+                                                     (if (< (:cursor-offset local-state)
+                                                            (.length (get (:paragraphs local-state) (:cursor-paragraph local-state))))
+                                                       (update-in local-state [:cursor-offset] inc)
+                                                       (if (< (:cursor-paragraph local-state)
+                                                              (dec (count (:paragraphs local-state))))
+                                                         (assoc local-state
+                                                                :cursor-paragraph (inc (:cursor-paragraph local-state))
+                                                                :cursor-offset 0)
+                                                         local-state))))
+
+      (match-key-pressed event #{:control} :b)
+      (gui/apply-to-local-state state view-context (fn [local-state]
+                                                     (if (> (:cursor-offset local-state)
+                                                            0)
+                                                       (update-in local-state [:cursor-offset] dec)
+                                                       (if (> (:cursor-paragraph local-state)
+                                                              0)
+                                                         (assoc local-state
+                                                                :cursor-paragraph (dec (:cursor-paragraph local-state))
+                                                                :cursor-offset (.length (get (:paragraphs local-state) (dec (:cursor-paragraph local-state)))))
+                                                         local-state))))
+
+      
+      (and (:character event)
+           (= (:type event)
+              :key-pressed))
+      (gui/apply-to-local-state state view-context (fn [local-state]
+                                                     (-> local-state
+                                                         (update-in [:paragraphs (:cursor-paragraph local-state)] (fn [text]
+                                                                                                                    (str (.substring text 0 (:cursor-offset local-state))
+                                                                                                                         (:character event)
+                                                                                                                         (.substring text (+ (:cursor-offset local-state))))))
+                                                         (update-in [:cursor-offset] inc))))
+
+      :default
+      state)))
+
 (defrecord Paragraph [contents cursor-offset]
   layout/Layout
   (layout [this application-state requested-width requested-height]
@@ -200,12 +212,12 @@
 (defn text-editor-view [view-context state]
   (l/vertically (for [[paragraph index] (partition 2 (interleave (:paragraphs state) (iterate inc 0)))]
                   (l/margin 0 0 10 0 (if (= (:cursor-paragraph state) index)
-                                              (->Paragraph paragraph (:cursor-offset state))
-                                              (->Paragraph paragraph nil))))))
+                                       (->Paragraph paragraph (:cursor-offset state))
+                                       (->Paragraph paragraph nil))))))
 
 (defn text-editor [view-context]
   {:local-state {:paragraphs  ["1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16" "1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16"]
-                 :cursor-paragraph 1
+                 :cursor-paragraph 0
                  :cursor-offset 4}
    :handle-keyboard-event (create-text-editor-keyboard-event-handler view-context)
    :can-gain-focus true
