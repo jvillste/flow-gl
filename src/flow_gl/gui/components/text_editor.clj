@@ -181,21 +181,29 @@
                                       java.lang.Integer/MAX_VALUE
                                       java.lang.Integer/MAX_VALUE)))
 
-(defn paragraph-layoutable [lines]
+(defn paragraph-layoutable [lines font color]
   (l/vertically (for [line lines]
-                  (text line))))
+                  (drawable/->Text (str line)
+                                   font
+                                   color))))
 
-(defrecord ParagraphWithCursor [contents cursor-offset]
+(defn preferred-paragraph-size [contents font available-width available-height]
+  (layoutable/preferred-size (paragraph-layoutable (break-lines contents font available-width)
+                                                   font
+                                                   [255 255 255 255])
+                             available-width available-height))
+
+(defrecord ParagraphWithCursor [contents font color cursor-offset cursor-layoutable-function]
   layout/Layout
   (layout [this application-state requested-width requested-height]
-    (let [character-height (:height (layoutable/preferred-size (text "a") java.lang.Integer/MAX_VALUE java.lang.Integer/MAX_VALUE))
+    (let [character-height (character-height)
           line-offsets (line-offsets contents font requested-width)
           lines (break-lines-by-offsets contents line-offsets)
-          child-layoutable (paragraph-layoutable lines)
+          child-layoutable (paragraph-layoutable lines font color)
           child-layoutable (let [[cursor-row cursor-column] (row-and-column cursor-offset line-offsets)]
                              (l/superimpose
                               child-layoutable
-                              (l/absolute (assoc (drawable/->Rectangle 2 character-height [0 255 0 255])
+                              (l/absolute (assoc (cursor-layoutable-function character-height)
                                                  :x (cursor-x (get lines cursor-row) cursor-column)
                                                  :y (* character-height cursor-row)))))
           
@@ -210,16 +218,14 @@
 
   layoutable/Layoutable
   (preferred-size [this available-width available-height]
-    (layoutable/preferred-size (l/vertically (for [line (break-lines contents font available-width)]
-                                               (text line)))
-                               available-width available-height)))
+    (preferred-paragraph-size contents font available-width available-height)))
 
-(defrecord Paragraph [contents]
+(defrecord Paragraph [contents font color]
   layout/Layout
   (layout [this application-state requested-width requested-height]
     (let [[application-state child-layout] (layout/set-dimensions-and-layout (-> contents
                                                                                  (break-lines font requested-width)
-                                                                                 (paragraph-layoutable))
+                                                                                 (paragraph-layoutable font color))
                                                                              application-state
                                                                              0
                                                                              0
@@ -230,16 +236,23 @@
 
   layoutable/Layoutable
   (preferred-size [this available-width available-height]
-    (layoutable/preferred-size (l/vertically (for [line (break-lines contents font available-width)]
-                                               (text line)))
-                               available-width available-height)))
+    (preferred-paragraph-size contents font available-width available-height)))
 
 
 (defn text-editor-view [view-context state]
   (l/vertically (for [[paragraph index] (partition 2 (interleave (:paragraphs state) (iterate inc 0)))]
                   (l/margin 0 0 10 0 (if (= (:cursor-paragraph state) index)
-                                       (->ParagraphWithCursor paragraph (:cursor-offset state))
-                                       (->Paragraph paragraph))))))
+                                       (->ParagraphWithCursor paragraph
+                                                              font
+                                                              [255 255 255 255]
+                                                              (:cursor-offset state)
+                                                              (fn [character-height]
+                                                                (drawable/->Rectangle 2
+                                                                                      character-height
+                                                                                      [0 255 0 255])))
+                                       (->Paragraph paragraph
+                                                    font
+                                                    [255 255 255 255]))))))
 
 (defn text-editor [view-context]
   {:local-state {:paragraphs  ["1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16" "1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16"]
