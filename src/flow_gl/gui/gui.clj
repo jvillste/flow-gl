@@ -66,8 +66,9 @@
                                             :profile :gl3
                                             :init opengl/initialize
                                             :reshape opengl/resize
-                                            :use-awt true
-                                            :awt-init awt-init))))
+                                            ;; :use-awt true
+                                            ;; :awt-init awt-init
+                                            ))))
 
 (defn close-when-requested-beforehand [state]
   (if (= (-> state :event :type) :close-requested)
@@ -110,6 +111,14 @@
          :apply-to-view-state)
     ((-> state :event :function) state)
     state))
+
+(debug/defn-timed apply-with-gl-beforehand [state]
+  (when (= (-> state :event :type)
+           :with-gl)
+    (async/>!! (:with-gl-channel state)
+               {:function (-> state :event :function)
+                :arguments (-> state :event :arguments)}))
+  state)
 
 
 (def ^:dynamic event-channel-atom (atom nil))
@@ -742,6 +751,7 @@
          :keyboard)
     (loop [state state
            focused-state-paths (:focused-state-paths state)]
+      (println focused-state-paths)
       (if-let [focused-state-path (first focused-state-paths)]
         (if-let [keyboard-event-handler (get-in state (concat (vec focused-state-path)
                                                               [:handle-keyboard-event]))]
@@ -1038,6 +1048,7 @@
                               (apply-layout-event-handlers-beforehand)
                               (apply-mouse-movement-event-handlers-beforehand)
                               (apply-view-state-applications-beforehand)
+                              (apply-with-gl-beforehand)
                               (app)
                               (add-layout-afterwards)
                               (remove-unused-child-states-afterwards)))
@@ -1348,7 +1359,6 @@
               awt-init)))
 
 
-;; control api
 
 (defn create-apply-to-view-state-event [function]
   {:type :apply-to-view-state
@@ -1361,5 +1371,11 @@
                                                             (apply update-or-apply-in state (concat (:state-path view-context) [:local-state]) function arguments)
                                                             (throw (Exception. (str "tried to apply to empty state" (vec (:state-path view-context)))))))))))
 
+
+(defn with-gl [view-context function & arguments]
+  (async/go (async/>! (-> view-context :common-view-context :event-channel)
+                      {:type :with-gl
+                       :function function
+                       :arguments arguments })))
 
 #_(run-tests)
