@@ -751,7 +751,6 @@
          :keyboard)
     (loop [state state
            focused-state-paths (:focused-state-paths state)]
-      (println focused-state-paths)
       (if-let [focused-state-path (first focused-state-paths)]
         (if-let [keyboard-event-handler (get-in state (concat (vec focused-state-path)
                                                               [:handle-keyboard-event]))]
@@ -915,7 +914,6 @@
           children-to-be-removed (->> (:old-child-ids children)
                                       (filter (complement child-set)))
           children (-> (reduce (fn [children child-to-be-removed]
-                                 (println "removing child" child-to-be-removed)
                                  (do (call-destructors (get-in children [:child-states child-to-be-removed]))
                                      (update-in children [:child-states] dissoc child-to-be-removed)))
                                children

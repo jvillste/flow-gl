@@ -213,6 +213,9 @@
                                                          (awt-init canvas))
                                                        (doto frame
                                                          (.add canvas BorderLayout/CENTER)
+                                                         (.addWindowListener (proxy [java.awt.event.WindowAdapter] []
+                                                                               (windowClosing [event]
+                                                                                 (.dispose frame))))
                                                          (.setSize width height)
                                                          (.setVisible true)))))
                      frame)

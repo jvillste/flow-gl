@@ -40,14 +40,12 @@
     (layouts/->Box 10 [(drawable/->Rectangle 0
                                              0
                                              (cond
-                                               (:has-focus state) [0 200 200 255]
-                                               (:mouse-over state) [0 255 255 255]
-                                               :default [0 100 100 255]))
+                                               (:has-focus state) [255 255 255 255]
+                                               (:mouse-over state) [230 230 230 255]
+                                               :default [200 200 200 255]))
                        (drawable/->Text (or (:text state) "")
-                                        (font/create "LiberationSans-Regular.ttf" 15)
-                                        (if (:has-focus state)
-                                          [255 255 255 255]
-                                          [100 100 100 255]))])))
+                                        (font/create "LiberationSans-Regular.ttf" 12)
+                                        [0 0 0 255])])))
 
 (defn text-editor [view-context]
   {:local-state {:text "haa"}

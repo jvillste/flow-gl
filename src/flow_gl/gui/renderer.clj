@@ -35,7 +35,8 @@
         (recur (rest renderers))))))
 
 (defn render-drawables-with-renderers [drawables gl renderers]
-  (let [batches (group-by (partial select-renderer renderers) drawables)]
+  (let [batches (group-by (partial select-renderer renderers)
+                          drawables)]
     (loop [renderers renderers
            rendered-renderers []]
       (if-let [renderer (first renderers)]
@@ -173,7 +174,7 @@
     (instance? Quad  drawable))
 
   (draw-drawables [this drawables gl]
-    
+    (println "programs" (count (keys (:programs this))))
     (let [viewport-size (opengl/size gl)]
       (loop [this this
              drawables drawables]

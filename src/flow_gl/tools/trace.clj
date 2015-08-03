@@ -425,14 +425,12 @@
                                                                    (fn [state event]
                                                                      (async/put! (:input-channel state) {:clear-trace true})
                                                                      (assoc state :selected-value nil))))
-                       (layouts/->FloatLeft [(controls/scroll-panel :call-scroll-panel
-                                                                    (l/vertically (for [root-call (:root-calls trace)]
-                                                                                    (when (not ((:hidden-threads state) (:thread root-call)))
-                                                                                      (l/horizontally (text-cell (:thread root-call))
-                                                                                                      (call-view view-context state root-call))))))
+                       (layouts/->FloatLeft [(gui/call-view controls/scroll-panel :call-scroll-panel {:content (l/vertically (for [root-call (:root-calls trace)]
+                                                                                                                               (when (not ((:hidden-threads state) (:thread root-call)))
+                                                                                                                                 (l/horizontally (text-cell (:thread root-call))
+                                                                                                                                                 (call-view view-context state root-call)))))})
                                              (l/float-left (l/margin 0 3 0 3 (drawable/->Rectangle 3 10 [255 255 255 255]))
-                                                           (controls/scroll-panel :value-inspector-scroll-panel
-                                                                                  (gui/call-view  value-inspector :value-inspector {:value (:selected-value state)})))])]))
+                                                           (gui/call-view value-inspector :value-inspector {:value (:selected-value state)}))])]))
 
 (defn thread-view [view-context state]
   (layouts/grid (concat [[(l/margin 0 5 0 0 (controls/text "thread"))
