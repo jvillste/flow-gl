@@ -350,7 +350,6 @@
            :previous-layout (:layout gpu-state))
     (let [[partitions-to-be-redrawn partitions-to-be-cleared] (dirty-partitions (:layout gpu-state)
                                                                                 (:previous-layout gpu-state))]
-      (println partitions-to-be-redrawn)
       (assoc gpu-state
              :partitions partitions-to-be-redrawn
              :partitions-to-be-cleared partitions-to-be-cleared
@@ -393,9 +392,6 @@
   (add-partition-textures gpu-state (filter :recurring? (:partitions gpu-state))))
 
 (defn partitions-to-drawables [gpu-state]
-  (println "partitions" (:partitions gpu-state))
-  (println "drawables" (mapcat drawables-for-layout
-                               (:partitions gpu-state)))
   (assoc gpu-state
          :drawables (mapcat drawables-for-layout
                             (:partitions gpu-state))))
@@ -582,34 +578,34 @@
             [[1 2] [3]]
             [[1 2] [3] [4]]])
 
-(defn layout-path-to-handlers [layout-path layout handler-key]
-  (->> (map (fn [path]
-              (when-let [handler (-> (get-in layout path)
-                                     (handler-key))]
-                handler))
-            (path-prefixes layout-path))
-       (filter identity)
-       (reverse)))
+(defn layout-paths-to-handlers [layout-paths layout handler-key]
+  (let [prefixes (->> (mapcat path-prefixes layout-paths)
+                      distinct)]
+    (->> (map (fn [path]
+                (when-let [handler (-> (get-in layout path)
+                                       (handler-key))]
+                  handler))
+              prefixes)
+         (filter identity)
+         (reverse))))
 
 (deftest layout-path-to-handlers-test
   (is (= '(:handler2 :handler1 :handler3)
-         (mapcat #(layout-path-to-handlers %
-                                           {:a
-                                            {:b
-                                             {:c
-                                              {:handler :handler1
-                                               :d
-                                               {:handler :handler2}}
-                                              :c2 {:handler :handler3}}}}
+         (layout-paths-to-handlers [[:a :b :c :d] [:a :b :c2]]
+                                   {:a
+                                    {:b
+                                     {:c
+                                      {:handler :handler1
+                                       :d
+                                       {:handler :handler2}}
+                                      :c2 {:handler :handler3}}}}
 
-                                           :handler)
-                 [[:a :b :c :d] [:a :b :c2]]))))
+                                   :handler))))
 
 
 (defn apply-layout-event-handlers [state layout layout-paths handler-key & arguments]
   (if layout-paths
-    (let [handlers-and-arguments (apply concat (mapcat #(layout-path-to-handlers % layout handler-key)
-                                                       layout-paths))]
+    (let [handlers-and-arguments (apply concat (layout-paths-to-handlers layout-paths layout handler-key))]
       (reduce (fn [state [handler handler-arguments]]
                 (apply handler
                        state
