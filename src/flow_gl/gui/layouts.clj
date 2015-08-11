@@ -367,8 +367,13 @@
   (layout [this requested-width requested-height]
           (assoc this :children
                  (vec (map-indexed (fn [index child]
-                                     (assoc (layout/set-dimensions-and-layout child 0 0 requested-width requested-height)
-                                            :z index))
+                                     (let [preferred-child-size (layoutable/preferred-size child requested-width requested-height)]
+                                       (assoc (layout/set-dimensions-and-layout child
+                                                                                0
+                                                                                0
+                                                                                (:width preferred-child-size)
+                                                                                (:height preferred-child-size))
+                                              :z index)))
                                    children))))
 
   (preferred-size [this available-width available-height]
@@ -379,6 +384,22 @@
                                             child-sizes))
                      :height (apply max (map :height
                                              child-sizes))})))
+
+(layout/deflayout-not-memoized Center [width height children]
+  (layout [this requested-width requested-height]
+          (let [child (first children)
+                preferred-child-size (layoutable/preferred-size child requested-width requested-height)]
+            (assoc this :children
+                   [(layout/set-dimensions-and-layout child
+                                                      (- (/ requested-width 2)
+                                                         (/ (:width preferred-child-size) 2))
+                                                      (- (/ requested-height 2)
+                                                         (/ (:height preferred-child-size) 2))
+                                                      (:width preferred-child-size)
+                                                      (:height preferred-child-size))])))
+
+  (preferred-size [this available-width available-height]
+                  {:width width :height height}))
 
 
 

@@ -36,6 +36,10 @@
   (when content
     (layouts/->Margin top right bottom left [content])))
 
+(def-dsl center [width height content]
+  (when content
+    (layouts/->Center width height [content])))
+
 (def-dsl box [margin outer inner]
   (when (and outer inner)
     (layouts/->Box margin [outer inner])))
