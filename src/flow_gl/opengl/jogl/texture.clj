@@ -32,6 +32,10 @@
   (.glBindTexture gl GL2/GL_TEXTURE_2D texture)
   (.glTexImage2D gl GL2/GL_TEXTURE_2D 0 GL2/GL_RGBA8 width height 0 GL2/GL_BGRA GL2/GL_UNSIGNED_BYTE data))
 
+(defn load-1d-int [gl texture size data]
+  (.glBindTexture gl GL2/GL_TEXTURE_1D texture)
+  (.glTexImage1D gl GL2/GL_TEXTURE_1D 0 GL2/GL_R16I size 0 GL2/GL_RED_INTEGER GL2/GL_INT (native-buffer/create-native-buffer-with-values data)))
+
 (defn load-from-buffered-image [gl texture image]
   (load gl texture  (.getWidth image) (.getHeight image)
         (native-buffer/create-native-buffer-with-values (-> image (.getRaster) (.getDataBuffer) (.getData)))))

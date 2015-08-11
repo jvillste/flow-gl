@@ -79,7 +79,7 @@
                              (-> (l/superimpose (-> (layouts/->Margin (- (:scroll-position-y state)) 0 0 (- (:scroll-position-x state))
                                                                       [(l/preferred (first children))])
                                                     #_(assoc :transformer (assoc transformer/clip
-                                                                               :id :transformer-2)))
+                                                                                 :id :transformer-2)))
                                                 (when true #_(:mouse-over state)
                                                       (l/absolute (when (< requested-height preferred-height)
                                                                     (let [scroll-bar-length (* requested-height
@@ -160,12 +160,23 @@
 
 
 
-(defn handle-button-click [state]
-  (if (not (:disabled state))
-    (do (if-let [on-pressed (:on-pressed state)]
-          (on-pressed))
-        state)
-    state))
+(defn button [view-context text-value handler]
+  (layouts/->Box 10 [(->  (drawable/->Rectangle 0
+                                                0
+                                                [0 200 200 1])
+                          (gui/on-mouse-clicked-with-view-context view-context
+                                                                  (fn [state event]
+                                                                    (handler state))))
+                     (text text-value)]))
+
+
+
+#_(defn handle-button-click [state]
+    (if (not (:disabled state))
+      (do (if-let [on-pressed (:on-pressed state)]
+            (on-pressed))
+          state)
+      state))
 
 #_(gui/def-control button
     ([view-context  control-channel]

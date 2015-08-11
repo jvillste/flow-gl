@@ -57,9 +57,21 @@
              (rest layers))
       renderers)))
 
+(defn z-comparator [xs ys]
+  (loop [xs xs
+         ys ys]
+    (let [x (first xs)
+          y (first ys)]
+      (if (and (and x y)
+               (= x y))
+        (recur (rest xs) (rest ys))
+        (if (= x y nil)
+          0
+          (compare (or x 0) (or y 0)))))))
+
 (defn create-layers [drawables]
   (->> drawables
-       (sort-by :z)
+       (sort-by :z z-comparator)
        (partition-by :z)))
 
 (defn render-frame-drawables [drawables gl renderers]
@@ -174,7 +186,6 @@
     (instance? Quad  drawable))
 
   (draw-drawables [this drawables gl]
-    (println "programs" (count (keys (:programs this))))
     (let [viewport-size (opengl/size gl)]
       (loop [this this
              drawables drawables]

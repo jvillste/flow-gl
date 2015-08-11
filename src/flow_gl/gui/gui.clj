@@ -221,25 +221,25 @@
 
 (defn drawables-for-layout
   ([layout]
-   (drawables-for-layout layout 0 0 0 []))
+   (drawables-for-layout layout 0 0 [] []))
 
   ([layout parent-x parent-y parent-z drawables]
-   (if (:children layout)
-     (let [parent-x (+ parent-x (:x layout))
-           parent-y (+ parent-y (:y layout))
-           parent-z (+ parent-z (or (:z layout) 0))]
+   (let [x (+ parent-x (:x layout))
+         y (+ parent-y (:y layout))
+         z (conj parent-z (or (:z layout) 0))]
+     (if (:children layout)
        (loop [drawables drawables
               children (:children layout)]
          (if-let [child (first children)]
-           (let [drawables (drawables-for-layout child parent-x parent-y parent-z drawables)]
+           (let [drawables (drawables-for-layout child x y z drawables)]
              (recur drawables
                     (rest children)))
-           drawables)))
-     (conj drawables
-           (assoc layout
-                  :x (+ parent-x (:x layout))
-                  :y (+ parent-y (:y layout))
-                  :z (+ parent-z (or (:z layout) 0)))))))
+           drawables))
+       (conj drawables
+             (assoc layout
+                    :x x
+                    :y y
+                    :z z))))))
 
 (defn add-drawables-for-layout-afterwards [app]
   (fn [state events]
@@ -288,7 +288,7 @@
   (let [{:keys [width height]} (opengl/size (:gl gpu-state))]
     (assoc gpu-state
            :drawables (concat [(assoc (drawable/->Rectangle width height [0 0 0 255])
-                                      :x 0 :y 0 :z -1 :width width :height height)]
+                                      :x 0 :y 0 :z [-1] :width width :height height)]
                               (:drawables gpu-state)))))
 
 (defn add-stencil [gpu-state]
@@ -350,7 +350,7 @@
            :previous-layout (:layout gpu-state))
     (let [[partitions-to-be-redrawn partitions-to-be-cleared] (dirty-partitions (:layout gpu-state)
                                                                                 (:previous-layout gpu-state))]
-
+      (println partitions-to-be-redrawn)
       (assoc gpu-state
              :partitions partitions-to-be-redrawn
              :partitions-to-be-cleared partitions-to-be-cleared
@@ -393,6 +393,9 @@
   (add-partition-textures gpu-state (filter :recurring? (:partitions gpu-state))))
 
 (defn partitions-to-drawables [gpu-state]
+  (println "partitions" (:partitions gpu-state))
+  (println "drawables" (mapcat drawables-for-layout
+                               (:partitions gpu-state)))
   (assoc gpu-state
          :drawables (mapcat drawables-for-layout
                             (:partitions gpu-state))))

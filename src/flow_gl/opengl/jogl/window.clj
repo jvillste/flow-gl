@@ -206,7 +206,7 @@
        (.setAutoSwapBufferMode false))
 
      (let [frame (if use-awt
-                   (let [frame (Frame.)]
+                   (let [frame (javax.swing.JFrame.)]
                      (SwingUtilities/invokeAndWait (fn []
                                                      (let [canvas (NewtCanvasAWT. window)]
                                                        (when awt-init

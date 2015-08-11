@@ -92,7 +92,8 @@
               (update-in [:children]
                          (fn [[outer inner]]
                            (let [inner-size (layoutable/preferred-size inner (- requested-width (* 2 margin)) (- requested-height (* 2 margin)))]
-                             [(layout/set-dimensions-and-layout outer 0 0 requested-width requested-height)
+                             [(assoc (layout/set-dimensions-and-layout outer 0 0 requested-width requested-height)
+                                     :z 0)
                               (assoc (layout/set-dimensions-and-layout inner margin margin (:width inner-size) (:height inner-size))
                                      :z 1)])))))
 
