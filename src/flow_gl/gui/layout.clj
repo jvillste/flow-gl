@@ -47,18 +47,22 @@
 
 
 (defn add-global-coordinates [layout global-x global-y]
-  (-> (assoc layout
-             :global-x global-x
-             :global-y global-y)
-      (update-in [:children]
+  (let [layout (assoc layout
+                      :global-x global-x
+                      :global-y global-y)]
+    (if (:children layout)
+      (update-in layout
+                 [:children]
                  (fn [children]
-                   (for [child children]
-                     (add-global-coordinates child
-                                             (+ (:x child)
-                                                global-x)
+                   (vec (for [child children]
+                          (add-global-coordinates child
+                                                  (+ (:x child)
+                                                     global-x)
 
-                                             (+ (:y child)
-                                                global-y)))))))
+                                                  (+ (:y child)
+                                                     global-y))))))
+      layout)))
+
 (def ^:dynamic current-state-atom)
 #_(def ^:dynamic current-state-path [])
 

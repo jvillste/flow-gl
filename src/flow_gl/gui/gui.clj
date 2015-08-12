@@ -224,6 +224,7 @@
    (drawables-for-layout layout 0 0 [] []))
 
   ([layout parent-x parent-y parent-z drawables]
+
    (let [x (+ parent-x (:x layout))
          y (+ parent-y (:y layout))
          z (conj parent-z (or (:z layout) 0))]
@@ -551,6 +552,9 @@
                    (layout/add-out-of-layout-hints))]
     (assoc state :layout layout)))
 
+#_(debug/defn-timed add-global-coordinates [state]
+    (assoc state :layout (layout/add-global-coordinates (:layout state) 0 0)))
+
 ;; Mouse
 
 (debug/defn-timed add-layout-paths-under-mouse-beforehand [state]
@@ -582,9 +586,8 @@
   (let [prefixes (->> (mapcat path-prefixes layout-paths)
                       distinct)]
     (->> (map (fn [path]
-                (when-let [handler (-> (get-in layout path)
-                                       (handler-key))]
-                  handler))
+                (-> (get-in layout path)
+                    (handler-key)))
               prefixes)
          (filter identity)
          (reverse))))
@@ -614,11 +617,34 @@
               handlers-and-arguments))
     state))
 
+(defn apply-mouse-event-handlers [state layout layout-paths event]
+  (if layout-paths
+    (let [layout (layout/add-global-coordinates layout 0 0)]
+      (reduce (fn [state layout-path]
+
+                (let [layout (get-in layout layout-path)]
+                  (reduce (fn [state [handler handler-arguments]]
+                            (apply handler
+                                   state
+                                   (concat [(assoc event
+                                                   :local-x (- (:x event)
+                                                               (:global-x layout))
+                                                   :local-y (- (:y event)
+                                                               (:global-y layout)))]
+                                           handler-arguments)))
+                          state
+                          (:handle-mouse-event layout))))
+              state
+              (->> (mapcat path-prefixes layout-paths)
+                   distinct
+                   reverse)))
+    state))
+
 (debug/defn-timed apply-layout-event-handlers-beforehand [state]
   (if (and (:layout state)
            (= (-> state :event :source)
               :mouse))
-    (apply-layout-event-handlers state (:layout state) (:layout-paths-under-mouse state) :handle-mouse-event (:event state))
+    (apply-mouse-event-handlers state (:layout state) (:layout-paths-under-mouse state) (:event state))
     state))
 
 
