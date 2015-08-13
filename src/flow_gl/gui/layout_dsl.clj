@@ -13,7 +13,8 @@
 (defn flatten-contents [values]
   (->> values
        (filter (complement nil?))
-       (flatten)))
+       (flatten)
+       (filter (complement nil?))))
 
 (def-dsl superimpose [& contents]
   (layouts/->Superimpose (flatten-contents contents)))
