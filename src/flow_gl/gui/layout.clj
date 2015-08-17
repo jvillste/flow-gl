@@ -241,7 +241,7 @@
              {:preferred-width (memoize (fn ~preferred-width-parameters (let [{:keys ~parameters} ~(first preferred-width-parameters)] ~@preferred-width-body) ))
               :preferred-height (memoize (fn ~preferred-height-parameters (let [{:keys ~parameters} ~(first preferred-height-parameters)] ~@preferred-height-body)))}))))
 
-(defmacro deflayout [name parameters layout-implementation preferred-width-implementation preferred-height-implementation]
+#_(defmacro deflayout [name parameters layout-implementation preferred-width-implementation preferred-height-implementation]
   (let [[layout-name layout-parameters & layout-body] layout-implementation
         [preferred-width-name preferred-width-parameters & preferred-width-body] preferred-width-implementation
         [preferred-height-name preferred-height-parameters & preferred-height-body] preferred-height-implementation]

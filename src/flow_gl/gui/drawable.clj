@@ -72,8 +72,6 @@
   (preferred-size [this available-width available-height]
     {:width (.getWidth buffered-image)
      :height (.getHeight buffered-image)})
-  (preferred-width [this] 100)
-  (preferred-height [this] 100)
 
   Object
   (toString [this] (layoutable/describe-layoutable this "Image" :file-name)))
@@ -82,8 +80,6 @@
   layoutable/Layoutable
   (preferred-size [this available-width available-height] {:width width
                                                            :height height})
-  (preferred-width [empty] width)
-  (preferred-height [empty] height)
 
   Java2DDrawable
   (draw [this graphics])

@@ -1269,6 +1269,11 @@
                        (update-in [:local-state] set-new state-overrides)
                        (dissoc :sleep-time))
 
+        _ (assert (or (instance? clojure.lang.Fn (:view view-state))
+                      (and (instance? clojure.lang.Var (:view view-state))
+                           (instance? clojure.lang.Fn @(:view view-state))))
+                  "View must be a function or a var pointing to a function.")
+        
         layoutable (cache/call-with-cache-atom cache
                                                run-view
                                                (:view view-state)

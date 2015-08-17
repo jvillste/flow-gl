@@ -183,21 +183,21 @@
                     (gui/call-and-bind view-context state i :text controls/text-editor i)))
 
   (l/margin 50 50 50 50 (gui/call-view scroll-panel
-                                         :scroll-panel-1
-                                         {:content
-                                          #_(l/vertically (for [i (range 40)]
-                                                            (text (str "as fasf asdf asf asdf asdf ads faas fas fasdf" i))))
-                                          (l/vertically (for [i (range (:editor-count state))]
-                                                          (gui/call-and-bind view-context state i :text controls/text-editor i)))}))
+                                       :scroll-panel-1
+                                       {:content
+                                        #_(l/vertically (for [i (range 40)]
+                                                          (text (str "as fasf asdf asf asdf asdf ads faas fas fasdf" i))))
+                                        (l/vertically (for [i (range (:editor-count state))]
+                                                        (gui/call-and-bind view-context state i :text controls/text-editor i)))}))
 
   
 
 
   #_(l/box 10 (drawable/->Rectangle 10 10 [255 0 0 255])
-         (l/vertically (text "as fasf asdf asf asdf asdf ads faas fas fasdf")
-                       (-> (text "as fasf asdf asf asdf asdf ads faas fas fasdf")
-                           (assoc :transformer (assoc clip
-                                                      :id :transformer-1)))))
+           (l/vertically (text "as fasf asdf asf asdf asdf ads faas fas fasdf")
+                         (-> (text "as fasf asdf asf asdf asdf ads faas fas fasdf")
+                             (assoc :transformer (assoc clip
+                                                        :id :transformer-1)))))
   
 
   #_(l/horizontally (gui/call-view scroll-panel

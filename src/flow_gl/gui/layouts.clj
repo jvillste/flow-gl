@@ -281,19 +281,22 @@
                                         (:unused-layoutables row)))
                                y))}))
 
-#_(deflayout BottomOutOfLayout [children]
-    (layout [this requested-width requested-height]
+(layout/deflayout-not-memoized BottomOutOfLayout [children]
+  (layout [this requested-width requested-height]
+          (let [childs-preferred-size (layoutable/preferred-size (first children)
+                                                                 requested-width requested-height)]
             (assoc this :children [(-> (layout/set-dimensions-and-layout (first children)
                                                                          0
                                                                          0
-                                                                         (layoutable/preferred-width (first children))
-                                                                         (layoutable/preferred-height (first children)))
+                                                                         (:width childs-preferred-size)
+                                                                         (:height childs-preferred-size))
                                        (assoc :z 1
-                                              :out-of-layout true))]))
-
-    (preferred-width [this] (layoutable/preferred-width (first children)))
-
-    (preferred-height [this] 0))
+                                              :out-of-layout true))])))
+  
+  (preferred-size [this available-width available-height]
+                  {:width (:width (layoutable/preferred-size (first children)
+                                                             available-width available-height))
+                   :height 0}))
 
 
 
