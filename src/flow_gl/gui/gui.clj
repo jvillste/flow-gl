@@ -769,6 +769,11 @@
 (defn on-mouse-clicked [layoutable handler & arguments]
   (apply on-mouse-event layoutable :mouse-clicked handler arguments))
 
+(defn function-reference? [handler]
+  (or (instance? clojure.lang.Fn handler)
+      (and (instance? clojure.lang.Var handler)
+           (instance? clojure.lang.Fn @handler))))
+
 ;; Keyboard
 
 (debug/defn-timed apply-keyboard-event-handlers-beforehand [state]
@@ -779,7 +784,9 @@
       (if-let [focused-state-path (first focused-state-paths)]
         (if-let [keyboard-event-handler (get-in state (concat (vec focused-state-path)
                                                               [:handle-keyboard-event]))]
-          (let [state (keyboard-event-handler state (:event state))]
+          (let [_ (assert (function-reference? keyboard-event-handler)
+                          (str "The keyboard event handler must be a function or a var pointing to a function. State path " (vec focused-state-path)) )
+                state (keyboard-event-handler state (:event state))]
             (if (:stop-keyboard-event-handling state)
               (dissoc state :stop-keyboard-event-handling)
               (recur state
@@ -1085,6 +1092,7 @@
           (clear-cache)))
 
     (catch Exception e
+      (println "Got exception. Closing the window.")
       (window/close (:window state))
       (throw e))))
 
@@ -1269,10 +1277,8 @@
                        (update-in [:local-state] set-new state-overrides)
                        (dissoc :sleep-time))
 
-        _ (assert (or (instance? clojure.lang.Fn (:view view-state))
-                      (and (instance? clojure.lang.Var (:view view-state))
-                           (instance? clojure.lang.Fn @(:view view-state))))
-                  "View must be a function or a var pointing to a function.")
+        _ (assert (function-reference? (:view view-state))
+                  "The view must be a function or a var pointing to a function.")
         
         layoutable (cache/call-with-cache-atom cache
                                                run-view

@@ -1,6 +1,8 @@
 (ns examples.autocompleter
   (:require [clojure.core.async :as async]
             [flow-gl.utils :as utils]
+            [flow-gl.tools.trace :as trace]
+            [flow-gl.csp :as csp]
             (flow-gl.gui [drawable :as drawable]
                          [layout :as layout]
                          [layouts :as layouts]
@@ -77,6 +79,7 @@
   (assoc-in state [:text] new-text))
 
 (defn handle-text-editor-event [state event]
+  
   (cond
     (events/key-pressed? event :back-space)
     (handle-new-text state (apply str (drop-last (:text state))))
@@ -110,7 +113,8 @@
 (defn text-editor [view-context]
   {:local-state {:text ""}
    :view #'text-editor-view
-   :handle-keyboard-event 'handle-text-editor-event
+   :handle-keyboard-event (fn [state event]
+                            (gui/apply-to-local-state state view-context handle-text-editor-event event))
    :can-gain-focus true})
 
 
@@ -130,38 +134,43 @@
                                                  (async/put! (:selection-channel state) :cancel)
                                                  text-editor-state)})
 
-                #_(layouts/->BottomOutOfLayout [(assoc (l/vertically (doall (map-indexed (fn [index result]
-                                                                                           (-> (l/box  10 [(drawable/->Rectangle 0
-                                                                                                                                 0
-                                                                                                                                 (if (= index (:mouse-over-index state))
-                                                                                                                                   (map #(* 255 %) [0 0.8 0.8 1])
-                                                                                                                                   (if (= (:selection state)
-                                                                                                                                          index)
-                                                                                                                                     (map #(* 255 %) [0 0.8 0.8 1])
-                                                                                                                                     (map #(* 255 %) [0 0.5 0.5 1]))))
-                                                                                                           (drawable/->Text result
-                                                                                                                            (font/create "LiberationSans-Regular.ttf" 15)
-                                                                                                                            [0 0 0 255])])
-                                                                                               (assoc :on-mouse-clicked (fn [state]
-                                                                                                                          (async/>!! (:selection-channel state) index)
-                                                                                                                          state)
+                (layouts/->BottomOutOfLayout [(assoc (l/vertically (doall (map-indexed (fn [index result]
+                                                                                         (-> (l/box 10
+                                                                                                    (drawable/->Rectangle 0
+                                                                                                                          0
+                                                                                                                          (if (= index (:mouse-over-index state))
+                                                                                                                            (map #(* 255 %) [0 0.8 0.8 1])
+                                                                                                                            (if (= (:selection state)
+                                                                                                                                   index)
+                                                                                                                              (map #(* 255 %) [0 0.8 0.8 1])
+                                                                                                                              (map #(* 255 %) [0 0.5 0.5 1]))))
+                                                                                                    (drawable/->Text result
+                                                                                                                     (font/create "LiberationSans-Regular.ttf" 15)
+                                                                                                                     [0 0 0 255]))
+                                                                                             (gui/on-mouse-event-with-view-context :mouse-clicked view-context
+                                                                                                                                   (fn [state event]
+                                                                                                                                     (async/>!! (:selection-channel state) index)
+                                                                                                                                     state))
 
-                                                                                                      :on-mouse-enter (fn [state]
-                                                                                                                        (assoc state
-                                                                                                                               :mouse-over-index index)))))
+                                                                                             (gui/on-mouse-event-with-view-context :on-mouse-enter view-context
+                                                                                                                                   (fn [state event]
+                                                                                                                                     (assoc state
+                                                                                                                                            :mouse-over-index index)))))
 
-                                                                                         (:results state))))
-                                                       :on-mouse-leave (fn [state]
-                                                                         (assoc state
-                                                                                :mouse-over-index -1)))])))
+                                                                                       (:results state))))
+                                                     :on-mouse-leave (fn [state]
+                                                                       (assoc state
+                                                                              :mouse-over-index -1)))])))
 
 
 (defn auto-completer [view-context]
-  (let [state (conj {:local-state {:query ""
+  (let [query-channel (async/chan)
+        selection-channel (async/chan)
+        state (conj {:local-state {:query ""
                                    :results []
                                    :selection nil
-                                   :selection-channel (async/chan)
-                                   :query-channel (async/chan)}
+                                   :selection-channel selection-channel
+                                   :query-channel query-channel}
                      :view #'auto-completer-view
                      :handle-keyboard-event (fn [state event]
                                               (events/on-key state event
@@ -175,7 +184,8 @@
                                                                       state)))}
                     gui/child-focus-handlers)]
 
-    (async/go (let [[throttled-query unthrottled-query] (throttle (:query-channel state) 500)]
+    
+    (async/go (let [[throttled-query unthrottled-query] (csp/throttle query-channel 500)]
                 (loop []
                   (async/alt! (:control-channel view-context) ([_] (println "exiting auto completer process"))
                               throttled-query ([query]
@@ -196,41 +206,41 @@
                                                  (recur))))))
 
     (async/go-loop [] (async/alt! (:control-channel view-context) ([_] (println "exiting selection process"))
-                                  (:selection-channel state) ([selection-event]
-                                                              (case selection-event
-                                                                :next (gui/apply-to-state view-context
-                                                                                          (fn [{:keys [results selection] :as state}]
-                                                                                            (if (not (empty? results))
-                                                                                              (update-in state [:selection]
-                                                                                                         (fn [selection]
-                                                                                                           (min (if selection
-                                                                                                                  (inc selection)
-                                                                                                                  0)
-                                                                                                                (dec (count results))))))))
-                                                                :select (gui/apply-to-state view-context
-                                                                                            (fn [{:keys [results selection] :as state}]
-                                                                                              (when-let [on-selection (:on-selection state)]
-                                                                                                (on-selection (get results selection)))
-                                                                                              (assoc state
-                                                                                                     :selection nil
-                                                                                                     :results []
-                                                                                                     :query (get results selection))))
-                                                                :cancel (gui/apply-to-state view-context
-                                                                                            (assoc state
-                                                                                                   :selection nil
-                                                                                                   :results []))
-                                                                (when (number? selection-event)
-                                                                  (gui/apply-to-state view-context
-                                                                                      (fn [{:keys [results] :as state}]
-                                                                                        (when-let [on-selection (:on-selection state)]
-                                                                                          (on-selection (get results selection-event)))
-                                                                                        (assoc state
-                                                                                               :selection nil
-                                                                                               :results []
-                                                                                               :query (get results selection-event))))))
+                                  selection-channel ([selection-event]
+                                                     (case selection-event
+                                                       :next (gui/apply-to-state view-context
+                                                                                 (fn [{:keys [results selection] :as state}]
+                                                                                   (if (not (empty? results))
+                                                                                     (update-in state [:selection]
+                                                                                                (fn [selection]
+                                                                                                  (min (if selection
+                                                                                                         (inc selection)
+                                                                                                         0)
+                                                                                                       (dec (count results))))))))
+                                                       :select (gui/apply-to-state view-context
+                                                                                   (fn [{:keys [results selection] :as state}]
+                                                                                     (when-let [on-selection (:on-selection state)]
+                                                                                       (on-selection (get results selection)))
+                                                                                     (assoc state
+                                                                                            :selection nil
+                                                                                            :results []
+                                                                                            :query (get results selection))))
+                                                       :cancel (gui/apply-to-state view-context
+                                                                                   (assoc state
+                                                                                          :selection nil
+                                                                                          :results []))
+                                                       (when (number? selection-event)
+                                                         (gui/apply-to-state view-context
+                                                                             (fn [{:keys [results] :as state}]
+                                                                               (when-let [on-selection (:on-selection state)]
+                                                                                 (on-selection (get results selection-event)))
+                                                                               (assoc state
+                                                                                      :selection nil
+                                                                                      :results []
+                                                                                      :query (get results selection-event))))))
 
 
-                                                              (recur))))
+                                                     (recur))))
     state))
 
 
@@ -260,7 +270,13 @@
 
 (defn start []
   (.start (Thread. (fn []
-                     (gui/start-control root)))))
+                       (gui/start-control root))))
+
+  #_(.start (Thread. (fn []
+                     (trace/trace-ns 'examples.autocompleter)
+                     #_(trace/untrace-ns 'examples.autocompleter)
+                     (trace/with-trace
+                       (gui/start-control root))))))
 
 
 #_(run-tests)
