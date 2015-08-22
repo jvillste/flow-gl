@@ -781,6 +781,7 @@
          :keyboard)
     (loop [state state
            focused-state-paths (:focused-state-paths state)]
+      (println "trying path" (vec (first focused-state-paths)))
       (if-let [focused-state-path (first focused-state-paths)]
         (if-let [keyboard-event-handler (get-in state (concat (vec focused-state-path)
                                                               [:handle-keyboard-event]))]
@@ -1398,12 +1399,21 @@
   {:type :apply-to-view-state
    :function function})
 
+(defn send-apply-to-view-state-event [view-context function]
+  (async/go (async/>! (-> view-context :common-view-context :event-channel)
+                      (create-apply-to-view-state-event function))))
+
 (defn apply-to-state [view-context function & arguments]
   (async/go (async/>! (-> view-context :common-view-context :event-channel)
                       (create-apply-to-view-state-event (fn [state]
                                                           (if (get-in state (:state-path view-context))
                                                             (apply update-or-apply-in state (concat (:state-path view-context) [:local-state]) function arguments)
                                                             (throw (Exception. (str "tried to apply to empty state" (vec (:state-path view-context)))))))))))
+
+(defn apply-to-global-state [view-context function & arguments]
+  (send-apply-to-view-state-event view-context
+                                  (fn [state]
+                                    (apply function state arguments))))
 
 
 (defn with-gl [view-context function & arguments]
