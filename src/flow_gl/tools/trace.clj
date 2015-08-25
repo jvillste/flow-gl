@@ -41,7 +41,9 @@
                           (update-in [:current-calls] assoc (:thread entry) (:parent ending-call)))]
             (if (:parent ending-call)
               (update-in trace [:open-calls (:parent ending-call) :child-calls] conj ending-call)
-              (update-in trace [:root-calls] conj ending-call)))))
+              (-> trace
+                  (update-in [:root-calls] conj ending-call)
+                  (update-in [:root-calls] #(vec (take-last 10 %))))))))
       trace)))
 
 (deftest add-entry-test
@@ -88,56 +90,56 @@
                          :call-id 1
                          :result :bar})))))
 
-(defn trace-fn-call
-  [name f arguments]
+(defn trace-fn-call-to-channel [channel name f arguments]
   (let [call-id (gensym)]
-    (debug/add-timed-entry :function-symbol name
-                           :call-id call-id
-                           :call-started true
-                           :arguments arguments)
+    (debug/add-timed-entry-to-channel channel
+                                      :function-symbol name
+                                      :call-id call-id
+                                      :call-started true
+                                      :arguments arguments)
 
     (let [value (apply f arguments)]
-      (debug/add-timed-entry :call-id call-id
-                             :result value)
+      (debug/add-timed-entry-to-channel channel
+                                        :call-id call-id
+                                        :result value)
       value)))
 
-(defn trace-var*
+(defn trace-fn-call [name f arguments]
+  (trace-fn-call-to-channel @flow-gl.debug/debug-channel name f arguments))
+
+(defmacro tfn [name arguments & body]
+  `(fn ~arguments
+     (let [call-id# (gensym)]
+       (debug/add-timed-entry :function-symbol '~name
+                              :call-id call-id#
+                              :call-started true
+                              :arguments ~arguments)
+
+       (let [value# (do ~@body)]
+         (debug/add-timed-entry :call-id call-id#
+                                :result value#)
+         value#))))
+
+(defn log-to-channel [channel & arguments]
+  (let [call-id (gensym)]
+    (debug/add-timed-entry-to-channel channel
+                                      :function-symbol nil
+                                      :call-id call-id
+                                      :call-started true
+                                      :arguments (vec arguments))
+
+    (debug/add-timed-entry-to-channel channel
+                                      :call-id call-id
+                                      :result nil)
+    nil))
+
+(defn log [& arguments]
+  (apply log-to-channel @debug/debug-channel arguments))
+
+
+(defn  untrace-var
   ([ns s]
-   (trace-var* (ns-resolve ns s)))
-  ([v]
-   (let [^clojure.lang.Var v (if (var? v) v (resolve v))
-         ns (.ns v)
-         s  (.sym v)]
-     (if (and (ifn? @v)
-              (-> v meta :macro not)
-              (-> v meta ::traced not))
-       (do (println "tracing" s)
-           (let [f @v
-                 vname (symbol (str ns "/" s))]
-             (doto v
-               (alter-var-root #(fn tracing-wrapper [& args]
-                                  (trace-fn-call vname % args)))
-               (alter-meta! assoc ::traced f))))))))
-
-(defn namespace-function-vars [namespace]
-  (->> namespace ns-interns vals (filter (fn [v] (and (-> v var-get fn?)
-                                                      (not (-> v meta :macro)))))))
-
-(defn trace-ns* [ns]
-  (let [ns (the-ns ns)]
-    (when-not ('#{clojure.core flow-gl.tools.trace} (.name ns))
-      (let [ns-fns (namespace-function-vars ns)]
-        (doseq [f ns-fns]
-
-          (trace-var* f))))))
-
-(defmacro trace-ns [ns]
-  `(trace-ns* ~ns))
-
-
-(defn  untrace-var*
-  ([ns s]
-   (untrace-var* (ns-resolve ns s)))
+   (untrace-var (ns-resolve ns s)))
   ([v]
    (let [^clojure.lang.Var v (if (var? v) v (resolve v))
          ns (.ns v)
@@ -148,13 +150,59 @@
          (alter-var-root (constantly ((meta v) ::traced)))
          (alter-meta! dissoc ::traced))))))
 
-(defn untrace-ns* [ns]
+(defn untrace-ns [ns]
   (let [ns-fns (->> ns the-ns ns-interns vals)]
     (doseq [f ns-fns]
-      (untrace-var* f))))
+      (untrace-var f))))
 
-(defmacro untrace-ns [ns]
-  `(untrace-ns* ~ns))
+#_(defmacro untrace-ns [ns]
+    `(untrace-ns* ~ns))
+
+
+(defn trace-var-to-channel
+  ([channel ns s]
+   (trace-var-to-channel channel (ns-resolve ns s)))
+  ([channel v]
+   (let [^clojure.lang.Var v (if (var? v) v (resolve v))
+         ns (.ns v)
+         s  (.sym v)]
+     (if (and (ifn? @v)
+              (-> v meta :macro not)
+              #_(-> v meta ::traced not))
+       (do (println "tracing" s)
+           (untrace-var v)
+           (let [f @v
+                 vname (symbol (str ns "/" s))]
+             (doto v
+               (alter-var-root #(fn tracing-wrapper [& args]
+                                  (trace-fn-call-to-channel channel vname % args)))
+               (alter-meta! assoc ::traced f))))))))
+
+(defn trace-var
+  ([ns s]
+   (trace-var-to-channel @debug/debug-channel ns s))
+  ([v]
+   (trace-var-to-channel @debug/debug-channel v)))
+
+(defn namespace-function-vars [namespace]
+  (->> namespace ns-interns vals (filter (fn [v] (and (-> v var-get fn?)
+                                                      (not (-> v meta :macro)))))))
+
+(defn trace-ns-to-channel [channel ns]
+  (let [ns (the-ns ns)]
+    (when-not ('#{clojure.core flow-gl.tools.trace} (.name ns))
+      (let [ns-fns (namespace-function-vars ns)]
+        (doseq [f ns-fns]
+
+          (trace-var-to-channel channel f))))))
+
+(defn trace-ns [ns]
+  (trace-ns-to-channel @debug/debug-channel ns))
+
+#_(defmacro trace-ns [ns]
+    `(trace-ns* ~ns))
+
+
 
 
 (defn traced?
@@ -390,27 +438,27 @@
                                                                            (:call-started call)))])
 
                                 (text-cell (str "("
-                                                (name (or (:function-symbol call)
-                                                          :x))
-                                                " "))
-                                (interpose (drawable/->Empty 5 0)
-                                           (for [argument (:arguments call)]
-                                             (-> (text-cell (value-string argument) (if (= argument
-                                                                                           (:selected-value state))
-                                                                                      selected-value-color
-                                                                                      default-color))
-                                                 (gui/on-mouse-clicked-with-view-context view-context
-                                                                                         (fn [state event]
-                                                                                           (assoc state :selected-value argument))))))
-                                (text-cell ") -> ")
-                                (-> (text-cell (value-string (:result call))
-                                               (if (= (:result call)
-                                                      (:selected-value state))
-                                                 selected-value-color
-                                                 default-color))
-                                    (gui/on-mouse-clicked-with-view-context view-context
-                                                                            (fn [state event]
-                                                                              (assoc state :selected-value (:result call))))))
+                                                (if-let [function-symbol (:function-symbol call)]
+                                                  (str (name function-symbol) " ")
+                                                  "")))
+                                (for [argument (:arguments call)]
+                                  (-> (text-cell (value-string argument) (if (= argument
+                                                                                (:selected-value state))
+                                                                           selected-value-color
+                                                                           default-color))
+                                      (gui/on-mouse-clicked-with-view-context view-context
+                                                                              (fn [state event]
+                                                                                (assoc state :selected-value argument)))))
+                                (text-cell ")")
+                                (when (:function-symbol call)
+                                  (-> (text-cell (str " -> " (value-string (:result call)))
+                                                 (if (= (:result call)
+                                                        (:selected-value state))
+                                                   selected-value-color
+                                                   default-color))
+                                      (gui/on-mouse-clicked-with-view-context view-context
+                                                                              (fn [state event]
+                                                                                (assoc state :selected-value (:result call)))))))
                 (when ((:open-calls state) (:call-id call))
                   (l/margin 0 0 0 20
                             (l/vertically (for [child (:child-calls call)]
@@ -492,13 +540,13 @@
                                                                            (-> (controls/text "X")
                                                                                (gui/on-mouse-clicked-with-view-context view-context
                                                                                                                        (fn [state event]
-                                                                                                                         (untrace-var* function-var)
+                                                                                                                         (untrace-var function-var)
                                                                                                                          (assoc state :refresh-time (.getTime (java.util.Date.))))))
 
                                                                            (-> (controls/text "O")
                                                                                (gui/on-mouse-clicked-with-view-context view-context
                                                                                                                        (fn [state event]
-                                                                                                                         (trace-var* function-var)
+                                                                                                                         (trace-var function-var)
                                                                                                                          (assoc state :refresh-time (.getTime (java.util.Date.)))))))]))))))))
 
 
@@ -510,7 +558,7 @@
                                                 {:title "functions"
                                                  :content (functions-view view-context state)}]})))
 
-(defn create-trace-control [input-channel trace-channel]
+(defn create-trace-control [input-channel trace-channel] 
   (fn [view-context]
     (let [throttled-channel (csp/throttle-at-constant-rate trace-channel 500)]
 

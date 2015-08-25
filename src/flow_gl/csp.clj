@@ -16,7 +16,6 @@
         unthrottled-channel-2 (tap-new mult)]
 
     (async/go-loop [value (async/<! unthrottled-channel-2)]
-      (println "throttle got" value)
       (when value
         (async/alt! (async/timeout interval) (do (>! throttled-channel value)
                                                  (recur (async/<! unthrottled-channel-2)))

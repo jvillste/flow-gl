@@ -343,18 +343,18 @@
 
 
 (defn layout-to-partitions [gpu-state]
-  (if (render-target-must-be-recreated gpu-state)
-    (assoc gpu-state
-           :partitions [(assoc (:layout gpu-state)
-                               :stenciled true)]
-           :partitions-to-be-cleared []
-           :previous-layout (:layout gpu-state))
-    (let [[partitions-to-be-redrawn partitions-to-be-cleared] (dirty-partitions (:layout gpu-state)
-                                                                                (:previous-layout gpu-state))]
+  (if true #_(render-target-must-be-recreated gpu-state)
       (assoc gpu-state
-             :partitions partitions-to-be-redrawn
-             :partitions-to-be-cleared partitions-to-be-cleared
-             :previous-layout (:layout gpu-state)))))
+             :partitions [(assoc (:layout gpu-state)
+                                 :stenciled true)]
+             :partitions-to-be-cleared []
+             :previous-layout (:layout gpu-state))
+      (let [[partitions-to-be-redrawn partitions-to-be-cleared] (dirty-partitions (:layout gpu-state)
+                                                                                  (:previous-layout gpu-state))]
+        (assoc gpu-state
+               :partitions partitions-to-be-redrawn
+               :partitions-to-be-cleared partitions-to-be-cleared
+               :previous-layout (:layout gpu-state)))))
 
 (defn partition-to-render-trees [gpu-state partition]
   (assoc gpu-state
@@ -781,7 +781,6 @@
          :keyboard)
     (loop [state state
            focused-state-paths (:focused-state-paths state)]
-      (println "trying path" (vec (first focused-state-paths)))
       (if-let [focused-state-path (first focused-state-paths)]
         (if-let [keyboard-event-handler (get-in state (concat (vec focused-state-path)
                                                               [:handle-keyboard-event]))]
@@ -1394,7 +1393,6 @@
               awt-init)))
 
 
-
 (defn create-apply-to-view-state-event [function]
   {:type :apply-to-view-state
    :function function})
@@ -1421,5 +1419,6 @@
                       {:type :with-gl
                        :function function
                        :arguments arguments })))
+
 
 #_(run-tests)

@@ -45,14 +45,15 @@
      (with-debug-channel channel# ~@body)
      (async/close! channel#)))
 
-(defn add-timed-entry [& values]
+(defn add-timed-entry-to-channel [channel & values]
+  (async/>!! channel
+             (conj {:time (.getTime (java.util.Date.))
+                    :thread (.getId (Thread/currentThread))}
+                   (apply hash-map values))))
 
+(defn add-timed-entry [& values]
   (when @debug-channel
-    (do
-      (async/>!! @debug-channel
-                 (conj {:time (.getTime (java.util.Date.))
-                        :thread (.getId (Thread/currentThread))}
-                       (apply hash-map values))))))
+    (apply add-timed-entry-to-channel @debug-channel values)))
 
 #_(println (with-log (add-timed-entry :message "foo")))
 
@@ -108,3 +109,9 @@
               (.write writer "\n")
               (recur (rest log)
                      (:time line))))))))
+
+
+(def ^:dynamic foo "foo")
+
+(binding [foo "bar"]
+  (async/go (println foo)))
