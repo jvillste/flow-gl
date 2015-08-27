@@ -90,22 +90,18 @@
                          :call-id 1
                          :result :bar})))))
 
-(defn trace-fn-call-to-channel [channel name f arguments]
+(defn trace-fn-call [name f arguments]
   (let [call-id (gensym)]
-    (debug/add-timed-entry-to-channel channel
-                                      :function-symbol name
-                                      :call-id call-id
-                                      :call-started true
-                                      :arguments arguments)
+    (debug/add-timed-entry :function-symbol name
+                           :call-id call-id
+                           :call-started true
+                           :arguments arguments)
 
     (let [value (apply f arguments)]
-      (debug/add-timed-entry-to-channel channel
-                                        :call-id call-id
-                                        :result value)
+      (debug/add-timed-entry :call-id call-id
+                             :result value)
       value)))
 
-(defn trace-fn-call [name f arguments]
-  (trace-fn-call-to-channel @flow-gl.debug/debug-channel name f arguments))
 
 (defmacro tfn [name arguments & body]
   `(fn ~arguments
@@ -120,21 +116,17 @@
                                 :result value#)
          value#))))
 
-(defn log-to-channel [channel & arguments]
-  (let [call-id (gensym)]
-    (debug/add-timed-entry-to-channel channel
-                                      :function-symbol nil
-                                      :call-id call-id
-                                      :call-started true
-                                      :arguments (vec arguments))
-
-    (debug/add-timed-entry-to-channel channel
-                                      :call-id call-id
-                                      :result nil)
-    nil))
 
 (defn log [& arguments]
-  (apply log-to-channel @debug/debug-channel arguments))
+  (let [call-id (gensym)]
+    (debug/add-timed-entry :function-symbol nil
+                           :call-id call-id
+                           :call-started true
+                           :arguments (vec arguments))
+
+    (debug/add-timed-entry :call-id call-id
+                           :result nil)
+    nil))
 
 
 (defn  untrace-var
@@ -159,10 +151,10 @@
     `(untrace-ns* ~ns))
 
 
-(defn trace-var-to-channel
-  ([channel ns s]
-   (trace-var-to-channel channel (ns-resolve ns s)))
-  ([channel v]
+(defn trace-var
+  ([ns s]
+   (trace-var (ns-resolve ns s)))
+  ([v]
    (let [^clojure.lang.Var v (if (var? v) v (resolve v))
          ns (.ns v)
          s  (.sym v)]
@@ -175,29 +167,20 @@
                  vname (symbol (str ns "/" s))]
              (doto v
                (alter-var-root #(fn tracing-wrapper [& args]
-                                  (trace-fn-call-to-channel channel vname % args)))
+                                  (trace-fn-call vname % args)))
                (alter-meta! assoc ::traced f))))))))
-
-(defn trace-var
-  ([ns s]
-   (trace-var-to-channel @debug/debug-channel ns s))
-  ([v]
-   (trace-var-to-channel @debug/debug-channel v)))
 
 (defn namespace-function-vars [namespace]
   (->> namespace ns-interns vals (filter (fn [v] (and (-> v var-get fn?)
                                                       (not (-> v meta :macro)))))))
 
-(defn trace-ns-to-channel [channel ns]
+(defn trace-ns [ns]
   (let [ns (the-ns ns)]
     (when-not ('#{clojure.core flow-gl.tools.trace} (.name ns))
       (let [ns-fns (namespace-function-vars ns)]
         (doseq [f ns-fns]
 
-          (trace-var-to-channel channel f))))))
-
-(defn trace-ns [ns]
-  (trace-ns-to-channel @debug/debug-channel ns))
+          (trace-var f))))))
 
 #_(defmacro trace-ns [ns]
     `(trace-ns* ~ns))

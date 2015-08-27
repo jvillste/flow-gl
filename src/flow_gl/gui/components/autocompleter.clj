@@ -250,7 +250,7 @@
                                                        (when (number? selection-event)
                                                          (gui/apply-to-state view-context
                                                                              (fn [{:keys [results] :as state}]
-                                                                               (trace/log-to-channel trace-channel "got selected index" selection-event state)
+                                                                               (trace/log "got selected index" selection-event state)
                                                                                (gui/apply-to-global-state view-context
                                                                                                           gui/update-binding
                                                                                                           view-context

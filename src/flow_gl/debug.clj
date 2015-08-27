@@ -25,11 +25,13 @@
   (last values))
 
 (def debug-channel (thread-inheritable/thread-inheritable nil))
+(def ^:dynamic dynamic-debug-channel nil)
 
 (defmacro with-debug-channel
   [channel & body]
   `(thread-inheritable/inheritable-binding [debug-channel ~channel]
-                                           ~@body))
+                                           (binding [dynamic-debug-channel ~channel]
+                                             ~@body)))
 
 
 (defn start-log-reading-process [log-atom channel]
@@ -45,15 +47,17 @@
      (with-debug-channel channel# ~@body)
      (async/close! channel#)))
 
-(defn add-timed-entry-to-channel [channel & values]
+(defn add-timed-entry-to-channel [channel values]
   (async/>!! channel
              (conj {:time (.getTime (java.util.Date.))
                     :thread (.getId (Thread/currentThread))}
                    (apply hash-map values))))
 
 (defn add-timed-entry [& values]
-  (when @debug-channel
-    (apply add-timed-entry-to-channel @debug-channel values)))
+  (if @debug-channel
+    (add-timed-entry-to-channel @debug-channel values)
+    (if dynamic-debug-channel
+      (add-timed-entry-to-channel dynamic-debug-channel values))))
 
 #_(println (with-log (add-timed-entry :message "foo")))
 
@@ -110,8 +114,11 @@
               (recur (rest log)
                      (:time line))))))))
 
-
-(def ^:dynamic foo "foo")
-
-(binding [foo "bar"]
-  (async/go (println foo)))
+#_(let [channel (async/chan)]
+  (async/go-loop [value (async/<! channel)]
+    (when value
+      (do (println value)
+          (recur (async/<! channel)))))
+  (with-debug-channel channel
+    (async/go  (add-timed-entry :foo "go foo"))
+    (.run (Thread. (fn [] (add-timed-entry :foo "thread foo"))))))
