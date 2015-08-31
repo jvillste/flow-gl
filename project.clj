@@ -11,7 +11,7 @@
                  [org.lwjgl/lwjgl-native-platform "2.7.1"]
                  [slingshot "0.10.3"]
                  [org.clojure/data.priority-map "0.0.2"]
-                 [com.datomic/datomic-free "0.8.4020.24"]
+                 [com.datomic/datomic-free "0.9.5067"]
                  [org.clojure/core.async "0.1.278.0-76b25b-alpha"]
                  [org.clojure/tools.namespace "0.2.4"]
                  [midje "1.6.3"]

@@ -150,7 +150,10 @@
                                                                                              (gui/on-mouse-event-with-view-context :mouse-clicked view-context
                                                                                                                                    (fn [state event]
                                                                                                                                      (trace/log "mouse selection by clck" index state event)
-                                                                                                                                     (async/>!! (:selection-channel state) index)
+                                                                                                                                     (when-let [result (get (:results state)
+                                                                                                                                                            index)]
+                                                                                                                                       (async/>!! (:selection-channel state)
+                                                                                                                                                  result))
                                                                                                                                      state))
 
                                                                                              (gui/on-mouse-event-with-view-context :on-mouse-enter view-context
@@ -177,19 +180,16 @@
                      :view #'auto-completer-view
                      :handle-keyboard-event (fn [state event]
                                               (events/on-key state event
-                                                             :down (do (println "got down")
-                                                                       (async/put! selection-channel :next)
+                                                             :down (do (async/put! selection-channel :next)
                                                                        state)
                                                              :up (do (async/put! selection-channel :previous)
                                                                      state)
                                                              :enter (do
                                                                       (let [local-state (gui/get-local-state state view-context)]
-                                                                        (if (:selection local-state)
-                                                                          (do (println "sending selection" (:selection local-state) (:results local-state))
-                                                                              (async/put! selection-channel :select)
-                                                                              (assoc state
-                                                                                     :stop-keyboard-event-handling true))
-                                                                          state)))))}
+                                                                        (when-let [result (get (:results local-state)
+                                                                                               (:selection local-state))]
+                                                                          (async/put! selection-channel result))
+                                                                        state))))}
                     gui/child-focus-handlers)]
 
     
@@ -216,8 +216,7 @@
     (async/go-loop [] (async/alt! (:control-channel view-context) ([_] (println "exiting selection process"))
                                   selection-channel ([selection-event]
                                                      (case selection-event
-                                                       :next (do (trace/log "apply-to-state on next")
-                                                                 (println "apply-to-state on next")
+                                                       :next (do (trace/log "next")
                                                                  (gui/apply-to-state view-context
                                                                                      (fn [{:keys [results selection] :as state}]
                                                                                        (if (not (empty? results))
@@ -227,35 +226,36 @@
                                                                                                              (inc selection)
                                                                                                              0)
                                                                                                            (dec (count results)))))))))
-                                                       :select (gui/apply-to-state view-context
-                                                                                   (fn [{:keys [results selection] :as state}]
-                                                                                     (println "selected" results selection)
-                                                                                     (gui/apply-to-global-state view-context
-                                                                                                                gui/update-binding
-                                                                                                                view-context
-                                                                                                                (fn [old-query]
-                                                                                                                  (get results selection))
-                                                                                                                :query)
-                                                                                     (assoc state
-                                                                                            :selection nil
-                                                                                            :results []
-                                                                                            :query (get results selection))))
+                                                       #_:select #_(gui/apply-to-state view-context
+                                                                                       (fn [{:keys [results selection] :as state}]
+                                                                                         (trace/log "selected" results selection)
+                                                                                         (gui/apply-to-global-state view-context
+                                                                                                                    gui/update-binding
+                                                                                                                    view-context
+                                                                                                                    (fn [old-query]
+                                                                                                                      (get results selection))
+                                                                                                                    :query)
+                                                                                         (assoc state
+                                                                                                :selection nil
+                                                                                                :results []
+                                                                                                :query (get results selection))))
                                                        
                                                        
-                                                       :cancel (gui/apply-to-state view-context
-                                                                                   assoc
-                                                                                   :selection nil
-                                                                                   :results [])
+                                                       :cancel (do (trace/log "cancel")
+                                                                   (gui/apply-to-state view-context
+                                                                                       assoc
+                                                                                       :selection nil
+                                                                                       :results []))
                                                        
-                                                       (when (number? selection-event)
+                                                       (when (string? selection-event)
                                                          (gui/apply-to-state view-context
                                                                              (fn [{:keys [results] :as state}]
-                                                                               (trace/log "got selected index" selection-event state)
+                                                                               (trace/log "got selection" selection-event state)
                                                                                (gui/apply-to-global-state view-context
                                                                                                           gui/update-binding
                                                                                                           view-context
                                                                                                           (fn [old-query]
-                                                                                                            (get results selection-event))
+                                                                                                            selection-event)
                                                                                                           :query)
                                                                                (assoc state
                                                                                       :selection nil

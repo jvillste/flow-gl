@@ -35,7 +35,8 @@
 
         (let [ending-call (-> (get-in trace [:open-calls (:call-id entry)])
                               (assoc :call-ended (:time entry)
-                                     :result (:result entry)))]
+                                     :result (:result entry)
+                                     :exception (:exception entry)))]
           (let [trace (-> trace
                           (update-in [:open-calls] dissoc (:call-id entry))
                           (update-in [:current-calls] assoc (:thread entry) (:parent ending-call)))]
@@ -43,7 +44,7 @@
               (update-in trace [:open-calls (:parent ending-call) :child-calls] conj ending-call)
               (-> trace
                   (update-in [:root-calls] conj ending-call)
-                  (update-in [:root-calls] #(vec (take-last 10 %))))))))
+                  (update-in [:root-calls] #(vec (take-last 30 %))))))))
       trace)))
 
 (deftest add-entry-test
@@ -97,9 +98,20 @@
                            :call-started true
                            :arguments arguments)
 
-    (let [value (apply f arguments)]
+    (let [[value exception] (try [(apply f arguments)
+                                  nil]
+                                 (catch Exception e
+                                   (println "got exception" e)
+                                   [nil e]))]
+
+
       (debug/add-timed-entry :call-id call-id
-                             :result value)
+                             :result value
+                             :exception exception)
+
+      (when exception
+        (throw exception))
+      
       value)))
 
 
@@ -160,9 +172,8 @@
          s  (.sym v)]
      (if (and (ifn? @v)
               (-> v meta :macro not)
-              #_(-> v meta ::traced not))
+              (-> v meta ::traced not))
        (do (println "tracing" s)
-           (untrace-var v)
            (let [f @v
                  vname (symbol (str ns "/" s))]
              (doto v
@@ -305,6 +316,9 @@
         (list? value)
         (str "(" (count value) ")")
 
+        (instance? java.lang.Exception value)
+        (str (type value) ": " (.getMessage value))
+
         :default
         (str (.getSimpleName (type value)))))
 
@@ -434,7 +448,8 @@
                                                                                 (assoc state :selected-value argument)))))
                                 (text-cell ")")
                                 (when (:function-symbol call)
-                                  (-> (text-cell (str " -> " (value-string (:result call)))
+                                  (-> (text-cell (str " -> " (value-string (or (:exception call)
+                                                                               (:result call))))
                                                  (if (= (:result call)
                                                         (:selected-value state))
                                                    selected-value-color
@@ -576,3 +591,5 @@
 
 #_(run-tests)
 (gui/redraw-last-started-view)
+
+

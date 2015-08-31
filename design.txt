@@ -122,7 +122,10 @@ Render tree transformer node
 TODO
 -----
 
+Make autocompleter send selected text instead of simple :select -command
 Make partial screen drawing work with out-of-layout elements
+Make focus work with out of layout elements
+
 
 Unify size dependent and normal layout implementation
 - view call resolving from run-view-call to do-layout
