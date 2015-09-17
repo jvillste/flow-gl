@@ -74,6 +74,7 @@
 ;; Text editor
 
 (defn handle-new-text [state new-text]
+  (trace/log "new text" new-text)
   (when (:on-change state)
     (async/go (async/>! (:on-change state) new-text)))
   (assoc-in state [:text] new-text))
@@ -91,7 +92,6 @@
 
     :default
     state))
-
 
 
 (defn text-editor-view [view-context state]
@@ -127,12 +127,16 @@
 (defn auto-completer-view [view-context state]
   (l/vertically (gui/call-view text-editor
                                :query-editor
-                               {:text (:query state)
+                               {:text (or (:query state)
+                                          (:selected-value state))
                                 :on-change (:query-channel state)
                                 :on-focus-lost (fn [text-editor-state]
                                                  (println "focus lost")
                                                  (async/put! (:selection-channel state) :cancel)
                                                  text-editor-state)})
+                (when (not= (:query state)
+                            (:selected-value state))
+                  (controls/text "*"))
 
                 (layouts/->BottomOutOfLayout [(assoc (l/vertically (doall (map-indexed (fn [index result]
                                                                                          (-> (l/box 10
@@ -172,8 +176,9 @@
   (let [query-channel (async/chan)
         selection-channel (async/chan)
         trace-channel @flow-gl.debug/debug-channel
-        state (conj {:local-state {:query ""
+        state (conj {:local-state {:query nil
                                    :results []
+                                   :selected-value ""
                                    :selection nil
                                    :selection-channel selection-channel
                                    :query-channel query-channel}
@@ -186,10 +191,18 @@
                                                                      state)
                                                              :enter (do
                                                                       (let [local-state (gui/get-local-state state view-context)]
-                                                                        (when-let [result (get (:results local-state)
-                                                                                               (:selection local-state))]
-                                                                          (async/put! selection-channel result))
-                                                                        state))))}
+                                                                        (if (:selection local-state)
+                                                                          (do (when-let [result (get (:results local-state)
+                                                                                                     (:selection local-state))]
+                                                                                (async/put! selection-channel result))
+                                                                              state)
+                                                                          (-> state
+                                                                              (gui/update-binding view-context
+                                                                                                  (fn [old-selected-value]
+                                                                                                    (:query local-state))
+                                                                                                  :selected-value)
+                                                                              (gui/apply-to-local-state view-context
+                                                                                                        assoc :query nil)))))))}
                     gui/child-focus-handlers)]
 
     
@@ -197,6 +210,7 @@
                 (loop []
                   (async/alt! (:control-channel view-context) ([_] (println "exiting auto completer process"))
                               throttled-query ([query]
+                                               (trace/log "new throttled query" query)
                                                (async/go (let [results (async/<! (async/thread (vec (query-function query))))]
                                                            (gui/apply-to-state view-context
                                                                                assoc
@@ -205,12 +219,10 @@
                                                (recur))
 
                               unthrottled-query ([query]
+                                                 (trace/log "new query" query)
                                                  (gui/apply-to-global-state view-context
-                                                                            gui/update-binding
-                                                                            view-context
-                                                                            (fn [old-query]
-                                                                              query)
-                                                                            :query)
+                                                                            gui/apply-to-local-state
+                                                                            assoc :query query)
                                                  (recur))))))
 
     (async/go-loop [] (async/alt! (:control-channel view-context) ([_] (println "exiting selection process"))

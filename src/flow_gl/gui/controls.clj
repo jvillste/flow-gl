@@ -53,6 +53,7 @@
    :can-gain-focus true
    :view text-editor-view})
 
+
 (defn text
   ([value]
    (text value [255 255 255 255]))
@@ -160,14 +161,18 @@
 
 
 
-(defn button [view-context text-value handler]
+(defn button [view-context text-value disabled handler]
   (layouts/->Box 10 [(->  (drawable/->Rectangle 0
                                                 0
-                                                [0 200 200 1])
+                                                [0 200 200 255])
                           (gui/on-mouse-clicked-with-view-context view-context
                                                                   (fn [state event]
-                                                                    (handler state))))
-                     (text text-value)]))
+                                                                    (if (not disabled)
+                                                                      (handler state)
+                                                                      state))))
+                     (text text-value (if disabled
+                                        [100 100 100 255]
+                                        [0 0 0 255]))]))
 
 
 
