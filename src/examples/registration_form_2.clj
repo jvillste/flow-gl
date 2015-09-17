@@ -26,52 +26,53 @@
                 (str "Username " user-name " registered!")))
 
 (defn form-view [view-context state]
-  (layouts/->VerticalStack [(l/horizontally
-                             (l/minimum-size 300 0 (gui/call-view async-text-editor/text-editor
-                                                                  :user-name-editor
-                                                                  {:text (:user-name state)
-                                                                   :on-change (:user-name-channel state)}))
+  (l/vertically (l/horizontally (l/minimum-size 300 0 (gui/call-view async-text-editor/text-editor
+                                                                     :user-name-editor
+                                                                     {:text (:user-name state)
+                                                                      :on-change (:user-name-channel state)}))
 
-                             (let [[text color] (case (:user-name-available? state)
-                                                  :available ["Available" [0 255 0 255]]
-                                                  :unavailable ["Unavailable" [255 0 0 255]]
-                                                  :unknown [nil nil])]
-                               (when text
-                                 (controls/text text color)))
+                                (let [[text color] (case (:user-name-available? state)
+                                                     :available ["Available" [0 255 0 255]]
+                                                     :unavailable ["Unavailable" [255 0 0 255]]
+                                                     :unknown [nil nil])]
+                                  (when text
+                                    (controls/text text color)))
 
-                             (when (:querying? state)
-                               (controls/text "Checking availability")))
+                                (when (:querying? state)
+                                  (controls/text "Checking availability")))
 
-                            (l/margin 10 0 0 0
-                                      (l/minimum-size 300 0
-                                                      (gui/call-and-bind view-context
-                                                                         state
-                                                                         :full-name
-                                                                         :text
-                                                                         controls/text-editor
-                                                                         :full-name-editor)))
+                (l/margin 10 0 0 0
+                          (l/minimum-size 300 0
+                                          (gui/call-and-bind view-context
+                                                             state
+                                                             :full-name
+                                                             :text
+                                                             controls/text-editor
+                                                             :full-name-editor)))
 
-                            (l/margin 10 0 0 0
-                                      (l/minimum-size 300 0
-                                                      (controls/button view-context
-                                                                       "Send"
-                                                                       (or (= (:full-name state)
-                                                                              "")
-                                                                           (= (:user-name state)
-                                                                              "")
-                                                                           (:querying? state)
-                                                                           (= (:user-name-available? state)
-                                                                              :unavailable)
-                                                                           (= (:user-name-available? state)
-                                                                              :unknown)
-                                                                           (:registering? state))
-                                                                       (fn [state] (async/put! (:register-channel state)
-                                                                                               (:user-name state))
-                                                                         state))))
-                            (if (:registering? state)
-                              (controls/text "Registering")
-                              (drawable/->Empty 0 0))
-                            (controls/text (:register-message state))]))
+                (l/margin 10 0 0 0
+                          (l/minimum-size 300 0
+                                          (controls/button view-context
+                                                           "Send"
+                                                           (or (= (:full-name state)
+                                                                  "")
+                                                               (= (:user-name state)
+                                                                  "")
+                                                               (:querying? state)
+                                                               (= (:user-name-available? state)
+                                                                  :unavailable)
+                                                               (= (:user-name-available? state)
+                                                                  :unknown)
+                                                               (:registering? state))
+                                                           (fn [state]
+                                                             (async/put! (:register-channel state)
+                                                                         (:user-name state))
+                                                             state))))
+                
+                (when (:registering? state)
+                  (controls/text "Registering"))
+                
+                (controls/text (:register-message state))))
 
 (defn form [view-context]
   (let [user-name-channel (async/chan)

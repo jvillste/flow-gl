@@ -166,8 +166,7 @@
                                                 0
                                                 (if disabled
                                                   [200 200 200 255]
-                                                  [130 130 130 255]
-                                                  ))
+                                                  [130 130 130 255]))
                           (gui/on-mouse-clicked-with-view-context view-context
                                                                   (fn [state event]
                                                                     (if (not disabled)
