@@ -94,7 +94,7 @@
                            (let [inner-size (layoutable/preferred-size inner (- requested-width (* 2 margin)) (- requested-height (* 2 margin)))]
                              [(assoc (layout/set-dimensions-and-layout outer 0 0 requested-width requested-height)
                                      :z 0)
-                              (assoc (layout/set-dimensions-and-layout inner margin margin (:width inner-size) (:height inner-size))
+                              (assoc (layout/set-dimensions-and-layout inner margin margin (- requested-width (* 2 margin)) (- requested-height (* 2 margin)) #_(:width inner-size) #_(:height inner-size))
                                      :z 1)])))))
 
   (preferred-size [this available-width available-height]
@@ -402,7 +402,7 @@
                                                       (:height preferred-child-size))])))
 
   (preferred-size [this available-width available-height]
-                  {:width width :height height}))
+                  (layoutable/preferred-size (first children) available-width available-height)))
 
 
 

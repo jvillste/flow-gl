@@ -41,8 +41,8 @@
                                              0
                                              (cond
                                                (:has-focus state) [255 255 255 255]
-                                               (:mouse-over state) [230 230 230 255]
-                                               :default [200 200 200 255]))
+                                               (:mouse-over state) [250 250 250 255]
+                                               :default [230 230 230 255]))
                        (drawable/->Text (or (:text state) "")
                                         (font/create "LiberationSans-Regular.ttf" 12)
                                         [0 0 0 255])])))
@@ -164,15 +164,18 @@
 (defn button [view-context text-value disabled handler]
   (layouts/->Box 10 [(->  (drawable/->Rectangle 0
                                                 0
-                                                [0 200 200 255])
+                                                (if disabled
+                                                  [200 200 200 255]
+                                                  [130 130 130 255]
+                                                  ))
                           (gui/on-mouse-clicked-with-view-context view-context
                                                                   (fn [state event]
                                                                     (if (not disabled)
                                                                       (handler state)
                                                                       state))))
-                     (text text-value (if disabled
-                                        [100 100 100 255]
-                                        [0 0 0 255]))]))
+                     (l/center 100 50 (text text-value (if disabled
+                                                         [70 70 70 255]
+                                                         [0 0 0 255])))]))
 
 
 

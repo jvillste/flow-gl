@@ -35,13 +35,11 @@
                                0
                                (cond
                                  (:has-focus state) [255 255 255 255]
-                                 (:mouse-over state) [230 230 230 255]
-                                 :default [200 200 200 255]))
+                                 (:mouse-over state) [250 250 250 255]
+                                 :default [250 250 250 255]))
          (drawable/->Text (:text state)
                           (font/create "LiberationSans-Regular.ttf" 15)
-                          (if (:has-focus state)
-                            [0 0 0 255]
-                            [100 100 100 255]))))
+                          [0 0 0 255])))
 
 (defn text-editor [view-context]
   {:local-state {:text ""}
