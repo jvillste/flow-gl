@@ -431,8 +431,8 @@
                                                        (open-button view-context state (:call-id call) (count (:child-calls call)))
                                                        (drawable/->Empty 0 0)))
 
-                                (layouts/->MinimumSize 20 0 [(text-cell (- (:call-ended call)
-                                                                           (:call-started call)))])
+                                (l/minimum-size 40 0 (text-cell (- (:call-ended call)
+                                                                   (:call-started call))))
 
                                 (text-cell (str "("
                                                 (if-let [function-symbol (:function-symbol call)]
@@ -473,7 +473,7 @@
                                                                      (assoc state :selected-value nil))))
                        (layouts/->FloatLeft [(gui/call-view controls/scroll-panel :call-scroll-panel {:content (l/vertically (for [root-call (:root-calls trace)]
                                                                                                                                (when (not ((:hidden-threads state) (:thread root-call)))
-                                                                                                                                 (l/horizontally (text-cell (:thread root-call))
+                                                                                                                                 (l/horizontally (l/minimum-size 40 0 (text-cell (:thread root-call)))
                                                                                                                                                  (call-view view-context state root-call)))))})
                                              (l/float-left (l/margin 0 3 0 3 (drawable/->Rectangle 3 10 [255 255 255 255]))
                                                            (gui/call-view value-inspector :value-inspector {:value (:selected-value state)}))])]))

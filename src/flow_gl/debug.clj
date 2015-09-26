@@ -5,6 +5,8 @@
             [flow-gl.thread-inheritable :as thread-inheritable])
   (:import [java.io StringWriter]))
 
+
+
 ;; DEBUG
 
 (defn pprints [m]
@@ -114,11 +116,35 @@
               (recur (rest log)
                      (:time line))))))))
 
-#_(let [channel (async/chan)]
+
+(defn print-channels [place]
+  (println place "thread" (.getId (Thread/currentThread))
+           "thread-inheritable-debug-channel" (not (nil? @flow-gl.debug/debug-channel))
+           "dynamic-debug-channel" (not (nil? flow-gl.debug/dynamic-debug-channel))))
+
+(let [channel (async/chan)]
   (async/go-loop [value (async/<! channel)]
     (when value
       (do (println value)
           (recur (async/<! channel)))))
   (with-debug-channel channel
-    (async/go  (add-timed-entry :foo "go foo"))
-    (.run (Thread. (fn [] (add-timed-entry :foo "thread foo"))))))
+    (async/go (Thread/sleep 1000)
+              (print-channels "go block")
+              (async/go (Thread/sleep 1000)
+                        (print-channels "go block in go block")))
+
+    (async/thread
+      (Thread/sleep 1200)
+      (print-channels "async thread")
+      (async/go (Thread/sleep 1000)
+                (print-channels "go block in async thread")))
+    
+    (.start (Thread. (fn []
+                       (Thread/sleep 1100)
+                       (print-channels "thread")
+                       (async/go (Thread/sleep 1000)
+                                 (print-channels "go block in thread")))))
+
+    (print-channels "parent")
+    
+    (println "parent finished")))

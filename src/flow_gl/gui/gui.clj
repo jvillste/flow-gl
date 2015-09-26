@@ -1003,27 +1003,28 @@
                              :with-gl-channel (async/chan)
                              :with-gl-dropping-channel (async/chan (async/dropping-buffer 1)))]
 
-    (.start (Thread. (fn [] (loop [state initial-state]
+    ;; use async/thread to inherit bindings such as flow-gl.debug/dynamic-debug-channel
+    (async/thread (loop [state initial-state]
 
-                              #_(Thread/sleep 100)
+                    #_(Thread/sleep 100)
 
-                              (reset! state-atom state)
+                    (reset! state-atom state)
 
-                              (if (:close-requested state)
-                                (do (async/close! (:with-gl-channel initial-state))
-                                    (async/close! (:with-gl-dropping-channel initial-state))
-                                    (window/close (:window state)))
+                    (if (:close-requested state)
+                      (do (async/close! (:with-gl-channel initial-state))
+                          (async/close! (:with-gl-dropping-channel initial-state))
+                          (window/close (:window state)))
 
-                                (let [events (-> (csp/drain (window/event-channel (:window state))
-                                                            (:sleep-time state))
-                                                 (compress-mouse-wheel-events))
+                      (let [events (-> (csp/drain (window/event-channel (:window state))
+                                                  (:sleep-time state))
+                                       (compress-mouse-wheel-events))
 
-                                      events (if (empty? events)
-                                               [{:type :wake-up}]
-                                               events)]
+                            events (if (empty? events)
+                                     [{:type :wake-up}]
+                                     events)]
 
-                                  (recur (debug/debug-timed-and-return :app (app state
-                                                                                 events)))))))))
+                        (recur (debug/debug-timed-and-return :app (app state
+                                                                       events)))))))
 
     (loop [gpu-state (initialize-gpu-state (:window initial-state))]
       (async/alt!! (:with-gl-dropping-channel initial-state) ([{:keys [function arguments]}]

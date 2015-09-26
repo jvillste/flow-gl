@@ -74,10 +74,8 @@
 ;; Text editor
 
 (defn handle-new-text [state new-text]
-  (trace/log "new text" new-text)
-  (when (:on-change state)
-    (async/go (async/>! (:on-change state) new-text)))
-  (assoc-in state [:text] new-text))
+  (async/>!! (:on-change state) new-text)
+  state)
 
 (defn handle-text-editor-event [state event]
   (cond
@@ -134,9 +132,6 @@
                                                  (println "focus lost")
                                                  (async/put! (:selection-channel state) :cancel)
                                                  text-editor-state)})
-                (when (not= (:query state)
-                            (:selected-value state))
-                  (controls/text "*"))
 
                 (layouts/->BottomOutOfLayout [(assoc (l/vertically (doall (map-indexed (fn [index result]
                                                                                          (-> (l/box 10
@@ -172,6 +167,7 @@
                                                                               :mouse-over-index -1)))])))
 
 
+
 (defn autocompleter [view-context query-function]
   (let [query-channel (async/chan)
         selection-channel (async/chan)
@@ -189,20 +185,12 @@
                                                                        state)
                                                              :up (do (async/put! selection-channel :previous)
                                                                      state)
-                                                             :enter (do
-                                                                      (let [local-state (gui/get-local-state state view-context)]
-                                                                        (if (:selection local-state)
-                                                                          (do (when-let [result (get (:results local-state)
-                                                                                                     (:selection local-state))]
-                                                                                (async/put! selection-channel result))
-                                                                              state)
-                                                                          (-> state
-                                                                              (gui/update-binding view-context
-                                                                                                  (fn [old-selected-value]
-                                                                                                    (:query local-state))
-                                                                                                  :selected-value)
-                                                                              (gui/apply-to-local-state view-context
-                                                                                                        assoc :query nil)))))))}
+                                                             :enter (let [local-state (gui/get-local-state state view-context)]
+                                                                      (when (:selection local-state)
+                                                                        (async/>!! selection-channel
+                                                                                   (get (:results local-state)
+                                                                                        (:selection local-state))))
+                                                                      state)))}
                     gui/child-focus-handlers)]
 
     
@@ -210,7 +198,6 @@
                 (loop []
                   (async/alt! (:control-channel view-context) ([_] (println "exiting auto completer process"))
                               throttled-query ([query]
-                                               (trace/log "new throttled query" query)
                                                (async/go (let [results (async/<! (async/thread (vec (query-function query))))]
                                                            (gui/apply-to-state view-context
                                                                                assoc
@@ -219,57 +206,50 @@
                                                (recur))
 
                               unthrottled-query ([query]
-                                                 (trace/log "new query" query)
-                                                 (gui/apply-to-global-state view-context
-                                                                            gui/apply-to-local-state
-                                                                            assoc :query query)
+                                                 (gui/apply-to-state view-context
+                                                                     assoc
+                                                                     :query query)
+
                                                  (recur))))))
 
     (async/go-loop [] (async/alt! (:control-channel view-context) ([_] (println "exiting selection process"))
                                   selection-channel ([selection-event]
                                                      (case selection-event
-                                                       :next (do (trace/log "next")
-                                                                 (gui/apply-to-state view-context
+                                                       :next (gui/apply-to-state view-context
+                                                                                 (fn [{:keys [results selection] :as state}]
+                                                                                   (if (not (empty? results))
+                                                                                     (update-in state [:selection]
+                                                                                                (fn [selection]
+                                                                                                  (min (if selection
+                                                                                                         (inc selection)
+                                                                                                         0)
+                                                                                                       (dec (count results))))))))
+                                                       :previous (gui/apply-to-state view-context
                                                                                      (fn [{:keys [results selection] :as state}]
                                                                                        (if (not (empty? results))
                                                                                          (update-in state [:selection]
                                                                                                     (fn [selection]
-                                                                                                      (min (if selection
-                                                                                                             (inc selection)
-                                                                                                             0)
-                                                                                                           (dec (count results)))))))))
-                                                       #_:select #_(gui/apply-to-state view-context
-                                                                                       (fn [{:keys [results selection] :as state}]
-                                                                                         (trace/log "selected" results selection)
-                                                                                         (gui/apply-to-global-state view-context
-                                                                                                                    gui/update-binding
-                                                                                                                    view-context
-                                                                                                                    (fn [old-query]
-                                                                                                                      (get results selection))
-                                                                                                                    :query)
-                                                                                         (assoc state
-                                                                                                :selection nil
-                                                                                                :results []
-                                                                                                :query (get results selection))))
+                                                                                                      (max 0
+                                                                                                           (if selection
+                                                                                                             (dec selection)
+                                                                                                             0)))))))
                                                        
-                                                       
-                                                       :cancel (do (trace/log "cancel")
-                                                                   (gui/apply-to-state view-context
-                                                                                       assoc
-                                                                                       :selection nil
-                                                                                       :results []))
+                                                       :cancel (gui/apply-to-state view-context
+                                                                                   assoc
+                                                                                   :selection nil
+                                                                                   :results [])
                                                        
                                                        (when (string? selection-event)
                                                          (gui/apply-to-state view-context
                                                                              (fn [{:keys [results] :as state}]
-                                                                               (trace/log "got selection" selection-event state)
                                                                                (gui/apply-to-global-state view-context
                                                                                                           gui/update-binding
                                                                                                           view-context
                                                                                                           (fn [old-query]
                                                                                                             selection-event)
-                                                                                                          :query)
+                                                                                                          :selected-value)
                                                                                (assoc state
+                                                                                      :query nil
                                                                                       :selection nil
                                                                                       :results [])))))
 
@@ -287,10 +267,11 @@
   ["a" "b" "c" query])
 
 (defn root-view [view-context state]
-  (l/vertically (gui/call-and-bind view-context state :text-1 :query
+  (l/vertically (gui/call-and-bind view-context state :text-1 :selected-value
                                    autocompleter :completer-1
                                    {}
-                                   [query-text])))
+                                   [query-text])
+                (controls/text state)))
 
 (defn root [view-context]
   (conj {:local-state {:text-1 "a"
@@ -303,13 +284,20 @@
   #_(.start (Thread. (fn []
                        (gui/start-control root))))
 
-  (.start (Thread. (fn []
-                     (trace/with-trace
-                       (trace/trace-var 'flow-gl.gui.gui/apply-to-state)
-                       #_(trace/trace-var 'flow-gl.gui.components.autocompleter/autocompleter)
-                       (trace/untrace-ns 'flow-gl.gui.components.autocompleter)
-                       (trace/trace-ns 'flow-gl.gui.components.autocompleter)
-                       (gui/start-control root))))))
+  #_(.start (Thread. (fn []
+                       (trace/with-trace
+                         (trace/trace-var 'flow-gl.gui.gui/apply-to-state)
+                         #_(trace/trace-var 'flow-gl.gui.components.autocompleter/autocompleter)
+                         (trace/untrace-ns 'flow-gl.gui.components.autocompleter)
+                         (trace/trace-ns 'flow-gl.gui.components.autocompleter)
+                         (gui/start-control root)))))
+
+  (async/thread (trace/with-trace
+                  (trace/trace-var 'flow-gl.gui.gui/apply-to-state)
+                  #_(trace/trace-var 'flow-gl.gui.components.autocompleter/autocompleter)
+                  (trace/untrace-ns 'flow-gl.gui.components.autocompleter)
+                  (trace/trace-ns 'flow-gl.gui.components.autocompleter)
+                  (gui/start-control root))))
 
 
 #_(run-tests)
