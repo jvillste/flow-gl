@@ -3,9 +3,7 @@
             clojure.string))
 
 (defprotocol Layoutable
-  #_(preferred-width [element])
-  #_(preferred-height [element])
-  (preferred-size [element available-width available-height]))
+  (preferred-size [this available-width available-height]))
 
 
 ;; DESCRIPTION

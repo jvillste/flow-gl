@@ -111,6 +111,8 @@
   {:local-state {:text ""}
    :view #'text-editor-view
    :handle-keyboard-event (fn [state event]
+                            (when (= :enter (:key event))
+                              (trace/log "got enter in text editor" event))
                             (gui/apply-to-local-state state view-context handle-text-editor-event event))
    :can-gain-focus true})
 
@@ -186,6 +188,7 @@
                                                              :up (do (async/put! selection-channel :previous)
                                                                      state)
                                                              :enter (let [local-state (gui/get-local-state state view-context)]
+                                                                      (trace/log "got enter in autocompleter" event)
                                                                       (when (:selection local-state)
                                                                         (async/>!! selection-channel
                                                                                    (get (:results local-state)
@@ -198,7 +201,9 @@
                 (loop []
                   (async/alt! (:control-channel view-context) ([_] (println "exiting auto completer process"))
                               throttled-query ([query]
+                                               (trace/log "got query" query)
                                                (async/go (let [results (async/<! (async/thread (vec (query-function query))))]
+                                                           (trace/log "got results" results)
                                                            (gui/apply-to-state view-context
                                                                                assoc
                                                                                :results results
@@ -281,8 +286,7 @@
 
 
 (defn start []
-  #_(.start (Thread. (fn []
-                       (gui/start-control root))))
+  #_(async/thread (gui/start-control root))
 
   #_(.start (Thread. (fn []
                        (trace/with-trace
@@ -293,10 +297,10 @@
                          (gui/start-control root)))))
 
   (async/thread (trace/with-trace
-                  (trace/trace-var 'flow-gl.gui.gui/apply-to-state)
+                  #_(trace/trace-var 'flow-gl.gui.gui/apply-to-state)
                   #_(trace/trace-var 'flow-gl.gui.components.autocompleter/autocompleter)
-                  (trace/untrace-ns 'flow-gl.gui.components.autocompleter)
-                  (trace/trace-ns 'flow-gl.gui.components.autocompleter)
+                  #_(trace/untrace-ns 'flow-gl.gui.components.autocompleter)
+                  #_(trace/trace-ns 'flow-gl.gui.components.autocompleter)
                   (gui/start-control root))))
 
 

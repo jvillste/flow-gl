@@ -283,6 +283,9 @@
         (instance? java.lang.Boolean value)
         (str value)
 
+        (instance? java.lang.Character value)
+        (str "Character:" value)
+
         (string? value)
         (str "\"" value "\"")
 

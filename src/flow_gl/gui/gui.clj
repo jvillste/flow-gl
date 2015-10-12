@@ -103,8 +103,6 @@
     (call-destructors (get-in state root-view-state-path)))
   state)
 
-(defn add-event-channel [state]
-  (assoc-in state [:common-view-context :event-channel] (window/event-channel (-> state :window))))
 
 (debug/defn-timed apply-view-state-applications-beforehand [state]
   (if (= (-> state :event :type)
@@ -127,9 +125,13 @@
   (reset! event-channel-atom (-> state :window (window/event-channel)))
   state)
 
-(defn redraw-last-started-view []
-  (when-let [event-channel-atom @event-channel-atom]
-    (async/put! event-channel-atom {:type :request-redraw})))
+
+(defn redraw-app [event-channel]
+  (async/put! event-channel {:type :request-redraw}))
+
+(defn redraw-last-started-app []
+  (when-let [event-channel @event-channel-atom]
+    (redraw-app event-channel)))
 
 ;; Rendering
 
@@ -999,9 +1001,11 @@
       other-events)))
 
 (defn event-loop [initial-state app]
-  (let [initial-state (assoc initial-state
-                             :with-gl-channel (async/chan)
-                             :with-gl-dropping-channel (async/chan (async/dropping-buffer 1)))]
+  (let [event-channel (window/event-channel (-> initial-state :window))
+        initial-state (-> initial-state
+                          (assoc-in [:common-view-context :event-channel] event-channel)
+                          (assoc :with-gl-channel (async/chan)
+                                 :with-gl-dropping-channel (async/chan (async/dropping-buffer 1))))]
 
     ;; use async/thread to inherit bindings such as flow-gl.debug/dynamic-debug-channel
     (async/thread (loop [state initial-state]
@@ -1026,20 +1030,22 @@
                         (recur (debug/debug-timed-and-return :app (app state
                                                                        events)))))))
 
-    (loop [gpu-state (initialize-gpu-state (:window initial-state))]
-      (async/alt!! (:with-gl-dropping-channel initial-state) ([{:keys [function arguments]}]
-                                                              (when function (recur (window/with-gl (:window initial-state) gl
-                                                                                      (apply function
-                                                                                             (assoc gpu-state :gl gl)
-                                                                                             arguments)))))
+    (async/thread (loop [gpu-state (initialize-gpu-state (:window initial-state))]
+                    (async/alt!! (:with-gl-dropping-channel initial-state) ([{:keys [function arguments]}]
+                                                                            (when function (recur (window/with-gl (:window initial-state) gl
+                                                                                                    (apply function
+                                                                                                           (assoc gpu-state :gl gl)
+                                                                                                           arguments)))))
 
-                   (:with-gl-channel initial-state) ([{:keys [function arguments]}]
-                                                     (when function (recur (window/with-gl (:window initial-state) gl
-                                                                             #_(Thread/sleep 100)
-                                                                             (apply function
-                                                                                    (assoc gpu-state :gl gl)
-                                                                                    arguments)))))
-                   :priority true))))
+                                 (:with-gl-channel initial-state) ([{:keys [function arguments]}]
+                                                                   (when function (recur (window/with-gl (:window initial-state) gl
+                                                                                           #_(Thread/sleep 100)
+                                                                                           (apply function
+                                                                                                  (assoc gpu-state :gl gl)
+                                                                                                  arguments)))))
+                                 :priority true)))
+
+    event-channel))
 
 ;; View calls
 
@@ -1105,7 +1111,6 @@
        (add-window awt-init)
        (add-cache)
        (set-event-channel-atom)
-       (add-event-channel)
        (event-loop (fn [state events]
                      (handle-events state events app))))))
 
