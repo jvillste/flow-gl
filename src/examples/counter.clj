@@ -3,19 +3,18 @@
             (flow-gl.gui [gui :as gui]
                          [controls :as controls])
 
-            [flow-gl.gui.layout-dsl :as l]
-            [clj-http.client :as client]))
+            [flow-gl.gui.layout-dsl :as l]))
 
 (defn counter-view [view-context state]
   (l/vertically (l/margin 10 10 10 10
                           (l/horizontally (controls/text (:count state))
                                           (if (even? (:count state))
-                                            (l/margin 0 0 0 10 (controls/text "Even!!" [0 255 0 255])))))
-                (controls/button view-context
-                                 "Increase!"
-                                 false
-                                 (fn [state]
-                                   (update-in state [:count] inc)))))
+                                            (l/margin 0 0 0 10 (controls/text "Even!" [0 255 0 255])))))
+                (l/preferred (controls/button view-context
+                                              "Add one"
+                                              false
+                                              (fn [state]
+                                                (update-in state [:count] inc))))))
 
 (defn counter [view-context]
   {:local-state {:count 1}

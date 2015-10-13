@@ -591,6 +591,6 @@
                      (gui/start-app (gui/control-to-application value-inspector {:value value}))))))
 
 #_(run-tests)
-(gui/redraw-last-started-view)
+
 
 
