@@ -580,12 +580,10 @@
   `(let [input-channel# (async/chan 50)
          trace-channel# (async/chan)]
      (start-tracer input-channel# trace-channel#)
-     (.start (Thread. (fn []
-                        (gui/start-control (create-trace-control input-channel# trace-channel#)))))
+     (gui/start-control (create-trace-control input-channel# trace-channel#))
 
-     #_(async/>!! input-channel# {})
      (debug/with-debug-channel input-channel# ~@body)
-     (async/close! input-channel#)))
+     #_(async/close! input-channel#)))
 
 
 (defn inspect-value [value]
