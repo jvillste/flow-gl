@@ -568,10 +568,13 @@
                                                                                         (-> state :event :y))))
     state))
 
-(defn path-prefixes [path]
+(defn prefixes
+  "Returns all possible prefixes of a given sequence.
+  (prefixes [1 2 3]) returns [[1] [1 2] [1 2 3]]"
+  [xs]
   (loop [prefixes []
          prefix []
-         xs path]
+         xs xs]
     (if-let [x (first xs)]
       (let [prefix (conj prefix x)]
         (recur (conj prefixes prefix)
@@ -579,33 +582,66 @@
                (rest xs)))
       prefixes)))
 
-#_(fact (path-prefixes [[1 2] [3] [4]])
-        => [[[1 2]]
-            [[1 2] [3]]
-            [[1 2] [3] [4]]])
+(deftest prefixes-test
+  (is (= (prefixes [1 2 3])
+         [[1]
+          [1 2]
+          [1 2 3]]))
 
-(defn layout-paths-to-handlers [layout-paths layout handler-key]
-  (let [prefixes (->> (mapcat path-prefixes layout-paths)
-                      distinct)]
-    (->> (map (fn [path]
-                (-> (get-in layout path)
-                    (handler-key)))
-              prefixes)
-         (filter identity)
-         (reverse))))
+  (is (= (prefixes [])
+         [])))
 
-(deftest layout-path-to-handlers-test
-  (is (= '(:handler2 :handler1 :handler3)
-         (layout-paths-to-handlers [[:a :b :c :d] [:a :b :c2]]
-                                   {:a
-                                    {:b
-                                     {:c
-                                      {:handler :handler1
-                                       :d
-                                       {:handler :handler2}}
-                                      :c2 {:handler :handler3}}}}
+(defn layout-paths-to-handlers
+  "Returns all handlers that can be reached from the layout root by the given layout-paths.
+  The returned handlers must be stored in each elements handler-keyword -key.
+  The handlers are returned in the depth first order"
+  
+  [layout-paths layout handler-keyword]
+  
+  (->> layout-paths
+       (mapcat prefixes)
+       (distinct)
+       (map #(get-in layout %))
+       (map handler-keyword)
+       (filter (complement nil?))
+       (reverse)))
 
-                                   :handler))))
+(deftest layout-paths-to-handlers-test
+  (testing "should find a signle handler"
+    (is (= [:a-handler]
+           (layout-paths-to-handlers [[:a]]
+                                     {:a {:handler :a-handler}}
+                                     :handler))))
+
+  (testing "should not return handlers deeper than the given path"
+    (is (= [:a-handler]
+           (layout-paths-to-handlers [[:a]]
+                                     {:a {:handler :a-handler
+                                          :b {:handler :b-handler}}}
+                                     :handler))))
+
+
+  (testing "should return all handlers along the path in depth first order"
+    (is (= [:b-handler :a-handler]
+           (layout-paths-to-handlers [[:a :b]]
+                                     {:a {:handler :a-handler
+                                          :b {:handler :b-handler}}}
+                                     :handler))))
+
+  (testing "should return handlers from sibling paths"
+    (is (= [:b2-handler :b1-handler]
+           (layout-paths-to-handlers [[:a :b1] [:a :b2]]
+                                     {:a {:b1 {:handler :b1-handler}
+                                          :b2 {:handler :b2-handler}}}
+                                     :handler))))
+
+  (testing "should return each handler only once even when the handler is found where the paths overlap"
+    (is (= [:b2-handler :b1-handler :a-handler]
+           (layout-paths-to-handlers [[:a :b1] [:a :b2]]
+                                     {:a {:handler :a-handler
+                                          :b1 {:handler :b1-handler}
+                                          :b2 {:handler :b2-handler}}}
+                                     :handler)))))
 
 
 (defn apply-layout-event-handlers [state layout layout-paths handler-key & arguments]
@@ -637,7 +673,7 @@
                           state
                           (:handle-mouse-event layout))))
               state
-              (->> (mapcat path-prefixes layout-paths)
+              (->> (mapcat prefixes layout-paths)
                    distinct
                    reverse)))
     state))
@@ -1427,4 +1463,4 @@
                        :arguments arguments })))
 
 
-#_(run-tests)
+(run-tests)
