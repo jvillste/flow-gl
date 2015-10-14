@@ -6,6 +6,7 @@
             [flow-gl.gui.layout-dsl :as l]))
 
 (defn counter-view [view-context state]
+  (println "counter-view" flow-gl.debug/dynamic-debug-channel @flow-gl.debug/debug-channel)
   (l/vertically (l/margin 10 10 10 10
                           (l/horizontally (controls/text (:count state))
                                           (if (even? (:count state))
@@ -30,6 +31,7 @@
           #_(gui/start-control counter)
 
           (trace/with-trace
+            (println "starting" flow-gl.debug/dynamic-debug-channel @flow-gl.debug/debug-channel)
             (trace/trace-ns 'examples.counter)
             (gui/start-control counter))))
 

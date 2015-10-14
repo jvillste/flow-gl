@@ -206,13 +206,12 @@
     (-> v meta ::traced nil? not)))
 
 (defn start-tracer [input-channel trace-channel]
-  (.start (Thread. (fn []
-                     (async/go-loop [trace (create-state)]
+  (async/thread (async/go-loop [trace (create-state)]
                        (if-let [entry (async/<! input-channel)]
                          (let [new-trace (add-entry trace entry)]
                            (async/>! trace-channel new-trace)
                            (recur new-trace))
-                         (async/close! trace-channel)))))))
+                         (async/close! trace-channel)))))
 
 
 
@@ -581,14 +580,14 @@
          trace-channel# (async/chan)]
      (start-tracer input-channel# trace-channel#)
      (gui/start-control (create-trace-control input-channel# trace-channel#))
-
+     (println "input channel is" input-channel#)
      (debug/with-debug-channel input-channel# ~@body)
+     (Thread/sleep 1000)
      #_(async/close! input-channel#)))
 
 
 (defn inspect-value [value]
-  (.start (Thread. (fn []
-                     (gui/start-app (gui/control-to-application value-inspector {:value value}))))))
+  (async/thread (gui/start-app (gui/control-to-application value-inspector {:value value}))))
 
 #_(run-tests)
 

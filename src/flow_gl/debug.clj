@@ -26,11 +26,13 @@
   (println (apply str values))
   (last values))
 
+;; this is used for new threads
 (def debug-channel (thread-inheritable/thread-inheritable nil))
+
+;; this is used for core.async/thread -threads that are pooled but inherit dynamic bindings
 (def ^:dynamic dynamic-debug-channel nil)
 
-(defmacro with-debug-channel
-  [channel & body]
+(defmacro with-debug-channel [channel & body]
   `(thread-inheritable/inheritable-binding [debug-channel ~channel]
                                            (binding [dynamic-debug-channel ~channel]
                                              ~@body)))
@@ -56,10 +58,10 @@
                    (apply hash-map values))))
 
 (defn add-timed-entry [& values]
-  (if @debug-channel
-    (add-timed-entry-to-channel @debug-channel values)
-    (if dynamic-debug-channel
-      (add-timed-entry-to-channel dynamic-debug-channel values))))
+  (if-let [channel (or dynamic-debug-channel
+                       @debug-channel)]
+    (add-timed-entry-to-channel channel
+                                values)))
 
 #_(println (with-log (add-timed-entry :message "foo")))
 
