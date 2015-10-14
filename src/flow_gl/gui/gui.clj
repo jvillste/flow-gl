@@ -582,22 +582,22 @@
                (rest xs)))
       prefixes)))
 
-(deftest prefixes-test
-  (is (= (prefixes [1 2 3])
-         [[1]
-          [1 2]
-          [1 2 3]]))
-
-  (is (= (prefixes [])
-         [])))
+(deftest prefixes-tests
+  (testing "should return prefixes for a given sequence ordered from the shortest to the longest and including the whole sequence"
+    (is (= (prefixes [1 2 3])
+           [[1]
+            [1 2]
+            [1 2 3]])))
+  
+  (testing "an empty sequence should return an empty vector"
+    (is (= (prefixes [])
+           []))))
 
 (defn layout-paths-to-handlers
   "Returns all handlers that can be reached from the layout root by the given layout-paths.
   The returned handlers must be stored in each elements handler-keyword -key.
   The handlers are returned in the depth first order"
-  
   [layout-paths layout handler-keyword]
-  
   (->> layout-paths
        (mapcat prefixes)
        (distinct)
@@ -606,7 +606,7 @@
        (filter (complement nil?))
        (reverse)))
 
-(deftest layout-paths-to-handlers-test
+(deftest layout-paths-to-handlers-tests
   (testing "should find a signle handler"
     (is (= [:a-handler]
            (layout-paths-to-handlers [[:a]]
