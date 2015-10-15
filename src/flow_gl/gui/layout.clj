@@ -222,65 +222,7 @@
   (map layout-index-path-to-layout-path
        (layout-index-paths-with-keyboard-event-handlers layout [])))
 
-#_(defmacro deflayout [name parameters layout-implementation preferred-width-implementation preferred-height-implementation]
-    (let [[layout-name layout-parameters & layout-body] layout-implementation
-          [preferred-width-name preferred-width-parameters & preferred-width-body] preferred-width-implementation
-          [preferred-height-name preferred-height-parameters & preferred-height-body] preferred-height-implementation]
-      (assert (= layout-name 'layout) (str "invalid layout name" layout-name))
-      (assert (= preferred-width-name 'preferred-width) (str "invalid preferred width name" preferred-width-name))
-      (assert (= preferred-height-name 'preferred-height) (str "invalid preferred height name" preferred-height-name))
-
-      `(do (defrecord ~name ~parameters
-             Object
-             (toString [this#] (layoutable/describe-layoutable this#)))
-
-           (extend ~name
-             Layout
-             {:layout (memoize (fn ~layout-parameters (let [{:keys ~parameters} ~(first layout-parameters)] #_(println (str "running" ~name) #_~parameters) ~@layout-body)))}
-             layoutable/Layoutable
-             {:preferred-width (memoize (fn ~preferred-width-parameters (let [{:keys ~parameters} ~(first preferred-width-parameters)] ~@preferred-width-body) ))
-              :preferred-height (memoize (fn ~preferred-height-parameters (let [{:keys ~parameters} ~(first preferred-height-parameters)] ~@preferred-height-body)))}))))
-
-#_(defmacro deflayout [name parameters layout-implementation preferred-width-implementation preferred-height-implementation]
-  (let [[layout-name layout-parameters & layout-body] layout-implementation
-        [preferred-width-name preferred-width-parameters & preferred-width-body] preferred-width-implementation
-        [preferred-height-name preferred-height-parameters & preferred-height-body] preferred-height-implementation]
-    (assert (= layout-name 'layout) (str "invalid layout name" layout-name))
-    (assert (= preferred-width-name 'preferred-width) (str "invalid preferred width name" preferred-width-name))
-    (assert (= preferred-height-name 'preferred-height) (str "invalid preferred height name" preferred-height-name))
-
-    `(defrecord ~name ~parameters
-       Layout
-       ~layout-implementation
-
-       layoutable/Layoutable
-       (layoutable/preferred-width ~preferred-width-parameters ~@preferred-width-body)
-       (layoutable/preferred-height ~preferred-height-parameters ~@preferred-height-body)
-
-       Object
-       (toString [this#] (layoutable/describe-layoutable this#)))))
-
-
-#_(defmacro deflayout-not-memoized [name parameters layout-implementation preferred-width-implementation preferred-height-implementation]
-    (let [[layout-name layout-parameters & layout-body] layout-implementation
-          [preferred-width-name preferred-width-parameters & preferred-width-body] preferred-width-implementation
-          [preferred-height-name preferred-height-parameters & preferred-height-body] preferred-height-implementation]
-      (assert (= layout-name 'layout) (str "invalid layout name" layout-name))
-      (assert (= preferred-width-name 'preferred-width) (str "invalid preferred width name" preferred-width-name))
-      (assert (= preferred-height-name 'preferred-height) (str "invalid preferred height name" preferred-height-name))
-
-      `(defrecord ~name ~parameters
-         Layout
-         ~layout-implementation
-
-         layoutable/Layoutable
-         (layoutable/preferred-width ~preferred-width-parameters ~@preferred-width-body)
-         (layoutable/preferred-height ~preferred-height-parameters ~@preferred-height-body)
-
-         Object
-         (toString [this#] (layoutable/describe-layoutable this#)))))
-
-(defmacro deflayout-not-memoized [name parameters layout-implementation preferred-size-implementation]
+(defmacro deflayout [name parameters layout-implementation preferred-size-implementation]
   (let [[layout-name layout-parameters & layout-body] layout-implementation
         layout-parameters (vec (concat layout-parameters parameters))
         [preferred-size-name preferred-size-parameters & preferred-size-body] preferred-size-implementation

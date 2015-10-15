@@ -6,7 +6,7 @@
   (:use clojure.test))
 
 
-(layout/deflayout-not-memoized FixedSize [width height children]
+(layout/deflayout FixedSize [width height children]
   (layout [this requested-width requested-height]
           (update-in this
                      [:children 0]
@@ -15,7 +15,7 @@
   (preferred-size [this available-width available-height]
                   {:width width :height height}))
 
-(layout/deflayout-not-memoized MinimumSize [width height children]
+(layout/deflayout MinimumSize [width height children]
   (layout [this requested-width requested-height]
           (update-in this
                      [:children 0]
@@ -29,7 +29,7 @@
                     {:width (max width (:width preferred-size))
                      :height (max height (:height preferred-size))})))
 
-(layout/deflayout-not-memoized FloatRight [children]
+(layout/deflayout FloatRight [children]
   (layout [this requested-width requested-height]
           (update-in this
                      [:children]
@@ -49,7 +49,7 @@
                      :height (max (:height left-size)
                                   (:height right-size))})))
 
-(layout/deflayout-not-memoized FloatLeft [children]
+(layout/deflayout FloatLeft [children]
   (layout [this requested-width requested-height]
           (update-in this [:children]
                      (fn [[left right]]
@@ -68,7 +68,7 @@
                      :height (max (:height left-size)
                                   (:height right-size))})))
 
-(layout/deflayout-not-memoized FloatTop [children]
+(layout/deflayout FloatTop [children]
   (layout [this requested-width requested-height]
           (update-in this [:children]
                      (fn [[top bottom]]
@@ -86,7 +86,7 @@
                      :height (+ (:height top-size)
                                 (:height bottom-size))})))
 
-(layout/deflayout-not-memoized Box [margin children]
+(layout/deflayout Box [margin children]
   (layout [box requested-width requested-height]
           (-> box
               (update-in [:children]
@@ -104,7 +104,7 @@
                      :height (+ (* 2 margin)
                                 (:height child-size))})))
 
-(layout/deflayout-not-memoized Preferred [children]
+(layout/deflayout Preferred [children]
   (layout [this requested-width requested-height]
           (assoc this :children (let [child (first children)
                                       preferred-size (layoutable/preferred-size child requested-width requested-height)]
@@ -120,7 +120,7 @@
                   (layoutable/preferred-size (first children) available-width available-height)))
 
 
-(layout/deflayout-not-memoized Margin [margin-top margin-right margin-bottom margin-left children]
+(layout/deflayout Margin [margin-top margin-right margin-bottom margin-left children]
   (layout [this requested-width requested-height]
           (update-in this [:children] (fn [[layoutable]]
                                         [(layout/set-dimensions-and-layout layoutable
@@ -136,7 +136,7 @@
                      :height (+ margin-top margin-bottom
                                 (:height child-size))})))
 
-(layout/deflayout-not-memoized Absolute [children]
+(layout/deflayout Absolute [children]
   (layout [absolute requested-width requested-height]
           (assoc absolute :children
                  (vec (map (fn [child]
@@ -159,14 +159,16 @@
                                                   (:height child-size)))
                                              child-sizes))})))
 
-(layout/deflayout-not-memoized VerticalStack [children]
+(layout/deflayout VerticalStack [children]
   (layout [vertical-stack requested-width requested-height]
           (assoc vertical-stack :children
                  (loop [layouted-layoutables []
                         y 0
                         children children]
                    (if (seq children)
-                     (let [height (:height (layoutable/preferred-size (first children) requested-width java.lang.Integer/MAX_VALUE))]
+                     (let [height (:height (layoutable/preferred-size (first children)
+                                                                      requested-width
+                                                                      java.lang.Integer/MAX_VALUE))]
                        (recur (conj layouted-layoutables (layout/set-dimensions-and-layout (first children)
                                                                                            0
                                                                                            y
@@ -185,7 +187,7 @@
                      :height (reduce + (map :height child-sizes))})))
 
 
-(layout/deflayout-not-memoized HorizontalStack [children]
+(layout/deflayout HorizontalStack [children]
   (layout [this requested-width requested-height]
           (assoc this :children
                  (loop [layouted-layoutables []
@@ -254,7 +256,7 @@
                                                        height))))
       layouted-layoutables)))
 
-(layout/deflayout-not-memoized Flow [children]
+(layout/deflayout Flow [children]
   (layout [this requested-width requested-height]
           (assoc this :children
                  (loop [layouted-layoutables []
@@ -281,7 +283,7 @@
                                         (:unused-layoutables row)))
                                y))}))
 
-(layout/deflayout-not-memoized BottomOutOfLayout [children]
+(layout/deflayout BottomOutOfLayout [children]
   (layout [this requested-width requested-height]
           (let [childs-preferred-size (layoutable/preferred-size (first children)
                                                                  requested-width requested-height)]
@@ -316,7 +318,7 @@
                         (:members size-group))
                    0)))
 
-(layout/deflayout-not-memoized SizeGroupMember [size-group mode children]
+(layout/deflayout SizeGroupMember [size-group mode children]
   (layout [this requested-width requested-height]
           (let [size (layoutable/preferred-size (first children) requested-width requested-height)]
             (assoc this :children
@@ -366,7 +368,7 @@
                       (apply max (conj (map layoutable/preferred-height children)
                                        0))))
 
-(layout/deflayout-not-memoized Superimpose [children]
+(layout/deflayout Superimpose [children]
   (layout [this requested-width requested-height]
           (assoc this :children
                  (vec (map-indexed (fn [index child]
@@ -388,7 +390,7 @@
                      :height (apply max (map :height
                                              child-sizes))})))
 
-(layout/deflayout-not-memoized Center [width height children]
+(layout/deflayout Center [width height children]
   (layout [this requested-width requested-height]
           (let [child (first children)
                 preferred-child-size (layoutable/preferred-size child requested-width requested-height)]
@@ -407,7 +409,7 @@
 
 
 
-(layout/deflayout-not-memoized Translate [translate-x translate-y child]
+(layout/deflayout Translate [translate-x translate-y child]
 
   (layout [this requested-width requested-height]
           (let [preferred-child-size (layoutable/preferred-size child requested-width requested-height)]
