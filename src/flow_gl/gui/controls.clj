@@ -60,7 +60,7 @@
 
   ([value color]
    (drawable/->Text (str value)
-                    (font/create "LiberationSans-Regular.ttf" 15)
+                    (font/create "LiberationSans-Regular.ttf" 20)
                     color)))
 
 

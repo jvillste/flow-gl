@@ -44,7 +44,7 @@
               (update-in trace [:open-calls (:parent ending-call) :child-calls] conj ending-call)
               (-> trace
                   (update-in [:root-calls] conj ending-call)
-                  (update-in [:root-calls] #(vec (take-last 30 %))))))))
+                  (update-in [:root-calls] #(vec (take-last 20 %))))))))
       trace)))
 
 (deftest add-entry-test
@@ -207,11 +207,11 @@
 
 (defn start-tracer [input-channel trace-channel]
   (async/thread (async/go-loop [trace (create-state)]
-                       (if-let [entry (async/<! input-channel)]
-                         (let [new-trace (add-entry trace entry)]
-                           (async/>! trace-channel new-trace)
-                           (recur new-trace))
-                         (async/close! trace-channel)))))
+                  (if-let [entry (async/<! input-channel)]
+                    (let [new-trace (add-entry trace entry)]
+                      (async/>! trace-channel new-trace)
+                      (recur new-trace))
+                    (async/close! trace-channel)))))
 
 
 
@@ -417,10 +417,12 @@
 
 (defn value-inspector-view [view-context state]
   (l/vertically (controls/text (str "hash " (hash (:value state))))
-                (value-view view-context
-                            (:open-values state)
-                            (:value state)
-                            true)))
+                (gui/call-view controls/scroll-panel
+                               :value-inspector-scroll-panel
+                               {:content (value-view view-context
+                                                     (:open-values state)
+                                                     (:value state)
+                                                     true)})))
 
 (defn value-inspector [view-context]
   {:local-state {:value 0

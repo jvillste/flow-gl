@@ -130,10 +130,18 @@
                                                                            (- requested-height margin-top margin-bottom))])))
 
   (preferred-size [this available-width available-height]
-                  (let [child-size (layoutable/preferred-size (first children) (- available-width margin-left margin-right) (- available-height margin-top margin-bottom))]
-                    {:width (+ margin-left margin-right
+                  (let [child-size (layoutable/preferred-size (first children)
+                                                              (- available-width
+                                                                 margin-left
+                                                                 margin-right)
+                                                              (- available-height
+                                                                 margin-top
+                                                                 margin-bottom))]
+                    {:width (+ margin-left
+                               margin-right
                                (:width child-size))
-                     :height (+ margin-top margin-bottom
+                     :height (+ margin-top
+                                margin-bottom
                                 (:height child-size))})))
 
 (layout/deflayout Absolute [children]
@@ -169,21 +177,28 @@
                      (let [height (:height (layoutable/preferred-size (first children)
                                                                       requested-width
                                                                       java.lang.Integer/MAX_VALUE))]
-                       (recur (conj layouted-layoutables (layout/set-dimensions-and-layout (first children)
-                                                                                           0
-                                                                                           y
-                                                                                           requested-width
-                                                                                           height))
+                       (recur (conj layouted-layoutables
+                                    (layout/set-dimensions-and-layout (first children)
+                                                                      0
+                                                                      y
+                                                                      requested-width
+                                                                      (min height
+                                                                           (max 0
+                                                                                (- requested-height
+                                                                                   y)))))
                               (+ y height)
                               (rest children)))
                      layouted-layoutables))))
 
   (preferred-size [vertical-stack available-width available-height]
                   (let [child-sizes (map (fn [child]
-                                           (layoutable/preferred-size child available-width java.lang.Integer/MAX_VALUE))
+                                           (layoutable/preferred-size child
+                                                                      available-width
+                                                                      java.lang.Integer/MAX_VALUE))
                                          children)]
-                    {:width (apply max (conj (map :width child-sizes)
-                                             0))
+                    {:width (apply max
+                                   (conj (map :width child-sizes)
+                                         0))
                      :height (reduce + (map :height child-sizes))})))
 
 
