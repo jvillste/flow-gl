@@ -584,7 +584,7 @@
      (gui/start-control (create-trace-control input-channel# trace-channel#))
      (println "input channel is" input-channel#)
      (debug/with-debug-channel input-channel# ~@body)
-     (Thread/sleep 1000)
+     #_(Thread/sleep 1000)
      #_(async/close! input-channel#)))
 
 

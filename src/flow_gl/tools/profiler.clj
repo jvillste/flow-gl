@@ -168,7 +168,6 @@
                                                (debug/add-event :event))))))
 
 
-(gui/redraw-last-started-view)
 
 #_(-> (create-state)
       (add-entry {:time 1

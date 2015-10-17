@@ -405,7 +405,7 @@
                      :height (apply max (map :height
                                              child-sizes))})))
 
-(layout/deflayout Center [width height children]
+(layout/deflayout Center [children]
   (layout [this requested-width requested-height]
           (let [child (first children)
                 preferred-child-size (layoutable/preferred-size child requested-width requested-height)]

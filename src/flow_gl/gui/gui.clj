@@ -119,19 +119,19 @@
   state)
 
 
-(def ^:dynamic event-channel-atom (atom nil))
+#_(def ^:dynamic event-channel-atom (atom nil))
 
-(defn set-event-channel-atom [state]
-  (reset! event-channel-atom (-> state :window (window/event-channel)))
-  state)
+#_(defn set-event-channel-atom [state]
+    (reset! event-channel-atom (-> state :window (window/event-channel)))
+    state)
 
 
 (defn redraw-app [event-channel]
   (async/put! event-channel {:type :request-redraw}))
 
-(defn redraw-last-started-app []
-  (when-let [event-channel @event-channel-atom]
-    (redraw-app event-channel)))
+#_(defn redraw-last-started-app []
+    (when-let [event-channel @event-channel-atom]
+      (redraw-app event-channel)))
 
 ;; Rendering
 
@@ -1036,7 +1036,43 @@
                     mouse-wheel-moved-events))
       other-events)))
 
-(defn event-loop [initial-state app]
+(defn handle-events [state events app]
+  (try
+    (let [state (-> state
+                    (add-frame-started)
+                    (save-sleep-time))
+
+          state (reduce (fn [state event]
+                          (flow-gl.debug/add-event :handle-event)
+                          (-> state
+                              (assoc :event event)
+                              (clear-cache-when-requested)
+                              (close-when-requested-beforehand)
+                              (add-layout-paths-under-mouse-beforehand)
+                              (set-focus-on-mouse-click-beforehand)
+                              (apply-keyboard-event-handlers-beforehand)
+                              (apply-layout-event-handlers-beforehand)
+                              (apply-mouse-movement-event-handlers-beforehand)
+                              (apply-view-state-applications-beforehand)
+                              (apply-with-gl-beforehand)
+                              (app)
+                              (add-layout-afterwards)
+                              (remove-unused-child-states-afterwards)))
+                        state
+                        events)]
+
+      (-> state
+          (call-destructors-when-close-requested)
+          (limit-frames-per-second-afterwards 60)
+          (render-drawables-afterwards)
+          (clear-cache)))
+
+    (catch Exception e
+      (println "Got exception. Closing the window.")
+      (window/close (:window state))
+      (throw e))))
+
+(defn start-render-and-event-loops [initial-state app]
   (let [event-channel (window/event-channel (-> initial-state :window))
         initial-state (-> initial-state
                           (assoc-in [:common-view-context :event-channel] event-channel)
@@ -1063,8 +1099,7 @@
                                      [{:type :wake-up}]
                                      events)]
 
-                        (recur (debug/debug-timed-and-return :app (app state
-                                                                       events)))))))
+                        (recur (handle-events state events app))))))
 
     (async/thread (loop [gpu-state (initialize-gpu-state (:window initial-state))]
                     (async/alt!! (:with-gl-dropping-channel initial-state) ([{:keys [function arguments]}]
@@ -1103,41 +1138,7 @@
   (is (= {:children [{:children [{} {}]}]}
          (children-to-vectors {:children (list {:children (list {} {})})}))))
 
-(defn handle-events [state events app]
-  (try
-    (let [state (-> state
-                    (add-frame-started)
-                    (save-sleep-time))
 
-          state (reduce (fn [state event]
-                          (flow-gl.debug/add-event :handle-event)
-                          (-> state
-                              (assoc :event event)
-                              (clear-cache-when-requested)
-                              (close-when-requested-beforehand)
-                              (add-layout-paths-under-mouse-beforehand)
-                              (set-focus-on-mouse-click-beforehand)
-                              (apply-keyboard-event-handlers-beforehand)
-                              (apply-layout-event-handlers-beforehand)
-                              (apply-mouse-movement-event-handlers-beforehand)
-                              (apply-view-state-applications-beforehand)
-                              (apply-with-gl-beforehand)
-                              (app)
-                              (add-layout-afterwards)
-                              (remove-unused-child-states-afterwards)))
-                        state
-                        events)]
-
-      (-> state
-          (call-destructors-when-close-requested)
-          (limit-frames-per-second-afterwards 60)
-          (render-drawables-afterwards)
-          (clear-cache)))
-
-    (catch Exception e
-      (println "Got exception. Closing the window.")
-      (window/close (:window state))
-      (throw e))))
 
 (defn start-app
   ([app] (start-app app nil))
@@ -1146,9 +1147,8 @@
    (-> {}
        (add-window awt-init)
        (add-cache)
-       (set-event-channel-atom)
-       (event-loop (fn [state events]
-                     (handle-events state events app))))))
+       ;; (set-event-channel-atom)
+       (start-render-and-event-loops app))))
 
 
 ;; View calls
