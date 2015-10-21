@@ -8,7 +8,8 @@
              `(when-let [~'value# (~~implementation-symbol ~@args#)]
                 (with-meta ~'value#
                   ~(assoc (meta ~'&form)
-                     :file *file*)))))))
+                          :file *file*))))
+         (alter-meta! (var ~helper-name) assoc :arglists (:arglists (meta (var ~implementation-symbol)))))))
 
 (defn flatten-contents [values]
   (->> values
