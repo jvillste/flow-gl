@@ -70,23 +70,36 @@
   [(.getHours (java.util.Date.))
    (.getMinutes (java.util.Date.))])
 
+(defn add-wakeup [state]
+  (let [state (update-in state [:wakeups] conj (time-now))]
+    (spit "wakeups.clj" (:wakeups state))
+    state))
+
 (defn drink-watch-view [view-context state]
   (-> (l/vertically (l/preferred (->TimeLine (time-to-minutes [19 0])
-                                          (+ (* 60 24)
-                                             (time-to-minutes [9 0]))
-                                          (map time-to-minutes (:wakeups state))
-                                          #_(+ (time-to-minutes [19 0])
-                                             (* 10 (.getSeconds (java.util.Date.))))
-                                          (time-to-minutes (time-now))))
-                 (controls/button view-context "Juota" false (fn [local-state]
-                                                               (let [local-state (update-in local-state [:wakeups] conj (time-now))]
-                                                                 (spit "wakeups.clj" (:wakeups local-state))
-                                                                 local-state))))
+                                             (+ (* 60 24)
+                                                (time-to-minutes [9 0]))
+                                             (map time-to-minutes (:wakeups state))
+                                             #_(+ (time-to-minutes [19 0])
+                                                  (* 10 (.getSeconds (java.util.Date.))))
+                                             (time-to-minutes (time-now))))
+                    (controls/button view-context "Juota" false (fn [local-state]
+                                                                  (add-wakeup local-state))))
       (assoc :sleep-time (* 1000 60))))
+
+(defn handle-keyboard [state event]
+  (if (and (= (:type event)
+              :key-released)
+           (= (:key event)
+              :space))
+    (add-wakeup state)
+    state))
 
 (defn drink-watch [view-context]
   {:local-state {:wakeups (read-string (slurp "wakeups.clj"))}
-   :view #'drink-watch-view})
+   :view #'drink-watch-view
+   :handle-keyboard-event-with-local-state #'handle-keyboard
+   :can-gain-focus true})
 
 (defonce event-channel (atom nil))
 
@@ -95,10 +108,10 @@
 (defn start []
 
   (reset! event-channel
-          (gui/start-control drink-watch)
+          #_(gui/start-control drink-watch)
           
-          #_(trace/with-trace
-              (gui/start-control drink-watch))))
+          (trace/with-trace
+            (gui/start-control drink-watch))))
 
 
 (when @event-channel

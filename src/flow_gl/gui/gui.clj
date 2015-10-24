@@ -834,8 +834,21 @@
               (dissoc state :stop-keyboard-event-handling)
               (recur state
                      (rest focused-state-paths))))
-          (recur state
-                 (rest focused-state-paths)))
+          (if-let [keyboard-event-handler (get-in state (concat (vec focused-state-path)
+                                                                [:handle-keyboard-event-with-local-state]))]
+            (let [_ (assert (function-reference? keyboard-event-handler)
+                            (str "The keyboard event handler must be a function or a var pointing to a function. State path " (vec focused-state-path)) )
+                  state (update-in state
+                                   (concat (vec focused-state-path)
+                                           [:local-state])
+                                   keyboard-event-handler
+                                   (:event state))]
+              (if (:stop-keyboard-event-handling state)
+                (dissoc state :stop-keyboard-event-handling)
+                (recur state
+                       (rest focused-state-paths))))
+            (recur state
+                   (rest focused-state-paths))))
         state))
     state))
 
