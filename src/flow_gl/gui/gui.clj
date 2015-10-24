@@ -1474,10 +1474,16 @@
                                                             (apply update-or-apply-in state (concat (:state-path view-context) [:local-state]) function arguments)
                                                             (throw (Exception. (str "tried to apply to empty state" (vec (:state-path view-context)))))))))))
 
-(defn apply-to-global-state [view-context function & arguments]
+(defn send-global-state-transformation [view-context function & arguments]
   (send-apply-to-view-state-event view-context
                                   (fn [state]
                                     (apply function state arguments))))
+
+(defn send-local-state-transformation [view-context function & arguments]
+  (send-apply-to-view-state-event view-context
+                                  (fn [state]
+                                    (apply apply-to-local-state state view-context function arguments))))
+
 
 
 (defn with-gl [view-context function & arguments]

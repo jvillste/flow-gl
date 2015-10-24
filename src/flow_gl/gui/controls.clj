@@ -172,9 +172,9 @@
                                                                     (if (not disabled)
                                                                       (handler state)
                                                                       state))))
-                     (l/center 100 50 (text text-value (if disabled
-                                                         [70 70 70 255]
-                                                         [0 0 0 255])))]))
+                     (l/center (text text-value (if disabled
+                                                  [70 70 70 255]
+                                                  [0 0 0 255])))]))
 
 
 

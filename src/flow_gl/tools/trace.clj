@@ -193,7 +193,7 @@
 
           (trace-var f))))))
 
-(defn trace-some-ns [ns]
+(defn trace-some-from-ns [ns]
   (let [ns (the-ns ns)]
     (when-not ('#{clojure.core flow-gl.tools.trace} (.name ns))
       (untrace-ns ns)

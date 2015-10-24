@@ -247,7 +247,7 @@
                                                        (when (string? selection-event)
                                                          (gui/apply-to-state view-context
                                                                              (fn [{:keys [results] :as state}]
-                                                                               (gui/apply-to-global-state view-context
+                                                                               (gui/send-global-state-transformation view-context
                                                                                                           gui/update-binding
                                                                                                           view-context
                                                                                                           (fn [old-query]

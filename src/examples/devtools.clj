@@ -6,6 +6,7 @@
                          [layouts :as layouts]
                          [layoutable :as layoutable])
             [clojure.string :as string]
+            [clojure.java.io :as io]
 
             [flow-gl.gui.layout-dsl :as l]))
 
@@ -18,10 +19,18 @@
 
 (defn ^:trace code-view [view-context state]
   (if-let [text (get (:files state) (:file state))]
-    (l/vertically (for [line (string/split-lines text)]
-                    (controls/text line)))
-    (do (gui/apply-to-local-state state view-context update-in [:files] assoc (:file state) (slurp (:file state)))
-        (controls/text "loading..."))))
+    (gui/call-view controls/scroll-panel
+                   :code-scroll-panel
+                   {:content (l/vertically (for [line (string/split-lines text)]
+                                             (controls/text line)))})
+
+    (when (:file state)
+      (if (.exists (io/as-file (:file state)))
+        (do (gui/send-local-state-transformation view-context
+                                                 update-in [:files] assoc (:file state) (slurp (:file state)))
+            
+            (controls/text "loading..."))
+        (controls/text "File not found: " (:file state))))))
 
 (defn code [view-context]
   {:local-state {:files {}}
@@ -69,31 +78,57 @@
    :view #'counter-view})
 
 (defn devtool-view [view-context state]
+
   (l/horizontally
-   (gui/call-view counter :view)
-   (drawable/->Rectangle 3 0 [255 255 255 255])
-   (l/vertically (for [layout (:layouts state)]
-                   (controls/text  (str (:z layout) " "
-                                        (type layout)
+   
+   (-> (gui/call-view counter :view)
+       (gui/on-mouse-clicked (fn [global-state event]
+                               (trace/log "mouse clicked" global-state)
+                               (gui/apply-to-local-state global-state view-context
+                                                         (fn [local-state]
+                                                           (if (:selecting-element local-state)
+                                                             (assoc local-state
+                                                                    :layouts (->> (gui/layout-paths-to-layoutables (:layout-paths-under-mouse global-state)
+                                                                                                                   (:layout global-state))
+                                                                                  (filter #(satisfies? layoutable/Layoutable %)))
+                                                                    :selecting-element false)
+                                                             local-state))))))
+
+   (drawable/->Rectangle 10 0 [255 255 255 255])
+   
+   (l/vertically (l/preferred (controls/button view-context
+                                               "select element"
+                                               (:selecting-element state)
+                                               (fn [local-state]
+                                                 (trace/log "start selecting")
+                                                 (assoc local-state :selecting-element true))))
+                 (for [layout (:layouts state)]
+                   (controls/text  (str (type layout)
                                         " "
                                         (meta layout))))
-                 (when-let [{:keys [file column line]} (first (filter meta (:layouts state)))]
+                 (when-let [{:keys [file column line]} (meta (first (filter meta (:layouts state))))]
                    (gui/call-view code :code-view {:file file :column column :line line})))))
 
 (defn global-state-handler [local-state global-state]
-  (trace/log "global state" global-state)
-  (assoc local-state :layouts (->> (gui/layout-paths-to-layoutables (:layout-paths-under-mouse global-state)
-                                                                    (:layout global-state))
-                                   (filter #(satisfies? layoutable/Layoutable %)))))
+  (if (:selecting-element local-state)
+    (if (= (:type (:event global-state))
+           :mouse-clicked)
+      (assoc local-state
+             :layouts (->> (gui/layout-paths-to-layoutables (->> (:layout-paths-under-mouse global-state))
+                                                            (:layout global-state))
+                           (filter #(satisfies? layoutable/Layoutable %)))
+             :selecting-element false)
+      local-state)
+    local-state))
 
 (defn devtool [view-context]
   {:local-state {}
-   :global-state-handler #'global-state-handler
+   ;;   :global-state-handler #'global-state-handler
    :view #'devtool-view})
 
 (defonce event-channel (atom nil))
 
-(trace/trace-some-ns 'examples.devtools)
+(trace/trace-some-from-ns 'examples.devtools)
 #_(trace/trace-ns 'flow-gl.gui.layouts)
 #_(trace/trace-var 'flow-gl.gui.gui/render-drawables-afterwards)
 #_(trace/trace-var 'flow-gl.gui.gui/apply-global-state-handler)
