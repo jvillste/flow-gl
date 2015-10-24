@@ -7,7 +7,7 @@
                          [gui :as gui]
                          [events :as events]
                          [layoutable :as layoutable]
-                         [transformer :as transformer])
+                         [transformers :as transformers])
             [flow-gl.csp :as csp]
 
             (flow-gl.graphics [font :as font]))
@@ -82,7 +82,7 @@
                                  scroll-bar-color [255 255 255 120]]
                              (-> (l/superimpose (-> (layouts/->Margin (- (:scroll-position-y state)) 0 0 (- (:scroll-position-x state))
                                                                       [(l/preferred (first children))])
-                                                    #_(assoc :transformer (assoc transformer/clip
+                                                    (assoc :transformer (assoc transformers/clip
                                                                                  :id :transformer-2)))
                                                 (when true #_(:mouse-over state)
                                                       (l/absolute (when (< requested-height preferred-height)

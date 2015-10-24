@@ -80,7 +80,7 @@
     (try
       (app state events)
 
-      (catch Exception e
+      #_(catch Exception e
         (window/close (:window state))
         (throw e)))))
 
@@ -483,7 +483,7 @@
     (-> (assoc gpu-state :layout layout)
         (render-frame)
         (swap-buffers))
-    (catch Exception e
+    #_(catch Exception e
       (window/close (:window gpu-state))
       (throw e))))
 
@@ -1092,7 +1092,7 @@
           (render-drawables-afterwards)
           (clear-cache)))
 
-    (catch Exception e
+    #_(catch Exception e
       (println "Got exception. Closing the window.")
       (window/close (:window state))
       (throw e))))

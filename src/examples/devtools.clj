@@ -80,7 +80,7 @@
              (fn [state]
                (update-in state [:count] inc)))))
    
-   (controls/text state)))
+   #_(controls/text state)))
 
 (defn counter [view-context]
   {:local-state {:count 1
@@ -118,7 +118,7 @@
                    (-> (controls/text (str (layoutable/layoutable-name layoutable) 
                                            " "
                                            (if (:file (meta layoutable))
-                                             "(S)"
+                                             (str "(" (.getName (io/file (:file (meta layoutable)))) ")")
                                              ""))
                                       (if (= (:selected-layoutable state)
                                              layoutable)
@@ -137,7 +137,7 @@
 
 (defonce event-channel (atom nil))
 
-(trace/trace-some-from-ns 'examples.devtools)
+#_(trace/trace-some-from-ns 'examples.devtools)
 #_(trace/trace-ns 'flow-gl.gui.layouts)
 #_(trace/trace-var 'flow-gl.gui.gui/render-drawables-afterwards)
 #_(trace/trace-var 'flow-gl.gui.gui/apply-global-state-handler)
@@ -146,9 +146,9 @@
 (defn start []
 
   (reset! event-channel
-          #_(gui/start-control devtool)
+          (gui/start-control devtool)
           
-          (trace/with-trace
+          #_(trace/with-trace
             (gui/start-control devtool))))
 
 
