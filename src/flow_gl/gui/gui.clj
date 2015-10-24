@@ -593,18 +593,34 @@
     (is (= (prefixes [])
            []))))
 
+(defn layout-paths-to-layoutables [layout-paths layout]
+  (->> layout-paths
+       (mapcat prefixes)
+       (distinct)
+       (map #(get-in layout %))
+       (reverse)))
+
+(deftest layout-paths-to-layoutables-tests
+  (testing "should find a signle handler"
+    (is (= '({:id :a})
+           (layout-paths-to-layoutables [[:a]]
+                                        {:a {:id :a}}))))
+
+  (testing "should find along a single path"
+    (is (= '({:id :b} {:id :a, :b {:id :b}})
+           (layout-paths-to-layoutables [[:a :b]]
+                                        {:a {:id :a
+                                             :b {:id :b}}})))))
+
 (defn layout-paths-to-handlers
   "Returns all handlers that can be reached from the layout root by the given layout-paths.
   The returned handlers must be stored in each elements handler-keyword -key.
   The handlers are returned in the depth first order"
   [layout-paths layout handler-keyword]
-  (->> layout-paths
-       (mapcat prefixes)
-       (distinct)
-       (map #(get-in layout %))
+  (->> (layout-paths-to-layoutables layout-paths
+                                    layout)
        (map handler-keyword)
-       (filter (complement nil?))
-       (reverse)))
+       (filter (complement nil?))))
 
 (deftest layout-paths-to-handlers-tests
   (testing "should find a signle handler"
@@ -642,6 +658,8 @@
                                           :b1 {:handler :b1-handler}
                                           :b2 {:handler :b2-handler}}}
                                      :handler)))))
+
+
 
 
 (defn apply-layout-event-handlers [state layout layout-paths handler-key & arguments]
@@ -1036,6 +1054,11 @@
                     mouse-wheel-moved-events))
       other-events)))
 
+(defn apply-global-state-handler [state]
+  (if-let [handler (get-in state [:children :child-states :root :global-state-handler])]
+    (update-in state [:children :child-states :root :local-state] handler state)
+    state))
+
 (defn handle-events [state events app]
   (try
     (let [state (-> state
@@ -1054,6 +1077,7 @@
                               (apply-layout-event-handlers-beforehand)
                               (apply-mouse-movement-event-handlers-beforehand)
                               (apply-view-state-applications-beforehand)
+                              (apply-global-state-handler)
                               (apply-with-gl-beforehand)
                               (app)
                               (add-layout-afterwards)

@@ -193,6 +193,15 @@
 
           (trace-var f))))))
 
+(defn trace-some-ns [ns]
+  (let [ns (the-ns ns)]
+    (when-not ('#{clojure.core flow-gl.tools.trace} (.name ns))
+      (untrace-ns ns)
+      (let [ns-fns (namespace-function-vars ns)]
+        (doseq [f ns-fns]
+          (when (:trace (meta f))
+            (trace-var f)))))))
+
 #_(defmacro trace-ns [ns]
     `(trace-ns* ~ns))
 
@@ -319,7 +328,7 @@
         (str "(" (count value) ")")
 
         (instance? java.lang.Exception value)
-        (str (type value) ": " (.getMessage value))
+        (str (type value))
 
         :default
         (str (.getSimpleName (type value)))))
@@ -406,6 +415,9 @@
 
                           (text-cell "}"))
 
+            (instance? java.lang.Exception value)
+            (text-cell (str (type value) ": " (.getMessage value)))
+
             :default (-> (text-cell (str "-" (value-string value)))
                          (gui/on-mouse-clicked-with-view-context view-context
                                                                  (fn [state event]
@@ -454,13 +466,15 @@
                                 (when (:function-symbol call)
                                   (-> (text-cell (str " -> " (value-string (or (:exception call)
                                                                                (:result call))))
-                                                 (if (= (:result call)
+                                                 (if (= (or (:exception call)
+                                                            (:result call))
                                                         (:selected-value state))
                                                    selected-value-color
                                                    default-color))
                                       (gui/on-mouse-clicked-with-view-context view-context
                                                                               (fn [state event]
-                                                                                (assoc state :selected-value (:result call)))))))
+                                                                                (assoc state :selected-value (or (:exception call)
+                                                                                                                 (:result call))))))))
                 (when ((:open-calls state) (:call-id call))
                   (l/margin 0 0 0 20
                             (l/vertically (for [child (:child-calls call)]

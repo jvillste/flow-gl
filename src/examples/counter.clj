@@ -51,9 +51,11 @@
 
 (defonce event-channel (atom nil))
 
-(trace/trace-ns 'examples.counter)
+#_(trace/untrace-ns 'examples.counter)
 #_(trace/trace-ns 'flow-gl.gui.layouts)
-#_(trace/trace-var 'flow-gl.gui.gui/render-drawables-afterwards)
+#_(trace/untrace-var 'flow-gl.gui.gui/render-drawables-afterwards)
+(trace/trace-var 'flow-gl.gui.gui/apply-keyboard-event-handlers-beforehand)
+
 #_(trace/untrace-var 'flow-gl.gui.controls/button)
 
 (defn start []
