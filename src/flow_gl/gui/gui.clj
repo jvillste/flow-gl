@@ -554,8 +554,8 @@
                    (layout/add-out-of-layout-hints))]
     (assoc state :layout layout)))
 
-#_(debug/defn-timed add-global-coordinates [state]
-    (assoc state :layout (layout/add-global-coordinates (:layout state) 0 0)))
+(defn add-global-coordinates [state]
+  (assoc state :layout (layout/add-global-coordinates (:layout state) 0 0)))
 
 ;; Mouse
 
@@ -1081,6 +1081,7 @@
                               (apply-with-gl-beforehand)
                               (app)
                               (add-layout-afterwards)
+                              (add-global-coordinates)
                               (remove-unused-child-states-afterwards)))
                         state
                         events)]

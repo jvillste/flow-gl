@@ -59,8 +59,11 @@
    (text value [255 255 255 255]))
 
   ([value color]
+   (text value [255 255 255 255] (font/create "LiberationSans-Regular.ttf" 20)))
+
+  ([value color font]
    (drawable/->Text (str value)
-                    (font/create "LiberationSans-Regular.ttf" 20)
+                    font
                     color)))
 
 
@@ -175,6 +178,21 @@
                      (l/center (text text-value (if disabled
                                                   [70 70 70 255]
                                                   [0 0 0 255])))]))
+
+
+(defn check-box [parent-state parent-view-context key]
+  (layouts/->Box 5 [(-> (drawable/->Rectangle 0
+                                                        0
+                                                        [255 255 255 255])
+                                  (gui/on-mouse-clicked-with-view-context parent-view-context
+                                                                          (fn [state event]
+                                                                            (update-in state [key] not))))
+                              (drawable/->Rectangle 10
+                                                    10
+                                                    (if (get parent-state key)
+                                                      [0 0 0 255]
+                                                      [200 200 200 255]))])
+  )
 
 
 

@@ -5,8 +5,10 @@
                          [drawable :as drawable]
                          [layouts :as layouts]
                          [layoutable :as layoutable])
+            (flow-gl.graphics [font :as font])
             [clojure.string :as string]
             [clojure.java.io :as io]
+            [flow-gl.utils :as utils]
 
             [flow-gl.gui.layout-dsl :as l]))
 
@@ -21,8 +23,16 @@
   (if-let [text (get (:files state) (:file state))]
     (gui/call-view controls/scroll-panel
                    :code-scroll-panel
-                   {:content (l/vertically (for [line (string/split-lines text)]
-                                             (controls/text line)))})
+                   {:content (l/vertically (for [[index line]  (utils/indexed (string/split-lines text))]
+                                             (controls/text line (if (= index (dec (:line state)))
+                                                                   [255 255 55 255]
+                                                                   [255 255 255 255])
+                                                            (font/create "LiberationMono-Regular.ttf" 15))))
+                    :scroll-position-y (- (* (:line state)
+                                             (:height (layoutable/preferred-size (controls/text "X" [255 255 255 255]
+                                                                                                (font/create "LiberationMono-Regular.ttf" 15))
+                                                                                 java.lang.Integer/MAX_VALUE java.lang.Integer/MAX_VALUE)))
+                                          100)})
 
     (when (:file state)
       (if (.exists (io/as-file (:file state)))
@@ -78,52 +88,52 @@
    :view #'counter-view})
 
 (defn devtool-view [view-context state]
-
+  (trace/log (:selected-layoutable state))
   (l/horizontally
    
-   (-> (gui/call-view counter :view)
-       (gui/on-mouse-clicked (fn [global-state event]
-                               (trace/log "mouse clicked" global-state)
-                               (gui/apply-to-local-state global-state view-context
-                                                         (fn [local-state]
-                                                           (if (:selecting-element local-state)
-                                                             (assoc local-state
-                                                                    :layouts (->> (gui/layout-paths-to-layoutables (:layout-paths-under-mouse global-state)
-                                                                                                                   (:layout global-state))
-                                                                                  (filter #(satisfies? layoutable/Layoutable %)))
-                                                                    :selecting-element false)
-                                                             local-state))))))
+   (l/superimpose (-> (gui/call-view counter :view)
+                      (gui/on-mouse-clicked (fn [global-state event]
+                                              (gui/apply-to-local-state global-state view-context
+                                                                        (fn [local-state]
+                                                                          (if (:selecting-layoutable local-state)
+                                                                            (let [layoutables (->> (gui/layout-paths-to-layoutables (:layout-paths-under-mouse global-state)
+                                                                                                                                    (:layout global-state))
+                                                                                                   (filter #(satisfies? layoutable/Layoutable %)))]
+                                                                              (assoc local-state
+                                                                                     :layoutables layoutables
+                                                                                     :selected-layoutable (first layoutables)))
+                                                                            
+                                                                            local-state))))))
+                  (when-let [selected-layoutable (:selected-layoutable state)]
+                    (l/absolute (assoc (drawable/->Rectangle (:width selected-layoutable) (:height selected-layoutable) [255 0 0 100])
+                                       :x (:global-x selected-layoutable)
+                                       :y (:global-y selected-layoutable)))))
 
    (drawable/->Rectangle 10 0 [255 255 255 255])
    
-   (l/vertically (l/preferred (controls/button view-context
-                                               "select element"
-                                               (:selecting-element state)
-                                               (fn [local-state]
-                                                 (trace/log "start selecting")
-                                                 (assoc local-state :selecting-element true))))
-                 (for [layout (:layouts state)]
-                   (controls/text  (str (type layout)
-                                        " "
-                                        (meta layout))))
-                 (when-let [{:keys [file column line]} (meta (first (filter meta (:layouts state))))]
-                   (gui/call-view code :code-view {:file file :column column :line line})))))
-
-(defn global-state-handler [local-state global-state]
-  (if (:selecting-element local-state)
-    (if (= (:type (:event global-state))
-           :mouse-clicked)
-      (assoc local-state
-             :layouts (->> (gui/layout-paths-to-layoutables (->> (:layout-paths-under-mouse global-state))
-                                                            (:layout global-state))
-                           (filter #(satisfies? layoutable/Layoutable %)))
-             :selecting-element false)
-      local-state)
-    local-state))
+   (l/vertically (l/margin 2 2 2 2
+                           (l/horizontally (controls/check-box state view-context :selecting-layoutable)
+                                           (controls/text "select element")))
+                 (for [layoutable (:layoutables state)]
+                   (-> (controls/text  (str (layoutable/layoutable-name layoutable) 
+                                            " "
+                                            (if (:file (meta layoutable))
+                                              "(S)"
+                                              "")
+                                            )
+                                       (if (= (:selected-layoutable state)
+                                              layoutable)
+                                         [255 255 255 255]
+                                         [200 200 200 255]))
+                       (gui/on-mouse-clicked-with-view-context view-context
+                                                               (fn [local-state event]
+                                                                 (assoc local-state :selected-layoutable layoutable)))))
+                 (let [{:keys [file column line]} (meta (:selected-layoutable state))]
+                   (when file
+                     (gui/call-view code :code-view {:file file :column column :line line}))))))
 
 (defn devtool [view-context]
   {:local-state {}
-   ;;   :global-state-handler #'global-state-handler
    :view #'devtool-view})
 
 (defonce event-channel (atom nil))
