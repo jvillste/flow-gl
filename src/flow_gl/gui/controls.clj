@@ -59,7 +59,7 @@
    (text value [255 255 255 255]))
 
   ([value color]
-   (text value [255 255 255 255] (font/create "LiberationSans-Regular.ttf" 20)))
+   (text value color (font/create "LiberationSans-Regular.ttf" 20)))
 
   ([value color font]
    (drawable/->Text (str value)

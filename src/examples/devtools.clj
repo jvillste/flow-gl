@@ -115,16 +115,15 @@
                            (l/horizontally (controls/check-box state view-context :selecting-layoutable)
                                            (controls/text "select element")))
                  (for [layoutable (:layoutables state)]
-                   (-> (controls/text  (str (layoutable/layoutable-name layoutable) 
-                                            " "
-                                            (if (:file (meta layoutable))
-                                              "(S)"
-                                              "")
-                                            )
-                                       (if (= (:selected-layoutable state)
-                                              layoutable)
-                                         [255 255 255 255]
-                                         [200 200 200 255]))
+                   (-> (controls/text (str (layoutable/layoutable-name layoutable) 
+                                           " "
+                                           (if (:file (meta layoutable))
+                                             "(S)"
+                                             ""))
+                                      (if (= (:selected-layoutable state)
+                                             layoutable)
+                                        [255 255 100 255]
+                                        [255 255 255 255]))
                        (gui/on-mouse-clicked-with-view-context view-context
                                                                (fn [local-state event]
                                                                  (assoc local-state :selected-layoutable layoutable)))))
