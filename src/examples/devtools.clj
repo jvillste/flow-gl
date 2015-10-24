@@ -28,7 +28,7 @@
                                                                    [255 255 55 255]
                                                                    [255 255 255 255])
                                                             (font/create "LiberationMono-Regular.ttf" 15))))
-                    :scroll-position-y (- (* (:line state)
+                    #_:scroll-position-y #_(- (* (:line state)
                                              (:height (layoutable/preferred-size (controls/text "X" [255 255 255 255]
                                                                                                 (font/create "LiberationMono-Regular.ttf" 15))
                                                                                  java.lang.Integer/MAX_VALUE java.lang.Integer/MAX_VALUE)))
@@ -149,7 +149,7 @@
           (gui/start-control devtool)
           
           #_(trace/with-trace
-            (gui/start-control devtool))))
+              (gui/start-control devtool))))
 
 
 (when @event-channel

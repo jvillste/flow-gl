@@ -82,7 +82,7 @@
                                  scroll-bar-color [255 255 255 120]]
                              (-> (l/superimpose (-> (layouts/->Margin (- (:scroll-position-y state)) 0 0 (- (:scroll-position-x state))
                                                                       [(l/preferred (first children))])
-                                                    (assoc :transformer (assoc transformers/clip
+                                                    #_(assoc :transformer (assoc transformers/clip
                                                                                  :id :transformer-2)))
                                                 (when true #_(:mouse-over state)
                                                       (l/absolute (when (< requested-height preferred-height)
@@ -182,17 +182,16 @@
 
 (defn check-box [parent-state parent-view-context key]
   (layouts/->Box 5 [(-> (drawable/->Rectangle 0
-                                                        0
-                                                        [255 255 255 255])
-                                  (gui/on-mouse-clicked-with-view-context parent-view-context
-                                                                          (fn [state event]
-                                                                            (update-in state [key] not))))
-                              (drawable/->Rectangle 10
-                                                    10
-                                                    (if (get parent-state key)
-                                                      [0 0 0 255]
-                                                      [200 200 200 255]))])
-  )
+                                              0
+                                              [255 255 255 255])
+                        (gui/on-mouse-clicked-with-view-context parent-view-context
+                                                                (fn [state event]
+                                                                  (update-in state [key] not))))
+                    (drawable/->Rectangle 10
+                                          10
+                                          (if (get parent-state key)
+                                            [0 0 0 255]
+                                            [200 200 200 255]))]))
 
 
 

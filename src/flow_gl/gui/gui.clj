@@ -75,15 +75,6 @@
     (assoc state :close-requested true)
     state))
 
-(defn wrap-with-close-window-on-exception [app]
-  (fn [state events]
-    (try
-      (app state events)
-
-      #_(catch Exception e
-        (window/close (:window state))
-        (throw e)))))
-
 ;; CSP
 
 (defn close-control-channel [view-state]
@@ -479,15 +470,11 @@
       (end-frame)))
 
 (defn render [gpu-state layout]
-  (try
-    (-> (assoc gpu-state :layout layout)
-        (render-frame)
-        (swap-buffers))
-    #_(catch Exception e
-      (window/close (:window gpu-state))
-      (throw e))))
+  (-> (assoc gpu-state :layout layout)
+      (render-frame)
+      (swap-buffers)))
 
-(debug/defn-timed render-drawables-afterwards [state]
+(defn render-drawables-afterwards [state]
   (async/>!! (:with-gl-channel state)
              {:function render
               :arguments [(:layout state)]})
@@ -1060,42 +1047,36 @@
     state))
 
 (defn handle-events [state events app]
-  (try
-    (let [state (-> state
-                    (add-frame-started)
-                    (save-sleep-time))
+  (let [state (-> state
+                  (add-frame-started)
+                  (save-sleep-time))
 
-          state (reduce (fn [state event]
-                          (flow-gl.debug/add-event :handle-event)
-                          (-> state
-                              (assoc :event event)
-                              (clear-cache-when-requested)
-                              (close-when-requested-beforehand)
-                              (add-layout-paths-under-mouse-beforehand)
-                              (set-focus-on-mouse-click-beforehand)
-                              (apply-keyboard-event-handlers-beforehand)
-                              (apply-layout-event-handlers-beforehand)
-                              (apply-mouse-movement-event-handlers-beforehand)
-                              (apply-view-state-applications-beforehand)
-                              (apply-global-state-handler)
-                              (apply-with-gl-beforehand)
-                              (app)
-                              (add-layout-afterwards)
-                              (add-global-coordinates)
-                              (remove-unused-child-states-afterwards)))
-                        state
-                        events)]
+        state (reduce (fn [state event]
+                        (flow-gl.debug/add-event :handle-event)
+                        (-> state
+                            (assoc :event event)
+                            (clear-cache-when-requested)
+                            (close-when-requested-beforehand)
+                            (add-layout-paths-under-mouse-beforehand)
+                            (set-focus-on-mouse-click-beforehand)
+                            (apply-keyboard-event-handlers-beforehand)
+                            (apply-layout-event-handlers-beforehand)
+                            (apply-mouse-movement-event-handlers-beforehand)
+                            (apply-view-state-applications-beforehand)
+                            (apply-global-state-handler)
+                            (apply-with-gl-beforehand)
+                            (app)
+                            (add-layout-afterwards)
+                            (add-global-coordinates)
+                            (remove-unused-child-states-afterwards)))
+                      state
+                      events)]
 
-      (-> state
-          (call-destructors-when-close-requested)
-          (limit-frames-per-second-afterwards 60)
-          (render-drawables-afterwards)
-          (clear-cache)))
-
-    #_(catch Exception e
-      (println "Got exception. Closing the window.")
-      (window/close (:window state))
-      (throw e))))
+    (-> state
+        (call-destructors-when-close-requested)
+        (limit-frames-per-second-afterwards 60)
+        (render-drawables-afterwards)
+        (clear-cache))))
 
 (defn start-render-and-event-loops [initial-state app]
   (let [event-channel (window/event-channel (-> initial-state :window))
@@ -1105,41 +1086,47 @@
                                  :with-gl-dropping-channel (async/chan (async/dropping-buffer 1))))]
 
     ;; use async/thread to inherit bindings such as flow-gl.debug/dynamic-debug-channel
-    (async/thread (loop [state initial-state]
+    (async/thread (try (loop [state initial-state]
 
-                    #_(Thread/sleep 100)
+                         (reset! state-atom state)
 
-                    (reset! state-atom state)
+                         (if (:close-requested state)
+                           (do (async/close! (:with-gl-channel initial-state))
+                               (async/close! (:with-gl-dropping-channel initial-state))
+                               (window/close (:window state)))
 
-                    (if (:close-requested state)
-                      (do (async/close! (:with-gl-channel initial-state))
-                          (async/close! (:with-gl-dropping-channel initial-state))
-                          (window/close (:window state)))
+                           (let [events (-> (csp/drain (window/event-channel (:window state))
+                                                       (:sleep-time state))
+                                            (compress-mouse-wheel-events))
 
-                      (let [events (-> (csp/drain (window/event-channel (:window state))
-                                                  (:sleep-time state))
-                                       (compress-mouse-wheel-events))
+                                 events (if (empty? events)
+                                          [{:type :wake-up}]
+                                          events)]
 
-                            events (if (empty? events)
-                                     [{:type :wake-up}]
-                                     events)]
+                             (recur (handle-events state events app)))))
+                       (catch Throwable e
+                         (.printStackTrace e *out*)
+                         (window/close (:window initial-state))
+                         (throw e))))
 
-                        (recur (handle-events state events app))))))
+    (async/thread (try (loop [gpu-state (initialize-gpu-state (:window initial-state))]
+                         (async/alt!! (:with-gl-dropping-channel initial-state) ([{:keys [function arguments]}]
+                                                                                 (when function (recur (window/with-gl (:window initial-state) gl
+                                                                                                         (apply function
+                                                                                                                (assoc gpu-state :gl gl)
+                                                                                                                arguments)))))
 
-    (async/thread (loop [gpu-state (initialize-gpu-state (:window initial-state))]
-                    (async/alt!! (:with-gl-dropping-channel initial-state) ([{:keys [function arguments]}]
-                                                                            (when function (recur (window/with-gl (:window initial-state) gl
-                                                                                                    (apply function
-                                                                                                           (assoc gpu-state :gl gl)
-                                                                                                           arguments)))))
-
-                                 (:with-gl-channel initial-state) ([{:keys [function arguments]}]
-                                                                   (when function (recur (window/with-gl (:window initial-state) gl
-                                                                                           #_(Thread/sleep 100)
-                                                                                           (apply function
-                                                                                                  (assoc gpu-state :gl gl)
-                                                                                                  arguments)))))
-                                 :priority true)))
+                                      (:with-gl-channel initial-state) ([{:keys [function arguments]}]
+                                                                        (when function (recur (window/with-gl (:window initial-state) gl
+                                                                                                #_(Thread/sleep 100)
+                                                                                                (apply function
+                                                                                                       (assoc gpu-state :gl gl)
+                                                                                                       arguments)))))
+                                      :priority true))
+                       (catch Throwable e
+                         (.printStackTrace e *out*)
+                         (window/close (:window initial-state))
+                         (throw e))))
 
     event-channel))
 

@@ -10,7 +10,7 @@
                          [controls :as controls]
                          [layout-dsl :as l])
             [flow-gl.debug :as debug]
-            [flow-gl.tools.debug-monitor :as debug-monitor]
+        ;;    [flow-gl.tools.debug-monitor :as debug-monitor]
             [flow-gl.csp :as csp]
             [clojure.string :as string]
             (flow-gl.graphics [font :as font]

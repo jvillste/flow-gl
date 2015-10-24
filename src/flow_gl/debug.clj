@@ -124,7 +124,7 @@
            "thread-inheritable-debug-channel" (not (nil? @flow-gl.debug/debug-channel))
            "dynamic-debug-channel" (not (nil? flow-gl.debug/dynamic-debug-channel))))
 
-(let [channel (async/chan)]
+#_(let [channel (async/chan)]
   (async/go-loop [value (async/<! channel)]
     (when value
       (do (println value)
@@ -132,6 +132,9 @@
   (with-debug-channel channel
     (async/go (Thread/sleep 1000)
               (print-channels "go block")
+              (try (assert false "it was false")
+                   (catch Throwable e
+                     (.printStackTrace e *out*)))
               (async/go (Thread/sleep 1000)
                         (print-channels "go block in go block")))
 
