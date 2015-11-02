@@ -83,7 +83,7 @@
                              (-> (l/superimpose (-> (layouts/->Margin (- (:scroll-position-y state)) 0 0 (- (:scroll-position-x state))
                                                                       [(l/preferred (first children))])
                                                     #_(assoc :transformer (assoc transformers/clip
-                                                                                 :id :transformer-2)))
+                                                                               :id :transformer-2)))
                                                 (when true #_(:mouse-over state)
                                                       (l/absolute (when (< requested-height preferred-height)
                                                                     (let [scroll-bar-length (* requested-height

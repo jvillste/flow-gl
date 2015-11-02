@@ -19,7 +19,7 @@
     (swap! files assoc file-name (slurp file-name)))
   (get @files file-name))
 
-(defn ^:trace code-view [view-context state]
+(defn code-view [view-context state]
   (if-let [text (get (:files state) (:file state))]
     (gui/call-view controls/scroll-panel
                    :code-scroll-panel
@@ -28,7 +28,7 @@
                                                                    [255 255 55 255]
                                                                    [255 255 255 255])
                                                             (font/create "LiberationMono-Regular.ttf" 15))))
-                    #_:scroll-position-y #_(- (* (:line state)
+                    :scroll-position-y (- (* (:line state)
                                              (:height (layoutable/preferred-size (controls/text "X" [255 255 255 255]
                                                                                                 (font/create "LiberationMono-Regular.ttf" 15))
                                                                                  java.lang.Integer/MAX_VALUE java.lang.Integer/MAX_VALUE)))
@@ -57,7 +57,7 @@
                       (controls/text text-value
                                      [0 0 0 255]))]))
 
-(defn counter-view [view-context state]
+(defn ^:trace counter-view [view-context state]
   (l/vertically
    (l/preferred
     (l/vertically
@@ -88,7 +88,6 @@
    :view #'counter-view})
 
 (defn devtool-view [view-context state]
-  (trace/log (:selected-layoutable state))
   (l/horizontally
    
    (l/superimpose (-> (gui/call-view counter :view)
@@ -109,7 +108,7 @@
                                        :x (:global-x selected-layoutable)
                                        :y (:global-y selected-layoutable)))))
 
-   (drawable/->Rectangle 10 0 [255 255 255 255])
+   (drawable/->Rectangle 10 0 [155 155 155 255])
    
    (l/vertically (l/margin 2 2 2 2
                            (l/horizontally (controls/check-box state view-context :selecting-layoutable)
@@ -129,7 +128,8 @@
                                                                  (assoc local-state :selected-layoutable layoutable)))))
                  (let [{:keys [file column line]} (meta (:selected-layoutable state))]
                    (when file
-                     (gui/call-view code :code-view {:file file :column column :line line}))))))
+                     [(drawable/->Rectangle 10 10 [155 155 155 255])
+                      (gui/call-view code :code-view {:file file :column column :line line})] )))))
 
 (defn devtool [view-context]
   {:local-state {}
@@ -137,7 +137,7 @@
 
 (defonce event-channel (atom nil))
 
-#_(trace/trace-some-from-ns 'examples.devtools)
+(trace/trace-some-from-ns 'examples.devtools)
 #_(trace/trace-ns 'flow-gl.gui.layouts)
 #_(trace/trace-var 'flow-gl.gui.gui/render-drawables-afterwards)
 #_(trace/trace-var 'flow-gl.gui.gui/apply-global-state-handler)
@@ -146,10 +146,10 @@
 (defn start []
 
   (reset! event-channel
-          (gui/start-control devtool)
+          #_(gui/start-control devtool)
           
-          #_(trace/with-trace
-              (gui/start-control devtool))))
+          (trace/with-trace
+            (gui/start-control devtool))))
 
 
 (when @event-channel
@@ -170,3 +170,4 @@
 
 
 
+;; Tauno voipio / vaisala ?

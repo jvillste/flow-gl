@@ -395,6 +395,7 @@
   gpu-state)
 
 (defn apply-transformers-to-layout [layout gpu-state path]
+  #_(flow-gl.tools.trace/log "transformer states" path (:transformer-states gpu-state))
   (loop [layout layout
          gpu-state gpu-state
          transformer-layout-paths (->> (:transformer-paths layout)
@@ -405,7 +406,7 @@
       (let [transformer-specification (get-in layout (concat transformer-layout-path [:transformer]))
             transformer (:transformer transformer-specification)
             transformer-state-path (conj path (:id transformer-specification))
-            transformer-state (or (get-in gpu-state [:transformer-states transformer-state-path])
+            transformer-state (or (get-in gpu-state [:transformer-states transformer-state-path :state])
                                   {})
             [transformed-layout gpu-state transformer-state] (transformer (get-in layout transformer-layout-path)
                                                                           gpu-state

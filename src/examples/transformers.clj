@@ -29,6 +29,7 @@
 
                             (assoc :transformer {:id :transformer-1
                                                  :transformer (fn [layout gpu-state state]
+                                                                (flow-gl.tools.trace/log "transformer state" state)
                                                                 (let [gl (:gl gpu-state)
                                                                       width (:width layout)
                                                                       height (:height layout)
@@ -50,11 +51,11 @@
                                                                                                              (gui/render-drawables)))]
                                                                   
                                                                   [(drawable/->Quad ["texture" (:texture render-target)]
-                                                                                    [:1f "resolution" width
-                                                                                     :1f "radius" 1
-                                                                                     :2f "dir" [1.0 0.0]]
-                                                                                    quad/blur-fragment-shader-source
-                                                                                    (:x layout) (:y layout) width height)
+                                                                                      [:1f "resolution" width
+                                                                                       :1f "radius" 1
+                                                                                       :2f "dir" [1.0 0.0]]
+                                                                                      quad/blur-fragment-shader-source
+                                                                                      (:x layout) (:y layout) width height)
                                                                    gpu-state
                                                                    state]))}))))
 
@@ -69,8 +70,8 @@
                        (trace/with-trace
                          (gui/start-control barless-root)))))
 
-  (.start (Thread. (fn []
-                     (gui/start-control barless-root))))
+  #_(gui/start-control barless-root)
 
-  #_(profiler/with-profiler (gui/start-control barless-root)))
+  (trace/with-trace
+    (gui/start-control barless-root)))
 

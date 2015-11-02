@@ -56,8 +56,10 @@
 
   layoutable/Layoutable
   (preferred-size [this available-width available-height]
-    {:width (font/width font contents)
-     :height (font/height font)})
+    {:width (or (:width this)
+                (font/width font contents))
+     :height (or (:height this)
+                 (font/height font))})
 
   Object
   (toString [this] (layoutable/describe-layoutable this)))
@@ -70,8 +72,8 @@
 
   layoutable/Layoutable
   (preferred-size [this available-width available-height]
-    {:width (.getWidth buffered-image)
-     :height (.getHeight buffered-image)})
+    {:width (or (:width this) (.getWidth buffered-image))
+     :height (or (:width this) (.getHeight buffered-image))})
 
   Object
   (toString [this] (layoutable/describe-layoutable this "Image" :file-name)))
