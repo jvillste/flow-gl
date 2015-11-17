@@ -155,3 +155,12 @@ OK -- make size dependent work again
 - how to force view refres after mouse event handler with side effects ala tracing a function in tools.trace
 
 - set initial focus after the view calls are resolved the first time
+
+
+Autocompleter processes
+----------
+
+event-loop
+query-go-block
+query-execution-thread
+seleciton-go-block
