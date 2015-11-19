@@ -173,7 +173,6 @@
 
 (defn autocompleter [view-context text-function throttle]
   (let [query-channel (async/chan)
-        selection-channel (async/chan)
         state (conj {:local-state {:query nil
                                    :query-function nil
                                    :on-select nil
@@ -181,50 +180,39 @@
                                    :results []
                                    :selected-value ""
                                    :selection nil
-                                   :selection-channel selection-channel
                                    :query-channel query-channel}
                      :view #'auto-completer-view
                      :handle-keyboard-event (fn [state event]
-                                              (events/on-key state event
-                                                             :down (gui/apply-to-local-state state view-context
-                                                                                             (fn [{:keys [results selection] :as state}]
-                                                                                               (if (not (empty? results))
-                                                                                                 (update-in state [:selection]
+                                              (gui/apply-to-local-state state view-context
+                                                                        (fn [{:keys [results selection] :as local-state}]
+                                                                          (events/on-key local-state event
+                                                                                         :down (if (not (empty? results))
+                                                                                                 (update-in local-state [:selection]
                                                                                                             (fn [selection]
                                                                                                               (min (if selection
                                                                                                                      (inc selection)
                                                                                                                      0)
-                                                                                                                   (dec (count results))))))))
-                                                             
-                                                             :up (gui/apply-to-local-state state view-context
-                                                                                           (fn [{:keys [results selection] :as state}]
-                                                                                             (if (not (empty? results))
-                                                                                               (update-in state [:selection]
+                                                                                                                   (dec (count results))))))
+                                                                                         
+                                                                                         :up (if (not (empty? results))
+                                                                                               (update-in local-state [:selection]
                                                                                                           (fn [selection]
                                                                                                             (max 0
                                                                                                                  (if selection
                                                                                                                    (dec selection)
-                                                                                                                   0)))))))
-                                                             
-                                                             :enter (gui/apply-to-local-state state view-context
-                                                                                              (fn [{:keys [results] :as state}]
-                                                                                                (if (:selection state)
-                                                                                                  (let [selected-value (get (:results state)
-                                                                                                                            (:selection state))]
-                                                                                                    (gui/send-global-state-transformation view-context
-                                                                                                                                          gui/update-binding
-                                                                                                                                          view-context
-                                                                                                                                          (fn [old-query]
-                                                                                                                                            selected-value)
-                                                                                                                                          :selected-value)
+                                                                                                                   0)))))
+                                                                                         
+                                                                                         :enter (let [value (if (:selection local-state)
+                                                                                                              (get (:results local-state)
+                                                                                                                   (:selection local-state))
+                                                                                                              (:query local-state))]
 
-                                                                                                    ((:on-select state) selected-value)
-                                                                                                    
-                                                                                                    (assoc state
-                                                                                                           :query nil
-                                                                                                           :selection nil
-                                                                                                           :results []))
-                                                                                                  state)))))}
+                                                                                                  ((:on-select local-state) value)
+                                                                                                  
+                                                                                                  (assoc local-state
+                                                                                                         :query nil
+                                                                                                         :selection nil
+                                                                                                         :results []))))))}
                     gui/child-focus-handlers)]
 
     
@@ -232,9 +220,7 @@
                 (loop []
                   (async/alt! (:control-channel view-context) ([_] (println "exiting auto completer process"))
                               throttled-query ([[query-function query]]
-                                               (trace/log "got query" query)
                                                (async/go (let [results (async/<! (async/thread (vec (query-function query))))]
-                                                           (trace/log "got results" results)
                                                            (gui/apply-to-state view-context
                                                                                assoc
                                                                                :results results
@@ -242,7 +228,6 @@
                                                (recur))
 
                               unthrottled-query ([[query-function query]]
-                                                 (trace/log "got throttled" query-function query)
                                                  (gui/apply-to-state view-context
                                                                      assoc
                                                                      :query query)
@@ -256,30 +241,43 @@
 ;; Test view
 
 (defn query-text [possible-values query]
-  (trace/log "possible" possible-values)
-  (concat (->> possible-values
-               (filter #(.contains (:text %) query)))
-          [{:text query}]))
+  (if (= query "")
+    []
+    (filter #(.contains (:text %) query)
+            possible-values)))
 
 (defn root-view [view-context state]
-  (l/vertically (gui/call-and-bind view-context state :selected-value :selected-value
-                                   autocompleter :completer-1
-                                   {:query-function (partial query-text (:possible-values state))
-                                    :on-select (fn [selection]
-                                                 (if (not (contains? (:possible-values state)
-                                                                     selection))
-                                                   (gui/send-local-state-transformation view-context
-                                                                                        update-in
-                                                                                        [:possible-values]
-                                                                                        conj
-                                                                                        selection)))}
-                                   [:text
-                                    0])
-                (controls/text state)))
+  (l/vertically (gui/call-view autocompleter :completer-1
+                               {:query-function (partial query-text (:possible-values state))
+                                :selected-value (:selected-value state)
+                                :on-select (fn [selection]
+                                             (let [value (if (string? selection)
+                                                           (or (first (filter #(= (:text %) selection)
+                                                                              (:possible-values state)))
+                                                               {:text selection :id (int (rand 100))})
+                                                           selection)]
+
+                                               (when (not (some #(= (:text %) selection)
+                                                                (:possible-values state)))
+                                                 (gui/send-local-state-transformation view-context
+                                                                                      update-in
+                                                                                      [:possible-values]
+                                                                                      conj
+                                                                                      value))
+
+                                               (gui/send-local-state-transformation view-context
+                                                                                    assoc
+                                                                                    :selected-value
+                                                                                    value)))}
+                               [:text
+                                0])
+                (controls/text (str "selected: " (:selected-value state)))
+                (for [value (:possible-values state)]
+                  (controls/text value))))
 
 (defn root [view-context]
-  (conj {:local-state {:selected-value {:text "foo"}
-                       :possible-values #{{:text "b"}}}
+  (conj {:local-state {:selected-value nil
+                       :possible-values #{}}
          :view #'root-view}
         gui/child-focus-handlers))
 
