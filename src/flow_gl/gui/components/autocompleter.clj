@@ -120,6 +120,14 @@
 
 ;; Auto completer
 
+(defn select [local-state value]
+  ((:on-select local-state) value)
+  
+  (assoc local-state
+         :query nil
+         :selection nil
+         :results []))
+
 (defn auto-completer-view [view-context state]
   (l/vertically (gui/call-view text-editor
                                :query-editor
@@ -149,14 +157,11 @@
                                                                                                     (drawable/->Text (str ((:text-function state) result))
                                                                                                                      (font/create "LiberationSans-Regular.ttf" 15)
                                                                                                                      [0 0 0 255]))
+                                                                                             
                                                                                              (gui/on-mouse-event-with-view-context :mouse-clicked view-context
                                                                                                                                    (fn [state event]
-                                                                                                                                     (trace/log "mouse selection by clck" index state event)
-                                                                                                                                     (when-let [result (get (:results state)
-                                                                                                                                                            index)]
-                                                                                                                                       (async/>!! (:selection-channel state)
-                                                                                                                                                  result))
-                                                                                                                                     state))
+                                                                                                                                     (select state (get (:results state)
+                                                                                                                                                        index))))
 
                                                                                              (gui/on-mouse-event-with-view-context :on-mouse-enter view-context
                                                                                                                                    (fn [state event]
@@ -171,12 +176,13 @@
 
 
 
-(defn autocompleter [view-context text-function throttle]
+
+(defn autocompleter [view-context throttle]
   (let [query-channel (async/chan)
         state (conj {:local-state {:query nil
                                    :query-function nil
                                    :on-select nil
-                                   :text-function text-function
+                                   :text-function identity
                                    :results []
                                    :selected-value ""
                                    :selection nil
@@ -206,13 +212,9 @@
                                                                                                               (get (:results local-state)
                                                                                                                    (:selection local-state))
                                                                                                               (:query local-state))]
+                                                                                                  (select local-state value)
 
-                                                                                                  ((:on-select local-state) value)
-                                                                                                  
-                                                                                                  (assoc local-state
-                                                                                                         :query nil
-                                                                                                         :selection nil
-                                                                                                         :results []))))))}
+                                                                                                  )))))}
                     gui/child-focus-handlers)]
 
     
