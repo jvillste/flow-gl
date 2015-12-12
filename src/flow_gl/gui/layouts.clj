@@ -227,6 +227,86 @@
                                               0))
                      :width (reduce + (map :width child-sizes))})))
 
+(defn table-sizes [rows]
+  (loop [column-widths (vec (repeat (count (first rows)) 0))
+         row-heights []
+         rows rows]
+    (if-let [row (first rows)]
+      (let [[column-widths row-height]
+            (loop [column-number 0
+                   cells row
+                   column-widths column-widths
+                   row-height 0]
+              (if-let [cell (first cells)]
+                (let [preferred-size (layoutable/preferred-size cell
+                                                                java.lang.Integer/MAX_VALUE
+                                                                java.lang.Integer/MAX_VALUE)]
+                  
+                  (recur (inc column-number)
+                         (rest cells)
+                         (update-in column-widths [column-number] #(max % (:width preferred-size)))
+                         (max row-height (:height preferred-size))))
+                [column-widths
+                 row-height]))]
+        (recur column-widths
+               (conj row-heights row-height)
+               (rest rows)))
+      [column-widths
+       row-heights])))
+
+
+#_(table-sizes [[(flow-gl.gui.controls/text "foo") (flow-gl.gui.controls/text "foo")]
+              [(flow-gl.gui.controls/text "foo bar") (flow-gl.gui.controls/text "foo")]])
+
+(defn layout-row [layoutables y height widths]
+  (loop [layouted-layoutables []
+         x 0
+         layoutables layoutables
+         widths widths]
+    (if-let [layoutable (first layoutables)]
+      (recur (conj layouted-layoutables (layout/set-dimensions-and-layout layoutable
+                                                                          x
+                                                                          y
+                                                                          (first widths)
+                                                                          height))
+             (+ x (first widths))
+             (rest layoutables)
+             (rest widths))
+      layouted-layoutables)))
+
+#_(layout-row [(flow-gl.gui.controls/text "foo") (flow-gl.gui.controls/text "foo")]
+            0
+            10
+            [20 30])
+
+(layout/deflayout Table [children column-count]
+  (layout [this requested-width requested-height]
+          (assoc this :children
+                 (let [rows (partition column-count
+                                       children)
+                       [column-widths row-heights] (table-sizes rows)]
+                   (loop [rows rows
+                          row-heights row-heights
+                          y 0
+                          layouted-children []]
+                     (if-let [row (first rows)]
+                       (recur (rest rows)
+                              (rest row-heights)
+                              (+ y (first row-heights))
+                              (concat layouted-children
+                                      (layout-row row
+                                                  y
+                                                  (first row-heights)
+                                                  column-widths)))
+                       layouted-children)))))
+
+  (preferred-size [this available-width available-height]
+                  (let [rows (partition column-count
+                                        children)
+                        [column-widths row-heights] (table-sizes rows)]
+                    {:height (reduce + row-heights)
+                     :width (reduce + column-widths)})))
+
 
 
 (defn flow-row [layoutables maximum-width]

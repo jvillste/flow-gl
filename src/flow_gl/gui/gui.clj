@@ -336,7 +336,7 @@
 
 
 (defn layout-to-partitions [gpu-state]
-  (if true #_(render-target-must-be-recreated gpu-state)
+  (if #_true (render-target-must-be-recreated gpu-state)
       (assoc gpu-state
              :partitions [(assoc (:layout gpu-state)
                                  :stenciled true)]
@@ -1164,10 +1164,9 @@
   (is (= {:children [{:children [{} {}]}]}
          (children-to-vectors {:children (list {:children (list {} {})})}))))
 
-
-
 (defn start-app
-  ([app] (start-app app nil))
+  ([app]
+   (start-app app nil))
   
   ([app awt-init]
    (-> {}

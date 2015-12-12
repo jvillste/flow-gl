@@ -122,6 +122,8 @@ Render tree transformer node
 TODO
 -----
 
+Make layouts implement a protocol for getting the children instead of requiring each record to have a children key.
+
 Make autocompleter send selected text instead of simple :select -command
 Make partial screen drawing work with out-of-layout elements
 Make focus work with out of layout elements
@@ -164,3 +166,5 @@ event-loop
 query-go-block
 query-execution-thread
 seleciton-go-block
+
+

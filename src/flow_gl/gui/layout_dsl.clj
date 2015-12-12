@@ -5,10 +5,10 @@
   (let [implementation-symbol (symbol (str (name helper-name) "-implementation"))]
     `(do (defn ~implementation-symbol ~parameters ~@body)
          (defmacro ~helper-name [& args#]
-             `(when-let [~'value# (~~implementation-symbol ~@args#)]
-                (with-meta ~'value#
-                  ~(assoc (meta ~'&form)
-                          :file *file*))))
+           `(when-let [~'value# (~~implementation-symbol ~@args#)]
+              (with-meta ~'value#
+                ~(assoc (meta ~'&form)
+                        :file *file*))))
          (alter-meta! (var ~helper-name) assoc :arglists (:arglists (meta (var ~implementation-symbol)))))))
 
 (defn flatten-contents [values]
@@ -54,4 +54,14 @@
   (layouts/->FloatLeft [left right]))
 
 (def-dsl float-top [top bottom]
-  (layouts/->FloatLeft [top bottom]))
+  (layouts/->FloatTop [top bottom]))
+
+(def-dsl table [margin-size rows]
+  (layouts/->Table (->> rows
+                        (apply concat)
+                        (map #(margin margin-size
+                                      margin-size
+                                      margin-size
+                                      margin-size
+                                      %))) 
+                   (count (first rows))))

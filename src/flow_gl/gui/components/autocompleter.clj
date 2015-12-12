@@ -177,7 +177,7 @@
 
 
 
-(defn autocompleter [view-context throttle]
+(defn autocompleter [view-context throttle-delay]
   (let [query-channel (async/chan)
         state (conj {:local-state {:query nil
                                    :query-function nil
@@ -212,13 +212,11 @@
                                                                                                               (get (:results local-state)
                                                                                                                    (:selection local-state))
                                                                                                               (:query local-state))]
-                                                                                                  (select local-state value)
-
-                                                                                                  )))))}
+                                                                                                  (select local-state value))))))}
                     gui/child-focus-handlers)]
 
     
-    (async/go (let [[throttled-query unthrottled-query] (csp/throttle query-channel throttle)]
+    (async/go (let [[throttled-query unthrottled-query] (csp/throttle query-channel throttle-delay)]
                 (loop []
                   (async/alt! (:control-channel view-context) ([_] (println "exiting auto completer process"))
                               throttled-query ([[query-function query]]
