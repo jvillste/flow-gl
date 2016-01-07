@@ -138,7 +138,8 @@
 
     (debug/add-timed-entry :call-id call-id
                            :result nil)
-    nil))
+    (last arguments)))
+
 
 
 (defn  untrace-var
@@ -443,42 +444,47 @@
 
 
 (defn call-view [view-context state call]
-  (l/vertically (l/horizontally (l/minimum-size 25 0 (if (> (count (:child-calls call)) 0)
-                                                       (open-button view-context state (:call-id call) (count (:child-calls call)))
-                                                       (drawable/->Empty 0 0)))
+  (let [character-width (:width (layoutable/preferred-size (controls/text "0")
+                                                           java.lang.Integer/MAX_VALUE
+                                                           java.lang.Integer/MAX_VALUE))]
+    (l/vertically (l/horizontally (l/minimum-size (* 4 character-width) 0
+                                                    (if (> (count (:child-calls call)) 0)
+                                                      (open-button view-context state (:call-id call) (count (:child-calls call)))
+                                                      (drawable/->Empty 0 0)))
 
-                                (l/minimum-size 40 0 (text-cell (- (:call-ended call)
-                                                                   (:call-started call))))
+                                  (l/minimum-size (* 5 character-width) 0
+                                                  (text-cell (- (:call-ended call)
+                                                                (:call-started call))))
 
-                                (text-cell (str "("
-                                                (if-let [function-symbol (:function-symbol call)]
-                                                  (str (name function-symbol) " ")
-                                                  "")))
-                                (for [argument (:arguments call)]
-                                  (-> (text-cell (value-string argument) (if (= argument
-                                                                                (:selected-value state))
-                                                                           selected-value-color
-                                                                           default-color))
-                                      (gui/on-mouse-clicked-with-view-context view-context
-                                                                              (fn [state event]
-                                                                                (assoc state :selected-value argument)))))
-                                (text-cell ")")
-                                (when (:function-symbol call)
-                                  (-> (text-cell (str " -> " (value-string (or (:exception call)
-                                                                               (:result call))))
-                                                 (if (= (or (:exception call)
-                                                            (:result call))
-                                                        (:selected-value state))
-                                                   selected-value-color
-                                                   default-color))
-                                      (gui/on-mouse-clicked-with-view-context view-context
-                                                                              (fn [state event]
-                                                                                (assoc state :selected-value (or (:exception call)
-                                                                                                                 (:result call))))))))
-                (when ((:open-calls state) (:call-id call))
-                  (l/margin 0 0 0 20
-                            (l/vertically (for [child (:child-calls call)]
-                                            (call-view view-context state child)))))))
+                                  (text-cell (str "("
+                                                  (if-let [function-symbol (:function-symbol call)]
+                                                    (str (name function-symbol) " ")
+                                                    "")))
+                                  (for [argument (:arguments call)]
+                                    (-> (text-cell (value-string argument) (if (= argument
+                                                                                  (:selected-value state))
+                                                                             selected-value-color
+                                                                             default-color))
+                                        (gui/on-mouse-clicked-with-view-context view-context
+                                                                                (fn [state event]
+                                                                                  (assoc state :selected-value argument)))))
+                                  (text-cell ")")
+                                  (when (:function-symbol call)
+                                    (-> (text-cell (str " -> " (value-string (or (:exception call)
+                                                                                 (:result call))))
+                                                   (if (= (or (:exception call)
+                                                              (:result call))
+                                                          (:selected-value state))
+                                                     selected-value-color
+                                                     default-color))
+                                        (gui/on-mouse-clicked-with-view-context view-context
+                                                                                (fn [state event]
+                                                                                  (assoc state :selected-value (or (:exception call)
+                                                                                                                   (:result call))))))))
+                  (when ((:open-calls state) (:call-id call))
+                    (l/margin 0 0 0 20
+                              (l/vertically (for [child (:child-calls call)]
+                                              (call-view view-context state child))))))))
 
 
 
@@ -489,10 +495,13 @@
                                                                    (fn [state event]
                                                                      (async/put! (:input-channel state) {:clear-trace true})
                                                                      (assoc state :selected-value nil))))
-                       (layouts/->FloatLeft [(gui/call-view controls/scroll-panel :call-scroll-panel {:content (l/vertically (for [root-call (:root-calls trace)]
-                                                                                                                               (when (not ((:hidden-threads state) (:thread root-call)))
-                                                                                                                                 (l/horizontally (l/minimum-size 40 0 (text-cell (:thread root-call)))
-                                                                                                                                                 (call-view view-context state root-call)))))})
+                       (layouts/->FloatLeft [(gui/call-view controls/scroll-panel
+                                                            :call-scroll-panel
+                                                            {:content (l/vertically
+                                                                       (for [root-call (:root-calls trace)]
+                                                                         (when (not ((:hidden-threads state) (:thread root-call)))
+                                                                           (l/horizontally (l/minimum-size 40 0 (text-cell (:thread root-call)))
+                                                                                           (call-view view-context state root-call)))))})
                                              (l/float-left (l/margin 0 3 0 3 (drawable/->Rectangle 3 10 [255 255 255 255]))
                                                            (gui/call-view value-inspector :value-inspector {:value (:selected-value state)}))])]))
 

@@ -1081,7 +1081,7 @@
                             (apply-with-gl-beforehand)
                             (app)
                             (add-layout-afterwards)
-                            (add-global-coordinates)
+                            #_(add-global-coordinates)
                             (remove-unused-child-states-afterwards)))
                       state
                       events)]
@@ -1149,15 +1149,21 @@
 (defrecord ViewCall [constructor child-id state-overrides constructor-parameters constructor-overrides])
 
 
-(defn children-to-vectors [layoutable]
-  (if-let [children (:children layoutable)]
-    (loop [children children
-           processed-children []]
-      (if-let [child (first children)]
-        (recur (rest children)
-               (conj processed-children (children-to-vectors child)))
-        (assoc layoutable :children processed-children)))
-    layoutable))
+(defn children-to-vectors
+  ([layoutable]
+   (children-to-vectors layoutable nil))
+  
+  ([layoutable cache]
+   (if-let [children (:children layoutable)]
+     (loop [children children
+            processed-children []]
+       (if-let [child (first children)]
+         (recur (rest children)
+                (conj processed-children (if cache
+                                           (cache/call-with-cache-atom cache children-to-vectors child cache)
+                                           (children-to-vectors child nil))))
+         (assoc layoutable :children processed-children)))
+     layoutable)))
 
 
 (deftest children-to-vectors-test
@@ -1256,9 +1262,10 @@
 (declare resolve-view-calls)
 
 (defn resolve-size-dependent-view-calls [view-context state layoutable]
-  (let [layoutable (-> layoutable
-                       add-layout-paths
-                       children-to-vectors)
+  (let [layoutable (->> layoutable
+                        add-layout-paths
+                        (cache/call-with-cache-atom (:cache state)
+                                                    children-to-vectors))
         children-path (concat (:state-path view-context) [:children])
         children (get-in state children-path)
         [children layoutable] (resolve-view-calls (:cache state)
@@ -1301,12 +1308,10 @@
     (preferred-size [this available-width available-height]
                     (layoutable/preferred-size preferred-child available-width available-height)))
 
-(defn run-view [view view-context state]
-
-  (let [layoutable (view view-context state)]
-    (-> layoutable
-        (add-layout-paths)
-        (children-to-vectors))))
+(defn run-view [cache view view-context state]
+  (-> (view view-context state)
+      (add-layout-paths)
+      (children-to-vectors cache)))
 
 (defn call-constructor [view-context constructor constructor-parameters constructor-overrides]
   (let [control-channel (async/chan)
@@ -1349,6 +1354,7 @@
         
         layoutable (cache/call-with-cache-atom cache
                                                run-view
+                                               cache
                                                (:view view-state)
                                                view-context
                                                (:local-state view-state))
@@ -1451,6 +1457,8 @@
               :layoutable layoutable
               :sleep-time (get-in application-state [:children :child-states :root :sleep-time]))))))
 
+
+
 (defn start-control
   ([control]
    (start-control control nil))
@@ -1459,6 +1467,14 @@
    (start-app (control-to-application control)
               awt-init)))
 
+(def last-started-channel (atom nil))
+
+(defn start-redrawable-control [control]
+  (reset! last-started-channel (start-control control)))
+
+(defn redraw-last-started-redrawable-control []
+  (when @last-started-channel
+    (redraw-app @last-started-channel)))
 
 (defn create-apply-to-view-state-event [function]
   {:type :apply-to-view-state

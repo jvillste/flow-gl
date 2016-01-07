@@ -65,3 +65,9 @@
                                       margin-size
                                       %))) 
                    (count (first rows))))
+
+(def-dsl fixed-size [width height content]
+  (when content
+    (layouts/->FixedSize width
+                         height
+                         [content])))

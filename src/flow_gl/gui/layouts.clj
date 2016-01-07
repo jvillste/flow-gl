@@ -332,7 +332,7 @@
        :height height
        :unused-layoutables remaining-layoutables})))
 
-(defn layout-row [layoutables y height]
+(defn layout-flow-row [layoutables y height]
   (loop [x 0
          layoutables layoutables
          layouted-layoutables []]
@@ -359,7 +359,7 @@
                         children children]
                    (if (seq children)
                      (let [row (flow-row children requested-width)]
-                       (recur (concat layouted-layoutables (layout-row (:row-layoutables row)
+                       (recur (concat layouted-layoutables (layout-flow-row (:row-layoutables row)
                                                                        y
                                                                        (:height row)))
                               (+ y

@@ -66,6 +66,7 @@
                                                                                 (font/create "LiberationMono-Regular.ttf"
                                                                                              45)
                                                                                 [#_(* (/ (mod (:frame-started view-context)
+
                                                                                               1000)
                                                                                          1000)
                                                                                       255)

@@ -269,8 +269,7 @@
         gui/child-focus-handlers))
 
 (defn start []
-  (.start (Thread. (fn []
-                       (gui/start-control root))))
+  (gui/start-control root)
 
   #_(.start (Thread. (fn []
                      (trace/trace-ns 'examples.autocompleter)

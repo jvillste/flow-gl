@@ -37,7 +37,7 @@
 (defn text-editor-view [view-context state]
   (if (:view state)
     ((:view state) view-context state)
-    (layouts/->Box 10 [(drawable/->Rectangle 0
+    (layouts/->Box 2 [(drawable/->Rectangle 0
                                              0
                                              (cond
                                                (:has-focus state) [255 255 255 255]
@@ -51,7 +51,7 @@
   {:local-state {:text "haa"}
    :handle-keyboard-event (create-text-editor-keyboard-event-handler view-context)
    :can-gain-focus true
-   :view text-editor-view})
+   :view #'text-editor-view})
 
 
 (defn text
@@ -151,8 +151,6 @@
     (layoutable/preferred-size (first children)
                                available-width available-height)))
 
-
-
 (defn scroll-panel-view [view-context state]
   (assoc (->ScrollPanel view-context state [(:content state)])
          :size-dependent? true))
@@ -161,8 +159,6 @@
   {:local-state {:scroll-position-x 0
                  :scroll-position-y 0}
    :view #'scroll-panel-view})
-
-
 
 (defn button [view-context text-value disabled handler]
   (layouts/->Box 10 [(->  (drawable/->Rectangle 0

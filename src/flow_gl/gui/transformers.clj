@@ -28,7 +28,7 @@
     (render-target/create width height gl)))
 
 
-  (def clip-fragment-shader-source "
+  (def textured-fragment-shader-source "
   #version 140
 
   in vec2 texture_coordinate;
@@ -38,8 +38,7 @@
   out vec4 outColor;
 
   void main() {
-  vec4 color = texture(texture, texture_coordinate);
-  outColor = vec4(color.r, color.g, color.b, color.a);
+  outColor = texture(texture, texture_coordinate);
   }
 ")
 
@@ -55,13 +54,43 @@
                                                                                                                             :x 0
                                                                                                                             :y 0)))
                                                                (gui/render-drawables)))]
+                    [(assoc (drawable/->Quad ["texture" (:texture render-target-1)]
+                                             []
+                                             textured-fragment-shader-source
+                                             (:x layout) (:y layout) width height)
+                            :content-hash (hash layout))
+                     gpu-state
+                     (assoc state
+                            :render-target render-target-1)]))
+   
+   :destructor (fn [state gl]
+                 (when-let [render-target (:render-target state)]
+                   (render-target/delete render-target gl)))})
+
+
+
+(def cache
+  {:transformer (fn [layout gpu-state state]
+                  (let [gl (:gl gpu-state)
+                        width (:width layout)
+                        height (:height layout)
+                        render-target-1 (ensure-render-target (:render-target state) width height gl)
+                        gpu-state (if (= layout (:previous-layout state))
+                                    gpu-state
+                                    (render-target/render-to render-target-1 gl
+                                                             (opengl/clear gl 0 0 0 0)
+                                                             (-> (assoc gpu-state :drawables (gui/drawables-for-layout (assoc layout
+                                                                                                                              :x 0
+                                                                                                                              :y 0)))
+                                                                 (gui/render-drawables))))]
                     
                     [(drawable/->Quad ["texture" (:texture render-target-1)]
                                       []
-                                      clip-fragment-shader-source
+                                      textured-fragment-shader-source
                                       (:x layout) (:y layout) width height)
                      gpu-state
                      (assoc state
+                            :previous-layout layout
                             :render-target render-target-1)]))
    
    :destructor (fn [state gl]
@@ -92,11 +121,11 @@
                                                (gui/render-drawables)))]
     
     [(assoc (drawable/->Quad ["texture" (:texture render-target)]
-                       [:1f "resolution" width
-                        :1f "radius" radius
-                        :2f "dir" [1.0 0.0]]
-                       quad/blur-fragment-shader-source
-                       (:x layout) (:y layout) width height)
+                             [:1f "resolution" width
+                              :1f "radius" radius
+                              :2f "dir" [1.0 0.0]]
+                             quad/blur-fragment-shader-source
+                             (:x layout) (:y layout) width height)
             :layout-hash (hash layout))
 
      gpu-state
