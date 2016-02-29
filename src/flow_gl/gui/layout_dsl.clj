@@ -1,5 +1,6 @@
 (ns flow-gl.gui.layout-dsl
-  (:require (flow-gl.gui [layouts :as layouts])))
+  (:require (flow-gl.gui [layouts :as layouts])
+            ))
 
 (defmacro def-dsl [helper-name parameters & body]
   (let [implementation-symbol (symbol (str (name helper-name) "-implementation"))]
@@ -65,6 +66,18 @@
                                       margin-size
                                       %))) 
                    (count (first rows))))
+
+(def-dsl static-table [margin-size rows]
+  
+  (layouts/->StaticTable (->> rows
+                              (apply concat)
+                              (map #(margin margin-size
+                                            margin-size
+                                            margin-size
+                                            margin-size
+                                            %))) 
+                         (count (first rows))))
+
 
 (def-dsl fixed-size [width height content]
   (when content

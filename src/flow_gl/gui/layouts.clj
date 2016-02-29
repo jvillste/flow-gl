@@ -256,28 +256,30 @@
 
 
 #_(table-sizes [[(flow-gl.gui.controls/text "foo") (flow-gl.gui.controls/text "foo")]
-              [(flow-gl.gui.controls/text "foo bar") (flow-gl.gui.controls/text "foo")]])
+                [(flow-gl.gui.controls/text "foo bar") (flow-gl.gui.controls/text "foo")]])
 
 (defn layout-row [layoutables y height widths]
-  (loop [layouted-layoutables []
-         x 0
-         layoutables layoutables
-         widths widths]
-    (if-let [layoutable (first layoutables)]
-      (recur (conj layouted-layoutables (layout/set-dimensions-and-layout layoutable
-                                                                          x
-                                                                          y
-                                                                          (first widths)
-                                                                          height))
-             (+ x (first widths))
-             (rest layoutables)
-             (rest widths))
-      layouted-layoutables)))
+  (let [default-width (last widths)]
+    (loop [layouted-layoutables []
+           x 0
+           layoutables layoutables
+           widths widths]
+      (if-let [layoutable (first layoutables)]
+        (recur (conj layouted-layoutables (layout/set-dimensions-and-layout layoutable
+                                                                            x
+                                                                            y
+                                                                            (or (first widths)
+                                                                                default-width)
+                                                                            height))
+               (+ x (first widths))
+               (rest layoutables)
+               (rest widths))
+        layouted-layoutables))))
 
 #_(layout-row [(flow-gl.gui.controls/text "foo") (flow-gl.gui.controls/text "foo")]
-            0
-            10
-            [20 30])
+              0
+              10
+              [20 30])
 
 (layout/deflayout Table [children column-count]
   (layout [this requested-width requested-height]
@@ -306,6 +308,110 @@
                         [column-widths row-heights] (table-sizes rows)]
                     {:height (reduce + row-heights)
                      :width (reduce + column-widths)})))
+
+(defn static-table-layout [this requested-width requested-height
+                           rows column-widths row-height]
+  (assoc this :children
+         (loop [rows rows
+                y 0
+                layouted-children []]
+           (if-let [row (first rows)]
+             (recur (rest rows)
+                    (+ y row-height)
+                    (concat layouted-children
+                            (layout-row row
+                                        y
+                                        row-height
+                                        column-widths)))
+             layouted-children))))
+
+(defn static-table-preferred-size [this available-width available-height
+                                   rows column-widths row-height]
+  {:height (* (count rows)
+              row-height)
+   ;;(reduce + row-heights)
+   :width (reduce + column-widths)})
+
+(defn static-table-children-in-coordinates [rows row-height column-widths x y]
+  (let [row (int (/ y row-height))
+        column (loop [column-x 0
+                      column 0]
+                 (let [column-width (nth column-widths
+                                         column)]
+                   (if (< x
+                          (+ column-x
+                             column-width))
+                     column
+                     (recur (+ column-x
+                               column-width)
+                            (inc column)))))]
+    
+    [(+ (* row (count (first rows)))
+        column)]))
+
+(deftest static-table-children-in-coordinates-test
+  (is (= [0]
+         (static-table-children-in-coordinates [[1 2 3]] 10 [10 10 10] 5 5)))
+
+  (is (= [1]
+         (static-table-children-in-coordinates [[1 2 3]] 10 [10 10 10] 15 5)))
+
+  (is (= [4]
+         (static-table-children-in-coordinates [[1 2 3]] 10 [10 10 10] 15 15))))
+
+(run-tests)
+
+(defrecord StaticTable [rows column-widths row-height]
+  layout/Layout
+  (layout [layoutable state requested-width requested-height]
+    (binding [layout/current-state-atom (atom state)]
+      (let [layout (cache/call-with-cache-atom layout/cache static-table-layout
+                                               layoutable requested-width requested-height
+                                               rows column-widths row-height)]
+        [@layout/current-state-atom
+         layout])))
+
+  (children [this]
+    (apply concat rows))
+
+  layoutable/Layoutable
+  (layoutable/preferred-size [this available-width available-height]
+    (cache/call-with-cache-atom layout/cache static-table-preferred-size this available-width available-height
+                                rows column-widths row-height))
+
+  layout/SpatialIndex
+  (children-in-coordinates [this x y]
+    (static-table-children-in-coordinates rows row-height column-widths x y)))
+
+#_(layout/deflayout StaticTable [children column-count column-widths row-heights]
+    (layout [this requested-width requested-height]
+            (assoc this :children
+                   (let [rows (partition column-count
+                                         children)
+                         default-height (last row-heights)]
+                     (loop [rows rows
+                            row-heights row-heights
+                            y 0
+                            layouted-children []]
+                       (if-let [row (first rows)]
+                         (recur (rest rows)
+                                (rest row-heights)
+                                (+ y (first row-heights))
+                                (concat layouted-children
+                                        (layout-row row
+                                                    y
+                                                    (or (first row-heights)
+                                                        default-height)
+                                                    column-widths)))
+                         layouted-children)))))
+
+    ;; TODO: handle the case when there is more rows or columns than row heights and column widths
+    (preferred-size [this available-width available-height]
+                    {:height (* (mod (count children)
+                                     column-count)
+                                (first row-heights))
+                     ;;(reduce + row-heights)
+                     :width (reduce + column-widths)}))
 
 
 
@@ -360,8 +466,8 @@
                    (if (seq children)
                      (let [row (flow-row children requested-width)]
                        (recur (concat layouted-layoutables (layout-flow-row (:row-layoutables row)
-                                                                       y
-                                                                       (:height row)))
+                                                                            y
+                                                                            (:height row)))
                               (+ y
                                  (:height row))
                               (:unused-layoutables row)))

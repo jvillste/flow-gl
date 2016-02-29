@@ -211,7 +211,6 @@
                 layout-2)
           partitions-to-be-cleared)]))))
 
-
 (defn drawables-for-layout
   ([layout]
    (drawables-for-layout layout 0 0 [] []))
@@ -336,7 +335,7 @@
 
 
 (defn layout-to-partitions [gpu-state]
-  (if #_true (render-target-must-be-recreated gpu-state)
+  (if true #_(render-target-must-be-recreated gpu-state)
       (assoc gpu-state
              :partitions [(assoc (:layout gpu-state)
                                  :stenciled true)]
@@ -1262,10 +1261,9 @@
 (declare resolve-view-calls)
 
 (defn resolve-size-dependent-view-calls [view-context state layoutable]
-  (let [layoutable (->> layoutable
-                        add-layout-paths
-                        (cache/call-with-cache-atom (:cache state)
-                                                    children-to-vectors))
+  (let [layoutable (-> layoutable
+                       add-layout-paths
+                       (children-to-vectors (:cache state)))
         children-path (concat (:state-path view-context) [:children])
         children (get-in state children-path)
         [children layoutable] (resolve-view-calls (:cache state)
@@ -1468,6 +1466,7 @@
               awt-init)))
 
 (def last-started-channel (atom nil))
+
 
 (defn start-redrawable-control [control]
   (reset! last-started-channel (start-control control)))

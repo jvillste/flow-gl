@@ -38,14 +38,14 @@
   (if (:view state)
     ((:view state) view-context state)
     (layouts/->Box 2 [(drawable/->Rectangle 0
-                                             0
-                                             (cond
-                                               (:has-focus state) [255 255 255 255]
-                                               (:mouse-over state) [250 250 250 255]
-                                               :default [230 230 230 255]))
-                       (drawable/->Text (or (:text state) "")
-                                        (font/create "LiberationSans-Regular.ttf" 12)
-                                        [0 0 0 255])])))
+                                            0
+                                            (cond
+                                              (:has-focus state) [255 255 255 255]
+                                              (:mouse-over state) [250 250 250 255]
+                                              :default [230 230 230 255]))
+                      (drawable/->Text (or (:text state) "")
+                                       (font/create "LiberationSans-Regular.ttf" 12)
+                                       [0 0 0 255])])))
 
 (defn text-editor [view-context]
   {:local-state {:text "haa"}
@@ -83,7 +83,7 @@
                              (-> (l/superimpose (-> (layouts/->Margin (- (:scroll-position-y state)) 0 0 (- (:scroll-position-x state))
                                                                       [(l/preferred (first children))])
                                                     #_(assoc :transformer (assoc transformers/clip
-                                                                               :id :transformer-2)))
+                                                                                 :id :transformer-2)))
                                                 (when true #_(:mouse-over state)
                                                       (l/absolute (when (< requested-height preferred-height)
                                                                     (let [scroll-bar-length (* requested-height
@@ -188,6 +188,8 @@
                                           (if (get parent-state key)
                                             [0 0 0 255]
                                             [200 200 200 255]))]))
+
+
 
 
 

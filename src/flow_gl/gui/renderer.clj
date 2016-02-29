@@ -34,9 +34,12 @@
         renderer
         (recur (rest renderers))))))
 
+(defn group-by-renderers [renderers drawables]
+  (group-by (partial select-renderer renderers)
+            drawables))
+
 (defn render-drawables-with-renderers [drawables gl renderers]
-  (let [batches (group-by (partial select-renderer renderers)
-                          drawables)]
+  (let [batches (group-by-renderers renderers drawables)]
     (loop [renderers renderers
            rendered-renderers []]
       (if-let [renderer (first renderers)]

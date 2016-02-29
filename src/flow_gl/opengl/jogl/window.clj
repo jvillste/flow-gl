@@ -148,7 +148,8 @@
 
                                  #_(async/go (async/>! event-channel
                                                        (events/create-resize-requested-event (.getWidth window)
-                                                                                             (.getHeight window)))))))))
+                                                                                             (.getHeight window)))))
+                               ))))
 
      (doto window
        (.addGLEventListener (proxy [GLEventListener] []

@@ -5,7 +5,19 @@
   (:use clojure.test))
 
 (defprotocol Layout
-  (layout [layout state requested-width requested-height]))
+  (layout [layout state requested-width requested-height])
+  (children [layout]))
+
+(extend Object
+  Layout {:layout (fn [this state requested-width requsested-height]
+                    [state this])
+          :children (fn [this] (:children this))})
+
+(defprotocol PruningLayout
+  (pruned-layout [layout state requested-width requested-height min-x min-y max-x max-y]))
+
+(defprotocol SpatialIndex
+  (children-in-coordinates [layout x y]))
 
 (def ^:dynamic cache)
 
@@ -121,12 +133,12 @@
   [pred coll]
   (for [[idx elt] (indexed coll) :when (pred elt)] idx))
 
-(defn children-in-coordinates [layout x y]
-  (for [child-index (positions (partial in-coordinates x y) (:children layout))]
-    (let [child (get-in layout [:children child-index])]
-      (cons child-index (children-in-coordinates child
-                                                 (-  x (:x child))
-                                                 (-  y (:y child)))))))
+#_(defn children-in-coordinates [layout x y]
+    (for [child-index (positions (partial in-coordinates x y) (:children layout))]
+      (let [child (get-in layout [:children child-index])]
+        (cons child-index (children-in-coordinates child
+                                                   (-  x (:x child))
+                                                   (-  y (:y child)))))))
 
 
 
@@ -146,9 +158,11 @@
         => '(:children 0 :children 0))
 
 (defn layout-index-paths-in-coordinates [layout parent-path x y z paths]
-  (let [child-indexes (positions (fn [child] (or (in-coordinates x y child)
-                                                 (:has-children-out-of-layout child)))
-                                 (:children layout))]
+  (let [child-indexes (if (satisfies? SpatialIndex layout)
+                        (children-in-coordinates layout x y)
+                        (positions (fn [child] (or (in-coordinates x y child)
+                                                   (:has-children-out-of-layout child)))
+                                   (:children layout)))]
     (if (empty? child-indexes)
       (if (in-coordinates (+  x (:x layout))
                           (+  y (:y layout))

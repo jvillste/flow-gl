@@ -4,7 +4,7 @@
   :dependencies [[net.mikera/core.matrix "0.33.2"]
                  [prismatic/schema "0.4.0"]
                  [com.taoensso/timbre "3.3.1"]
-                 [org.clojure/clojure "1.6.0"]
+                 [org.clojure/clojure "1.7.0"]
                  [org.clojure/tools.trace "0.7.6"]
                  [org.lwjgl/lwjgl "2.7.1"]
                  [org.lwjgl/lwjgl-util "2.7.1"]
