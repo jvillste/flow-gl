@@ -20,14 +20,15 @@
             (flow-gl.graphics [font :as font]
                               [buffered-image :as buffered-image])
             [flow-gl.debug :as debug]
-            [schema.core :as s])
+            [schema.core :as s]
+            [taoensso.timbre.profiling :as timbre-profiling]
+            )
   (:import [java.io File]
            [java.util.concurrent Executors]
            [java.lang Runnable]
            [java.nio ByteBuffer])
   (:use flow-gl.utils
         clojure.test))
-
 
 (defn create-state-path-part [child-id]
   [:children :child-states child-id])
@@ -335,7 +336,7 @@
 
 
 (defn layout-to-partitions [gpu-state]
-  (if true #_(render-target-must-be-recreated gpu-state)
+  (if #_true (render-target-must-be-recreated gpu-state)
       (assoc gpu-state
              :partitions [(assoc (:layout gpu-state)
                                  :stenciled true)]
@@ -459,6 +460,8 @@
                                                                        (keys transformer-states))))]
     (assoc gpu-state :layout layout)))
 
+
+
 (defn render-frame [gpu-state]
   (-> gpu-state
       (start-frame)
@@ -475,7 +478,7 @@
       (swap-buffers)))
 
 (defn render-drawables-afterwards [state]
-  (async/>!! (:with-gl-channel state)
+  (async/>!! (:with-gl-sliding-channel state)
              {:function render
               :arguments [(:layout state)]})
 
@@ -1096,7 +1099,7 @@
         initial-state (-> initial-state
                           (assoc-in [:common-view-context :event-channel] event-channel)
                           (assoc :with-gl-channel (async/chan)
-                                 :with-gl-dropping-channel (async/chan (async/dropping-buffer 1))))]
+                                 :with-gl-sliding-channel (async/chan (async/sliding-buffer 1))))]
 
     ;; use async/thread to inherit bindings such as flow-gl.debug/dynamic-debug-channel
     (async/thread (try (loop [state initial-state]
@@ -1105,7 +1108,7 @@
 
                          (if (:close-requested state)
                            (do (async/close! (:with-gl-channel initial-state))
-                               (async/close! (:with-gl-dropping-channel initial-state))
+                               (async/close! (:with-gl-sliding-channel initial-state))
                                (window/close (:window state)))
 
                            (let [events (-> (csp/drain (window/event-channel (:window state))
@@ -1123,11 +1126,11 @@
                          (throw e))))
 
     (async/thread (try (loop [gpu-state (initialize-gpu-state (:window initial-state))]
-                         (async/alt!! (:with-gl-dropping-channel initial-state) ([{:keys [function arguments]}]
-                                                                                 (when function (recur (window/with-gl (:window initial-state) gl
-                                                                                                         (apply function
-                                                                                                                (assoc gpu-state :gl gl)
-                                                                                                                arguments)))))
+                         (async/alt!! (:with-gl-sliding-channel initial-state) ([{:keys [function arguments]}]
+                                                                                (when function (recur (window/with-gl (:window initial-state) gl
+                                                                                                        (apply function
+                                                                                                               (assoc gpu-state :gl gl)
+                                                                                                               arguments)))))
 
                                       (:with-gl-channel initial-state) ([{:keys [function arguments]}]
                                                                         (when function (recur (window/with-gl (:window initial-state) gl
@@ -1454,7 +1457,6 @@
               :children children
               :layoutable layoutable
               :sleep-time (get-in application-state [:children :child-states :root :sleep-time]))))))
-
 
 
 (defn start-control

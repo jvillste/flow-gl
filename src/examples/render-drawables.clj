@@ -3,6 +3,7 @@
             [flow-gl.utils :as utils]
             [flow-gl.tools.trace :as trace]
             [flow-gl.csp :as csp]
+            [flow-gl.profiling :as p]
             (flow-gl.gui [drawable :as drawable]
                          [layout :as layout]
                          [layouts :as layouts]
@@ -50,8 +51,8 @@
 
 (defn root-view [view-context state]
   (l/preferred (l/table 5
-                        (for [y (range 20)]
-                          (for [x (range 20)]
+                        (for [y (range 10)]
+                          (for [x (range 10)]
                             (-> (gui/call-view controls/text-editor [:editor x y])
                                 (update-in [:state-overrides]
                                            assoc
@@ -75,7 +76,7 @@
 
 (trace/untrace-ns 'flow-gl.gui.layout)
 
-(trace/untrace-ns 'flow-gl.gui.gui)
+(trace/trace-ns 'flow-gl.gui.gui)
 (trace/trace-var 'gui/render-drawables-with-renderers)
 
 (trace/untrace-ns 'flow-gl.gui.renderer)
@@ -94,8 +95,14 @@
 (defn start []
   #_(gui/start-redrawable-control root)
 
-  (trace/with-trace
-    (gui/start-control root))
+
+  (p/profile-ns 'flow-gl.gui.gui)
+  (p/profile-ns 'flow-gl.gui.renderer)
+
+  
+  (gui/start-control root)
+  #_(trace/with-trace
+      (gui/start-control root))
 
   #_(test)
   #_(test)
