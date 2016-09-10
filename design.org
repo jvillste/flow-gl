@@ -1,0 +1,65 @@
+* Layout
+
+(defprotocol Layout
+  (layout [layout state requested-width requested-height])
+
+  (children [layout]))
+
+(defprotocol Layoutable
+  (preferred-size [this available-width available-height]))
+
+** Layout gets the applicaiton state as a parameter and returns a new state along the layout so that it can instantiate child compnents based on the available width and height. Most layouts are not "size dependent" and thus do not need to modify the application state.
+
+* Rendering
+
+** Renderers
+
+(defprotocol Renderer
+  (can-draw? [this drawable])
+
+  (draw-drawables [this drawables gl])
+
+  (start-frame [this gl])
+
+  (end-frame [this gl])
+
+  (delete [this gl]))
+
+** Drawables
+
+(defprotocol Java2DDrawable
+  (draw [this graphics]))
+
+(defprotocol NanoVGDrawable
+  (draw-nanovg [this nanovg]))
+
+(defprotocol TriangleListDrawable
+  (triangles [this]))
+
+** Transformers
+
+(defprotocol Transformer
+  (transform [this gpu-state drawables x y width height]))
+
+*** Example
+
+A Filter -transformer renders drawables on a frame buffer object and returns a textured quad that is rendered with a fragment shader for example to apply a blur on all of the drawables.
+
+https://www.youtube.com/watch?v=109yVjGUFUs&list=PLhYdcB_7fSYg_JZtMHBLLzMoqbStNgMjK&index=2
+
+* Sourcemaps from render tree to the code that produced it
+** Layouts and drawables are called through a macro that attaches line and column numbers to the render tree. The resulting image can be clicked to see what code produced the clicked element.
+* State
+** All state in one map
+** Components use lenses/cursors to read and modify their own state
+** I think reagent's reactive atoms are simpler
+*** Layout's would not need to be able to modify the application state during the layout because each component's local state would be in separate atoms.
+* Concurrency
+** core.async
+* Datomic and datascript
+** Pull part's of the datomic db to the client as a datascipt db.
+** Render the ui based on the local db.
+** Create a transaction and apply to the local db.
+** When the user want's to commit, send the transaction to the server.
+*** Optimistic locking can be implemented by sending the last seen transaction number among the transaction statements.
+*** To implement security and other constraints there should be "commands" that are shared betwheen the client and server as portable clojure code and applied on each side to the local db.
