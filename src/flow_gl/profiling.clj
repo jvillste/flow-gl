@@ -4,15 +4,16 @@
 (defmacro p [& args]
   `(profiling/p ~@args))
 
-(defmacro pdefn [funciton-name arguments & body]
-  `(defn ~funciton-name ~arguments
-     (profiling/p ~(keyword (name funciton-name ))
+(defmacro pdefn [function-name arguments & body]
+  `(defn ~function-name ~arguments
+     (profiling/p ~(keyword (name function-name ))
                   ~@body)))
 
 
 
-(defn profile-fn-call [funciton-name f arguments]
-  (profiling/p (keyword (name funciton-name ))
+(defn profile-fn-call [function-name f arguments]
+  (profiling/p (keyword (namespace function-name)
+                        (name function-name))
                (apply f arguments)))
 
 
