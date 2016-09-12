@@ -8,24 +8,43 @@
                          [layouts :as layouts])))
 
 (defn b [x]
-  (trace/log "foo" :bar)
-  (+ 1 (:a x)
-     #_((trace/tfn fuu [x]
-                   x)
-        3)))
+  (trace/log "b was called with" x)
+  (+ 1 (:a x)))
 
 (defn a [x]
-  (+ 1 (b {:a 1})))
+  (+ 1 (b {:a 1
+           :b [1 2 3 4]})))
 
-(defn start []
-  #_(trace/trace-ns 'examples.trace)
-  (trace/with-trace
-    (let [channel @debug/debug-channel]
-      (println "channel" channel)
-      (trace/log-to-channel channel "go1")
-      (async/go (async/<! (async/timeout 120))
-                (trace/log-to-channel channel "go")))
-    
-    (a 1)
-    (Thread/sleep 1000)))
+(trace/trace-ns 'examples.trace)
+
+#_(trace/with-trace
+  (a 1))
+
+
+
+#_(defn start []
+    #_(trace/trace-ns 'examples.trace)
+    (trace/with-trace
+      (let [channel @debug/debug-channel]
+        (println "channel" channel)
+        (trace/log-to-channel channel "go1")
+        (async/go (async/<! (async/timeout 120))
+                  (trace/log-to-channel channel "go")))
+      
+      (a 1)
+      (Thread/sleep 1000)))
+
+#_(defn start []
+
+    (trace/with-trace
+      (let [channel @debug/debug-channel]
+        (trace/log "go1")
+        (async/go (async/<! (async/timeout 120))
+                  (trace/log "go")))
+      
+      (a 1)
+      (Thread/sleep 1000)))
+
+
+
 

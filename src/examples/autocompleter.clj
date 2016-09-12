@@ -173,6 +173,7 @@
                                    :query-channel query-channel}
                      :view #'auto-completer-view
                      :handle-keyboard-event (fn [state event]
+                                              (println "auto completer event" event)
                                               (events/on-key state event
                                                              :down (do (async/put! (:selection-channel state) :next)
                                                                        state)

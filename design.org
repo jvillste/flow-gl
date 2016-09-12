@@ -59,7 +59,41 @@ https://www.youtube.com/watch?v=109yVjGUFUs&list=PLhYdcB_7fSYg_JZtMHBLLzMoqbStNg
 * Datomic and datascript
 ** Pull part's of the datomic db to the client as a datascipt db.
 ** Render the ui based on the local db.
-** Create a transaction and apply to the local db.
+** Create a transaction and apply to the local db
 ** When the user want's to commit, send the transaction to the server.
 *** Optimistic locking can be implemented by sending the last seen transaction number among the transaction statements.
 *** To implement security and other constraints there should be "commands" that are shared betwheen the client and server as portable clojure code and applied on each side to the local db.
+* Abstractions
+** Rendering
+*** Renderer
+**** QuadViewRenderer
+***** Draws textured quads for something that can render to texture using Java2D
+****** Textures are cached in an atlas that is garbage collected
+***** Should draw something that returns an image. This way creating images could be done asynchronously for example when an SVG image is resized.
+**** QuadRenderer
+***** Draws quads that already have textures on the GPU
+***** Quads have attached fragment shader sources that get compiled if they are not already compiled
+****** Only the first shader in the renderable batch is used for the whole batch.
+******* The reanderables should be grouped by the sahader and rendered as those groups.
+***** Unused fragment shaders get deleted after the frame
+*** Transformer
+**** Tiled rendering
+***** Render to textures
+***** Render only renderables that have changed compared to the last frame
+***** Render only tiles that are on the given area
+**** Windowed rendering
+***** Render only the drawables that
+** Mouse event handlers attached to renderables
+** Mouse event routing through the scene graph (layouts and renderables)
+** Keyboard events from a single callback
+** Layout
+*** Sets coodinates to renderables
+** Components
+*** Cached render functions that return layoutables
+**** Is time in lexical or dynamic scope?
+**** State is held in the closure or global atoms
+**** Cache invalidation by state change
+**** Keyboard focus as a parameter to the render function?
+*** Keyboard event routing through component hierarchy
+*** Keyboard focus
+

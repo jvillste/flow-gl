@@ -1,5 +1,6 @@
 (ns flow-gl.opengl.jogl.window
-  (:require [flow-gl.gui.event-queue :as event-queue]
+  (:require [flow-gl.opengl.jogl.opengl :as opengl]
+            [flow-gl.gui.event-queue :as event-queue]
             [flow-gl.gui.events :as events]
             [clojure.core.async :as async]
             [flow-gl.gui.window :as window])
@@ -97,7 +98,7 @@
   ;; ([width height init reshape event-channel]
   ;;    (create width height init reshape event-channel :gl2))
 
-  ([width height & {:keys [init reshape event-channel profile close-automatically use-awt awt-init] :or {init identity reshape (fn [gl width height]) event-channel (async/chan 50) profile :gl2 close-automatically false use-awt false awt-init nil}}]
+  ([width height & {:keys [init reshape event-channel profile close-automatically use-awt awt-init] :or {init opengl/initialize reshape (fn [gl width height]) event-channel (async/chan 50) profile :gl3 close-automatically false use-awt false awt-init nil}}]
    (let [gl-profile (GLProfile/get (case profile
                                      :gl2 GLProfile/GL2
                                      :gl3 GLProfile/GL3

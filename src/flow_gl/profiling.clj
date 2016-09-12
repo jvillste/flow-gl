@@ -17,9 +17,9 @@
                (apply f arguments)))
 
 
-(defn untrace-var
+(defn uprofile-var
   ([ns s]
-   (untrace-var (ns-resolve ns s)))
+   (uprofile-var (ns-resolve ns s)))
   ([v]
    (let [^clojure.lang.Var v (if (var? v) v (resolve v))
          ns (.ns v)
@@ -30,12 +30,12 @@
          (alter-var-root (constantly ((meta v) ::profiled)))
          (alter-meta! dissoc ::profiled))))))
 
-(defn untrace-ns [ns]
+(defn unprofile-ns [ns]
   (let [ns-fns (->> ns the-ns ns-interns vals)]
     (doseq [f ns-fns]
-      (untrace-var f))))
+      (uprofile-var f))))
 
-#_(defmacro untrace-ns [ns]
+#_(defmacro unprofile-ns [ns]
     `(untrace-ns* ~ns))
 
 

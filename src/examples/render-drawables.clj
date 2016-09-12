@@ -51,8 +51,8 @@
 
 (defn root-view [view-context state]
   (l/preferred (l/table 5
-                        (for [y (range 10)]
-                          (for [x (range 10)]
+                        (for [y (range 20)]
+                          (for [x (range 20)]
                             (-> (gui/call-view controls/text-editor [:editor x y])
                                 (update-in [:state-overrides]
                                            assoc
@@ -96,8 +96,8 @@
   #_(gui/start-redrawable-control root)
 
 
-  (p/profile-ns 'flow-gl.gui.gui)
-  (p/profile-ns 'flow-gl.gui.renderer)
+  (p/unprofile-ns 'flow-gl.gui.gui)
+  (p/unprofile-ns 'flow-gl.gui.renderer)
 
   
   (gui/start-control root)
@@ -113,6 +113,6 @@
   )
 
 
-(gui/redraw-last-started-redrawable-control)
+#_(gui/redraw-last-started-redrawable-control)
 
 #_(run-tests)

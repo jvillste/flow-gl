@@ -21,8 +21,7 @@
                               [buffered-image :as buffered-image])
             [flow-gl.debug :as debug]
             [schema.core :as s]
-            [taoensso.timbre.profiling :as timbre-profiling]
-            )
+            [taoensso.timbre.profiling :as timbre-profiling])
   (:import [java.io File]
            [java.util.concurrent Executors]
            [java.lang Runnable]
@@ -473,9 +472,13 @@
       (end-frame)))
 
 (defn render [gpu-state layout]
+  #_(timbre-profiling/profile :info :render
+                            (-> (assoc gpu-state :layout layout)
+                                (render-frame)
+                                (swap-buffers)))
   (-> (assoc gpu-state :layout layout)
-      (render-frame)
-      (swap-buffers)))
+                                (render-frame)
+                                (swap-buffers)))
 
 (defn render-drawables-afterwards [state]
   (async/>!! (:with-gl-sliding-channel state)
@@ -1068,7 +1071,7 @@
                   (save-sleep-time))
 
         state (reduce (fn [state event]
-                        (flow-gl.debug/add-event :handle-event)
+                        #_(flow-gl.debug/add-event :handle-event)
                         (-> state
                             (assoc :event event)
                             (clear-cache-when-requested)
@@ -1083,12 +1086,12 @@
                             (apply-with-gl-beforehand)
                             (app)
                             (add-layout-afterwards)
-                            #_(add-global-coordinates)
-                            (remove-unused-child-states-afterwards)))
+                            #_(add-global-coordinates)))
                       state
                       events)]
 
     (-> state
+        (remove-unused-child-states-afterwards)
         (call-destructors-when-close-requested)
         (limit-frames-per-second-afterwards 60)
         (render-drawables-afterwards)
@@ -1119,7 +1122,9 @@
                                           [{:type :wake-up}]
                                           events)]
 
-                             (recur (handle-events state events app)))))
+                             (recur #_(timbre-profiling/profile :info :handle-events
+                                                              (handle-events state events app))
+                                    (handle-events state events app)))))
                        (catch Throwable e
                          (.printStackTrace e *out*)
                          (window/close (:window initial-state))
@@ -1266,7 +1271,7 @@
 (defn resolve-size-dependent-view-calls [view-context state layoutable]
   (let [layoutable (-> layoutable
                        add-layout-paths
-                       (children-to-vectors (:cache state)))
+                       #_(children-to-vectors (:cache state)))
         children-path (concat (:state-path view-context) [:children])
         children (get-in state children-path)
         [children layoutable] (resolve-view-calls (:cache state)
@@ -1512,3 +1517,5 @@
 
 
 (run-tests)
+
+#_(p/profile-ns 'flow-gl.gui.gui)

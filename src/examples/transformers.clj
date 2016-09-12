@@ -25,7 +25,7 @@
 
 (defn barless-root-view [view-context state]
   (l/margin 10 10 10 10 (-> (l/vertically (for [i (range 20)]
-                                            (controls/text (str "as fasf asdf asf asdf asdf ads faas fas fasdf" i))))
+                                            (text (str "aas fasf asdf asf asdf asdf ads faas fas fasdf" i))))
 
                             (assoc :transformer {:id :transformer-1
                                                  :transformer (fn [layout gpu-state state]
@@ -51,11 +51,11 @@
                                                                                                              (gui/render-drawables)))]
                                                                   
                                                                   [(drawable/->Quad ["texture" (:texture render-target)]
-                                                                                      [:1f "resolution" width
-                                                                                       :1f "radius" 1
-                                                                                       :2f "dir" [1.0 0.0]]
-                                                                                      quad/blur-fragment-shader-source
-                                                                                      (:x layout) (:y layout) width height)
+                                                                                    [:1f "resolution" width
+                                                                                     :1f "radius" 0.4
+                                                                                     :2f "dir" [1.0 0.0]]
+                                                                                    quad/blur-fragment-shader-source
+                                                                                    (:x layout) (:y layout) width height)
                                                                    gpu-state
                                                                    state]))}))))
 
@@ -72,6 +72,10 @@
 
   #_(gui/start-control barless-root)
 
-  (trace/with-trace
-    (gui/start-control barless-root)))
+  #_(trace/with-trace
+      (gui/start-redrawable-control barless-root))
+
+  (gui/start-redrawable-control barless-root))
+
+(gui/redraw-last-started-redrawable-control)
 
