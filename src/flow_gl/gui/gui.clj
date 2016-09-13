@@ -5,7 +5,6 @@
                                  [quad :as quad]
                                  [stencil :as stencil]
                                  [render-target :as render-target])
-            [datomic.api :as d]
             (flow-gl.gui [drawable :as drawable]
                          [transformer :as transformer]
                          [renderer :as renderer]
@@ -20,7 +19,6 @@
             (flow-gl.graphics [font :as font]
                               [buffered-image :as buffered-image])
             [flow-gl.debug :as debug]
-            [schema.core :as s]
             [taoensso.timbre.profiling :as timbre-profiling])
   (:import [java.io File]
            [java.util.concurrent Executors]
@@ -1210,23 +1208,6 @@
   (fn [state event]
     (update-binding state view-context function key)))
 
-#_(s/defn call-view
-    ([constructor :- s/Int child-id]
-     (call-view constructor child-id {} [] {}))
-
-    ([constructor :- s/Int child-id state-overrides]
-     (call-view constructor child-id state-overrides [] {}))
-
-    ([constructor :- s/Int child-id state-overrides constructor-parameters]
-     (call-view constructor child-id state-overrides constructor-parameters {}))
-
-    ([constructor :- s/Int
-      child-id
-      state-overrides :- {}
-      constructor-parameters :- []
-      constructor-overrides :- {}]
-     #_{:pre [(fn? constructor)]}
-     (->ViewCall constructor child-id state-overrides constructor-parameters constructor-overrides)))
 
 (defn call-view
   ([constructor child-id]

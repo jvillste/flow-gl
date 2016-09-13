@@ -1,7 +1,6 @@
 (ns flow-gl.tools.application-inspector
   (:require [clojure.core.async :as async]
             [flow-gl.opengl.jogl.window :as jogl-window]
-            [datomic.api :as d]
             (flow-gl.gui [drawable :as drawable]
                          [window :as window]
                          [layout :as layout]

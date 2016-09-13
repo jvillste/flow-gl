@@ -616,6 +616,6 @@
 #_(run-tests)
 
 
-(with-trace
+#_(with-trace
   (log {:foo [:bar :baz]}))
 

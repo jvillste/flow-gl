@@ -25,7 +25,6 @@
             [flow-gl.gui.layout-dsl :as l]
             [clj-http.client :as client])
   (:use flow-gl.utils
-        midje.sweet
         
         clojure.test))
 

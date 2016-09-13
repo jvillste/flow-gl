@@ -1,6 +1,5 @@
 (ns flow-gl.tools.log
   (:require [clojure.core.async :as async]
-            [com.climate.claypoole :as claypoole]
             (flow-gl.opengl.jogl [quad :as quad])
             (flow-gl.gui [drawable :as drawable]
                          [layout :as layout]
