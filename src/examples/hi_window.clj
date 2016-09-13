@@ -1,4 +1,4 @@
-(ns examples.render-target
+(ns examples.hi-window
   (:require [flow-gl.opengl.jogl.window :as jogl-window]
             [flow-gl.opengl.jogl.opengl :as opengl]
             [flow-gl.gui.window :as window]
