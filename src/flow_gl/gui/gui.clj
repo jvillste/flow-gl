@@ -127,7 +127,6 @@
 (defn add-renderers [gpu-state]
   (assoc gpu-state :renderers {:quad-view (renderer/create-quad-view-renderer (:gl gpu-state))
                                :quad (renderer/create-quad-renderer (:gl gpu-state))
-                               :nanovg (renderer/create-nanovg-renderer)
                                :triangle-list (renderer/create-triangle-list-renderer (:gl gpu-state))}))
 
 (defn default-to-zero [value]
@@ -263,15 +262,13 @@
                       #(renderer/end-frame % (:gl gpu-state))))
 
 (defn render-drawables-with-renderers  [renderers gl drawables]
-  (let [[quad-view quad nanovg triangle-list] (renderer/render-frame-drawables drawables
-                                                                               gl
-                                                                               [(:quad-view renderers)
-                                                                                (:quad renderers)
-                                                                                (:nanovg renderers)
-                                                                                (:triangle-list renderers)])]
+  (let [[quad-view quad triangle-list] (renderer/render-frame-drawables drawables
+                                                                        gl
+                                                                        [(:quad-view renderers)
+                                                                         (:quad renderers)
+                                                                         (:triangle-list renderers)])]
     {:quad-view quad-view
      :quad quad
-     :nanovg nanovg
      :triangle-list triangle-list}))
 
 
@@ -471,12 +468,12 @@
 
 (defn render [gpu-state layout]
   #_(timbre-profiling/profile :info :render
-                            (-> (assoc gpu-state :layout layout)
-                                (render-frame)
-                                (swap-buffers)))
+                              (-> (assoc gpu-state :layout layout)
+                                  (render-frame)
+                                  (swap-buffers)))
   (-> (assoc gpu-state :layout layout)
-                                (render-frame)
-                                (swap-buffers)))
+      (render-frame)
+      (swap-buffers)))
 
 (defn render-drawables-afterwards [state]
   (async/>!! (:with-gl-sliding-channel state)
@@ -1121,7 +1118,7 @@
                                           events)]
 
                              (recur #_(timbre-profiling/profile :info :handle-events
-                                                              (handle-events state events app))
+                                                                (handle-events state events app))
                                     (handle-events state events app)))))
                        (catch Throwable e
                          (.printStackTrace e *out*)

@@ -9,8 +9,7 @@
                         [render-target :as render-target]
                         [quad :as quad]
                         [shader :as shader]))
-  (:import [nanovg NanoVG]
-           [flow_gl.gui.drawable Quad]
+  (:import [flow_gl.gui.drawable Quad]
            [javax.media.opengl GL2])
   (:use clojure.test))
 

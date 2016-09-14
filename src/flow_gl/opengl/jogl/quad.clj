@@ -19,8 +19,7 @@
   (:import [javax.media.opengl GL2]
            [java.io PrintWriter StringWriter]
            [java.nio IntBuffer]
-           [java.awt Color]
-           [nanovg NanoVG]))
+           [java.awt Color]))
 
 
   (def vertex-shader-source "

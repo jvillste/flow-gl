@@ -20,8 +20,7 @@
   (:import [javax.media.opengl GL2]
            [java.io PrintWriter StringWriter]
            [java.nio IntBuffer]
-           [java.awt Color]
-           [nanovg NanoVG]))
+           [java.awt Color]))
 
 
   (def vertex-shader-source "
@@ -193,7 +192,7 @@
   (texture/delete (:texture render-target) gl))
 
 
-(defn draw-rectangle [nanovg x y width height r g b a]
+#_(defn draw-rectangle [nanovg x y width height r g b a]
   (doto nanovg
     (NanoVG/fillColor (char r) (char g) (char b) (char a))
     (NanoVG/beginPath)

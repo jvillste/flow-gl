@@ -8,8 +8,7 @@
                         [quad :as quad]
                         [shader :as shader]
                         [multicolor-triangle-list :as multicolor-triangle-list]))
-  (:import [nanovg NanoVG]
-           [flow_gl.gui.drawable Quad]
+  (:import [flow_gl.gui.drawable Quad]
            [javax.media.opengl GL2]))
 
 (defprotocol Renderer
@@ -88,32 +87,6 @@
        (render-frame-drawables drawables gl)
        (map-for-renderers end-frame gl)))
 
-
-(defrecord NanoVGRenderer [nanovg]
-  Renderer
-  (can-draw? [this drawable]
-    (satisfies? drawable/NanoVGDrawable drawable))
-
-  (draw-drawables [this drawables gl]
-    (let [{:keys [width height]} (opengl/size gl)]
-      (NanoVG/beginFrame nanovg width height)
-      (doseq [drawable drawables]
-        (NanoVG/resetTransform nanovg)
-        (NanoVG/translate nanovg
-                          (:x drawable)
-                          (:y drawable))
-        (drawable/draw-nanovg drawable nanovg))
-      (NanoVG/endFrame nanovg))
-    this)
-
-  (start-frame [this gl] this)
-
-  (end-frame [this gl] this)
-
-  (delete [this gl] this))
-
-(defn create-nanovg-renderer []
-  (->NanoVGRenderer (NanoVG/init)))
 
 (defrecord TriangleListRenderer [triangle-list]
   Renderer
