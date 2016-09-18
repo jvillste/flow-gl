@@ -59,7 +59,7 @@
                                      (:texture-offset quad-parameters)])
   quad-batch)
 
-  (def vertex-shader-source "
+(def vertex-shader-source "
   #version 140
 
   uniform mat4 projection_matrix;
@@ -133,9 +133,9 @@
   texture_offset = texelFetch(quad_parameters, quad_index * quad_parameters_size + 5).x;
   texture_width = texture_size.x;
   }
-")
+  ")
 
-  (def fragment-shader-source "
+(def fragment-shader-source "
   #version 140
 
   uniform samplerBuffer texture;
@@ -157,7 +157,7 @@
   color  = texelFetch(texture, int(texture_offset + texture_int_coordinate.y * texture_width + texture_int_coordinate.x));
   outColor = vec4(color.b, color.g, color.r, color.a);
   }
-")
+  ")
 
 (defn create-vertex-attribute-array [gl name program buffer-id type size divisor]
   (let [attribute-location (.glGetAttribLocation gl program name)]
@@ -311,8 +311,8 @@
                                    height (get current-quad-parameters height-offset)]
 
                                (.put quad-parameters-native-buffer (int-array (assoc current-quad-parameters
-                                                                                texture-offset-offset
-                                                                                texture-offset)))
+                                                                                     texture-offset-offset
+                                                                                     texture-offset)))
 
                                (buffer/copy gl
                                             (:texture-buffer-id quad-batch)
@@ -393,8 +393,8 @@
 
 (defn grow-texture-buffer [gl quad-batch minimum-size]
   (let [new-quad-batch (assoc quad-batch
-                         :texture-buffer-id (allocate-texture gl (* 2 minimum-size))
-                         :allocated-texels (* 2 minimum-size))]
+                              :texture-buffer-id (allocate-texture gl (* 2 minimum-size))
+                              :allocated-texels (* 2 minimum-size))]
     (buffer/copy gl
                  (:texture-buffer-id quad-batch)
                  (:texture-buffer-id new-quad-batch)
@@ -409,8 +409,8 @@
 
 (defn grow-quad-buffers [gl quad-batch minimum-size]
   (let [new-quad-batch (assoc quad-batch
-                         :allocated-quads (* 2 minimum-size)
-                         :quad-parameters-buffer-id (allocate-quads gl (* 2 minimum-size)))]
+                              :allocated-quads (* 2 minimum-size)
+                              :quad-parameters-buffer-id (allocate-quads gl (* 2 minimum-size)))]
 
     (buffer/copy gl
                  (:quad-parameters-buffer-id quad-batch)
@@ -444,25 +444,25 @@
 
 (defn finish-adding-textures [quad-batch texel-count textures]
   (assoc quad-batch
-    :next-free-texel (+ (:next-free-texel quad-batch)
-                        texel-count)
-    :textures-in-use (loop [textures-in-use (:textures-in-use quad-batch)
-                            next-free-texel (:next-free-texel quad-batch)
-                            next-free-texture-id (:next-free-texture-id quad-batch)
-                            textures textures]
-                       (if-let [texture (first textures)]
-                         (recur (assoc textures-in-use
-                                  next-free-texture-id {:first-texel next-free-texel
-                                                        :width (:width texture)
-                                                        :height (:height texture)
-                                                        :upside-down (:upside-down texture)})
-                                (+ next-free-texel (* (:width texture)
-                                                      (:height texture)))
-                                (inc next-free-texture-id)
-                                (rest textures))
-                         textures-in-use))
-    :next-free-texture-id (+ (:next-free-texture-id quad-batch)
-                             (count textures))))
+         :next-free-texel (+ (:next-free-texel quad-batch)
+                             texel-count)
+         :textures-in-use (loop [textures-in-use (:textures-in-use quad-batch)
+                                 next-free-texel (:next-free-texel quad-batch)
+                                 next-free-texture-id (:next-free-texture-id quad-batch)
+                                 textures textures]
+                            (if-let [texture (first textures)]
+                              (recur (assoc textures-in-use
+                                            next-free-texture-id {:first-texel next-free-texel
+                                                                  :width (:width texture)
+                                                                  :height (:height texture)
+                                                                  :upside-down (:upside-down texture)})
+                                     (+ next-free-texel (* (:width texture)
+                                                           (:height texture)))
+                                     (inc next-free-texture-id)
+                                     (rest textures))
+                              textures-in-use))
+         :next-free-texture-id (+ (:next-free-texture-id quad-batch)
+                                  (count textures))))
 
 (defn texel-count [dimensions]
   (reduce (fn [texel-count dimension]
@@ -568,65 +568,64 @@
 
 (defn draw-quads
   ([quad-batch gl quads width height]
-     (draw-quads quad-batch gl quads width height nil))
+   (draw-quads quad-batch gl quads width height nil))
 
   ([quad-batch gl quads width height model-matrix]
-     #_(flow-gl.debug/set-metric :draw-quads (System/currentTimeMillis))
-     #_(flow-gl.debug/set-metric :allocated-quads (:allocated-quads quad-batch))
-     #_(flow-gl.debug/set-metric :quad-count (count quads))
-     (let [quad-count (count quads)
+   #_(flow-gl.debug/set-metric :draw-quads (System/currentTimeMillis))
+   #_(flow-gl.debug/set-metric :allocated-quads (:allocated-quads quad-batch))
+   #_(flow-gl.debug/set-metric :quad-count (count quads))
+   (let [quad-count (count quads)
 
-           quad-batch (if (< (:allocated-quads quad-batch)
-                             quad-count)
-                        (grow-quad-buffers gl
-                                           quad-batch
-                                           quad-count)
-                        quad-batch)]
+         quad-batch (if (< (:allocated-quads quad-batch)
+                           quad-count)
+                      (grow-quad-buffers gl
+                                         quad-batch
+                                         quad-count)
+                      quad-batch)]
 
-       (let [count (* quad-parameters-size
-                      quad-count)
-             buffer (native-buffer/ensure-buffer-capacity (:int-buffer quad-batch)
-                                                          count)]
+     (let [count (* quad-parameters-size
+                    quad-count)
+           ^IntBuffer buffer (native-buffer/ensure-buffer-capacity (:int-buffer quad-batch)
+                                                                   count)]
 
-         (loop [quads quads]
-           (when-let [quad (first quads)]
-             (let [texture (if (contains? quad :texture-id)
-                             (get (:textures-in-use quad-batch)
-                                  (:texture-id quad))
-                             {:first-texel 0
-                              :width 0
-                              :height 0
-                              :upside-down false})]
-               (do (.put buffer
-                         (int-array [(or (:parent quad) -1)
-                                     (:x quad)
-                                     (:y quad)
-                                     (:width texture)
-                                     (:height texture)
-                                     (:first-texel texture)
-                                     (or (:width quad)
-                                         (:width texture))
-                                     (or (:height quad)
-                                         (:height texture))
-                                     (if (:upside-down texture)
-                                       1
-                                       0)]))
-                   (recur (rest quads))))))
 
-         (.rewind buffer)
+       (doseq [quad quads]
+         (let [texture (if (contains? quad :texture-id)
+                         (get (:textures-in-use quad-batch)
+                              (:texture-id quad))
+                         {:first-texel 0
+                          :width 0
+                          :height 0
+                          :upside-down false})]
+           (.put buffer (int (or (:parent quad) -1)))
+           (.put buffer (int (:x quad)))
+           (.put buffer (int (:y quad)))
+           (.put buffer (int (:width texture)))
+           (.put buffer (int (:height texture)))
+           (.put buffer (int (:first-texel texture)))
+           (.put buffer (int (or (:width quad)
+                                 ^int      (:width texture))))
+           (.put buffer (int (or (:height quad)
+                                 ^int      (:height texture))))
+           (.put buffer (int (if (:upside-down texture)
+                               1
+                               0)))))
 
-         (buffer/update-from-native-buffer gl
-                                           (:quad-parameters-buffer-id quad-batch)
-                                           :int
-                                           0
-                                           count
-                                           buffer)
+       (.rewind buffer)
 
-         (draw (assoc quad-batch
-                 :draw-count (inc (or (:draw-count quad-batch)
-                                      0))
-                 :int-buffer buffer
-                 :next-free-quad quad-count) gl width height model-matrix)))))
+       (buffer/update-from-native-buffer gl
+                                         (:quad-parameters-buffer-id quad-batch)
+                                         :int
+                                         0
+                                         count
+                                         buffer)
+
+       (draw (assoc quad-batch
+                    :draw-count (inc (or (:draw-count quad-batch)
+                                         0))
+                    :int-buffer buffer
+                    :next-free-quad quad-count) gl width height model-matrix)))))
+
 
 
 #_(defn remove-index [quad-batch gl index]
@@ -680,14 +679,14 @@
 
             (set-quad-parameters quad-batch gl id
                                  (assoc quad-parameters
-                                   :width (.getWidth new-image)
-                                   :height (.getHeight new-image)))
+                                        :width (.getWidth new-image)
+                                        :height (.getHeight new-image)))
 
             (if this-is-the-last-texture
               (assoc quad-batch
-                :next-free-texel (+ (:texture-offset quad-parameters)
-                                    (* (.getWidth new-image)
-                                       (.getHeight new-image))))
+                     :next-free-texel (+ (:texture-offset quad-parameters)
+                                         (* (.getWidth new-image)
+                                            (.getHeight new-image))))
               quad-batch))
 
         (do (let [new-texture-offset (if this-is-the-last-texture
@@ -702,9 +701,9 @@
 
               (set-quad-parameters new-quad-batch gl id
                                    (assoc quad-parameters
-                                     :texture-offset new-texture-offset
-                                     :width (.getWidth new-image)
-                                     :height (.getHeight new-image)))
+                                          :texture-offset new-texture-offset
+                                          :width (.getWidth new-image)
+                                          :height (.getHeight new-image)))
               new-quad-batch)))))
 
 #_(defn move-quad [quad-batch gl index x y]
@@ -721,3 +720,5 @@
 ;; share texture
 ;; group quads to tiles and draw given tiles only
 ;; load new quads asynchronously in small batches. Ready made byte buffers to be loaded to the GPU
+
+#_(flow-gl.profiling/profile-ns 'flow-gl.opengl.jogl.quad-batch)
