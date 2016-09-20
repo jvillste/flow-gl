@@ -3,6 +3,8 @@
             [flow-gl.utils :as utils]
             [flow-gl.debug :as debug]
             [flow-gl.csp :as csp]
+            [taoensso.timbre.profiling :as timbre-profiling]
+            [flow-gl.profiling :as profiling]
             (flow-gl.gui [drawable :as drawable]
                          [layout :as layout]
                          [quad-view :as quad-view]
@@ -30,15 +32,15 @@
                                               quads
                                               (:width size)
                                               (:height size))))]
-    (window/swap-buffers window)
+    (taoensso.timbre.profiling/p :swap (window/swap-buffers window))
     quad-batch))
 
 
 (defn set-size [drawable]
   (let [preferred-size (layoutable/preferred-size drawable 1000 1000)]
     (assoc drawable
-      :width (:width preferred-size)
-      :height (:height preferred-size))))
+           :width (:width preferred-size)
+           :height (:height preferred-size))))
 
 (defn text [text]
   (drawable/->Text text
@@ -46,42 +48,45 @@
                    [255 255 255 255]))
 
 (defn initialize [quad-batch gl]
-  (let [drawable (assoc
-                     #_(set-size (text "FOO"))
-                     (set-size (drawable/->Image (buffered-image/create-from-file "test.png")))
-                     :x 0
-                     :y 0)
-        renderers [(renderer/create-quad-view-renderer gl)]
-        render-target (render-target/create 100 100 #_(:width drawable)
-                                            #_(:height drawable) gl)]
+  #_(let [drawable (assoc
+                    #_(set-size (text "FOO"))
+                    (set-size (drawable/->Image (buffered-image/create-from-file "test.png")))
+                    :x 0
+                    :y 0)
+          renderers [(renderer/create-quad-view-renderer gl)]
+          render-target (render-target/create 100 100 #_(:width drawable)
+                                              #_(:height drawable) gl)]
 
-    (println (:width drawable)
-             (:height drawable))
+      (println (:width drawable)
+               (:height drawable))
 
-    (render-target/render-to render-target gl
-                             (opengl/clear gl 0 0 0 1)
-                             (renderer/render-frame [drawable]  gl renderers))
+      (render-target/render-to render-target gl
+                               (opengl/clear gl 0 0 0 1)
+                               (renderer/render-frame [drawable]  gl renderers))
 
-    (quad-batch/add-textures-from-gl-textures quad-batch gl [{:width (:width render-target)
-                                                              :height (:height render-target)
-                                                              :texture-id (:texture render-target)}]))
+      (quad-batch/add-textures-from-gl-textures quad-batch gl [{:width (:width render-target)
+                                                                :height (:height render-target)
+                                                                :texture-id (:texture render-target)}]))
 
-  #_(quad-batch/add-textures quad-batch gl [(buffered-image/create-from-file "pumpkin.png")]))
+  (quad-batch/add-textures quad-batch gl [(buffered-image/create-from-file "pumpkin.png")]))
 
 (defn quads [frame-time]
-  [{:x 10
-    :y 10
-    :width 500
-    :height 500
-    :texture-id 0}]
+  #_[{:x 10
+      :y 10
+      :width 200
+      :height 200
+      :texture-id 0}]
   
-  #_(for [i (range 1 2)]
-    (let [round-time (* i 3000)]
-      {:x (* (/ (mod frame-time round-time)
-                round-time)
-             100)
-       :y (* i 30)
-       :texture-id 0})))
+  (doall (for [i (range 1 8000)]
+           (let [round-time (* i 3000)]
+             {:x (* (/ (mod frame-time round-time)
+                       round-time)
+                    100)
+              :y (* i 1)
+              :texture-id 0}))))
+
+(time (do (quads 0)
+          nil))
 
 (defn wait-for-next-frame [frame-started]
   (let [target-frames-per-second 1]
@@ -103,7 +108,9 @@
                           (-> (quad-batch/create gl)
                               (initialize gl)))]
         (let [frame-started (System/currentTimeMillis)
-              quad-batch (render-quads window quad-batch (quads frame-started))]
+              quad-batch #_(timbre-profiling/profile :info :loop (render-quads window quad-batch (#'quads frame-started)))
+              (time (render-quads window quad-batch (#'quads frame-started)))
+              ]
 
           (when (window/visible? window)
             (do (wait-for-next-frame frame-started)
@@ -111,9 +118,12 @@
 
       (println "exiting")
       (catch Exception e
-        (println "exception")
+        (println "exception" e)
         (window/close window)
         (throw e)))))
 
+#_(profiling/profile-ns 'examples.hello-quad-batch)
+
+
 (defn start []
-  (start-view))
+  (.start (Thread. (fn [] (start-view)) )))

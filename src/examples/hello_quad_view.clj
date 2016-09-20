@@ -2,8 +2,8 @@
   (:require [clojure.core.async :as async]
             [flow-gl.utils :as utils]
             [flow-gl.debug :as debug]
-            [flow-gl.csp :as csp]
-            [flow-gl.tools.debug-monitor :as debug-monitor]
+            #_[flow-gl.csp :as csp]
+            #_[flow-gl.tools.debug-monitor :as debug-monitor]
             (flow-gl.gui [drawable :as drawable]
                          [layout :as layout]
                          [quad-view :as quad-view])

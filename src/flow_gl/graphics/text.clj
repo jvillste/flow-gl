@@ -12,6 +12,7 @@
       (.drawString text 0 (font/ascent font)))))
 
 (defn create-buffered-image [color font text]
+  (println "creating" text)
   (let [buffered-image (buffered-image/create (max 1
                                                    (font/width font text))
                                               (max 1
