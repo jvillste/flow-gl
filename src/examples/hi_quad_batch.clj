@@ -1,4 +1,4 @@
-(ns examples.hello-quad-batch
+(ns examples.hi-quad-batch
   (:require [flow-gl.graphics.text :as text]
             (flow-gl.gui [window :as window])
 

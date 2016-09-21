@@ -21,7 +21,6 @@
             [flow-gl.gui.layout-dsl :as l]
             [clj-http.client :as client])
   (:use flow-gl.utils
-        midje.sweet
         
         clojure.test))
 
@@ -46,7 +45,7 @@
 
     (async/go-loop [value (async/<! unthrottled-channel-2)]
       (when value
-        (async/alt! (async/timeout interval) (do (>! throttled-channel value)
+        (async/alt! (async/timeout interval) (do (async/>! throttled-channel value)
                                                  (recur (async/<! unthrottled-channel-2)))
                     unthrottled-channel-2 ([value] (recur value)))))
     [throttled-channel unthrottled-channel]))

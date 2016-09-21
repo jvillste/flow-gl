@@ -1,4 +1,4 @@
-(ns examples.hello-quad-renderer
+(ns examples.hi-quad-renderer
   (:require [flow-gl.graphics.text :as text]
             [flow-gl.graphics.rectangle :as rectangle]
             (flow-gl.gui [window :as window]
@@ -26,7 +26,6 @@
       (let [quad-renderer (quad-renderer/create  gl)
             icon (buffered-image/create-from-file "pumpkin.png")
             font (font/create "LiberationSans-Regular.ttf" 40)
-            text ( )
             window-size (opengl/size gl)]
 
         
