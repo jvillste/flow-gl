@@ -1,6 +1,5 @@
 (ns flow-gl.gui.scene-graph
   (:require [clojure.spec :as spec]
-            [clojure.spec.test :as spec-test]
             [clojure.test :as test :refer [deftest is]]))
 
 #_(defprotocol Node
@@ -13,9 +12,18 @@
 (spec/def ::x ::coordinate)
 (spec/def ::y ::coordinate)
 (spec/def ::z ::coordinate)
+(spec/def ::width int?)
+(spec/def ::height int?)
 (spec/def ::children (spec/* ::node))
-(spec/def ::node (spec/keys :req [::x ::y]
-                            :opt [::z ::children]))
+
+(spec/def ::node (spec/keys :req-un [::x ::y]
+                            :opt-un [::z ::children]))
+
+(spec/def ::layouted-children (spec/* ::layouted-node))
+(spec/def ::layouted-node (spec/merge ::node
+                                      (spec/keys :req-un [::width ::height]
+                                                 :opt-un [::layouted-children])))
+
 
 #_(spec/explain ::node {::x 1 ::y 1})
 
@@ -98,5 +106,18 @@
                                               {:x 5 :y 5 :expected-position 3}]}))))
 
 
+(defn in-coordinates? [node x y]
+  (and (>= x
+           (:x node))
+       (<= x
+           (+ (:x node) (:width node)))
+       (>= y
+           (:y node))
+       (<= y
+           (+ (:y node) (:height node)))))
 
+(spec/fdef in-coordinates?
+           :args (spec/cat :node ::layouted-node
+                           :x ::coordinate
+                           :y ::coordinate))
 

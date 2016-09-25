@@ -46,7 +46,7 @@
                                       :image-function text/create-buffered-image
                                       :parameters [[255 255 255 255]
                                                    font
-                                                   "Hello quad batch!"]}
+                                                   "Hello quad renderer!"]}
 
                                      {:x 100
                                       :y 240
@@ -55,7 +55,7 @@
                                       :image-function text/create-buffered-image
                                       :parameters [[255 255 255 255]
                                                    font
-                                                   "Hello quad batch!"]}])
+                                                   "Hello quad renderer!"]}])
                             
                             (:width window-size)
                             (:height window-size)
