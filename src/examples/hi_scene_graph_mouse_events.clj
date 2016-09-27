@@ -31,59 +31,44 @@
    :image-function draw-rectangle
    :parameters [width height color]})
 
-(defn text [x y z string]
-  (let [font (font/create "LiberationSans-Regular.ttf" 40)]
-    {:x x
-     :y y
-     :width (font/width font string)
-     :height (font/height font)
-     :image-function text/create-buffered-image
-     :parameters [[255 255 255 255]
-                  font
-                  string]}))
 
 
-(defn text-box [x y z value]
-  {:x x :y y :z z
-   :children [(assoc (rectangle 0 0 300 50 [0 0 255 150])
-                     :mouse-event-handler (fn [event]
-                                            (when (#{:mouse-entered :mouse-left :mouse-clicked} (:type event))
-                                              (println "got event in text box" value event))
-                                            
-                                            event))
-              (text 10 0 0 value)]})
+(def state (atom {}))
 
-(defn drop-down [x y z]
-  {:x x :y y :z z
-   :children (concat [(assoc (rectangle 0 0 150 250 [0 255 255 240])
-                             :mouse-event-handler (fn [event]
-                                                    (when (#{:mouse-entered :mouse-left :mouse-clicked} (:type event))
-                                                      (println "got event in drop down" event))
-                                                    event))
-                      (rectangle 0 0 150 50 [0 0 255 150])
-                      (text 10 0 0 "drop")]
-                     (for [[index value] (map-indexed vector ["down" "values"])]
-                       (text 10 (+ 60 (* index 60)) 0 value)))})
+(defn stateful-rectangle [id x y]
+  (-> (rectangle x y 200 200 (if (get-in @state [:mouse-over id])
+                               (if (get-in @state [:mouse-down id])
+                                 [255 0 0 150]
+                                 [255 255 255 150])
+                               [0 255 255 150]))
+      (assoc :id id
+             :mouse-event-handler (fn [event]
+                                    (case (:type event)
+                                      :mouse-entered (swap! state assoc-in [:mouse-over id] true)
+                                      :mouse-left (swap! state (fn [state]
+                                                                 (-> state
+                                                                     (assoc-in [:mouse-over id] false)
+                                                                     (assoc-in [:mouse-down id] false))))
+                                      :mouse-pressed (swap! state assoc-in [:mouse-down id] true)
+                                      :mouse-released (swap! state assoc-in [:mouse-down id] false)
+                                      nil)
+                                    event))))
 
 (defn nodes []
-  {:x 100 :y 100
-   :children (concat [(rectangle 0 0 320 370 [0 255 255 150])
-                      (assoc (drop-down 160 10 1)
-                             :id :drop-down)]
-                     (for [index (range 5)]
-                       (assoc (text-box 10 (+ 70 (* index 60)) 0 (str "text box " index))
-                              :id [:text-box index])))})
+  {:x 50 :y 50
+   :children (concat [(stateful-rectangle :rectangle-1 0 0)
+                      (stateful-rectangle :rectangle-2 100 100)])})
 
 (defn start-window []
-  (let [window-width 800
-        window-height 800
+  (let [window-width 400
+        window-height 400
         window (jogl-window/create window-width
                                    window-height
                                    :close-automatically true)
         event-channel (window/event-channel window)]
 
     (loop [flow-gl-state {:quad-renderer (window/with-gl window gl (quad-renderer/create gl))
-                          :previous-mouse-event-handlers-by-id {}}]
+                          :previous-mouse-event-handlers-under-mouse {}}]
       
       (when (window/visible? window)
         (recur (try
@@ -106,11 +91,11 @@
                                                                                                                                                            (:y event))]
                                                                  (mouse/call-mouse-event-handlers mouse-event-handler-nodes-under-mouse
                                                                                                   event)
-                                                                 (mouse/send-mouse-over-events (:previous-mouse-event-handlers-by-id flow-gl-state)
+                                                                 (mouse/send-mouse-over-events (:previous-mouse-event-handlers-under-mouse flow-gl-state)
                                                                                                mouse-event-handler-nodes-under-mouse))
-                                                               (:previous-mouse-event-handlers-by-id flow-gl-state))]
+                                                               (:previous-mouse-event-handlers-under-mouse flow-gl-state))]
                      {:quad-renderer quad-renderer
-                      :previous-mouse-event-handlers-by-id previous-mouse-event-handlers-by-id}))
+                      :previous-mouse-event-handlers-under-mouse previous-mouse-event-handlers-by-id}))
                  
                  (catch Throwable e
                    (.printStackTrace e *out*)
