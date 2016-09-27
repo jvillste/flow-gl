@@ -18,7 +18,7 @@
   (:use flow-gl.utils
         clojure.test))
 
-(spec-test/instrument)
+
 
 (defn draw-rectangle [width height color]
   (rectangle/create-buffered-image color width height 10 10))
@@ -42,11 +42,14 @@
                   font
                   string]}))
 
+
 (defn text-box [x y z value]
   {:x x :y y :z z
    :children [(assoc (rectangle 0 0 300 50 [0 0 255 150])
                      :mouse-event-handler (fn [event]
-                                            (println "got event in text box" value event)
+                                            (when (#{:mouse-entered :mouse-left :mouse-clicked} (:type event))
+                                              (println "got event in text box" value event))
+                                            
                                             event))
               (text 10 0 0 value)]})
 
@@ -54,7 +57,8 @@
   {:x x :y y :z z
    :children (concat [(assoc (rectangle 0 0 150 250 [0 255 255 240])
                              :mouse-event-handler (fn [event]
-                                                    (println "got event in drop down" event)
+                                                    (when (#{:mouse-entered :mouse-left :mouse-clicked} (:type event))
+                                                      (println "got event in drop down" event))
                                                     event))
                       (rectangle 0 0 150 50 [0 0 255 150])
                       (text 10 0 0 "drop")]
@@ -64,9 +68,11 @@
 (defn nodes []
   {:x 100 :y 100
    :children (concat [(rectangle 0 0 320 370 [0 255 255 150])
-                      (drop-down 160 10 1)]
+                      (assoc (drop-down 160 10 1)
+                             :id :drop-down)]
                      (for [index (range 5)]
-                       (text-box 10 (+ 70 (* index 60)) 0 (str "text box " index))))})
+                       (assoc (text-box 10 (+ 70 (* index 60)) 0 (str "text box " index))
+                              :id [:text-box index])))})
 
 (defn start-window []
   (let [window-width 800
@@ -76,7 +82,8 @@
                                    :close-automatically true)
         event-channel (window/event-channel window)]
 
-    (loop [quad-renderer (window/with-gl window gl (quad-renderer/create gl))]
+    (loop [flow-gl-state {:quad-renderer (window/with-gl window gl (quad-renderer/create gl))
+                          :previous-mouse-event-handlers-by-id {}}]
       
       (when (window/visible? window)
         (recur (try
@@ -85,18 +92,25 @@
                        quad-renderer (window/with-gl window gl
                                        (opengl/clear gl 0 0 0 1)
 
-                                       (quad-renderer/draw quad-renderer
+                                       (quad-renderer/draw (:quad-renderer flow-gl-state)
                                                            (scene-graph/leave-nodes scene-graph)
                                                            window-width
                                                            window-height
                                                            gl))]
                    (window/swap-buffers window)
 
-                   (let [event (async/<!! event-channel)]
-                     (when (= :mouse (:source event))
-                       (mouse/call-mouse-event-handlers scene-graph event)))
-                   
-                   quad-renderer)
+                   (let [event (async/<!! event-channel)
+                         previous-mouse-event-handlers-by-id (if (= :mouse (:source event))
+                                                               (let [mouse-event-handler-nodes-under-mouse (mouse/mouse-event-handler-nodes-in-coodriantes scene-graph
+                                                                                                                                                           (:x event)
+                                                                                                                                                           (:y event))]
+                                                                 (mouse/call-mouse-event-handlers mouse-event-handler-nodes-under-mouse
+                                                                                                  event)
+                                                                 (mouse/send-mouse-over-events (:previous-mouse-event-handlers-by-id flow-gl-state)
+                                                                                               mouse-event-handler-nodes-under-mouse))
+                                                               (:previous-mouse-event-handlers-by-id flow-gl-state))]
+                     {:quad-renderer quad-renderer
+                      :previous-mouse-event-handlers-by-id previous-mouse-event-handlers-by-id}))
                  
                  (catch Throwable e
                    (.printStackTrace e *out*)
@@ -106,9 +120,12 @@
 
 
 (defn start []
+  (spec-test/instrument)
   #_(start-window)
   (.start (Thread. (fn []
-                       (start-window)))))
+                     (start-window)))))
+
+;; TODO: How to hit test round corners in rectangle?
 
 
 
