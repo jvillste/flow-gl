@@ -20,38 +20,44 @@
 
 
 
-(defn draw-rectangle [width height color]
-  (rectangle/create-buffered-image color width height 10 10))
+(defn draw-rectangle [width height color corner-arc-width corner-arc-height]
+  (rectangle/create-buffered-image color width height corner-arc-width corner-arc-height))
 
-(defn rectangle [x y width height color]
+(defn rectangle [x y width height color corner-arc-width corner-arc-height]
   {:x x
    :y y
    :width width
    :height height
    :image-function draw-rectangle
-   :parameters [width height color]})
+   :hit-test (fn [x y]
+               (rectangle/contains width height corner-arc-width corner-arc-height x y))
+   :parameters [width height color corner-arc-width corner-arc-height]})
 
 
 
 (def state (atom {}))
 
 (defn stateful-rectangle [id x y]
-  (-> (rectangle x y 200 200 (if (get-in @state [:mouse-over id])
-                               (if (get-in @state [:mouse-down id])
-                                 [255 0 0 150]
-                                 [255 255 255 150])
-                               [0 255 255 150]))
+  (-> (rectangle x y
+                 200 200
+                 (if (get-in @state [:mouse-over id])
+                   (if (get-in @state [:mouse-down id])
+                     [255 0 0 150]
+                     [255 255 255 150])
+                   [0 255 255 150])
+                 100 100)
       (assoc :id id
              :mouse-event-handler (fn [event]
-                                    (case (:type event)
-                                      :mouse-entered (swap! state assoc-in [:mouse-over id] true)
-                                      :mouse-left (swap! state (fn [state]
-                                                                 (-> state
-                                                                     (assoc-in [:mouse-over id] false)
-                                                                     (assoc-in [:mouse-down id] false))))
-                                      :mouse-pressed (swap! state assoc-in [:mouse-down id] true)
-                                      :mouse-released (swap! state assoc-in [:mouse-down id] false)
-                                      nil)
+                                    (when (contains? #{:on-target nil} (:handling-phase event))
+                                      (case (:type event)
+                                        :mouse-entered (swap! state assoc-in [:mouse-over id] true)
+                                        :mouse-left (swap! state (fn [state]
+                                                                   (-> state
+                                                                       (assoc-in [:mouse-over id] false)
+                                                                       (assoc-in [:mouse-down id] false))))
+                                        :mouse-pressed (swap! state assoc-in [:mouse-down id] true)
+                                        :mouse-released (swap! state assoc-in [:mouse-down id] false)
+                                        nil))
                                     event))))
 
 (defn nodes []

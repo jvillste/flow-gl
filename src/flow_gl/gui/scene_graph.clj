@@ -108,13 +108,13 @@
 
 (defn in-coordinates? [node x y]
   (and (>= x
-           (:x node))
-       (<= x
-           (+ (:x node) (:width node)))
-       (>= y
-           (:y node))
-       (<= y
-           (+ (:y node) (:height node)))))
+            (:x node))
+        (<= x
+            (+ (:x node) (:width node)))
+        (>= y
+            (:y node))
+        (<= y
+            (+ (:y node) (:height node)))))
 
 (spec/fdef in-coordinates?
            :args (spec/cat :node ::layouted-node

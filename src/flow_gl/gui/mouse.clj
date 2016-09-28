@@ -14,6 +14,10 @@
                  (and (:width node)
                       (:height node)
                       (scene-graph/in-coordinates? node x y)
+                      (if-let [hit-test (:hit-test node)]
+                        (hit-test (- x (:x node))
+                                  (- y (:y node)))
+                        true)
                       (contains? node :mouse-event-handler))))
        (sort-by :z)))
 
