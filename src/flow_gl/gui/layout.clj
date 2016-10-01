@@ -312,3 +312,68 @@
                      {:x 10 :y 10 :width 10 :height 10 :has-children-out-of-layout true
                       :children [{:x 0 :y 0  :width 10 :height 10}
                                  {:x 0 :y 10 :z 1 :width 10 :height 10 :out-of-layout true}]}]})))
+
+
+
+
+
+
+
+
+
+(defn adapt-to-space [node]
+  (if-let [adapt-function (:adapt-to-space node)]
+    (adapt-function node)
+    node))
+
+(defn add-space [node]
+  (if (:children node)
+    (if-let [space-function (:give-space node)]
+      (space-function node)
+      (update-in node [:children]
+                 (fn [children]
+                   (map (fn [child]
+                          (assoc child
+                                 :available-width java.lang.Integer/MAX_VALUE
+                                 :available-height java.lang.Integer/MAX_VALUE))
+                        children))))
+    node))
+
+(defn size [node]
+  (if-let [get-size (:get-size node)]
+    (get-size node)
+    {:width (or (:width node)
+                0)
+     :height (or (:height node)
+                 0)}))
+
+(defn add-size [node]
+  (conj node (size node)))
+
+(defn add-layout [node]
+  (if-let [layout-function (:make-layout node)]
+    (layout-function node)
+    (update-in node [:children]
+               (fn [children]
+                 (if children
+                   (map (fn [child]
+                          (assoc child
+                                 :x (or (:x node)
+                                        0)
+                                 :y (or (:y node)
+                                        0)))
+                        children)
+                   nil)))))
+
+(defn do-layout [node]
+  (-> node
+      (adapt-to-space)
+      (add-space)
+      (update-in [:children]
+                 (fn [children]
+                   (if children
+                     (map do-layout
+                          children)
+                     nil)))
+      (add-size)
+      (add-layout)))

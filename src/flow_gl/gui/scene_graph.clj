@@ -53,6 +53,14 @@
                     :y y
                     :z z))))))
 
+(spec/fdef leave-nodes
+           :args (spec/or :one (spec/cat :node ::node)
+                          :two (spec/cat :node ::node
+                                         :parent-x ::coordinate
+                                         :parent-y ::coordinate
+                                         :parent-z ::coordinate
+                                         :leaves (spec/coll-of ::node))))
+
 (test/deftest leave-nodes-test
   (is (= '({:x 10, :y 15, :expected-position 1, :z 0}
            {:x 5, :y 10, :expected-position 2, :z 0}
@@ -108,13 +116,13 @@
 
 (defn in-coordinates? [node x y]
   (and (>= x
-            (:x node))
-        (<= x
-            (+ (:x node) (:width node)))
-        (>= y
-            (:y node))
-        (<= y
-            (+ (:y node) (:height node)))))
+           (:x node))
+       (<= x
+           (+ (:x node) (:width node)))
+       (>= y
+           (:y node))
+       (<= y
+           (+ (:y node) (:height node)))))
 
 (spec/fdef in-coordinates?
            :args (spec/cat :node ::layouted-node
