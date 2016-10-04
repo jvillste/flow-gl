@@ -52,13 +52,17 @@
 (defn component-state [id]
   (get @state id))
 
+(defn give-component-focus [component-id component-keyboard-event-handler]
+  (do (swap! state assoc :component-in-focus component-id)
+      (keyboard/set-focused-keyboard-event-handler (fn [keyboard-event]
+                                                     (swap-component-state! component-id
+                                                                            component-keyboard-event-handler
+                                                                            keyboard-event)))))
+
 (defn give-component-focus-on-mouse-click [component-id component-keyboard-event-handler mouse-event]
   (if (= :mouse-clicked
          (:type mouse-event))
-    (keyboard/set-focused-keyboard-event-handler (fn [keyboard-event]
-                                                   (swap-component-state! component-id
-                                                                          component-keyboard-event-handler
-                                                                          keyboard-event))))
+    (give-component-focus component-id component-keyboard-event-handler))
 
   mouse-event)
 
@@ -98,6 +102,8 @@
                              :text)
                          ""))
            :id id
+           :component-id id
+           :keyboard-event-handler handle-text-editor-keyboard-event
            :mouse-event-handler (partial give-component-focus-on-mouse-click
                                          id
                                          handle-text-editor-keyboard-event))))
@@ -119,12 +125,47 @@
                      :x 100
                      :y 200)]})
 
-
 (defn handle-scene-graph [scene-graph]
   (swap! state assoc :scene-graph scene-graph))
 
+(defn component-nodes-in-down-right-order [scene-graph]
+  (->> scene-graph
+       (scene-graph/flatten)
+       (filter :component-id)
+       (sort-by (fn [node] [(:y node) (:x node)]))))
+
+(defn focus-position [component-nodes-in-focus-order component-id]
+  (first (positions (fn [node] (= (:component-id node)
+                                  component-id))
+                    component-nodes-in-focus-order)))
+
+(defn next-component-node-in-focus-chain [advance-function]
+  (let [{:keys [component-in-focus scene-graph]} @state
+        component-nodes-in-focus-order (vec (component-nodes-in-down-right-order scene-graph))]
+    (prn (let [next-position (inc (focus-position component-nodes-in-focus-order component-in-focus))]
+           (if (>= next-position (count component-nodes-in-focus-order))
+             0
+             next-position)))
+    (get component-nodes-in-focus-order
+         (let [next-position (advance-function (focus-position component-nodes-in-focus-order component-in-focus))]
+           (if (>= next-position (count component-nodes-in-focus-order))
+             0
+             (if (< next-position 0)
+               (dec (count component-nodes-in-focus-order))
+               next-position))))))
+
 (defn handle-keyboard-event [keyboard-event]
-  (keyboard/call-focused-keyboard-event-handler keyboard-event))
+  (if (and (= (:key keyboard-event)
+              :tab)
+           (= (:type keyboard-event)
+              :key-pressed))
+    
+    (let [component-node (if (:shift keyboard-event)
+                           (next-component-node-in-focus-chain dec)
+                           (next-component-node-in-focus-chain inc))]
+      (give-component-focus (:component-id component-node)
+                            (:keyboard-event-handler component-node)))
+    (keyboard/call-focused-keyboard-event-handler keyboard-event)))
 
 (deftest nodes-test
   (spec-test/instrument)
@@ -138,7 +179,6 @@
                     :y 0)
              (layout/do-layout)
              #_(scene-graph/leave-nodes)))))
-
 
 (defn start-window []
   (let [window-width 400
