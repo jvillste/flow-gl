@@ -1,5 +1,6 @@
 (ns flow-gl.gui.layouts
-  (:require  (flow-gl.gui [layout :as layout]
+  (:require  [clojure.spec :as spec]
+             (flow-gl.gui [layout :as layout]
                           [layoutable :as layoutable]
                           [drawable :as drawable]
                           [cache :as cache]))
@@ -645,3 +646,90 @@
 
 
 #_(run-tests)
+
+
+(def vertical-stack
+  {:get-size (fn [node]
+               {:width (apply max
+                              (conj (map :width (:children node))
+                                    0))
+                :height (reduce + (map :height (:children node)))})
+   
+   :give-space (fn [node]
+                 (update-in node [:children]
+                            (fn [children]
+
+                              (map (fn [child]
+                                     (assoc child
+                                            :available-width (:available-width node)
+                                            :available-height java.lang.Integer/MAX_VALUE))
+                                   children))))
+   :make-layout (fn [node]
+                  (assoc node :children
+                         (loop [layouted-nodes []
+                                y 0
+                                children (:children node)]
+                           (if-let [child (first children)] 
+                             (recur (conj layouted-nodes
+                                          (assoc child
+                                                 :x 0
+                                                 :y y))
+                                    (+ y (:height child))
+                                    (rest children))
+                             layouted-nodes))))})
+
+(spec/def ::margin int?)
+
+(def box
+  {:get-size (fn [{:keys [margin children]}]
+               (let [[outer inner] children]
+                 {:width (+ (* 2 margin)
+                            (:width inner))
+                  :height (+ (* 2 margin)
+                             (:height inner))}))
+
+   
+   :give-space (fn [{:keys [available-width available-height margin] :as node}]
+                 (spec/assert ::margin margin)
+                 (update-in node [:children]
+                            (fn [[outer inner]]
+                              [(assoc outer
+                                      :available-width available-width
+                                      :available-height available-height)
+                               (assoc inner
+                                      :available-width (- available-width
+                                                          (* 2 margin))
+                                      :available-height (- available-height
+                                                           (* 2 margin)))])))
+   
+   :make-layout (fn [{:keys [margin] :as node}]
+                  (update-in node
+                             [:children]
+                             (fn [[outer inner]]
+                               [(assoc outer
+                                       :x 0
+                                       :y 0
+                                       :z 0
+                                       :width (+ (:width inner)
+                                                 (* 2 margin))
+                                       :height (+ (:height inner)
+                                                  (* 2 margin)))
+                                (assoc inner
+                                       :x margin
+                                       :y margin
+                                       :z 1)])))})
+
+
+(spec/def ::minimum-width int?)
+(spec/def ::minimum-height int?)
+
+(def minimum-size
+  {:get-size (fn [{:keys [minimum-width minimum-height children]}]
+               (spec/assert ::minimum-width minimum-width)
+               (spec/assert ::minimum-height minimum-height)
+               
+               {:width (max minimum-width
+                            (:width (first children)))
+                :height (max minimum-height
+                             (:height (first children)))})})
+

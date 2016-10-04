@@ -1,5 +1,6 @@
 (ns flow-gl.gui.layout
-  (:require  flow-gl.debug
+  (:require  [clojure.spec :as spec]
+             flow-gl.debug
              (flow-gl.gui [layoutable :as layoutable]
                           [cache :as cache]))
   (:use clojure.test))
@@ -316,10 +317,9 @@
 
 
 
-
-
-
-
+(spec/def ::available-width int?)
+(spec/def ::available-height int?)
+(spec/def ::node-with-space (spec/keys :req-un [::available-width ::available-height]))
 
 (defn adapt-to-space [node]
   (if-let [adapt-function (:adapt-to-space node)]
@@ -328,24 +328,26 @@
 
 (defn add-space [node]
   (if (:children node)
-    (if-let [space-function (:give-space node)]
-      (space-function node)
-      (update-in node [:children]
-                 (fn [children]
-                   (map (fn [child]
-                          (assoc child
-                                 :available-width java.lang.Integer/MAX_VALUE
-                                 :available-height java.lang.Integer/MAX_VALUE))
-                        children))))
+    (do (prn node)
+        (spec/assert ::node-with-space node)
+        (if-let [space-function (:give-space node)]
+          (space-function node)
+          (update-in node [:children]
+                     (fn [children]
+                       (map (fn [child]
+                              (assoc child
+                                     :available-width (:available-width node)
+                                     :available-height (:available-height node)))
+                            children)))))
     node))
 
 (defn size [node]
   (if-let [get-size (:get-size node)]
     (get-size node)
     {:width (or (:width node)
-                0)
+                (:available-width node))
      :height (or (:height node)
-                 0)}))
+                 (:available-height node))}))
 
 (defn add-size [node]
   (conj node (size node)))
@@ -358,9 +360,9 @@
                  (if children
                    (map (fn [child]
                           (assoc child
-                                 :x (or (:x node)
+                                 :x (or (:x child)
                                         0)
-                                 :y (or (:y node)
+                                 :y (or (:y child)
                                         0)))
                         children)
                    nil)))))

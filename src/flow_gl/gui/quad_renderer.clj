@@ -24,6 +24,11 @@
 
   (:use clojure.test))
 
+(defn keys-to-seq [source-map keys]
+  (reduce (fn [result key]
+            (conj result (key source-map)))
+          []
+          keys))
 
 (defn image-function-parameters [quad]
   (-> []
@@ -31,8 +36,10 @@
         (conj (:width quad)))
       (cond-> (:height-dependent quad)
         (conj (:height quad)))
-      (concat (or (:parameters quad)
-                  []))))
+      (concat (if-let [image-function-parameters (:image-function-parameters quad)]
+                (keys-to-seq quad
+                             image-function-parameters)
+                []))))
 
 (defn texture-key [quad]
   (hash (concat [(:image-function quad)]
@@ -74,6 +81,14 @@
 
 (defn create-textures [quads]
   (map (fn [quad]
+         (when (= (:width quad)
+                  java.lang.Integer/MAX_VALUE)
+           (throw (ex-info "Quad has infinite width." {:quad quad})))
+         
+         (when (= (:height quad)
+                  java.lang.Integer/MAX_VALUE)
+           (throw (ex-info "Quad has infinite height." {:quad quad})))
+         
          (apply (:image-function quad)
                 (image-function-parameters quad)))
        quads))
