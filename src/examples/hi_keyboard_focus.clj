@@ -4,6 +4,7 @@
             [flow-gl.graphics.text :as text]
             [flow-gl.graphics.rectangle :as rectangle]
             [clojure.core.async :as async]
+            [flow-gl.utils :as utils]
             (flow-gl.gui [window :as window]
                          [layouts :as layouts]
                          [layout :as layout]
@@ -21,8 +22,7 @@
                                  [window :as jogl-window]
                                  
                                  [render-target :as render-target]))
-  (:use flow-gl.utils
-        clojure.test))
+  (:use clojure.test))
 
 (def font (font/create "LiberationSans-Regular.ttf" 15))
 
@@ -59,10 +59,11 @@
                                                                             component-keyboard-event-handler
                                                                             keyboard-event)))))
 
-(defn give-component-focus-on-mouse-click [component-id component-keyboard-event-handler mouse-event]
+(defn give-component-focus-on-mouse-click [node mouse-event]
+  (prn mouse-event)
   (if (= :mouse-clicked
          (:type mouse-event))
-    (give-component-focus component-id component-keyboard-event-handler))
+    (give-component-focus (:id node) (:keyboard-event-handler node)))
 
   mouse-event)
 
@@ -92,7 +93,6 @@
     :default
     editor-state))
 
-
 (defn text-editor [id]
   (let [state (component-state id)]
     (assoc (text-box (if (:has-focus state)
@@ -102,11 +102,8 @@
                              :text)
                          ""))
            :id id
-           :component-id id
            :keyboard-event-handler handle-text-editor-keyboard-event
-           :mouse-event-handler (partial give-component-focus-on-mouse-click
-                                         id
-                                         handle-text-editor-keyboard-event))))
+           :mouse-event-handler give-component-focus-on-mouse-click)))
 
 (defn nodes []
   {:children [(assoc (text-editor 1)
@@ -128,24 +125,20 @@
 (defn handle-scene-graph [scene-graph]
   (swap! state assoc :scene-graph scene-graph))
 
-(defn component-nodes-in-down-right-order [scene-graph]
+(defn keyboard-event-handler-nodes-in-down-right-order [scene-graph]
   (->> scene-graph
        (scene-graph/flatten)
-       (filter :component-id)
+       (filter :keyboard-event-handler)
        (sort-by (fn [node] [(:y node) (:x node)]))))
 
 (defn focus-position [component-nodes-in-focus-order component-id]
-  (first (positions (fn [node] (= (:component-id node)
-                                  component-id))
-                    component-nodes-in-focus-order)))
+  (first (utils/positions (fn [node] (= (:id node)
+                                        component-id))
+                          component-nodes-in-focus-order)))
 
 (defn next-component-node-in-focus-chain [advance-function]
   (let [{:keys [component-in-focus scene-graph]} @state
-        component-nodes-in-focus-order (vec (component-nodes-in-down-right-order scene-graph))]
-    (prn (let [next-position (inc (focus-position component-nodes-in-focus-order component-in-focus))]
-           (if (>= next-position (count component-nodes-in-focus-order))
-             0
-             next-position)))
+        component-nodes-in-focus-order (vec (keyboard-event-handler-nodes-in-down-right-order scene-graph))]
     (get component-nodes-in-focus-order
          (let [next-position (advance-function (focus-position component-nodes-in-focus-order component-in-focus))]
            (if (>= next-position (count component-nodes-in-focus-order))
@@ -163,7 +156,7 @@
     (let [component-node (if (:shift keyboard-event)
                            (next-component-node-in-focus-chain dec)
                            (next-component-node-in-focus-chain inc))]
-      (give-component-focus (:component-id component-node)
+      (give-component-focus (:id component-node)
                             (:keyboard-event-handler component-node)))
     (keyboard/call-focused-keyboard-event-handler keyboard-event)))
 
@@ -190,7 +183,7 @@
         keyboard-state (keyboard/initialize-keybaord-state)]
 
     (loop [flow-gl-state {:quad-renderer (window/with-gl window gl (quad-renderer/create gl))
-                          :previous-mouse-event-handlers-under-mouse {}}]
+                          :mouse-over-state {}}]
       
       (when (window/visible? window)
         (recur (try
@@ -217,22 +210,22 @@
 
                    (keyboard/with-keyboard-state keyboard-state
                      (let [event (async/<!! event-channel)
-                           previous-mouse-event-handlers-by-id (if (= :mouse (:source event))
-                                                                 (let [mouse-event-handler-nodes-under-mouse (mouse/mouse-event-handler-nodes-in-coodriantes scene-graph
-                                                                                                                                                             (:x event)
-                                                                                                                                                             (:y event))]
-                                                                   (prn mouse-event-handler-nodes-under-mouse)
-                                                                   (mouse/call-mouse-event-handlers mouse-event-handler-nodes-under-mouse
-                                                                                                    event)
-                                                                   (mouse/send-mouse-over-events (:previous-mouse-event-handlers-under-mouse flow-gl-state)
-                                                                                                 mouse-event-handler-nodes-under-mouse))
-                                                                 (:previous-mouse-event-handlers-under-mouse flow-gl-state))]
+                           mouse-over-state (if (= :mouse (:source event))
+                                              (let [mouse-event-handler-nodes-under-mouse (mouse/mouse-event-handler-nodes-in-coodriantes scene-graph
+                                                                                                                                          (:x event)
+                                                                                                                                          (:y event))]
+
+                                                (mouse/call-mouse-event-handlers mouse-event-handler-nodes-under-mouse
+                                                                                 event)
+                                                (mouse/send-mouse-over-events (:mouse-over-state flow-gl-state)
+                                                                              mouse-event-handler-nodes-under-mouse))
+                                              (:mouse-over-state flow-gl-state))]
                        (when (= :keyboard
                                 (:source event))
                          (handle-keyboard-event event))
                        
                        {:quad-renderer quad-renderer
-                        :previous-mouse-event-handlers-under-mouse previous-mouse-event-handlers-by-id})))
+                        :mouse-over-state mouse-over-state})))
                  
                  (catch Throwable e
                    (.printStackTrace e *out*)
@@ -269,4 +262,7 @@
 ;; preferred-size and adapted-children are calculated during layout because the available space is known only during layout
 
 
+
+;; TODO give the node as parameter to mouse event handlers. Then the component id and keyboard event handler can be taken from the nodes :id field.
+;; :id can be calculated from :local-id that is only unique among siblings
 

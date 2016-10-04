@@ -35,13 +35,15 @@
                                                    5 10))))
 
 (defn call-mouse-event-handler-for-node [event node]
-  ((:mouse-event-handler node) (if (and (:x event) (:y event))
-                                 (assoc event
-                                        :local-x (- (:x event)
-                                                    (:x node))
-                                        :local-y (- (:y event)
-                                                    (:y node)))
-                                 event)))
+  ((:mouse-event-handler node)
+   node
+   (if (and (:x event) (:y event))
+     (assoc event
+            :local-x (- (:x event)
+                        (:x node))
+            :local-y (- (:y event)
+                        (:y node)))
+     event)))
 
 (spec/fdef call-mouse-event-handler-for-node
            :args (spec/cat :event ::mouse-event
@@ -73,34 +75,40 @@
            :args (spec/cat :nodes-with-mouse-event-handlers (spec/coll-of ::scene-graph/node)
                            :event ::mouse-event))
 
+(defn call-handler-for-node [nodes-by-id id event]
+  (let [node (get nodes-by-id
+                  id)]
+    ((:mouse-event-handler node)
+     node
+     event)))
 
-(defn send-mouse-over-events [previous-mouse-event-handlers-by-id current-mouse-event-handler-nodes]
-  (let [current-mouse-event-handlers-by-id (reduce (fn [handlers node]
-                                                     (if (:id node)
-                                                       (assoc handlers (:id node) (:mouse-event-handler node))
-                                                       handlers))
-                                                   {}
-                                                   current-mouse-event-handler-nodes)
-        previous-id-set (apply hash-set (keys previous-mouse-event-handlers-by-id))
-        current-id-set (apply hash-set (keys current-mouse-event-handlers-by-id))]
+(defn send-mouse-over-events [previous-mouse-event-handler-nodes-by-id current-mouse-event-handler-nodes]
+  (let [current-mouse-event-handler-nodes-by-id (reduce (fn [nodes node]
+                                                          (if (and (:id node) (:mouse-event-handler node))
+                                                            (assoc nodes (:id node) node)
+                                                            nodes))
+                                                        {}
+                                                        current-mouse-event-handler-nodes)
+        previous-id-set (apply hash-set (keys previous-mouse-event-handler-nodes-by-id))
+        current-id-set (apply hash-set (keys current-mouse-event-handler-nodes-by-id))]
 
-    (doseq [new-id (set/difference current-id-set
-                                   previous-id-set)]
-      ((get current-mouse-event-handlers-by-id
-            new-id) 
-       {:type :mouse-entered}))
+    (doseq [id (set/difference current-id-set
+                               previous-id-set)]
+      (call-handler-for-node current-mouse-event-handler-nodes-by-id
+                             id
+                             {:type :mouse-entered}))
     
-    (doseq [old-id (set/difference previous-id-set
-                                   current-id-set)]
-      ((get previous-mouse-event-handlers-by-id
-            old-id) 
-       {:type :mouse-left}))
+    (doseq [id (set/difference previous-id-set
+                               current-id-set)]
+      (call-handler-for-node previous-mouse-event-handler-nodes-by-id
+                             id
+                             {:type :mouse-left}))
     
-    current-mouse-event-handlers-by-id))
+    current-mouse-event-handler-nodes-by-id))
 
 
 (spec/fdef send-mouse-over-events
-           :args (spec/cat :previous-mouse-event-handlers-by-id (spec/map-of (constantly true) fn?)
+           :args (spec/cat :previous-mouse-event-handlers-by-id (spec/map-of (constantly true) ::scene-graph/node)
                            :current-mouse-event-handler-nodes (spec/coll-of ::scene-graph/node))
            :ret map?)
 

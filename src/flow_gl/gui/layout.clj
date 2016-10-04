@@ -328,8 +328,7 @@
 
 (defn add-space [node]
   (if (:children node)
-    (do (prn node)
-        (spec/assert ::node-with-space node)
+    (do (spec/assert ::node-with-space node)
         (if-let [space-function (:give-space node)]
           (space-function node)
           (update-in node [:children]
