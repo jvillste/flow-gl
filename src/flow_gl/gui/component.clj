@@ -45,7 +45,7 @@
 
   mouse-event)
 
-(defn keyboard-event-handler-nodes-in-down-right-order [scene-graph]
+(defn component-nodes-in-down-right-order [scene-graph]
   (->> scene-graph
        (scene-graph/flatten)
        (filter :keyboard-event-handler)

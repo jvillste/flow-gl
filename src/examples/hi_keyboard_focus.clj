@@ -101,7 +101,7 @@
            (= (:type keyboard-event)
               :key-pressed))
     
-    (let [next-component-node-infocus (component/next-component-node (component/keyboard-event-handler-nodes-in-down-right-order scene-graph)
+    (let [next-component-node-infocus (component/next-component-node (component/component-nodes-in-down-right-order scene-graph)
                                                                      (component/component-in-focus)
                                                                      (if (:shift keyboard-event)
                                                                        dec
@@ -131,17 +131,15 @@
         window (jogl-window/create window-width
                                    window-height
                                    :close-automatically true)
-        event-channel (window/event-channel window)
-        keyboard-state (keyboard/initialize-keybaord-state)
-        component-state (component/initialize-state)]
+        event-channel (window/event-channel window)]
 
-    (loop [flow-gl-state {:quad-renderer (window/with-gl window gl (quad-renderer/create gl))
-                          :mouse-over-state {}}]
-      
-      (when (window/visible? window)
-        (recur (try
-                 (keyboard/with-keyboard-state keyboard-state
-                   (component/with-component-state component-state
+    (keyboard/with-keyboard-state (keyboard/initialize-keybaord-state)
+      (component/with-component-state (component/initialize-state)
+        (loop [flow-gl-state {:quad-renderer (window/with-gl window gl (quad-renderer/create gl))
+                              :mouse-over-state {}}]
+          
+          (when (window/visible? window)
+            (recur (try
                      (let [window-width (window/width window)
                            window-height (window/height window)
                            scene-graph (-> (nodes)
@@ -176,13 +174,15 @@
                            (handle-keyboard-event scene-graph event))
                          
                          {:quad-renderer quad-renderer
-                          :mouse-over-state mouse-over-state}))))
-                 
-                 
-                 (catch Throwable e
-                   (.printStackTrace e *out*)
-                   (window/close window)
-                   (throw e))))))
+                          :mouse-over-state mouse-over-state}))
+
+                     
+                     
+                     (catch Throwable e
+                       (.printStackTrace e *out*)
+                       (window/close window)
+                       (throw e))))))))
+    
     
     (println "exiting")))
 
