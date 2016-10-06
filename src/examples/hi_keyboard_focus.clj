@@ -40,6 +40,14 @@
                                   font
                                   text)]))
 
+(defn character-edior-keyboard-event-hanlder [id keyboard-event]
+  (case (:type keyboard-event)
+    :key-pressed (if (:character keyboard-event)
+                   (swap! state assoc-in [id :text] (str (:character keyboard-event))))
+    :focus-gained  (swap! state assoc-in [id :has-focus] true)
+    :focus-lost  (swap! state assoc-in [id :has-focus] false)
+    nil))
+
 (defn character-editor [id]
   (let [editor-state (get @state id)]
     (assoc (text-box (if (:has-focus editor-state)
@@ -49,22 +57,19 @@
                              :text)
                          ""))
            :id id
-           :keyboard-event-handler (fn [keyboard-event]
-                                     (case (:type keyboard-event)
-                                       :key-pressed (if (:character keyboard-event)
-                                                      (swap! state assoc-in [id :text] (str (:character keyboard-event))))
-                                       :focus-gained  (swap! state assoc-in [id :has-focus] true)
-                                       :focus-lost  (swap! state assoc-in [id :has-focus] false)
-                                       nil))
+           :keyboard-event-handler (partial character-edior-keyboard-event-hanlder id)
            :mouse-event-handler keyboard/set-focus-on-mouse-clicked!)))
 
 
 (defn nodes []
-  {:children [(assoc layouts/vertical-stack
-                     :children [(character-editor 1)
-                                (character-editor 2)
-                                (character-editor 3)]
+  {:children [(assoc (character-editor 1)
                      :x 10
+                     :y 10)
+              (assoc (character-editor 2)
+                     :x 100
+                     :y 100)
+              (assoc (character-editor 3)
+                     :x 100
                      :y 10)]})
 
 
@@ -94,7 +99,7 @@
                             inc)
                           keyboard/cycle-position)
     
-    (keyboard/call-focused-keyboard-event-handler keyboard-event)))
+    (keyboard/call-focused-event-handler keyboard-event)))
 
 (defn start-window []
   (let [window-width 400

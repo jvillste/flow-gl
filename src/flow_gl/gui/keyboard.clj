@@ -43,7 +43,7 @@
 (defn set-focused-event-handler! [event-handler]
   (move-focus-and-send-move-events! set-focused-event-handler event-handler))
 
-(defn call-focused-keyboard-event-handler [event]
+(defn call-focused-event-handler [event]
   (call-if-set @keyboard-state-atom :focused-handler event))
 
 
