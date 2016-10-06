@@ -40,7 +40,7 @@
                                   font
                                   text)]))
 
-(defn character-edior-keyboard-event-hanlder [id keyboard-event]
+(defn character-editor-keyboard-event-handler [id keyboard-event]
   (case (:type keyboard-event)
     :key-pressed (if (:character keyboard-event)
                    (swap! state assoc-in [id :text] (str (:character keyboard-event))))
@@ -57,7 +57,7 @@
                              :text)
                          ""))
            :id id
-           :keyboard-event-handler (partial character-edior-keyboard-event-hanlder id)
+           :keyboard-event-handler (partial character-editor-keyboard-event-handler id)
            :mouse-event-handler keyboard/set-focus-on-mouse-clicked!)))
 
 
@@ -109,7 +109,7 @@
                                    :close-automatically true)
         event-channel (window/event-channel window)]
 
-    (keyboard/with-keyboard-state (keyboard/initialize-keybaord-state)
+    (keyboard/with-keyboard-state (keyboard/initialize-keyboard-state)
       (loop [flow-gl-state {:quad-renderer (window/with-gl window gl (quad-renderer/create gl))
                             :mouse-over-state {}}]
         

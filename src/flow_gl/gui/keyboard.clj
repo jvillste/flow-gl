@@ -7,7 +7,7 @@
 
 (def ^:dynamic keyboard-state-atom)
 
-(defn initialize-keybaord-state []
+(defn initialize-keyboard-state []
   (atom {}))
 
 (defmacro with-keyboard-state [keyboard-state & body]
