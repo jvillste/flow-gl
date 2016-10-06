@@ -30,10 +30,10 @@
 
 (defn give-component-focus [component-id component-keyboard-event-handler]
   (do (swap! component-state-atom assoc :component-in-focus component-id)
-      (keyboard/set-focused-keyboard-event-handler (fn [keyboard-event]
-                                                     (swap-component-state! component-id
-                                                                            component-keyboard-event-handler
-                                                                            keyboard-event)))))
+      (keyboard/set-focused-event-handler (fn [keyboard-event]
+                                             (swap-component-state! component-id
+                                                                    component-keyboard-event-handler
+                                                                    keyboard-event)))))
 
 (defn component-in-focus []
   (:component-in-focus @component-state-atom))
@@ -45,24 +45,4 @@
 
   mouse-event)
 
-(defn component-nodes-in-down-right-order [scene-graph]
-  (->> scene-graph
-       (scene-graph/flatten)
-       (filter :keyboard-event-handler)
-       (sort-by (fn [node] [(:y node) (:x node)]))))
 
-(defn focus-position [component-nodes-in-focus-order component-id]
-  (first (utils/positions (fn [node]
-                            (= (:id node)
-                               component-id))
-                          component-nodes-in-focus-order)))
-
-(defn next-component-node [component-nodes current-component-node advance-function]
-  (let [component-count (count component-nodes)]
-    (get (vec component-nodes)
-         (let [next-position (advance-function (focus-position component-nodes current-component-node))]
-           (if (>= next-position component-count)
-             0
-             (if (< next-position 0)
-               (dec component-count)
-               next-position))))))
