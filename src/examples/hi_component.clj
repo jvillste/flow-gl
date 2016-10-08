@@ -1,4 +1,4 @@
-(ns examples.hi-keyboard-focus
+(ns examples.hi-component
   (:require [clojure.spec.test :as spec-test]
             [clojure.spec :as spec]
             [flow-gl.graphics.text :as text]
@@ -40,34 +40,36 @@
                                                     font
                                                     text)])]))
 
-(defn handle-text-editor-keyboard-event [editor-state event]
-  (cond
-    (= :focus-gained
-       (:type event))
-    (assoc editor-state :has-focus true)
+(defn handle-text-editor-keyboard-event [id event]
+  (component/apply-to-component-state! id
+                                       (fn [editor-state]
+                                         (cond
+                                           (= :focus-gained
+                                              (:type event))
+                                           (assoc editor-state :has-focus true)
 
-    (= :focus-lost
-       (:type event))
-    (assoc editor-state :has-focus false)
-    
-    (events/key-pressed? event :back-space)
-    (update-in editor-state [:text] (fn [text]
-                                      (apply str (drop-last text))))
+                                           (= :focus-lost
+                                              (:type event))
+                                           (assoc editor-state :has-focus false)
+                                           
+                                           (events/key-pressed? event :back-space)
+                                           (update-in editor-state [:text] (fn [text]
+                                                                             (apply str (drop-last text))))
 
-    (and (:character event)
-         (not= (:key event)
-               :enter)
-         (= (:type event)
-            :key-pressed))
-    (update-in editor-state [:text] (fn [text]
-                                      (str text
-                                           (:character event))))
+                                           (and (:character event)
+                                                (not= (:key event)
+                                                      :enter)
+                                                (= (:type event)
+                                                   :key-pressed))
+                                           (update-in editor-state [:text] (fn [text]
+                                                                             (str text
+                                                                                  (:character event))))
 
-    :default
-    editor-state))
+                                           :default
+                                           editor-state))))
 
 (defn text-editor [id]
-  (let [state (component/component-state id)]
+  (let [state (component/component-state! id)]
     (assoc (text-box (if (:has-focus state)
                        [255 255 255 255]
                        [155 155 155 255])
@@ -75,8 +77,8 @@
                              :text)
                          ""))
            :id id
-           :keyboard-event-handler handle-text-editor-keyboard-event
-           :mouse-event-handler component/give-component-focus-on-mouse-click)))
+           :keyboard-event-handler (partial handle-text-editor-keyboard-event id)
+           :mouse-event-handler keyboard/set-focus-on-mouse-clicked!)))
 
 (defn nodes []
   {:children [(assoc (text-editor 1)
@@ -95,35 +97,6 @@
                      :x 100
                      :y 200)]})
 
-(defn handle-keyboard-event [scene-graph keyboard-event]
-  (if (and (= (:key keyboard-event)
-              :tab)
-           (= (:type keyboard-event)
-              :key-pressed))
-    
-    (let [next-component-node-infocus (component/next-component-node (component/component-nodes-in-down-right-order scene-graph)
-                                                                     (component/component-in-focus)
-                                                                     (if (:shift keyboard-event)
-                                                                       dec
-                                                                       inc))]
-      
-      (component/give-component-focus (:id next-component-node-infocus)
-                                      (:keyboard-event-handler next-component-node-infocus)))
-    
-    (keyboard/call-focused-keyboard-event-handler keyboard-event)))
-
-(deftest nodes-test
-  (spec-test/instrument)
-  (spec/check-asserts true)
-
-  (is (= nil
-         (-> (nodes)
-             (assoc :available-width 400
-                    :available-height 400
-                    :x 0
-                    :y 0)
-             (layout/do-layout)
-             #_(scene-graph/leave-nodes)))))
 
 (defn start-window []
   (let [window-width 400
@@ -133,55 +106,47 @@
                                    :close-automatically true)
         event-channel (window/event-channel window)]
 
-    (keyboard/with-keyboard-state (keyboard/initialize-keybaord-state)
-      (component/with-component-state (component/initialize-state)
-        (loop [flow-gl-state {:quad-renderer (window/with-gl window gl (quad-renderer/create gl))
-                              :mouse-over-state {}}]
+    (with-bindings {#'mouse/state-atom (mouse/initialize-state)
+                    #'keyboard/state-atom (keyboard/initialize-state)
+                    #'component/state-atom (component/initialize-state)
+                    #'quad-renderer/state-atom (window/with-gl window gl (quad-renderer/initialize-state gl))}
+      (while (window/visible? window)
+        (try
+          (let [window-width (window/width window)
+                window-height (window/height window)
+                scene-graph (-> (nodes)
+                                (assoc :x 0
+                                       :y 0
+                                       :available-width window-width
+                                       :available-height window-height)
+                                (layout/do-layout))
+                quad-renderer (window/with-gl window gl
+                                (opengl/clear gl 0 0 0 1)
+
+                                (quad-renderer/draw! (scene-graph/leave-nodes scene-graph)
+                                                     window-width
+                                                     window-height
+                                                     gl))]
+            (window/swap-buffers window)
+
+            (let [event (async/<!! event-channel)]
+
+              (when (= :mouse
+                       (:source event))
+                (mouse/handle-mouse-event! scene-graph event))
+              
+              (when (= :keyboard
+                       (:source event))
+                (keyboard/handle-keyboard-event! scene-graph event))
+              
+              {:quad-renderer quad-renderer}))
+
           
-          (when (window/visible? window)
-            (recur (try
-                     (let [window-width (window/width window)
-                           window-height (window/height window)
-                           scene-graph (-> (nodes)
-                                           (assoc :x 0
-                                                  :y 0
-                                                  :available-width window-width
-                                                  :available-height window-height)
-                                           (layout/do-layout))
-                           quad-renderer (window/with-gl window gl
-                                           (opengl/clear gl 0 0 0 1)
-
-                                           (quad-renderer/draw (:quad-renderer flow-gl-state)
-                                                               (scene-graph/leave-nodes scene-graph)
-                                                               window-width
-                                                               window-height
-                                                               gl))]
-                       (window/swap-buffers window)
-
-                       (let [event (async/<!! event-channel)
-                             mouse-over-state (if (= :mouse (:source event))
-                                                (let [mouse-event-handler-nodes-under-mouse (mouse/mouse-event-handler-nodes-in-coodriantes scene-graph
-                                                                                                                                            (:x event)
-                                                                                                                                            (:y event))]
-
-                                                  (mouse/call-mouse-event-handlers mouse-event-handler-nodes-under-mouse
-                                                                                   event)
-                                                  (mouse/send-mouse-over-events (:mouse-over-state flow-gl-state)
-                                                                                mouse-event-handler-nodes-under-mouse))
-                                                (:mouse-over-state flow-gl-state))]
-                         (when (= :keyboard
-                                  (:source event))
-                           (handle-keyboard-event scene-graph event))
-                         
-                         {:quad-renderer quad-renderer
-                          :mouse-over-state mouse-over-state}))
-
-                     
-                     
-                     (catch Throwable e
-                       (.printStackTrace e *out*)
-                       (window/close window)
-                       (throw e))))))))
+          
+          (catch Throwable e
+            (.printStackTrace e *out*)
+            (window/close window)
+            (throw e)))))    
     
     
     (println "exiting")))

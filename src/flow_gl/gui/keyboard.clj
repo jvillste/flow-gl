@@ -4,47 +4,28 @@
             (flow-gl.gui [scene-graph :as scene-graph])
             [clojure.test :as test :refer [deftest is]]))
 
-
-(def ^:dynamic keyboard-state-atom)
-
-(defn initialize-keyboard-state []
+(defn initialize-state []
   (atom {}))
-
-(defmacro with-keyboard-state [keyboard-state & body]
-  `(binding [keyboard-state-atom ~keyboard-state]
-     ~@body))
 
 (defn call-if-set [keyboard-state handler-key & arguments]
   (when-let [handler (handler-key keyboard-state)]
     (apply handler arguments)))
 
-(defn send-focus-move-events! [old-event-handler new-event-handler]
+(defn send-focus-move-events [old-event-handler new-event-handler]
   (when old-event-handler
     (old-event-handler {:type :focus-lost}))
   
   (new-event-handler {:type :focus-gained}))
 
-(defn move-focus-and-send-move-events! [move-focus & arguments]
-  (let [old-handler (atom nil)]
-    (swap! keyboard-state-atom
-           (fn [keyboard-state]
-             (reset! old-handler (:focused-handler keyboard-state))
-             (apply move-focus
-                    keyboard-state
-                    arguments)))
-    (send-focus-move-events! @old-handler
-                             (:focused-handler @keyboard-state-atom))))
-
 (defn set-focused-event-handler [keyboard-state event-handler]
+  (assert (map? keyboard-state))
+  
   (assoc keyboard-state
          :focused-handler event-handler))
 
 
-(defn set-focused-event-handler! [event-handler]
-  (move-focus-and-send-move-events! set-focused-event-handler event-handler))
-
-(defn call-focused-event-handler [event]
-  (call-if-set @keyboard-state-atom :focused-handler event))
+(defn call-focused-event-handler [state event]
+  (call-if-set state :focused-handler event))
 
 
 ;; focused nodes
@@ -60,17 +41,7 @@
        (assoc :focused-node-id node-id)
        (set-focused-event-handler event-handler))))
 
-(defn set-focused-node! [node]
-  (move-focus-and-send-move-events! set-focused-node
-                                    node))
 
-;; focus by mouse
-
-(defn set-focus-on-mouse-clicked! [node event]
-  (when (= :mouse-clicked
-           (:type event))
-    (set-focused-node! node))
-  event)
 
 
 ;; focus cycling
@@ -83,7 +54,6 @@
            nodes))
 
 (defn node-position [nodes id]
-  (prn id)
   (-> (utils/positions #(= (:id %) id)
                        nodes)
       (first)))
@@ -117,14 +87,73 @@
         (get-with-limit nodes-with-handler
                         limit))))
 
+(defn move-focus [state scene-graph ordering advance limit]
+  (set-focused-node state
+                    (next-node (:focused-node-id state)
+                               (keyboard-event-handler-nodes scene-graph)
+                               ordering
+                               advance
+                               limit)))
+
+
+;; state
+
+(defn move-focus-and-send-move-events! [state-atom move-focus & arguments]
+  (let [old-handler (atom nil)]
+    (swap! state-atom
+           (fn [keyboard-state]
+             (reset! old-handler (:focused-handler keyboard-state))
+             (apply move-focus
+                    keyboard-state
+                    arguments)))
+    (send-focus-move-events @old-handler
+                            (:focused-handler @state-atom))))
+
+;; dynamic state
+
+(def ^:dynamic state-atom)
+
+(defn set-focused-event-handler! [event-handler]
+  (move-focus-and-send-move-events! state-atom
+                                    set-focused-event-handler
+                                    event-handler))
+
+
+
+(defn call-focused-event-handler! [event]
+  (call-if-set @state-atom :focused-handler event))
+
+
+
+(defn set-focused-node! [node]
+  (move-focus-and-send-move-events! state-atom
+                                    set-focused-node
+                                    node))
+
+(defn set-focus-on-mouse-clicked! [node event]
+  (when (= :mouse-clicked
+           (:type event))
+    (set-focused-node! node))
+  event)
+
+
 (defn move-focus! [scene-graph ordering advance limit]
-  (move-focus-and-send-move-events! (fn [keyboard-state]
-                                      (prn keyboard-state)
-                                      (set-focused-node keyboard-state
-                                                        (next-node (:focused-node-id keyboard-state)
-                                                                   (keyboard-event-handler-nodes scene-graph)
-                                                                   ordering
-                                                                   advance
-                                                                   limit)))))
+  (move-focus-and-send-move-events! state-atom
+                                    move-focus
+                                    scene-graph ordering advance limit))
 
 
+(defn handle-keyboard-event! [scene-graph keyboard-event]
+  (if (and (= (:key keyboard-event)
+              :tab)
+           (= (:type keyboard-event)
+              :key-pressed))
+
+    (move-focus! scene-graph
+                 order-nodes-down-right
+                 (if (:shift keyboard-event)
+                   dec
+                   inc)
+                 cycle-position)
+    
+    (call-focused-event-handler! keyboard-event)))

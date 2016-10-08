@@ -178,3 +178,13 @@
    :drawn-drawables []
    :quad-batch (quad-batch/create gl)})
 
+
+;; dynamic state
+
+(def ^:dynamic state-atom)
+
+(defn initialize-state [gl]
+  (atom (create gl)))
+
+(defn draw! [quads width height gl]
+  (swap! state-atom draw quads width height gl))

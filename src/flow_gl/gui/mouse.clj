@@ -130,3 +130,29 @@
              ::spec/problems
              first))))
 
+
+(defn initialize-state []
+  (atom {:mouse-event-handler-nodes-under-mouse-by-id {}}))
+
+(defn handle-mouse-event [state scene-graph event]
+  (let [mouse-event-handler-nodes-under-mouse (mouse-event-handler-nodes-in-coodriantes scene-graph
+                                                                                        (:x event)
+                                                                                        (:y event))]
+
+    (call-mouse-event-handlers mouse-event-handler-nodes-under-mouse
+                               event)
+
+    (update-in state
+               [:mouse-event-handler-nodes-under-mouse-by-id]
+               send-mouse-over-events
+               mouse-event-handler-nodes-under-mouse)))
+
+
+
+;; dynamic state
+
+(def ^:dynamic state-atom)
+
+(defn handle-mouse-event! [scene-graph event]
+  (swap! state-atom
+         handle-mouse-event scene-graph event))
