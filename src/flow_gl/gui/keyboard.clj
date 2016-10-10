@@ -130,6 +130,13 @@
                                     set-focused-node
                                     node))
 
+(defn update-nodes-event-handler! [node event-handler]
+  (when (= (:id node)
+           (:focused-node-id @state-atom))
+    (set-focused-event-handler! event-handler))
+
+  (assoc node :keyboard-event-handler event-handler))
+
 (defn set-focus-on-mouse-clicked! [node event]
   (when (= :mouse-clicked
            (:type event))

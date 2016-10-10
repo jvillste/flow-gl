@@ -5,6 +5,7 @@
             [flow-gl.graphics.rectangle :as rectangle]
             [clojure.core.async :as async]
             [flow-gl.utils :as utils]
+            [fungl.application :as application]
             (flow-gl.gui [window :as window]
                          [layouts :as layouts]
                          [layout :as layout]
@@ -40,146 +41,75 @@
                                                     font
                                                     text)])]))
 
-(defn handle-text-editor-keyboard-event [id event]
-  (component/apply-to-component-state! id
-                                       (fn [editor-state]
-                                         (cond
-                                           (= :focus-gained
-                                              (:type event))
-                                           (assoc editor-state :has-focus true)
+(defn handle-text-editor-keyboard-event [id text on-change event]
+  (cond
+    (= :focus-gained
+       (:type event))
+    (component/apply-to-component-state! id assoc :has-focus true)
 
-                                           (= :focus-lost
-                                              (:type event))
-                                           (assoc editor-state :has-focus false)
-                                           
-                                           (events/key-pressed? event :back-space)
-                                           (update-in editor-state [:text] (fn [text]
-                                                                             (apply str (drop-last text))))
+    (= :focus-lost
+       (:type event))
+    (component/apply-to-component-state! id assoc :has-focus false)
 
-                                           (and (:character event)
-                                                (not= (:key event)
-                                                      :enter)
-                                                (= (:type event)
-                                                   :key-pressed))
-                                           (update-in editor-state [:text] (fn [text]
-                                                                             (str text
-                                                                                  (:character event))))
-
-                                           :default
-                                           editor-state))))
-
-(defn text-editor [id]
-  (let [state (component/component-state! id)]
-    (assoc (text-box (if (:has-focus state)
-                       [255 255 255 255]
-                       [155 155 155 255])
-                     (or (-> state
-                             :text)
-                         ""))
-           :id id
-           :keyboard-event-handler (partial handle-text-editor-keyboard-event id)
-           :mouse-event-handler keyboard/set-focus-on-mouse-clicked!)))
-
-(defn nodes []
-  {:children [(assoc (text-editor 1)
-                     :x 0
-                     :y 0)
-
-              (assoc (text-editor 2)
-                     :x 200
-                     :y 0)
-
-              (assoc (text-editor 3)
-                     :x 100
-                     :y 100)
-              
-              (assoc (text-editor 4)
-                     :x 100
-                     :y 200)]})
-
-
-(defn start-window []
-  (let [window-width 400
-        window-height 400
-        window (jogl-window/create window-width
-                                   window-height
-                                   :close-automatically true)
-        event-channel (window/event-channel window)]
-
-    (with-bindings {#'mouse/state-atom (mouse/initialize-state)
-                    #'keyboard/state-atom (keyboard/initialize-state)
-                    #'component/state-atom (component/initialize-state)
-                    #'quad-renderer/state-atom (window/with-gl window gl (quad-renderer/initialize-state gl))}
-      (while (window/visible? window)
-        (try
-          (let [window-width (window/width window)
-                window-height (window/height window)
-                scene-graph (-> (nodes)
-                                (assoc :x 0
-                                       :y 0
-                                       :available-width window-width
-                                       :available-height window-height)
-                                (layout/do-layout))
-                quad-renderer (window/with-gl window gl
-                                (opengl/clear gl 0 0 0 1)
-
-                                (quad-renderer/draw! (scene-graph/leave-nodes scene-graph)
-                                                     window-width
-                                                     window-height
-                                                     gl))]
-            (window/swap-buffers window)
-
-            (let [event (async/<!! event-channel)]
-
-              (when (= :mouse
-                       (:source event))
-                (mouse/handle-mouse-event! scene-graph event))
-              
-              (when (= :keyboard
-                       (:source event))
-                (keyboard/handle-keyboard-event! scene-graph event))
-              
-              {:quad-renderer quad-renderer}))
-
-          
-          
-          (catch Throwable e
-            (.printStackTrace e *out*)
-            (window/close window)
-            (throw e)))))    
     
-    
-    (println "exiting")))
+    (events/key-pressed? event :back-space)
+    (on-change (apply str (drop-last text)))
 
+    (and (:character event)
+         (not= (:key event)
+               :enter)
+         (= (:type event)
+            :key-pressed))
+    (on-change (str text
+                    (:character event)))))
+
+(def text-editor
+  {:initialize-state (fn [] {:has-focus false})
+   :create-scene-graph (fn [state id text on-change]
+                         (-> (assoc (text-box (if (:has-focus state)
+                                                [255 255 255 255]
+                                                [155 155 155 255])
+                                              (or text
+                                                  ""))
+                                    :id id
+                                    :mouse-event-handler keyboard/set-focus-on-mouse-clicked!)
+                             (keyboard/update-nodes-event-handler! (partial handle-text-editor-keyboard-event
+                                                                            id
+                                                                            text
+                                                                            on-change))))})
+
+(def root
+  {:initialize-state (fn []
+                       {:text-1 "foo"
+                        :text-2 "bar"
+                        :text-3 "baz"})
+   
+   :create-scene-graph (fn [state id]
+                         (assoc layouts/vertical-stack
+                                :children [(component/call! text-editor
+                                                            (conj id :text-editor-1)
+                                                            (:text-1 state)
+                                                            (fn [new-text]
+                                                              (component/apply-to-component-state! id assoc :text-1 new-text)))
+                                           (component/call! text-editor
+                                                            (conj id :text-editor-2)
+                                                            (:text-2 state)
+                                                            (fn [new-text]
+                                                              (component/apply-to-component-state! id assoc :text-2 new-text)))
+                                           (text-box [255 255 255 255]
+                                                     (pr-str state))]))})
+
+
+
+(defn create-scene-graph [width height]
+  (-> (component/call! root [:root])
+      (application/do-layout width height)))
 
 (defn start []
   (spec-test/instrument)
   (spec/check-asserts true)
-  (start-window)
+  (application/start-window create-scene-graph)
   #_(.start (Thread. (fn []
                        (start-window)))))
 
-;; visual tree is a scene graph with only child relations
-;; layout is a scene graph with coordinates and sizes
-;; space = available space
-;; size = preferred size
-
-;; abstract visual stree = function from space to visual tree
-;; space, abstract visual tree -> children -> size -> layout
-
-;; child function: space -> children
-;; size function: space, children -> size
-;; space function: space, child sizes -> children's space
-;; layout function: space, space functions, size functions, child functions -> child coordinates
-
-;; children depend on available space
-;; preferred size depends on children
-;; layout depends on preferred size
-;; layout is a positioned scene graph
-;; preferred-size and adapted-children are calculated during layout because the available space is known only during layout
-
-
-
-;; TODO give the node as parameter to mouse event handlers. Then the component id and keyboard event handler can be taken from the nodes :id field.
-;; :id can be calculated from :local-id that is only unique among siblings
 
