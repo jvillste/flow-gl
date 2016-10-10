@@ -17,7 +17,7 @@
    :corner-arc-height corner-arc-height
    :color color
    :image-function draw-rectangle
-   :image-function-parameters [:width :height :color :corner-arc-width :corner-arc-height]
+   :image-function-parameter-keys [:width :height :color :corner-arc-width :corner-arc-height]
    :hit-test hit-test-rectangle})
 
 (defn text [color font string]
@@ -28,4 +28,4 @@
    :width (font/width font string)
    :height (font/height font)
    :image-function text/create-buffered-image
-   :image-function-parameters [:color :font :string]})
+   :image-function-parameter-keys [:color :font :string]})

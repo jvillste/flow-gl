@@ -1,30 +1,14 @@
 (ns examples.hi-component
   (:require [clojure.spec.test :as spec-test]
             [clojure.spec :as spec]
-            [flow-gl.graphics.text :as text]
-            [flow-gl.graphics.rectangle :as rectangle]
-            [clojure.core.async :as async]
-            [flow-gl.utils :as utils]
             [fungl.application :as application]
-            (flow-gl.gui [window :as window]
-                         [layouts :as layouts]
-                         [layout :as layout]
-                         [quad-renderer :as quad-renderer]
-                         [scene-graph :as scene-graph]
-                         [mouse :as mouse]
+            (flow-gl.gui [layouts :as layouts]
                          [keyboard :as keyboard]
                          [visuals :as visuals]
-                         [events :as events]
-                         [component :as component])
+                         [component :as component]
+                         [events :as events])
 
-            (flow-gl.graphics [font :as font]
-                              [buffered-image :as buffered-image])
-
-            (flow-gl.opengl.jogl [opengl :as opengl]
-                                 [window :as jogl-window]
-                                 
-                                 [render-target :as render-target]))
-  (:use clojure.test))
+            (flow-gl.graphics [font :as font])))
 
 (def font (font/create "LiberationSans-Regular.ttf" 15))
 
@@ -81,8 +65,7 @@
 (def root
   {:initialize-state (fn []
                        {:text-1 "foo"
-                        :text-2 "bar"
-                        :text-3 "baz"})
+                        :text-2 "bar"})
    
    :create-scene-graph (fn [state id]
                          (assoc layouts/vertical-stack

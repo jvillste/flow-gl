@@ -36,7 +36,7 @@
         (conj (:width quad)))
       (cond-> (:height-dependent quad)
         (conj (:height quad)))
-      (concat (if-let [image-function-parameters (:image-function-parameters quad)]
+      (concat (if-let [image-function-parameters (:image-function-parameter-keys quad)]
                 (keys-to-seq quad
                              image-function-parameters)
                 []))))

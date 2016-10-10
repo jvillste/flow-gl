@@ -1,19 +1,12 @@
 (ns examples.hi-scene-graph
-  (:require [flow-gl.graphics.text :as text]
-            [flow-gl.graphics.rectangle :as rectangle]
-            (flow-gl.gui [window :as window]
-                         [quad-renderer :as quad-renderer]
-                         [scene-graph :as scene-graph])
+  (:require [clojure.spec.test :as spec-test]
+            [clojure.spec :as spec]
+            [fungl.application :as application]
+            (flow-gl.gui [layouts :as layouts]
+                         [keyboard :as keyboard]
+                         [visuals :as visuals])
 
-            (flow-gl.graphics [font :as font]
-                              [buffered-image :as buffered-image])
-
-            (flow-gl.opengl.jogl [opengl :as opengl]
-                                 [window :as jogl-window]
-                                 
-                                 [render-target :as render-target]))
-  (:use flow-gl.utils
-        clojure.test))
+            (flow-gl.graphics [font :as font])))
 
 (defn draw-rectangle [width height color]
   (rectangle/create-buffered-image color width height 10 10))
@@ -50,7 +43,7 @@
                      (for [[index value] (map-indexed vector ["down" "values"])]
                        (text 10 (+ 60 (* index 60)) 0 value)))})
 
-(defn nodes []
+(defn create-scene-graph [width height]
   {:x 100 :y 100
    :children (concat [(rectangle 0 0 320 370 [0 255 255 150])
                       (drop-down 160 10 1)]
@@ -58,38 +51,11 @@
                        (text-box 10 (+ 70 (* index 60)) 0 (str "text box " index))))})
 
 (defn start []
-  (.start (Thread. (fn []
-                     (let [window-width 800
-                           window-height 800
-                           window (jogl-window/create window-width
-                                                      window-height
-                                                      :close-automatically true)]
-
-                       (loop [quad-renderer (window/with-gl window gl (quad-renderer/create gl))]
-                         
-                         (when (window/visible? window)
-                           (recur (try
-                                    
-                                    (let [quad-renderer (window/with-gl window gl
-                                                          (opengl/clear gl 0 0 0 1)
-
-                                                          (quad-renderer/draw quad-renderer
-                                                                              (scene-graph/leave-nodes (nodes))
-                                                                              window-width
-                                                                              window-height
-                                                                              gl))]
-                                      (window/swap-buffers window)
-                                      
-                                      (Thread/sleep 1000)
-                                      
-                                      quad-renderer)
-                                    
-                                    
-                                    (catch Throwable e
-                                      (.printStackTrace e *out*)
-                                      (window/close window)
-                                      (throw e))))))
-                       (println "exiting"))))))
+  (spec-test/instrument)
+  (spec/check-asserts true)
+  (application/start-window create-scene-graph)
+  #_(.start (Thread. (fn []
+                       (start-window)))))
 
 
 
