@@ -222,10 +222,9 @@
     texture-buffer-id))
 
 (defn create [gl]
-
   ;;(opengl/initialize gl)
 
-  (let [initial-number-of-texels 5000000
+  (let [initial-number-of-texels 20000
         initial-number-of-quads 100
         quad-batch {:program (shader/compile-program gl
                                                      vertex-shader-source
@@ -571,6 +570,7 @@
    (draw-quads quad-batch gl quads width height nil))
 
   ([quad-batch gl quads width height model-matrix]
+   
    #_(flow-gl.debug/set-metric :draw-quads (System/currentTimeMillis))
    #_(flow-gl.debug/set-metric :allocated-quads (:allocated-quads quad-batch))
    #_(flow-gl.debug/set-metric :quad-count (count quads))
@@ -646,8 +646,11 @@
 
 
 (defn remove-texture [quad-batch texture-id]
+
+  
   (let [texture (get (:textures-in-use quad-batch)
                      texture-id)]
+
     (-> quad-batch
         (update-in [:removed-texels] + (* (:width texture)
                                           (:height texture)))

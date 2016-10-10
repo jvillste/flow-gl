@@ -55,8 +55,8 @@
 (defn set-texture [drawable-textures quad texture-id]
   (assoc drawable-textures (texture-key quad) texture-id))
 
-(defn unset-texture [drawable-textures quad]
-  (dissoc drawable-textures (texture-key quad)))
+(defn unset-texture [drawable-textures key]
+  (dissoc drawable-textures key))
 
 (defn texture [drawable-textures quad]
   (get drawable-textures (texture-key quad)))
@@ -141,17 +141,21 @@
        quads))
 
 (defn unload-unused-textures [quad-renderer]
-  
+
   (let [unused-drawable-textures (unused-drawable-textures (:drawable-textures quad-renderer)
                                                            (:drawn-drawables quad-renderer))
+        
         new-quad-batch (reduce quad-batch/remove-texture
                                (:quad-batch quad-renderer)
                                (vals unused-drawable-textures))
+        
         new-drawable-textures (reduce unset-texture
                                       (:drawable-textures quad-renderer)
                                       (keys unused-drawable-textures))]
 
+
     (assoc quad-renderer
+           :draws-after-garbage-collection 0
            :drawn-drawables []
            :quad-batch new-quad-batch
            :drawable-textures new-drawable-textures)))
@@ -159,17 +163,23 @@
 (defn draw [quad-renderer quads width height gl]
   (let [quad-renderer (load-new-textures quad-renderer
                                          quads
-                                         gl)]
+                                         gl)
+        quad-renderer (assoc quad-renderer
+                             :drawn-drawables (concat (:drawn-drawables quad-renderer)
+                                                      quads)
 
-    (assoc quad-renderer
-           :drawn-drawables (concat (:drawn-drawables quad-renderer)
-                                    quads)
-
-           :quad-batch (quad-batch/draw-quads (:quad-batch quad-renderer)
-                                              gl
-                                              (add-texture-ids quads
-                                                               (:drawable-textures quad-renderer))
-                                              width height))))
+                             :quad-batch (quad-batch/draw-quads (:quad-batch quad-renderer)
+                                                                gl
+                                                                (add-texture-ids quads
+                                                                                 (:drawable-textures quad-renderer))
+                                                                width height))
+        quad-renderer (if (= (:draws-after-garbage-collection quad-renderer)
+                             10)
+                        (unload-unused-textures quad-renderer)
+                        quad-renderer)]
+    
+    (-> quad-renderer
+        (update-in [:draws-after-garbage-collection] (fnil inc 0)))))
 
 
 
