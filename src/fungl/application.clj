@@ -14,7 +14,8 @@
                          [keyboard :as keyboard]
                          [visuals :as visuals]
                          [events :as events]
-                         [component :as component])
+                         [component :as component]
+                         [stateful :as stateful])
 
             (flow-gl.graphics [font :as font]
                               [buffered-image :as buffered-image])
@@ -35,7 +36,8 @@
 (defn create-dynamic-state [gl]
   {#'mouse/state-atom (mouse/initialize-state)
    #'keyboard/state-atom (keyboard/initialize-state)
-   #'component/state-atom (component/initialize-state)
+   ;;   #'component/state-atom (component/initialize-state)
+   #'stateful/state-atom (stateful/initialize-state)
    #'quad-renderer/state-atom (quad-renderer/initialize-state gl)})
 
 (defn render [gl scene-graph]
