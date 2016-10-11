@@ -6,29 +6,36 @@
                          [keyboard :as keyboard]
                          [visuals :as visuals])
 
-            (flow-gl.graphics [font :as font])))
+            (flow-gl.graphics [font :as font]
+                              [rectangle :as rectangle]
+                              [text :as text])))
 
 (defn draw-rectangle [width height color]
-  (rectangle/create-buffered-image color width height 10 10))
+  (rectangle/create-buffered-image color width height 20 20))
 
 (defn rectangle [x y width height color]
   {:x x
    :y y
    :width width
    :height height
+   :color color
    :image-function draw-rectangle
-   :parameters [width height color]})
+   :image-function-parameter-keys [:width :height :color]})
+
+(def font (font/create "LiberationSans-Regular.ttf" 40))
 
 (defn text [x y z string]
-  (let [font (font/create "LiberationSans-Regular.ttf" 40)]
-    {:x x
-     :y y
-     :width (font/width font string)
-     :height (font/height font)
-     :image-function text/create-buffered-image
-     :parameters [[255 255 255 255]
-                  font
-                  string]}))
+  {:x x
+   :y y
+   :width (font/width font string)
+   :height (font/height font)
+   :image-function text/create-buffered-image
+   :color [255 255 255 255]
+   :font font
+   :string string
+   :image-function-parameter-keys [:color
+                                   :font
+                                   :string]})
 
 (defn text-box [x y z value]
   {:x x :y y :z z
@@ -56,8 +63,5 @@
   (application/start-window create-scene-graph)
   #_(.start (Thread. (fn []
                        (start-window)))))
-
-
-
 
 

@@ -30,7 +30,6 @@
                                       event)))))
 
 
-
 (def vertical-stack
   {:get-size (fn [node]
                {:width (apply max
