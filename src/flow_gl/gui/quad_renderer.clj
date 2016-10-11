@@ -183,7 +183,7 @@
 
 
 
-(defn create [gl]
+(defn initialize-state [gl]
   {:drawable-textures {}
    :drawn-drawables []
    :quad-batch (quad-batch/create gl)})
@@ -193,8 +193,8 @@
 
 (def ^:dynamic state-atom)
 
-(defn initialize-state [gl]
-  (atom (create gl)))
+(defn state-bindings [gl]
+  {#'state-atom (atom (initialize-state gl))})
 
 (defn draw! [quads width height gl]
   (swap! state-atom draw quads width height gl))

@@ -1,29 +1,17 @@
 (ns fungl.application
-  (:require [clojure.spec.test :as spec-test]
-            [clojure.spec :as spec]
-            [flow-gl.graphics.text :as text]
-            [flow-gl.graphics.rectangle :as rectangle]
-            [clojure.core.async :as async]
-            [flow-gl.utils :as utils]
+  (:require [clojure.core.async :as async]
+            [flow-gl.csp :as csp]
             (flow-gl.gui [window :as window]
-                         [layouts :as layouts]
                          [layout :as layout]
                          [quad-renderer :as quad-renderer]
                          [scene-graph :as scene-graph]
                          [mouse :as mouse]
                          [keyboard :as keyboard]
-                         [visuals :as visuals]
-                         [events :as events]
-                         [component :as component]
-                         [stateful :as stateful])
-
-            (flow-gl.graphics [font :as font]
-                              [buffered-image :as buffered-image])
+                         [stateful :as stateful]
+                         [animation :as animation])
 
             (flow-gl.opengl.jogl [opengl :as opengl]
-                                 [window :as jogl-window]
-                                 
-                                 [render-target :as render-target])))
+                                 [window :as jogl-window])))
 
 (defn do-layout [scene-graph window-width window-height]
   (-> scene-graph
@@ -33,12 +21,14 @@
              :available-height window-height)
       (layout/do-layout)))
 
-(defn create-dynamic-state [gl]
-  {#'mouse/state-atom (mouse/initialize-state)
-   #'keyboard/state-atom (keyboard/initialize-state)
-   ;;   #'component/state-atom (component/initialize-state)
-   #'stateful/state-atom (stateful/initialize-state)
-   #'quad-renderer/state-atom (quad-renderer/initialize-state gl)})
+(defn create-event-handling-state []
+  (conj (stateful/state-bindings)
+        (mouse/state-bindings)
+        (keyboard/state-bindings)
+        (animation/state-bindings)))
+
+(defn create-render-state [gl]
+  (quad-renderer/state-bindings gl))
 
 (defn render [gl scene-graph]
   (opengl/clear gl 0 0 0 1)
@@ -61,35 +51,80 @@
   (jogl-window/create 400 400
                       :close-automatically true))
 
+(defn read-events [event-channel]
+  (animation/swap-state! animation/adjust-sleep-time-according-to-target-frames-per-second
+                         60)
+  
+  (animation/swap-state! animation/set-time-in-milliseconds (System/currentTimeMillis))
+  (let [events (csp/drain event-channel
+                          (:sleep-time @animation/state-atom))]
+    (if (empty? events)
+      [{:type :wake-up}]
+      events)))
 
-(defn start-window [create-scene-graph & {:keys [window handle-event render create-dynamic-state do-layout]
+(defn start-window [create-scene-graph & {:keys [window
+                                                 handle-event
+                                                 render
+                                                 create-event-handling-state
+                                                 create-render-state
+                                                 read-events]
                                           :or {window (create-window)
                                                handle-event handle-event
+                                               read-events read-events
                                                render render
-                                               create-dynamic-state create-dynamic-state
-                                               do-layout do-layout}}]
-  (let [event-channel (window/event-channel window)]
+                                               create-event-handling-state create-event-handling-state
+                                               create-render-state create-render-state}}]
 
-    (with-bindings (window/with-gl window gl (create-dynamic-state gl))
-      
-      (while (window/visible? window)
-        (try
-          (let [scene-graph (create-scene-graph (window/width window)
-                                                (window/height window))]
+  (let [event-channel (window/event-channel window)
+        renderable-scene-graph-channel (async/chan)]
+    
+    ;; use async/thread to inherit bindings such as flow-gl.debug/dynamic-debug-channel
+    (async/thread
+      (try (with-bindings (window/with-gl window gl
+                            (create-render-state gl))
+             (loop []
+               (let [scene-graph (async/<!! renderable-scene-graph-channel)]
+                 (when scene-graph
+                   (window/with-gl window gl
+                     (render gl scene-graph))
+                   (window/swap-buffers window)
+                   (recur)))))
 
-            (window/with-gl window gl
-              (render gl scene-graph))
-            
-            (window/swap-buffers window)
+           (println "exiting render loop")
+           
+           (catch Throwable e
+             (.printStackTrace e *out*)
+             (window/close window)
+             (throw e))))
+    
+    
+    (try
+      (with-bindings (create-event-handling-state)
+        (while (window/visible? window)
 
-            (let [event (async/<!! event-channel)]
-              (handle-event scene-graph event)))
           
-          (catch Throwable e
-            (.printStackTrace e *out*)
-            (window/close window)
-            (throw e)))))    
-    
-    
-    (println "exiting")))
+          (let [window-width (window/width window)
+                window-height (window/height window)
+                events-to-scene-graph (fn [events]
+                                        (loop [events events
+                                               scene-graph (create-scene-graph window-width
+                                                                               window-height)]
+                                          (if-let [event (first events)]
+                                            (do (handle-event scene-graph event)
+                                                (recur (rest events)
+                                                       (create-scene-graph window-width
+                                                                           window-height)))
+                                            scene-graph)))]
 
+            (->> (read-events event-channel)
+                 (events-to-scene-graph)
+                 (async/>!! renderable-scene-graph-channel)))))
+
+      (println "exiting event handling loop")
+
+      (catch Throwable e
+        (.printStackTrace e *out*)
+        (window/close window)
+        (throw e))
+      (finally
+        (async/close! renderable-scene-graph-channel)))))

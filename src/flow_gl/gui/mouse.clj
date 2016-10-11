@@ -130,9 +130,10 @@
              ::spec/problems
              first))))
 
-
 (defn initialize-state []
-  (atom {:mouse-event-handler-nodes-under-mouse-by-id {}}))
+  {:mouse-event-handler-nodes-under-mouse-by-id {}})
+
+
 
 (defn handle-mouse-event [state scene-graph event]
   (let [mouse-event-handler-nodes-under-mouse (mouse-event-handler-nodes-in-coodriantes scene-graph
@@ -152,6 +153,9 @@
 ;; dynamic state
 
 (def ^:dynamic state-atom)
+
+(defn state-bindings []
+  {#'state-atom (atom (initialize-state))})
 
 (defn handle-mouse-event! [scene-graph event]
   (swap! state-atom

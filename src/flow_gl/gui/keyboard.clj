@@ -5,7 +5,7 @@
             [clojure.test :as test :refer [deftest is]]))
 
 (defn initialize-state []
-  (atom {}))
+  {})
 
 (defn call-if-set [keyboard-state handler-key & arguments]
   (when-let [handler (handler-key keyboard-state)]
@@ -112,6 +112,9 @@
 ;; dynamic state
 
 (def ^:dynamic state-atom)
+
+(defn state-bindings []
+  {#'state-atom (atom (initialize-state))})
 
 (defn set-focused-event-handler! [event-handler]
   (move-focus-and-send-move-events! state-atom

@@ -62,7 +62,6 @@
                              layouted-nodes))))})
 
 
-
 (defn create-scene-graph [width height]
   (-> (assoc vertical-stack
              :adapt-to-space (fn [node]

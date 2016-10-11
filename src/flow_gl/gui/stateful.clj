@@ -2,7 +2,9 @@
 
 
 (defn initialize-state []
-  (atom {}))
+  {})
+
+
 
 (defn apply-to-stateful-state [state id function & arguments]
   (update-in state
@@ -26,6 +28,9 @@
 ;; dynamic state
 
 (def ^:dynamic state-atom)
+
+(defn state-bindings []
+  {#'state-atom (atom (initialize-state))})
 
 (defn apply-to-stateful-state! [id function & arguments]
   (swap! state-atom
