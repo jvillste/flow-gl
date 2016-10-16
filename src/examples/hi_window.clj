@@ -4,8 +4,7 @@
             [flow-gl.gui.window :as window]
             [clojure.core.async :as async]))
 
-(let [window (jogl-window/create 200
-                                 200)
+(let [window (jogl-window/create 200 200)
       event-channel (window/event-channel window)]
 
   (loop [red true]

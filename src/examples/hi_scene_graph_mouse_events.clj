@@ -3,7 +3,7 @@
             [clojure.spec :as spec]
             [fungl.application :as application]
             (flow-gl.gui [layout :as layout]
-                         [visuals :as visuals]))
+                         [visuals :as visuals])))
   
 (def state (atom {}))
 

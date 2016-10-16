@@ -43,7 +43,12 @@
                                  :y 200
                                  :width (.getWidth text)
                                  :height (.getHeight text)
-                                 :texture-id 1}]
+                                 :texture-id 1}
+                                {:x 100
+                                 :y 200
+                                 :width (.getWidth text)
+                                 :height 500
+                                 :texture-id 0}]
                                (:width window-size)
                                (:height window-size))))
 

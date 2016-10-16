@@ -18,46 +18,47 @@
   (update-in state [:sleep-time]
              choose-sleep-time sleep-time))
 
-(defn save-sleep-time [state]
-  (-> state
-      (assoc :previous-sleep-time (:sleep-time state))
-      (dissoc :sleep-time)))
+(defn remove-wake-up [state]
+  (dissoc state :sleep-time))
 
 
-(defn adjust-sleep-time-according-to-target-frames-per-second [state target-frames-per-second]
+(defn adjust-sleep-time-according-to-target-frames-per-second [state target-frames-per-second current-time-in-milliseconds]
   (if (:sleep-time state)
     (let [minimum-sleep-time (/ 1000 target-frames-per-second)
-          previous-frame-duration (- (System/currentTimeMillis)
+          previous-frame-duration (- current-time-in-milliseconds
                                      (or (:previous-frame-started state)
-                                         (System/currentTimeMillis)))
-          sleep-time (max (:sleep-time state)
-                          (- minimum-sleep-time
-                             (max 0
-                                  (- previous-frame-duration
-                                     (or (:previous-sleep-time state)
-                                         0)))))]
+                                         current-time-in-milliseconds))
+          sleep-time (float (max (:sleep-time state)
+                                 (- minimum-sleep-time
+                                    (max 0
+                                         (- previous-frame-duration
+                                            (or (:previous-sleep-time state)
+                                                0))))))]
       (assoc state
              :sleep-time sleep-time
-             :previous-frame-started (System/currentTimeMillis)))
+             :previous-sleep-time sleep-time
+             :previous-frame-started current-time-in-milliseconds))  
     state))
 
+(deftest adjust-sleep-time-according-to-target-frames-per-second-test
+  (testing "Sleep time should be nil when no wake up is requested"
+    (is (= nil
+           (:sleep-time (adjust-sleep-time-according-to-target-frames-per-second {:sleep-time nil}
+                                                                                 1
+                                                                                 0)))))
+  (is (= 900
+         (:sleep-time (adjust-sleep-time-according-to-target-frames-per-second {:sleep-time 0
+                                                                                :previous-frame-started 0
+                                                                                :previous-sleep-time 100}
+                                                                               1
+                                                                               200))))
+  (is (= 1000
+         (:sleep-time (adjust-sleep-time-according-to-target-frames-per-second {:sleep-time 1000
+                                                                                :previous-frame-started 0
+                                                                                :previous-sleep-time 100}
+                                                                               1
+                                                                               200)))))
 
-(def ^:dynamic state-atom)
-
-(defn state-bindings []
-  {#'state-atom (atom (initialize-state))})
-
-(defn swap-state! [function & arguments]
-  (apply swap! state-atom function arguments))
-
-(defmacro with-time! [given-time & body]
-  `(let [old-time (:time @state-atom)]
-     (swap-state! set-time given-time)
-     ~@body
-     (swap-state! set-time old-time)))
-
-(defn time! []
-  (:time @state-atom))
 
 (defn sine [from to duration-in-seconds time-in-millis]
   (let [duration-in-millis (* duration-in-seconds 1e6)]
@@ -80,67 +81,148 @@
     (* 1e6 1) 0.0
     (* 1e6 1/2) 10.0))
 
-(defn once [runtime duration]
-  (let [phase (min 1
-                   (/ runtime
-                      duration))]
-    {:sleep (if (< phase 1)
-              0
-              nil)
-     :phase phase}))
+;; phasers
 
-(defn repeat [runtime cycle-time]
-  {:phase (/ (mod runtime
-                  cycle-time)
-             cycle-time)
-   :sleep 0})
+(defn linear-phaser [duration runtime]
+  (/ runtime
+     duration))
 
-(defn linear [phase from to]
+#_(defn once [runtime duration]
+    (let [phase (min 1
+                     (/ runtime
+                        duration))]
+      {:sleep (if (<= phase 1)
+                0
+                nil)
+       :phase phase}))
+
+#_(defn repeat [runtime cycle-time]
+    {:phase (/ (mod runtime
+                    cycle-time)
+               cycle-time)
+     :sleep 0})
+
+#_(defn call-phaser [phaser & phaser-arguments]
+    (let [{:keys [phase sleep-time]} (apply phaser
+                                            phaser-arguments)]
+      (swap-state! set-wake-up sleep-time)
+      
+      phase))
+
+
+;; mappings
+
+(defn linear-mapping [phase from to]
   (+ from
      (* (- to from)
         phase )))
 
-(defn call-phaser [phaser & phaser-arguments]
-  (let [{:keys [phase sleep-time]} (apply phaser
-                                          phaser-arguments)]
-    (swap-state! set-wake-up sleep-time)
-    phase))
 
-(defn start-stoppable-animation [state key time]
-  (-> state
-      (assoc [key :running] true)
-      (assoc [key :started] (- time
-                               (or (get state [key :runtime])
-                                   0)))))
+;; runners
 
-(defn stop-stoppable-animation [state key time]
-  (-> state
-      (assoc [key :running] false)
-      (assoc [key :runtime] (- time
-                               (get state [key :started])))))
+#_(defn once [phase]
+    (and (<= phase 1)
+         (>= phase 0)))
 
-(defn toggle-stoppable-animation [state key time]
-  (if (get state [key :running])
-    (stop-stoppable-animation state key time)
-    (start-stoppable-animation state key time)))
+#_(defn repeat [phase]
+    true)
 
-(defn stoppable-animation-runtime [state key]
-  (if (get state [key :running])
-    (- (:time @state-atom)
-       (get state [key :started]))
-    (or (get state [key :runtime])
+
+;; animation state
+
+(defn animation-state [state key]
+  (get-in state [:animations key]))
+
+(defn update-animation [state key function & arguments]
+  (apply update-in state [:animations key] function arguments))
+
+
+(defn start [state key]
+  (update-animation state key assoc :start-time (:time state)))
+
+#_(defn runtime [state key]
+    (let [{:keys [start-time reversed]} (animation-state state key)]
+      (if start-time
+        (* (- start-time
+              (:time state))
+           (if reversed
+             -1
+             1))
         0)))
 
-(defn stoppable-animation-running [state key]
-  (get state [:animation :running]))
+(defn runtime [state key]
+  (let [{:keys [start-time]} (animation-state state key)]
+    (if start-time
+      (- start-time
+         (:time state))
+      0)))
 
-(defn stoppable-animation-phase [state key phaser & phaser-arguments]
-  (let [{:keys [phase sleep]} (apply phaser
-                                     (stoppable-animation-runtime state :animation)
-                                     phaser-arguments)]
-    (when (stoppable-animation-running state :animation)
-      (swap-state! set-wake-up sleep))
-    phase))
+(defn set-reversed [state key reversed]
+  (update-animation state key assoc
+                    :start-time (:time state)
+                    :phase-offset (:phase (animation-state state key))
+                    :reversed reversed))
 
+(defn limit [value min max]
+  (if (< value min)
+    min
+    (if (> value max)
+      max
+      value)))
 
+;; Dynamic state
 
+(def ^:dynamic state-atom)
+
+(defn state! []
+  @state-atom)
+
+(defn state-bindings []
+  {#'state-atom (atom (initialize-state))})
+
+(defn swap-state! [function & arguments]
+  (apply swap! state-atom function arguments))
+
+(defmacro with-time! [given-time & body]
+  `(let [old-time (:time @state-atom)]
+     (swap-state! set-time given-time)
+     ~@body
+     (swap-state! set-time old-time)))
+
+(defn time! []
+  (:time @state-atom))
+
+(defn start! [key]
+  (swap-state! start key))
+
+(defn reverse! [key reversed]
+  (swap-state! set-reversed key reversed))
+
+(defn limit! [min-phase max-phase phase]
+  (let [limited-phase (float (limit phase
+                                    min-phase
+                                    max-phase))]
+    
+    (when (and (<= phase max-phase)
+               (>= phase min-phase))
+      (swap-state! set-wake-up 0))
+
+    limited-phase))
+
+(defn phase! [key phaser limiter]
+
+  (let [{:keys [phase-offset reversed]} (animation-state @state-atom key)
+
+        limited-phase  (-> (runtime @state-atom key)
+                           (phaser)
+                           (* (if reversed
+                                -1
+                                1))
+                           (+ (or phase-offset
+                                  0))
+                           (limiter))]
+
+    (swap-state! update-animation key
+                 assoc :phase limited-phase)
+
+    limited-phase))

@@ -37,7 +37,7 @@
                                       :height 20
                                       :color [255 255 255 255]
                                       :font font
-                                      :text "Hello quad renderer!"
+                                      :text "Hi quad renderer!"
                                       :image-function text/create-buffered-image
                                       :image-function-parameter-keys [:color :font :text]}
 
@@ -47,7 +47,7 @@
                                       :height 200
                                       :color [255 255 255 255]
                                       :font font
-                                      :text "Hello quad renderer!"
+                                      :text "Hi quad renderer!"
                                       :image-function text/create-buffered-image
                                       :image-function-parameter-keys [:color :font :text]}])
                             

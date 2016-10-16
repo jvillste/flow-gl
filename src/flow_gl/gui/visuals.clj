@@ -29,3 +29,5 @@
    :height (font/height font)
    :image-function text/create-buffered-image
    :image-function-parameter-keys [:color :font :string]})
+
+

@@ -23,12 +23,15 @@
                                   font
                                   text)]))
 
-(defn character-editor-keyboard-event-handler [id keyboard-event]
+(defn counter-keyboard-event-handler [id keyboard-event]
   (case (:type keyboard-event)
-    :key-pressed (if (:character keyboard-event)
-                   (swap! state assoc-in [id :text] (str (:character keyboard-event))))
-    :focus-gained  (swap! state assoc-in [id :has-focus] true)
-    :focus-lost  (swap! state assoc-in [id :has-focus] false)
+    :key-pressed (swap! state update-in [id :count] (fnil inc 0))
+    :focus-gained  (do (println "got focus")
+                       (swap! state assoc-in [id :has-focus] true)
+                       (animation/reverse! id false)
+                       #_(animation/start-animation! id))
+    :focus-lost  (do (swap! state assoc-in [id :has-focus] false)
+                     (animation/reverse! id true))
     nil))
 
 (defn character-editor [id]
@@ -36,27 +39,45 @@
     (assoc (text-box (if (:has-focus editor-state)
                        [255 255 255 255]
                        [100 100 100 255])
-                     (or (-> editor-state
-                             :text)
-                         ""))
+                     (str (or (-> editor-state
+                                  :count)
+                              0)))
            :id id
-           :keyboard-event-handler (partial character-editor-keyboard-event-handler id)
+           :keyboard-event-handler (partial counter-keyboard-event-handler id)
            :mouse-event-handler keyboard/set-focus-on-mouse-clicked!)))
 
+(def blue [155 155 255 255])
+
+(defn animating-editor [id]
+  (let [phase (float (animation/phase! id
+                                       (partial animation/linear-phaser 3000)
+                                       (partial animation/limit! 0 1)))]
+    
+    {:children [(assoc (character-editor id)
+                       :x (int (animation/linear-mapping phase
+                                                         0 50))
+                       :y 10)
+
+                (assoc (text-box blue
+                                 (pr-str (animation/animation-state @animation/state-atom id)))
+                       :x 100
+                       :y 10)]}))
+
 (defn create-scene-graph [width height]
-  (animation/swap-state! animation/set-wake-up 100)
-  
-  (println (animation/time!))
-  
-  (-> {:children [(assoc (character-editor 1)
-                         :x (int (animation/sine 10 20 1 (animation/time!)))
-                         :y (int (animation/sine 10 40 2 (animation/time!))))
-                  (assoc (character-editor 2)
-                         :x 100
+
+  (-> {:children [(assoc (animating-editor 1)
+                         :x 10
+                         :y 0)
+                  (assoc (animating-editor 2)
+                         :x 10
+                         :y 50)
+                  (assoc (animating-editor 3)
+                         :x 10
                          :y 100)
-                  (assoc (character-editor 3)
-                         :x 100
-                         :y 10)]}
+
+                  (assoc (text-box blue (str "Frame: " (:frame-number  (swap! state update-in [:frame-number] (fnil inc 0)))))
+                         :x 10
+                         :y 150)]}
       (application/do-layout width height)))
 
 (defn start []

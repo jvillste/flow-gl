@@ -1,6 +1,5 @@
 (ns examples.animation
   (:require [clojure.core.async :as async]
-            [com.climate.claypoole :as claypoole]
             (flow-gl.gui [drawable :as drawable]
                          [layout :as layout]
                          [layouts :as layouts]
@@ -22,6 +21,67 @@
   (:use flow-gl.utils
         clojure.test))
 
+(defn once [runtime duration]
+  (let [phase (min 1
+                   (/ runtime
+                      duration))]
+    {:sleep (if (< phase 1)
+              0
+              nil)
+     :phase phase}))
+
+(defn repeat [runtime cycle-time]
+  {:phase (/ (mod runtime
+                  cycle-time)
+             cycle-time)
+   :sleep 0})
+
+(defn linear [phase from to]
+  (+ from
+     (* (- to from)
+        phase )))
+
+(defn call-phaser [phaser & phaser-arguments]
+  (let [{:keys [phase sleep-time]} (apply phaser
+                                          phaser-arguments)]
+    (gui/set-wake-up sleep-time)
+    phase))
+
+(defn start-stoppable-animation [state key time]
+  (-> state
+      (assoc [key :running] true)
+      (assoc [key :started] (- time
+                               (or (get state [key :runtime])
+                                   0)))))
+
+(defn stop-stoppable-animation [state key time]
+  (-> state
+      (assoc [key :running] false)
+      (assoc [key :runtime] (- time
+                               (get state [key :started])))))
+
+(defn toggle-stoppable-animation [state key time]
+  (if (get state [key :running])
+    (stop-stoppable-animation state key time)
+    (start-stoppable-animation state key time)))
+
+(defn stoppable-animation-runtime [state key]
+  (if (get state [key :running])
+    (- gui/current-frame-time
+       (get state [key :started]))
+    (or (get state [key :runtime])
+        0)))
+
+(defn stoppable-animation-running [state key]
+  (get state [:animation :running]))
+
+(defn stoppable-animation-phase [state key phaser & phaser-arguments]
+  (let [{:keys [phase sleep]} (apply phaser
+                                     (stoppable-animation-runtime state :animation)
+                                     phaser-arguments)]
+    (when (stoppable-animation-running state :animation)
+      (gui/set-wake-up sleep))
+    phase))
 
 
 (gui/def-control animation

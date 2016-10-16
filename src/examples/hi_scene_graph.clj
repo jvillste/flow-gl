@@ -22,7 +22,6 @@
    :image-function draw-rectangle
    :image-function-parameter-keys [:width :height :color]})
 
-(def font (font/create "LiberationSans-Regular.ttf" 40))
 
 (defn text [x y z string]
   {:x x

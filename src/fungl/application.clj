@@ -53,27 +53,37 @@
 
 (defn read-events [event-channel]
   (animation/swap-state! animation/adjust-sleep-time-according-to-target-frames-per-second
-                         60)
-  
-  (animation/swap-state! animation/set-time-in-milliseconds (System/currentTimeMillis))
-  (let [events (csp/drain event-channel
-                          (:sleep-time @animation/state-atom))]
-    (if (empty? events)
-      [{:type :wake-up}]
-      events)))
+                         60
+                         (System/currentTimeMillis))
 
-(defn start-window [create-scene-graph & {:keys [window
-                                                 handle-event
-                                                 render
-                                                 create-event-handling-state
-                                                 create-render-state
-                                                 read-events]
-                                          :or {window (create-window)
-                                               handle-event handle-event
-                                               read-events read-events
-                                               render render
-                                               create-event-handling-state create-event-handling-state
-                                               create-render-state create-render-state}}]
+
+
+  
+  (let [events (csp/drain event-channel
+                          (:sleep-time @animation/state-atom))
+        events (if (empty? events)
+                 [{:type :wake-up}]
+                 events)]
+    
+    (animation/swap-state! animation/set-time-in-milliseconds (System/currentTimeMillis))    
+    (animation/swap-state! animation/remove-wake-up)
+    
+    events))
+
+(defn start-window [create-scene-graph _& {:keys [window
+                                                  ;;                                                  handle-event
+                                                  ;;                                                  render
+                                                  ;;                                                  create-event-handling-state
+                                                  ;;                                                  create-render-state
+                                                  ;;                                                  read-events
+                                                  ]
+                                           :or {window (create-window)
+                                                ;;                                                handle-event handle-event
+                                                ;;                                                read-events read-events
+                                                ;;                                                render render
+                                                ;;                                                create-event-handling-state create-event-handling-state
+                                                ;;                                                create-render-state create-render-state
+                                                }}]
 
   (let [event-channel (window/event-channel window)
         renderable-scene-graph-channel (async/chan)]
@@ -100,25 +110,30 @@
     
     (try
       (with-bindings (create-event-handling-state)
-        (while (window/visible? window)
 
-          
-          (let [window-width (window/width window)
-                window-height (window/height window)
-                events-to-scene-graph (fn [events]
-                                        (loop [events events
-                                               scene-graph (create-scene-graph window-width
-                                                                               window-height)]
-                                          (if-let [event (first events)]
-                                            (do (handle-event scene-graph event)
-                                                (recur (rest events)
-                                                       (create-scene-graph window-width
-                                                                           window-height)))
-                                            scene-graph)))]
+        
+        
+        (loop [scene-graph (create-scene-graph (window/width window)
+                                               (window/height window))]
+          (when (window/visible? window)
 
-            (->> (read-events event-channel)
-                 (events-to-scene-graph)
-                 (async/>!! renderable-scene-graph-channel)))))
+
+            (let [window-width (window/width window)
+                  window-height (window/height window)
+                  scene-graph (loop [events (read-events event-channel)
+                                     scene-graph scene-graph]
+
+                                
+                                (if-let [event (first events)]
+                                  (do (handle-event scene-graph event)
+                                      (recur (rest events)
+                                             (create-scene-graph window-width
+                                                                 window-height)))
+                                  scene-graph))]
+
+              (async/>!! renderable-scene-graph-channel
+                         scene-graph)
+              (recur scene-graph)))))
 
       (println "exiting event handling loop")
 
@@ -128,3 +143,4 @@
         (throw e))
       (finally
         (async/close! renderable-scene-graph-channel)))))
+
