@@ -25,13 +25,13 @@
 
 (defn counter-keyboard-event-handler [id keyboard-event]
   (case (:type keyboard-event)
-    :key-pressed (swap! state update-in [id :count] (fnil inc 0))
+    :key-pressed (do (swap! state update-in [id :count] (fnil inc 0))
+                     (animation/start! [:key-pressed-animation id]))
     :focus-gained  (do (println "got focus")
                        (swap! state assoc-in [id :has-focus] true)
-                       (animation/reverse! id false)
-                       #_(animation/start-animation! id))
+                       (animation/reverse! [:focus-animation id] false))
     :focus-lost  (do (swap! state assoc-in [id :has-focus] false)
-                     (animation/reverse! id true))
+                     (animation/reverse! [:focus-animation id] true))
     nil))
 
 (defn character-editor [id]
@@ -49,19 +49,22 @@
 (def blue [155 155 255 255])
 
 (defn animating-editor [id]
-  (let [phase (float (animation/phase! id
-                                       (partial animation/linear-phaser 3000)
-                                       (partial animation/limit! 0 1)))]
-    
-    {:children [(assoc (character-editor id)
-                       :x (int (animation/linear-mapping phase
-                                                         0 50))
-                       :y 10)
+  {:children [(assoc (character-editor id)
+                     :x (int (animation/linear-mapping (animation/phase! [:focus-animation id]
+                                                                         (partial animation/linear-phaser 2000)
+                                                                         (partial animation/limit! 0 1))
+                                                       0 50))
+                     :y (+ 10
+                           (int (animation/linear-mapping (animation/phase! [:key-pressed-animation id]
+                                                                            (partial animation/linear-phaser 70)
+                                                                            (partial animation/ping-pong-once!))
+                                                          0 20))))
 
-                (assoc (text-box blue
-                                 (pr-str (animation/animation-state @animation/state-atom id)))
-                       :x 100
-                       :y 10)]}))
+              (assoc (text-box blue
+                               (str (pr-str (animation/animation-state @animation/state-atom [:key-pressed-animation id]))
+                                    (pr-str (animation/animation-state @animation/state-atom [:focus-animation id]))))
+                     :x 100
+                     :y 10)]})
 
 (defn create-scene-graph [width height]
 
@@ -74,10 +77,23 @@
                   (assoc (animating-editor 3)
                          :x 10
                          :y 100)
+                  (assoc (character-editor 4)
+                         :x (+ 10
+                               (int (animation/linear-mapping (animation/phase! :looping-animation
+                                                                                (partial animation/linear-phaser 5000)
+                                                                                (partial animation/infinite-ping-pong! :looping-animation))
+                                                              0 100)))
+                         :y 160
+                         :mouse-event-handler (fn [node event]
+                                                (when (= :mouse-clicked
+                                                         (:type event))
+                                                  (keyboard/set-focused-node! node)
+                                                  (animation/toggle! :looping-animation))
+                                                event))
 
                   (assoc (text-box blue (str "Frame: " (:frame-number  (swap! state update-in [:frame-number] (fnil inc 0)))))
                          :x 10
-                         :y 150)]}
+                         :y 210)]}
       (application/do-layout width height)))
 
 (defn start []

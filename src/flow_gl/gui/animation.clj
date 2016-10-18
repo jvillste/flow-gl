@@ -140,21 +140,22 @@
 (defn start [state key]
   (update-animation state key assoc :start-time (:time state)))
 
-#_(defn runtime [state key]
-    (let [{:keys [start-time reversed]} (animation-state state key)]
-      (if start-time
-        (* (- start-time
-              (:time state))
-           (if reversed
-             -1
-             1))
-        0)))
+(defn stop [state key]
+  (update-animation state key assoc
+                    :start-time nil
+                    :phase-offset (:phase (animation-state state key))))
+
+(defn toggle [state key]
+  (if (:start-time (animation-state state key))
+    (stop state key)
+    (start state key)))
+
 
 (defn runtime [state key]
   (let [{:keys [start-time]} (animation-state state key)]
     (if start-time
-      (- start-time
-         (:time state))
+      (- (:time state)
+         start-time)
       0)))
 
 (defn set-reversed [state key reversed]
@@ -163,12 +164,19 @@
                     :phase-offset (:phase (animation-state state key))
                     :reversed reversed))
 
-(defn limit [value min max]
+(defn limit [min max value]
   (if (< value min)
     min
     (if (> value max)
       max
       value)))
+
+(defn ping-pong [phase]
+  (let [limited-phase (mod phase 2)]
+    (if (> limited-phase
+           1)
+      (- 2 limited-phase)
+      limited-phase)))
 
 ;; Dynamic state
 
@@ -193,21 +201,42 @@
   (:time @state-atom))
 
 (defn start! [key]
-  (swap-state! start key))
+  (swap-state! start key)
+  (swap-state! set-wake-up 0))
+
+(defn stop! [key]
+  (swap-state! stop key))
+
+(defn toggle! [key]
+  (swap-state! toggle key))
 
 (defn reverse! [key reversed]
-  (swap-state! set-reversed key reversed))
+  (swap-state! set-reversed key reversed)
+  (swap-state! set-wake-up 0))
+
+(defn set-wake-up-in-range! [min-phase max-phase phase]
+  (when (and (< phase max-phase)
+             (> phase min-phase))
+    (swap-state! set-wake-up 0)))
 
 (defn limit! [min-phase max-phase phase]
-  (let [limited-phase (float (limit phase
-                                    min-phase
-                                    max-phase))]
-    
-    (when (and (<= phase max-phase)
-               (>= phase min-phase))
-      (swap-state! set-wake-up 0))
+  (set-wake-up-in-range! min-phase
+                         max-phase
+                         phase)
 
-    limited-phase))
+  (float (limit min-phase
+                max-phase
+                phase)))
+
+(defn ping-pong-once! [phase]
+  (ping-pong (limit! 0 2 phase)))
+
+(defn infinite-ping-pong! [key phase]
+  (when (:start-time (animation-state @state-atom key))
+    
+    (swap-state! set-wake-up 0))
+  
+  (ping-pong phase))
 
 (defn phase! [key phaser limiter]
 
@@ -226,3 +255,10 @@
                  assoc :phase limited-phase)
 
     limited-phase))
+
+
+;; TODO:
+;; animate multiple properties at once
+;; more than two keyframes per animation
+;; delays during animation
+;; phaser over many keyframes

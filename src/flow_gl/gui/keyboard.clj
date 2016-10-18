@@ -82,7 +82,8 @@
                                (vec))]
 
     (-> (node-position nodes-with-handler
-                       currently-focused-node-id)
+                       (or currently-focused-node-id
+                           (:id (first nodes-with-handler))))
         (advance)
         (get-with-limit nodes-with-handler
                         limit))))
