@@ -228,6 +228,11 @@
                 max-phase
                 phase)))
 
+(defn no-limit! [key phase]
+  (when (:start-time (animation-state @state-atom key))
+    (swap-state! set-wake-up 0))
+  phase)
+
 (defn ping-pong-once! [phase]
   (ping-pong (limit! 0 2 phase)))
 
@@ -238,7 +243,7 @@
   
   (ping-pong phase))
 
-(defn phase! [key phaser limiter]
+(defn phase! [key phaser limiter transformer]
 
   (let [{:keys [phase-offset reversed]} (animation-state @state-atom key)
 
@@ -252,9 +257,10 @@
                            (limiter))]
 
     (swap-state! update-animation key
-                 assoc :phase limited-phase)
+                 assoc :phase (float limited-phase))
 
-    limited-phase))
+    
+    (transformer limited-phase)))
 
 
 ;; TODO:

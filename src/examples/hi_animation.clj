@@ -48,16 +48,24 @@
 
 (def blue [155 155 255 255])
 
+#_(partial animation/linear-phaser 2000)
+#_(partial animation/limit! 0 1)
+#_(fn [runtime]
+    (->> (animation/linear-phaser 2000 runtime)
+         (animation/limit! 0 1)))
+
 (defn animating-editor [id]
   {:children [(assoc (character-editor id)
                      :x (int (animation/linear-mapping (animation/phase! [:focus-animation id]
                                                                          (partial animation/linear-phaser 2000)
-                                                                         (partial animation/limit! 0 1))
+                                                                         (partial animation/limit! 0 1)
+                                                                         (fn [phase] phase))
                                                        0 50))
                      :y (+ 10
                            (int (animation/linear-mapping (animation/phase! [:key-pressed-animation id]
                                                                             (partial animation/linear-phaser 70)
-                                                                            (partial animation/ping-pong-once!))
+                                                                            (partial animation/limit! 0 2)
+                                                                            animation/ping-pong)
                                                           0 20))))
 
               (assoc (text-box blue
@@ -80,9 +88,10 @@
                   (assoc (character-editor 4)
                          :x (+ 10
                                (int (animation/linear-mapping (animation/phase! :looping-animation
-                                                                                (partial animation/linear-phaser 5000)
-                                                                                (partial animation/infinite-ping-pong! :looping-animation))
-                                                              0 100)))
+                                                                                (partial animation/linear-phaser 1000)
+                                                                                (partial animation/no-limit! :looping-animation)
+                                                                                animation/ping-pong)
+                                                              0 50)))
                          :y 160
                          :mouse-event-handler (fn [node event]
                                                 (when (= :mouse-clicked
