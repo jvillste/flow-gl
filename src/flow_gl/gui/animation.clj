@@ -151,6 +151,9 @@
     (start state key)))
 
 
+(defn running? [state key]
+  (:start-time (animation-state state key)))
+
 (defn runtime [state key]
   (let [{:keys [start-time]} (animation-state state key)]
     (if start-time
@@ -177,6 +180,12 @@
            1)
       (- 2 limited-phase)
       limited-phase)))
+
+(defn wake-up-in-range [min-phase max-phase phase]
+  (if (and (< phase max-phase)
+           (> phase min-phase))
+    0
+    nil))
 
 ;; Dynamic state
 
@@ -243,24 +252,26 @@
   
   (ping-pong phase))
 
-(defn phase! [key phaser limiter transformer]
+(defn phase! [key phaser limiter wake-up]
 
   (let [{:keys [phase-offset reversed]} (animation-state @state-atom key)
+        phase (-> (runtime @state-atom key)
+                  (phaser)
+                  (* (if reversed
+                       -1
+                       1))
+                  (+ (or phase-offset
+                         0)))
 
-        limited-phase  (-> (runtime @state-atom key)
-                           (phaser)
-                           (* (if reversed
-                                -1
-                                1))
-                           (+ (or phase-offset
-                                  0))
-                           (limiter))]
+        limited-phase (limiter phase)]
+
+    (when (running? @state-atom key)
+      (swap-state! set-wake-up (wake-up phase)))
 
     (swap-state! update-animation key
                  assoc :phase (float limited-phase))
 
-    
-    (transformer limited-phase)))
+    limited-phase))
 
 
 ;; TODO:
