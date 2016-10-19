@@ -678,6 +678,10 @@
                                     (rest children))
                              layouted-nodes))))})
 
+(defn vertically [& children]
+  (assoc vertical-stack
+         :children children))
+
 (spec/def ::margin int?)
 
 (def box

@@ -72,19 +72,18 @@
                                (str (pr-str (animation/animation-state @animation/state-atom [:key-pressed-animation id]))
                                     (pr-str (animation/animation-state @animation/state-atom [:focus-animation id]))))
                      :x 100
-                     :y 10)]})
+                     :y 10)]
+   
+   :get-size (fn [node]
+               {:width (:available-width node)
+                :height 50})})
 
 (defn create-scene-graph [width height]
 
-  (-> {:children [(assoc (animating-editor 1)
-                         :x 10
-                         :y 0)
-                  (assoc (animating-editor 2)
-                         :x 10
-                         :y 50)
-                  (assoc (animating-editor 3)
-                         :x 10
-                         :y 100)
+  (-> {:children [(assoc (layouts/vertically (animating-editor 1)
+                                             (animating-editor 2)
+                                             (animating-editor 3))
+                         :x 10)
                   (assoc (character-editor 4)
                          :x (+ 10
                                (int (animation/linear-mapping (animation/ping-pong (animation/phase! :looping-animation
@@ -92,7 +91,7 @@
                                                                                                      identity
                                                                                                      (constantly 0)))
                                                               0 50)))
-                         :y 160
+                         :y 150
                          :mouse-event-handler (fn [node event]
                                                 (when (= :mouse-clicked
                                                          (:type event))
@@ -102,7 +101,8 @@
 
                   (assoc (text-box blue (str "Frame: " (:frame-number  (swap! state update-in [:frame-number] (fnil inc 0)))))
                          :x 10
-                         :y 210)]}
+                         :y 200)]} 
+
       (application/do-layout width height)))
 
 (defn start []
