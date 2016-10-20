@@ -8,12 +8,12 @@
 #_(extend Object
     Node {::children (fn [this] (::children this))})
 
-(spec/def ::coordinate int?)
+(spec/def ::coordinate number?)
 (spec/def ::x ::coordinate)
 (spec/def ::y ::coordinate)
 (spec/def ::z ::coordinate)
-(spec/def ::width int?)
-(spec/def ::height int?)
+(spec/def ::width number?)
+(spec/def ::height number?)
 (spec/def ::children (spec/* ::node))
 
 (spec/def ::node (spec/keys :req-un [::x ::y]

@@ -46,13 +46,13 @@
            (:sleep-time (adjust-sleep-time-according-to-target-frames-per-second {:sleep-time nil}
                                                                                  1
                                                                                  0)))))
-  (is (= 900
+  (is (= 900.0
          (:sleep-time (adjust-sleep-time-according-to-target-frames-per-second {:sleep-time 0
                                                                                 :previous-frame-started 0
                                                                                 :previous-sleep-time 100}
                                                                                1
                                                                                200))))
-  (is (= 1000
+  (is (= 1000.0
          (:sleep-time (adjust-sleep-time-according-to-target-frames-per-second {:sleep-time 1000
                                                                                 :previous-frame-started 0
                                                                                 :previous-sleep-time 100}
@@ -272,6 +272,135 @@
                  assoc :phase (float limited-phase))
 
     limited-phase))
+
+
+(defn interpolate [from to phase]
+  (+ (* from (- 1 phase))
+     (* to phase)))
+
+(deftest interpolate-test
+  (is (= 0
+         (interpolate 0 10 0)))
+
+  (is (= 10
+         (interpolate 0 10 1)))
+
+  (is (= 5.0
+         (interpolate 0 10 0.5)))
+
+  (is (= 2.5
+         (interpolate 0 10 0.25))))
+
+
+(defn key-frame-mapping [phase key-frames]
+  (let [key-frames (partition 2 key-frames)
+        [key-frame-phase-before key-frame-value-before] (->> key-frames
+                                                             (filter (fn [[keyframe-phase value]]
+                                                                       (<= keyframe-phase
+                                                                           phase)))
+                                                             (last))
+        [key-frame-phase-after key-frame-value-after] (->> key-frames
+                                                           (filter (fn [[keyframe-phase value]]
+                                                                     (>= keyframe-phase
+                                                                         phase)))
+                                                           (first))]
+
+    (if (= key-frame-phase-before
+           key-frame-phase-after)
+      key-frame-value-before
+      (interpolate key-frame-value-before
+                   key-frame-value-after
+                   (/ (- phase
+                         key-frame-phase-before)
+                      (- key-frame-phase-after
+                         key-frame-phase-before))))))
+
+(deftest key-frame-mapping-test
+  (is (= 1
+         (key-frame-mapping 0
+                            [0 1
+                             0.5 10
+                             1 5])))
+
+  (is (= 5
+         (key-frame-mapping 1
+                            [0 1
+                             0.5 10
+                             1 5])))
+
+  (is (= 10
+         (key-frame-mapping 0.5
+                            [0 1
+                             0.5 10
+                             1 5])))
+
+
+  (is (= 5.0
+         (key-frame-mapping 0.25
+                            [0 0
+                             0.5 10
+                             1 5])))
+
+  (is (= 7.5
+         (key-frame-mapping 0.75
+                            [0 0
+                             0.5 10
+                             1 5]))))
+
+
+(defn key-frames-for-key [key multi-key-frames]
+  (let [multi-key-frames (partition 2 multi-key-frames)]
+    (loop [key-frames []
+           multi-key-frames multi-key-frames]
+      (if-let [[phase values] (first multi-key-frames)]
+        (recur (if-let [value (get values key)]
+                 (concat key-frames
+                         [phase value])
+                 key-frames)
+               (rest multi-key-frames))
+        
+        key-frames))))
+
+(deftest key-frames-for-key-test
+  (is (= '(0 0
+             0.5 10
+             1 1)
+         (key-frames-for-key :x
+                             [0 {:x 0
+                                 :y 0}
+                              0.5 {:x 10
+                                   :y 5}
+                              1 {:x 1
+                                 :y 5}]))))
+
+(defn multi-key-frame-mapping [phase multi-key-frames]
+  (reduce (fn [values-by-key key]
+            (assoc values-by-key
+                   key
+                   (key-frame-mapping phase
+                                      (key-frames-for-key key
+                                                          multi-key-frames))))
+          {}
+          (keys (second multi-key-frames))))
+
+(deftest multi-key-frame-mepping-test
+  (is (= {:x 0, :y 0}
+         (multi-key-frame-mapping 0
+                                  [0 {:x 0
+                                      :y 0}
+                                   0.5 {:x 10
+                                        :y 5}
+                                   1 {:x 1
+                                      :y 5}])))
+
+    (is (= {:x 5.0, :y 2.5}
+         (multi-key-frame-mapping 0.25
+                                  [0 {:x 0
+                                      :y 0}
+                                   0.5 {:x 10
+                                        :y 5}
+                                   1 {:x 1
+                                      :y 5}]))))
 
 
 ;; TODO:

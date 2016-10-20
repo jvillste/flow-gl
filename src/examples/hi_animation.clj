@@ -48,12 +48,6 @@
 
 (def blue [155 155 255 255])
 
-#_(partial animation/linear-phaser 2000)
-#_(partial animation/limit! 0 1)
-#_(fn [runtime]
-    (->> (animation/linear-phaser 2000 runtime)
-         (animation/limit! 0 1)))
-
 (defn animating-editor [id]
   {:children [(assoc (character-editor id)
                      :x (int (animation/linear-mapping (animation/phase! [:focus-animation id]
@@ -79,31 +73,64 @@
                 :height 50})})
 
 (defn create-scene-graph [width height]
+  #_(animation/start! :looping-animation)
+  (let [looping-animation-phase (animation/ping-pong (animation/phase! :looping-animation
+                                                                       (partial animation/linear-phaser 1000)
+                                                                       identity
+                                                                       (constantly 0)))]
+    (println (animation/multi-key-frame-mapping looping-animation-phase
+                                                [0 {:x 0
+                                                    :y 200}
 
-  (-> {:children [(assoc (layouts/vertically (animating-editor 1)
-                                             (animating-editor 2)
-                                             (animating-editor 3))
-                         :x 10)
-                  (assoc (character-editor 4)
-                         :x (+ 10
-                               (int (animation/linear-mapping (animation/ping-pong (animation/phase! :looping-animation
-                                                                                                     (partial animation/linear-phaser 1000)
-                                                                                                     identity
-                                                                                                     (constantly 0)))
-                                                              0 50)))
-                         :y 150
-                         :mouse-event-handler (fn [node event]
-                                                (when (= :mouse-clicked
-                                                         (:type event))
-                                                  (keyboard/set-focused-node! node)
-                                                  (animation/toggle! :looping-animation))
-                                                event))
+                                                 1 {:x 100
+                                                    :y 300}]))
+    (-> {:children [(assoc (layouts/vertically (animating-editor 1)
+                                                 (animating-editor 2)
+                                                 (animating-editor 3))
+                             :x 10)
+                    (assoc (character-editor 4)
+                           :x (+ 10
+                                 (int (animation/linear-mapping looping-animation-phase
+                                                                0 50)))
+                           :y 150
+                           :mouse-event-handler (fn [node event]
+                                                  (when (= :mouse-clicked
+                                                           (:type event))
+                                                    (keyboard/set-focused-node! node)
+                                                    (animation/toggle! :looping-animation))
+                                                  event))
 
-                  (assoc (text-box blue (str "Frame: " (:frame-number  (swap! state update-in [:frame-number] (fnil inc 0)))))
-                         :x 10
-                         :y 200)]} 
+                    (assoc (visuals/rectangle blue 10 10)
+                             :width 20
+                             :height 20
+                             :x (int (animation/key-frame-mapping looping-animation-phase
+                                                                  [0 0
+                                                                   0.5 300
+                                                                   0.6 250
+                                                                   0.7 300
+                                                                   0.8 250
+                                                                   0.9 300
+                                                                   1 250]))
+                             :y 200)
 
-      (application/do-layout width height)))
+                    (conj (assoc (visuals/rectangle blue 10 10)
+                                 :width 20
+                                 :height 20)
+                          (animation/multi-key-frame-mapping looping-animation-phase
+                                                             [0 {:x 0
+                                                                 :y 200}
+                                                              0.5 {:x 70
+                                                                   :y 200}
+
+                                                              1 {:x 100
+                                                                 :y 300}]))
+
+                    (assoc (text-box blue (str "Frame: " (:frame-number  (swap! state update-in [:frame-number] (fnil inc 0)))))
+                             :x 10
+                             :y 250)]} 
+
+        (application/do-layout width height))))
+
 
 (defn start []
   (spec-test/instrument)
