@@ -138,7 +138,13 @@
 
 
 (defn start [state key]
-  (update-animation state key assoc :start-time (:time state)))
+  (update-animation state key assoc
+                    :start-time (:time state)))
+
+(defn restart [state key]
+  (update-animation state key assoc
+                    :start-time (:time state)
+                    :runtime-offset 0))
 
 (defn stop [state key]
   (update-animation state key assoc
@@ -241,8 +247,10 @@
   (:time @state-atom))
 
 (defn start! [key]
-  (swap-state! start key)
-  (swap-state! set-wake-up 0))
+  (swap-state! start key))
+
+(defn restart! [key]
+  (swap-state! restart key))
 
 (defn stop! [key]
   (swap-state! stop key))
@@ -251,13 +259,15 @@
   (swap-state! toggle key))
 
 (defn reverse! [key reversed]
-  (swap-state! set-reversed key reversed)
-  #_(swap-state! set-wake-up 0))
+  (swap-state! set-reversed key reversed))
 
 (defn toggle-direction! [key]
-  (swap-state! set-reversed key (not (:reversed (animation-state @state-atom
-                                                                 key))))
-  #_(swap-state! set-wake-up 0))
+  (swap-state! set-reversed key (let [reversed (:reversed (animation-state @state-atom
+                                                                           key))]
+                                  (if (or reversed
+                                          (= reversed nil))
+                                    false
+                                    true))))
 
 (defn set-wake-up-in-range! [min-phase max-phase phase]
   (when (and (< phase max-phase)

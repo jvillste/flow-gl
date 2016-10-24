@@ -24,15 +24,15 @@
                                   text)]))
 
 
-(defn animating-text-box [text mouse-handler x]
-  {:children [(assoc (text-box text)
-                     :x x
-                     :y 10
-                     :mouse-event-handler (fn [node event]
-                                            (when (= :mouse-clicked
-                                                     (:type event))
-                                              (mouse-handler))
-                                            event))]
+(defn animating-text-box [text mouse-handler animation]
+  {:children [(conj (assoc (text-box text)
+                           :y 10
+                           :mouse-event-handler (fn [node event]
+                                                  (when (= :mouse-clicked
+                                                           (:type event))
+                                                    (mouse-handler))
+                                                  event))
+                    animation)]
    
    :get-size (fn [node]
                {:width (:available-width node)
@@ -41,38 +41,48 @@
 (defn create-scene-graph [width height]
   (-> (layouts/vertically (animating-text-box "toggle direction"
                                               (fn [] (animation/toggle-direction! :toggle-direction))
-                                              (int (animation/linear-mapping (animation/phase! :toggle-direction
-                                                                                               3000)
-                                                                             0 50)))
+                                              {:x (animation/linear-mapping (animation/phase! :toggle-direction
+                                                                                              1000)
+                                                                            0 50)})
                           (animating-text-box "ping pong once"
                                               (fn [] (animation/start! :ping-pong-once))
-                                              (int (animation/linear-mapping (animation/ping-pong 1
-                                                                                                  (animation/phase! :ping-pong-once
-                                                                                                                    2000))
-                                                                             0 50)))
+                                              {:x (animation/linear-mapping (animation/ping-pong 1
+                                                                                                 (animation/phase! :ping-pong-once
+                                                                                                                   1000))
+                                                                            0 50)})
 
                           (animating-text-box "infinite ping pong"
                                               (fn [] (animation/toggle! :infinite-ping-pong))
-                                              (int (animation/linear-mapping (animation/ping-pong 1
-                                                                                                  (animation/phase! :infinite-ping-pong
-                                                                                                                    nil))
-                                                                             0 50)))
+                                              {:x (animation/linear-mapping (animation/ping-pong 1
+                                                                                                 (animation/phase! :infinite-ping-pong
+                                                                                                                   nil))
+                                                                            0 50)})
 
-                          (animating-text-box "keyframe"
-                                              (fn [] (animation/toggle! :keyframe-animation))
-                                              (animation/key-frame-mapping (animation/ping-pong 3
-                                                                                                (animation/phase! :keyframe-animation
-                                                                                                                  nil))
-                                                                           [0 0
-                                                                            0.5 300
-                                                                            0.6 250
-                                                                            0.7 300
-                                                                            0.8 250
-                                                                            0.9 300
-                                                                            1 250]))
+                          (animating-text-box "key frame"
+                                              (fn [] (animation/restart! :key-frame-animation))
+                                              {:x (animation/key-frame-mapping (animation/phase! :key-frame-animation
+                                                                                                 2000)
+                                                                               [0 0
+                                                                                0.5 300
+                                                                                0.6 250
+                                                                                0.7 300
+                                                                                0.8 250
+                                                                                0.9 300
+                                                                                1 0])})
+                          
+                          (animating-text-box "multi key frame"
+                                              (fn [] (animation/restart! :multi-key-frame-animation))
+                                              (animation/multi-key-frame-mapping (animation/phase! :multi-key-frame-animation
+                                                                                                   2000)
+                                                                                 
+                                                                                 [0 {:x 0 :y 10}
+                                                                                  0.2 {:x 300 :y 10}
+                                                                                  0.45 {:x 300 :y 100}
+                                                                                  0.7 {:x 300 :y 10}
+                                                                                  1 {:x 0 :y 10}]))
                           (text-box (str "Frame: " (:frame-number  (swap! state update-in [:frame-number] (fnil inc 0)))))
-                          (text-box (str "State: " @animation/state-atom)))
- 
+                          #_(text-box (str "State: " @animation/state-atom)))
+      
       (application/do-layout width height)))
 
 
