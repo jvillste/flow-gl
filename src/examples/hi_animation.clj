@@ -70,16 +70,16 @@
                                                                                 0.9 300
                                                                                 1 0])})
                           
-                          (animating-text-box "multi key frame"
-                                              (fn [] (animation/restart! :multi-key-frame-animation))
-                                              (animation/multi-key-frame-mapping (animation/phase! :multi-key-frame-animation
-                                                                                                   2000)
-                                                                                 
-                                                                                 [0 {:x 0 :y 10}
-                                                                                  0.2 {:x 300 :y 10}
-                                                                                  0.45 {:x 300 :y 100}
-                                                                                  0.7 {:x 300 :y 10}
-                                                                                  1 {:x 0 :y 10}]))
+                          (animating-text-box "multi channel key frame"
+                                              (fn [] (animation/restart! :multi-channel-key-frame-animation))
+                                              (animation/multi-channel-key-frame-mapping (animation/phase! :multi-channel-key-frame-animation
+                                                                                                           2000)
+                                                                                         
+                                                                                         [0 {:x 0 :y 10}
+                                                                                          0.2 {:x 300 :y 10}
+                                                                                          0.45 {:x 300 :y 100}
+                                                                                          0.7 {:x 300 :y 10}
+                                                                                          1 {:x 0 :y 10}]))
                           (text-box (str "Frame: " (:frame-number  (swap! state update-in [:frame-number] (fnil inc 0)))))
                           #_(text-box (str "State: " @animation/state-atom)))
       

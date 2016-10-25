@@ -430,16 +430,16 @@
                              1 5]))))
 
 
-(defn key-frames-for-key [key multi-key-frames]
-  (let [multi-key-frames (partition 2 multi-key-frames)]
+(defn key-frames-for-key [key multi-channel-key-frames]
+  (let [multi-channel-key-frames (partition 2 multi-channel-key-frames)]
     (loop [key-frames []
-           multi-key-frames multi-key-frames]
-      (if-let [[phase values] (first multi-key-frames)]
+           multi-channel-key-frames multi-channel-key-frames]
+      (if-let [[phase values] (first multi-channel-key-frames)]
         (recur (if-let [value (get values key)]
                  (concat key-frames
                          [phase value])
                  key-frames)
-               (rest multi-key-frames))
+               (rest multi-channel-key-frames))
         
         key-frames))))
 
@@ -455,34 +455,34 @@
                               1 {:x 1
                                  :y 5}]))))
 
-(defn multi-key-frame-mapping [phase multi-key-frames]
+(defn multi-channel-key-frame-mapping [phase multi-channel-key-frames]
   (reduce (fn [values-by-key key]
             (assoc values-by-key
                    key
                    (key-frame-mapping phase
                                       (key-frames-for-key key
-                                                          multi-key-frames))))
+                                                          multi-channel-key-frames))))
           {}
-          (keys (second multi-key-frames))))
+          (keys (second multi-channel-key-frames))))
 
-(deftest multi-key-frame-mepping-test
+(deftest multi-channel-key-frame-mepping-test
   (is (= {:x 0, :y 0}
-         (multi-key-frame-mapping 0
-                                  [0 {:x 0
-                                      :y 0}
-                                   0.5 {:x 10
-                                        :y 5}
-                                   1 {:x 1
-                                      :y 5}])))
+         (multi-channel-key-frame-mapping 0
+                                          [0 {:x 0
+                                              :y 0}
+                                           0.5 {:x 10
+                                                :y 5}
+                                           1 {:x 1
+                                              :y 5}])))
 
   (is (= {:x 5.0, :y 2.5}
-         (multi-key-frame-mapping 0.25
-                                  [0 {:x 0
-                                      :y 0}
-                                   0.5 {:x 10
-                                        :y 5}
-                                   1 {:x 1
-                                      :y 5}]))))
+         (multi-channel-key-frame-mapping 0.25
+                                          [0 {:x 0
+                                              :y 0}
+                                           0.5 {:x 10
+                                                :y 5}
+                                           1 {:x 1
+                                              :y 5}]))))
 
 
 ;; TODO:
