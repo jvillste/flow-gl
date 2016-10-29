@@ -5,8 +5,9 @@
 (defn apply-renderers [state scene-graph gl]
   (scene-graph/update-depth-first scene-graph :renderers
                                   (fn [scene-graph]
-                                    (assert (:id scene-graph) "scene graph with renderers must have an id")
+                                    
                                     (reduce (fn [scene-graph renderer]
+                                              (assert (:id renderer) "renderers must have an id")
                                               (apply stateful/call-with-state-atom
 
                                                      (:renderer-states-atom state) 
@@ -20,7 +21,8 @@
                                                      
                                                      [gl scene-graph]))
                                             scene-graph
-                                            (:renderers scene-graph)))))
+                                            (:renderers scene-graph))))
+  state)
 
 
 (defn initialize-state []
@@ -37,9 +39,10 @@
 (defn state-bindings []
   {#'state-atom (atom (initialize-state))})
 
+(defn swap-state! [function & arguments]
+  (apply swap! state-atom function arguments))
+
 (defn apply-renderers! [scene-graph gl]
-  (apply-renderers @state-atom
-                   scene-graph
-                   gl))
+  (swap-state! apply-renderers scene-graph gl))
 
 

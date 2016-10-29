@@ -33,7 +33,11 @@
 
 (defn render [gl scene-graph]
 
-  (renderer/apply-renderers! scene-graph
+  (renderer/apply-renderers! (assoc scene-graph
+                                    :renderers (if-let [renderers (:renderers scene-graph)]
+                                                 renderers
+                                                 [(assoc quad-renderer/renderer
+                                                         :id ::root-renderer)]))
                              gl)
   
   #_(let [{:keys [width height]} (opengl/size gl)]

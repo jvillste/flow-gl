@@ -137,6 +137,7 @@
   (apply update-in state [:animations key] function arguments))
 
 
+
 (defn start [state key]
   (update-animation state key assoc
                     :start-time (:time state)))
@@ -159,6 +160,12 @@
 
 (defn running? [state key]
   (:start-time (animation-state state key)))
+
+(defn start-if-not-running [state key]
+  (if (not (running? state key))
+    (update-animation state key assoc
+                      :start-time (:time state))
+    state))
 
 (defn runtime [state key]
   (let [{:keys [start-time]} (animation-state state key)]

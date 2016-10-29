@@ -5,29 +5,36 @@
             (flow-gl.gui [layout :as layout]
                          [visuals :as visuals]
                          [quad-renderer :as quad-renderer]
-                         [render-target-renderer :as render-target-renderer])))
+                         [render-target-renderer :as render-target-renderer]
+                         [animation :as animation])))
 
 (defn create-scene-graph [width height]
-  {:children [(assoc (visuals/rectangle [255 255 255 255] 0 0)
-                     :x 10
-                     :y 10
-                     :width 200
-                     :height 200)
-              (assoc (visuals/rectangle [255 155 155 155] 0 0)
-                     :x 100
-                     :y 100
-                     :width 200
-                     :height 200)]
-   :x 10
-   :y 10
-   :width 200
-   :height 200
-   :id :root
-   :renderers [(assoc (render-target-renderer/renderer [(assoc quad-renderer/renderer
-                                                               :id :render-target-quad-renderer)])
-                      :id :render-target)
-               (assoc quad-renderer/renderer
-                      :id :quad-renderer-1)]})
+  (animation/swap-state! animation/start-if-not-running :offset)
+  (let [offset (animation/linear-mapping (animation/ping-pong 3
+                                                              (animation/phase! :offset
+                                                                                nil))
+                                         0 300)]
+    
+    {:children [(assoc (visuals/rectangle [255 155 155 255] 0 0)
+                       :x 0
+                       :y 0
+                       :width 200
+                       :height 200)
+                (assoc (visuals/rectangle [255 255 255 255] 0 0)
+                       :x (+ (- 100) offset)
+                       :y (+ (- 100) offset)
+                       :width 100
+                       :height 100)]
+     :x 10
+     :y 10
+     :width 200
+     :height 200
+     :id :root
+     :renderers [(assoc (render-target-renderer/renderer [(assoc quad-renderer/renderer
+                                                                 :id :render-target-quad-renderer)])
+                        :id :render-target)
+                 (assoc quad-renderer/renderer
+                        :id :quad-renderer-1)]}))
 
 (defn start []
   (spec-test/instrument)
