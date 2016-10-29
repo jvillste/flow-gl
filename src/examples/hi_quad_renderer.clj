@@ -56,8 +56,3 @@
                             gl)))
 
     (window/swap-buffers window)))
-
-
-
-
-

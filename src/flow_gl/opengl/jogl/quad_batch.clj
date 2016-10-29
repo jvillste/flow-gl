@@ -252,7 +252,7 @@
 
                     :allocated-texels initial-number-of-texels}]
 
-    #_(vertex-array-object/bind gl (:vertex-array-object quad-batch))
+    (vertex-array-object/bind gl (:vertex-array-object quad-batch))
     (shader/validate-program gl (:program quad-batch))
     quad-batch))
 
@@ -570,7 +570,6 @@
    (draw-quads quad-batch gl quads width height nil))
 
   ([quad-batch gl quads width height model-matrix]
-   
    #_(flow-gl.debug/set-metric :draw-quads (System/currentTimeMillis))
    #_(flow-gl.debug/set-metric :allocated-quads (:allocated-quads quad-batch))
    #_(flow-gl.debug/set-metric :quad-count (count quads))

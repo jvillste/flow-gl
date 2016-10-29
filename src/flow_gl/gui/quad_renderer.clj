@@ -2,7 +2,8 @@
   (:require (flow-gl.gui [event-queue :as event-queue]
                          [layout :as layout]
                          [drawable :as drawable]
-                         [layoutable :as layoutable])
+                         [layoutable :as layoutable]
+                         [scene-graph :as scene-graph])
             (flow-gl.opengl.jogl [opengl :as opengl]
                                  [window :as window]
                                  [triangle-list :as triangle-list]
@@ -42,8 +43,10 @@
                 []))))
 
 (defn texture-key [quad]
-  (hash (concat [(:image-function quad)]
-                (image-function-parameters quad))))
+  (if-let [texture-hash (:texture-hash quad)]
+    texture-hash
+    (hash (concat [(:image-function quad)]
+                  (image-function-parameters quad)))))
 
 (defn unused-drawable-textures [drawable-textures quads]
   (reduce dissoc drawable-textures (map texture-key quads)))
@@ -52,8 +55,8 @@
   (contains? (:drawable-textures quad-renderer)
              (:texture-key quad)))
 
-(defn set-texture [drawable-textures quad texture-id]
-  (assoc drawable-textures (texture-key quad) texture-id))
+(defn set-texture [drawable-textures texture-key texture-id]
+  (assoc drawable-textures texture-key texture-id))
 
 (defn unset-texture [drawable-textures key]
   (dissoc drawable-textures key))
@@ -88,19 +91,22 @@
          (when (= (:height quad)
                   java.lang.Integer/MAX_VALUE)
            (throw (ex-info "Quad has infinite height." {:quad quad})))
-         
-         (apply (:image-function quad)
-                (image-function-parameters quad)))
+
+         (-> (cond (:texture-id quad) (select-keys quad [:texture-id :width :height])
+                   (:image-function quad) {:image (apply (:image-function quad)
+                                                         (image-function-parameters quad))} 
+                   :default nil)
+             (assoc :texture-key (:texture-key quad))))
        quads))
 
-(defn add-new-textures [drawable-textures quads first-texture-id]
+(defn add-new-textures [drawable-textures texture-keys first-texture-id]
   (loop [texture-id first-texture-id
          drawable-textures drawable-textures
-         quads quads]
-    (if-let [quad (first quads)]
+         texture-keys texture-keys]
+    (if-let [texture-key (first texture-keys)]
       (recur (inc texture-id)
-             (set-texture drawable-textures quad texture-id)
-             (rest quads))
+             (set-texture drawable-textures texture-key texture-id)
+             (rest texture-keys))
       drawable-textures)))
 
 (defn add-texture-keys [quads]
@@ -113,14 +119,24 @@
   (let [first-texture-id (:next-free-texture-id (:quad-batch quad-renderer))
         quads (add-texture-keys quads)
         quads (new-quads quad-renderer quads)
-        new-textures (create-textures quads)]
+        new-textures (filter #(not (nil? %)) (create-textures quads))
+        new-gl-textures (filter :texture-id new-textures)
+        new-image-textures (filter :image new-textures)]
+
     (if (empty? new-textures)
       quad-renderer
       (assoc quad-renderer
-             :quad-batch (quad-batch/add-textures (:quad-batch quad-renderer) gl new-textures)
+             :quad-batch (-> (:quad-batch quad-renderer)
+                             (cond-> (not (empty? new-image-textures))
+                               (quad-batch/add-textures gl (map :image new-image-textures)))
+                             (cond-> (not (empty? new-gl-textures))
+                               (quad-batch/add-textures-from-gl-textures gl new-gl-textures)))
              :drawable-textures (add-new-textures (:drawable-textures quad-renderer)
-                                                  quads
+                                                  (map :texture-key
+                                                       (concat new-image-textures
+                                                               new-gl-textures))
                                                   (:next-free-texture-id (:quad-batch quad-renderer)))))))
+
 
 (defn add-gl-texture [quad-renderer quad texture-id width height gl]
   (assoc quad-renderer
@@ -170,8 +186,9 @@
 
                              :quad-batch (quad-batch/draw-quads (:quad-batch quad-renderer)
                                                                 gl
-                                                                (add-texture-ids quads
-                                                                                 (:drawable-textures quad-renderer))
+                                                                (filter :texture-id
+                                                                        (add-texture-ids quads
+                                                                                         (:drawable-textures quad-renderer)))
                                                                 width height))
         quad-renderer (if (= (:draws-after-garbage-collection quad-renderer)
                              10)
@@ -181,13 +198,26 @@
     (-> quad-renderer
         (update-in [:draws-after-garbage-collection] (fnil inc 0)))))
 
+(defn draw-scene-graph [state gl scene-graph]
+  (opengl/clear gl 0 0 0 1)
 
+  (let [{:keys [width height]} (opengl/size gl)]
+    (draw state
+          (scene-graph/leave-nodes scene-graph)
+          width
+          height
+          gl)))
 
 (defn initialize-state [gl]
   {:drawable-textures {}
    :drawn-drawables []
    :quad-batch (quad-batch/create gl)})
 
+(def renderer {:initialize-state initialize-state
+               :render (fn [state-atom gl scene-graph]
+                         (swap! state-atom
+                                draw-scene-graph gl scene-graph)
+                         (select-keys scene-graph [:x :y :width :height]))})
 
 ;; dynamic state
 
@@ -198,3 +228,5 @@
 
 (defn draw! [quads width height gl]
   (swap! state-atom draw quads width height gl))
+
+

@@ -4,7 +4,10 @@
 (defn initialize-state []
   {})
 
-
+(defn set-stateful-state [state id stateful-state]
+  (assoc-in state
+            [id]
+            stateful-state))
 
 (defn apply-to-stateful-state [state id function & arguments]
   (update-in state
@@ -17,13 +20,39 @@
 (defn stateful-state [state id]
   (get state id))
 
-(defn call-with-state [state-atom initialize-state create-scene-graph id & arguments]
+(defn call-with-state [state-atom initialize-state function id & arguments]
+  (println "call-with-state")
+  (prn state-atom)
+  (prn initialize-state)
+  (prn function)
+  (prn id)
+  (prn arguments)
+  
   (when (not (contains? @state-atom id))
     (swap! state-atom
            assoc id (initialize-state)))
 
-  (apply create-scene-graph
+  (apply function
          (get @state-atom id) id arguments))
+
+
+(defn call-with-state-atom [state-atom initialize-state function id & arguments]
+  (when (not (contains? @state-atom id))
+    (swap! state-atom
+           assoc id (initialize-state)))
+
+  (let [stateful-state-atom (atom (get @state-atom id))
+        result (apply function
+                      stateful-state-atom
+                      arguments)]
+    
+    (swap! state-atom
+           set-stateful-state
+           id
+           @stateful-state-atom)
+    result))
+
+(defn delete-state [state])
 
 ;; dynamic state
 
@@ -41,8 +70,8 @@
 (defn stateful-state! [id]
   (stateful-state @state-atom id))
 
-(defn call-with-state! [id arguments initialize-state create-scene-graph]
+(defn call-with-state! [id arguments initialize-state function]
   (apply call-with-state
-         state-atom initialize-state create-scene-graph id arguments))
+         state-atom initialize-state function id arguments))
 
 

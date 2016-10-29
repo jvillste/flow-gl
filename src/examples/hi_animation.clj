@@ -91,6 +91,5 @@
   (spec/check-asserts true)
 
   (.start (Thread. (fn []
-                     (application/start-window #'create-scene-graph
-                                               :animate true)))))
+                     (application/start-window #'create-scene-graph)))))
 

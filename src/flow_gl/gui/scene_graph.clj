@@ -129,3 +129,51 @@
                            :x ::coordinate
                            :y ::coordinate))
 
+
+(defn update-depth-first [scene-graph predicate function]
+  (if-let [children (:children scene-graph)]
+    (let [scene-graph (update-in scene-graph
+                                 [:children]
+                                 (fn [children]
+                                   (doall (map (fn [child]
+                                                 (update-depth-first child predicate function))
+                                               children))))]
+      (if (predicate scene-graph)
+        (function scene-graph)
+        scene-graph))
+    (if (predicate scene-graph)
+      (do (println (:id scene-graph))
+          (function scene-graph)) 
+      scene-graph)))
+
+(deftest apply-depth-first-test
+  (is (= '{:children
+           ({:children
+             ({:id 1, :apply true, :applied 1}
+              {:id 2, :apply true, :applied 2}),
+             :apply true,
+             :id 5,
+             :applied 3}
+            {:id 3}
+            {:id 4}),
+           :apply true,
+           :id 6,
+           :applied 4}
+         (update-depth-first {:children [{:children [{:id 1
+                                                      :apply true}
+                                                     {:id 2
+                                                      :apply true}]
+                                          :apply true
+                                          :id 5}
+                                         {:id 3}
+                                         {:id 4}]
+                              :apply true
+                              :id 6}
+                             
+                             :apply
+                             
+                             (let [count (atom 0)]
+                               (fn [node]
+                                 (swap! count inc)
+                                 (assoc node :applied @count)))))))
+

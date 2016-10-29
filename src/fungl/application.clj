@@ -1,6 +1,7 @@
 (ns fungl.application
   (:require [clojure.core.async :as async]
             [flow-gl.csp :as csp]
+            (fungl [renderer :as renderer])
             (flow-gl.gui [window :as window]
                          [layout :as layout]
                          [quad-renderer :as quad-renderer]
@@ -28,15 +29,17 @@
         (animation/state-bindings)))
 
 (defn create-render-state [gl]
-  (quad-renderer/state-bindings gl))
+  (renderer/state-bindings))
 
 (defn render [gl scene-graph]
-  (opengl/clear gl 0 0 0 1)
 
-  (let [{:keys [width height]} (opengl/size gl)]
-    (quad-renderer/draw! (scene-graph/leave-nodes scene-graph)
-                         width height
-                         gl)))
+  (renderer/apply-renderers! scene-graph
+                             gl)
+  
+  #_(let [{:keys [width height]} (opengl/size gl)]
+      (quad-renderer/draw! (scene-graph/leave-nodes scene-graph)
+                           width height
+                           gl)))
 
 (defn handle-event [scene-graph event]
   (when (= :mouse
@@ -70,20 +73,20 @@
     
     events))
 
-(defn start-window [create-scene-graph _& {:keys [window
-                                                  ;;                                                  handle-event
-                                                  ;;                                                  render
-                                                  ;;                                                  create-event-handling-state
-                                                  ;;                                                  create-render-state
-                                                  ;;                                                  read-events
-                                                  ]
-                                           :or {window (create-window)
-                                                ;;                                                handle-event handle-event
-                                                ;;                                                read-events read-events
-                                                ;;                                                render render
-                                                ;;                                                create-event-handling-state create-event-handling-state
-                                                ;;                                                create-render-state create-render-state
-                                                }}]
+(defn start-window [create-scene-graph & {:keys [window
+                                                 ;;                                                  handle-event
+                                                 ;;                                                  render
+                                                 ;;                                                  create-event-handling-state
+                                                 ;;                                                  create-render-state
+                                                 ;;                                                  read-events
+                                                 ]
+                                          :or {window (create-window)
+                                               ;;                                                handle-event handle-event
+                                               ;;                                                read-events read-events
+                                               ;;                                                render render
+                                               ;;                                                create-event-handling-state create-event-handling-state
+                                               ;;                                                create-render-state create-render-state
+                                               }}]
 
   (let [event-channel (window/event-channel window)
         renderable-scene-graph-channel (async/chan)]
