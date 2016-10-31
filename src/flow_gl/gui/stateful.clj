@@ -21,13 +21,6 @@
   (get state id))
 
 (defn call-with-state [state-atom initialize-state function id & arguments]
-  (println "call-with-state")
-  (prn state-atom)
-  (prn initialize-state)
-  (prn function)
-  (prn id)
-  (prn arguments)
-  
   (when (not (contains? @state-atom id))
     (swap! state-atom
            assoc id (initialize-state)))
@@ -36,11 +29,10 @@
          (get @state-atom id) id arguments))
 
 
-(defn call-with-state-atom [state-atom initialize-state function id & arguments]
+(defn call-with-state-atom [state-atom id initialize-state function & arguments]
   (when (not (contains? @state-atom id))
     (swap! state-atom
            assoc id (initialize-state)))
-
   (let [stateful-state-atom (atom (get @state-atom id))
         result (apply function
                       stateful-state-atom
@@ -73,5 +65,9 @@
 (defn call-with-state! [id arguments initialize-state function]
   (apply call-with-state
          state-atom initialize-state function id arguments))
+
+(defn call-with-state-atom! [id initialize-state function & arguments]
+  (apply call-with-state-atom
+         state-atom id initialize-state function arguments))
 
 

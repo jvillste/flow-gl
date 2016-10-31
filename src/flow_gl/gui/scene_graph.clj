@@ -130,6 +130,24 @@
                            :y ::coordinate))
 
 
+(defn itersects? [node-1 node-2]
+  (or (in-coordinates? node-1
+                       (:x node-2)
+                       (:y node-2))
+      (in-coordinates? node-1
+                       (+ (:x node-2)
+                          (:width node-2))
+                       (:y node-2))
+      (in-coordinates? node-1
+                       (+ (:x node-2)
+                          (:width node-2))
+                       (+ (:y node-2)
+                          (:height node-2)))
+      (in-coordinates? node-1
+                       (:x node-2)
+                       (+ (:y node-2)
+                          (:height node-2)))))
+
 (defn update-depth-first [scene-graph predicate function]
   (if-let [children (:children scene-graph)]
     (let [scene-graph (update-in scene-graph

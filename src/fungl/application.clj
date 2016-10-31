@@ -29,7 +29,7 @@
         (animation/state-bindings)))
 
 (defn create-render-state [gl]
-  (renderer/state-bindings))
+  (stateful/state-bindings))
 
 (defn render [gl scene-graph]
 
