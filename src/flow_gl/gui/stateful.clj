@@ -23,7 +23,8 @@
 (defn call-with-state [state-atom initialize-state function id & arguments]
   (when (not (contains? @state-atom id))
     (swap! state-atom
-           assoc id (initialize-state)))
+           assoc id (assoc (initialize-state)
+                           ::id id)))
 
   (apply function
          (get @state-atom id) id arguments))

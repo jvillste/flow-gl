@@ -44,7 +44,7 @@
         (quad scene-graph
               render-target)))))
 
-(defn renderer [renderers]
+(defn renderer [& renderers]
   {:initialize-state initialize-state
    :render (partial render renderers)
    :delete-state (fn [state])})

@@ -58,9 +58,9 @@
   (jogl-window/create 400 400
                       :close-automatically true))
 
-(defn read-events [event-channel]
+(defn read-events [event-channel target-frame-rate]
   (animation/swap-state! animation/adjust-sleep-time-according-to-target-frames-per-second
-                         60
+                         target-frame-rate
                          (System/currentTimeMillis))
 
 
@@ -78,6 +78,7 @@
     events))
 
 (defn start-window [create-scene-graph & {:keys [window
+                                                 target-frame-rate
                                                  ;;                                                  handle-event
                                                  ;;                                                  render
                                                  ;;                                                  create-event-handling-state
@@ -85,6 +86,7 @@
                                                  ;;                                                  read-events
                                                  ]
                                           :or {window (create-window)
+                                               target-frame-rate 60
                                                ;;                                                handle-event handle-event
                                                ;;                                                read-events read-events
                                                ;;                                                render render
@@ -127,7 +129,7 @@
 
             (let [window-width (window/width window)
                   window-height (window/height window)
-                  scene-graph (loop [events (read-events event-channel)
+                  scene-graph (loop [events (read-events event-channel target-frame-rate)
                                      scene-graph scene-graph]
 
                                 

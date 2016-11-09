@@ -5,55 +5,109 @@
             (flow-gl.gui [layout :as layout]
                          [visuals :as visuals]
                          [quad-renderer :as quad-renderer]
+                         [tiled-renderer :as tiled-renderer]
                          [render-target-renderer :as render-target-renderer]
-                         [animation :as animation])))
+                         [animation :as animation]
+                         [layouts :as layouts])
+            (flow-gl.graphics [font :as font])))
 
-(defn box-in-a-box [id phase color]
-  {:children [(assoc (visuals/rectangle color 0 0)
-                     :x 0
-                     :y 0
-                     :width 200
-                     :height 200)
-              (assoc (visuals/rectangle [255 255 255 255] 0 0)
-                     :x (+ (- 100) (animation/linear-mapping phase
-                                                             0 300))
-                     :y (+ (- 100) (animation/linear-mapping phase
-                                                             0 300))
-                     :width 100
-                     :height 100)]
-   :width 200
-   :height 200
-   :id id
-   :renderers [(assoc (render-target-renderer/renderer [(assoc quad-renderer/renderer
-                                                               :id [id :render-target-quad-renderer])])
-                      :id [id :render-target])]})
+(def font (font/create "LiberationSans-Regular.ttf" 15))
+
+(def state (atom {}))
+
+(defn text-box [text]
+  (assoc layouts/box
+         :margin 5
+         :children [(visuals/rectangle [155 155 255 255]
+                                       5
+                                       5)
+                    (visuals/text [0 0 0 255]
+                                  font
+                                  text)]))
+
+
+
+(def table (-> {:children (for [x (range 5)
+                                y (range 5)]
+                            (assoc (text-box (str x "," y))
+                                   :x (* x 40)
+                                   :y (* y 40)))}
+               (application/do-layout 1000 1000)))
+
+(def text
+  (-> (with-open [rdr (clojure.java.io/reader "src/examples/hi_tiled_rendering.clj")]
+        (apply layouts/vertically
+               (for [line (doall (line-seq rdr))]
+                 (visuals/text [255 255 255 255]
+                               font
+                               line))))
+      (application/do-layout 1000 1000)))
+
+(defn scroll-pane [id x-translation y-translation width height content-scene-graph]
+  (let [quad-renderer (assoc quad-renderer/renderer
+                             :id [id :quad-renderer])]
+    
+    {:children [(assoc content-scene-graph
+                       :x x-translation
+                       :y y-translation
+                       :renderers [(assoc (let [tile-width width
+                                                tile-height height]
+                                            (tiled-renderer/renderer [quad-renderer]
+                                                                     tile-width
+                                                                     tile-height
+                                                                     (tiled-renderer/tiles-in-view tile-width tile-height
+                                                                                                   (- x-translation) (- y-translation)
+                                                                                                   width height)
+                                                                     :visualize-tiles true))
+                                          :id [id :tiled])])]
+     :width width
+     :height height
+     :renderers [(assoc (render-target-renderer/renderer quad-renderer)
+                        :id [id :render-target])]}))
+
+#_(flow-gl.gui.scene-graph/bounding-box (flow-gl.gui.scene-graph/leave-nodes table))
 
 (defn create-scene-graph [width height]
   (animation/swap-state! animation/start-if-not-running :offset)
-  (let [phase (animation/ping-pong 3
-                                   (animation/phase! :offset
-                                                     nil))]
-    {:children [(assoc (box-in-a-box :box-1
-                                     phase
-                                     [255 155 155 255])
+  (animation/swap-state! animation/set-wake-up 1000)
+
+  (let [margin 50
+        scroll-pane-width (- width (* 2 margin))
+        scroll-pane-height (- height (* 2 margin))]
+    {:children [(assoc (let [phase (animation/phase! :offset)]
+                         (scroll-pane :scroll-pane-1
+                                      (- 110
+                                         (+ (* 200 (animation/ping-pong 20 phase))
+                                            #_(* 50 (animation/ping-pong 6 phase))))
+                                      (- 110
+                                         (* 400
+                                            (animation/ping-pong 10 phase)))
+                                      scroll-pane-width
+                                      scroll-pane-height
+                                      text  #_table))
+                       :x margin
+                       :y margin
+                       :width scroll-pane-width
+                       :height scroll-pane-height)
+                #_(assoc (visuals/rectangle [255 0 0 100] 0 0)
                        :x 10
-                       :y 10)
-                (assoc (box-in-a-box :box-2
-                                     (mod (+ 0.3 phase)
-                                          1)
-                                     [255 155 255 255])
-                       :x 100
-                       :y 250)]
-     :x 0
-     :y 0
-     :width width
-     :height height
+                       :y 10
+                       :width scroll-pane-width
+                       :height scroll-pane-height)]
+     :x 0 :y 0 :width width :height height
      :renderers [(assoc quad-renderer/renderer
-                        :id :root-renderer)]}))
+                        :id :root)]}))
+
+#_ (with-bindings (application/create-event-handling-state)
+     (time (create-scene-graph 100 100)))
 
 (defn start []
-  (spec-test/instrument)
-  (spec/check-asserts true)
+  (do (spec-test/instrument)
+      (spec/check-asserts true))
+  
+  #_(do (spec-test/unstrument)
+        (spec/check-asserts false))
 
   (.start (Thread. (fn []
-                     (application/start-window #'create-scene-graph)))))
+                     (application/start-window #'create-scene-graph
+                                               :target-frame-rate 30)))))

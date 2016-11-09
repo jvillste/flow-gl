@@ -195,3 +195,33 @@
                                  (swap! count inc)
                                  (assoc node :applied @count)))))))
 
+(defn bounding-box [nodes]
+  {:x1 (apply min (map :x nodes))
+   :y1 (apply min (map :y nodes))
+   :x2 (apply max (map :x nodes))
+   :y2 (apply max (map :y nodes))})
+
+(defn intersection [rectangle-1 rectangle-2]
+  (if (or
+       ;; 2 is left of 1
+       (< (+ (:x rectangle-2)
+             (:width rectangle-2))
+          (:x rectangle-1))
+
+       (< (+ (:x rectangle-1)
+             (:width rectangle-1))
+          (:x rectangle-2)))
+    nil
+    {}))
+
+
+(deftest intersection-test
+  ;; 2 is left of 1
+  (is (= nil
+         (intersection {:x 0 :y 0 :width 100}
+                       {:x -100 :y 0 :width 10})))
+
+  ;; 2 is right of 1
+  (is (= nil
+         (intersection {:x 0 :y 0 :width 100}
+                       {:x 200 :y 0 :width 10}))))

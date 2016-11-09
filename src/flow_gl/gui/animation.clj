@@ -357,10 +357,13 @@
                  assoc :runtime limited-runtime)
     limited-runtime))
 
-(defn phase! [key duration]
+(defn phase!
+  ([key]
+   (phase! key nil))
   
-  (/ (runtime! key duration)
-     (or duration 1000)))
+  ([key duration]
+   (/ (runtime! key duration)
+      (or duration 1000))))
 
 
 (defn interpolate [from to phase]
