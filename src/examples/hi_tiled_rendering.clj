@@ -63,7 +63,7 @@
      :width width
      :height height
      :renderers [(assoc (render-target-renderer/renderer quad-renderer)
-                        :id [id :render-target])]}))
+                            :id [id :render-target])]}))
 
 #_(flow-gl.gui.scene-graph/bounding-box (flow-gl.gui.scene-graph/leave-nodes table))
 
@@ -71,17 +71,17 @@
   (animation/swap-state! animation/start-if-not-running :offset)
   (animation/swap-state! animation/set-wake-up 1000)
 
-  (let [margin 50
+  (let [margin 100
         scroll-pane-width (- width (* 2 margin))
         scroll-pane-height (- height (* 2 margin))]
     {:children [(assoc (let [phase (animation/phase! :offset)]
                          (scroll-pane :scroll-pane-1
                                       (- 110
-                                         (+ (* 200 (animation/ping-pong 20 phase))
+                                         (+ (* 200 (animation/ping-pong 40 phase))
                                             #_(* 50 (animation/ping-pong 6 phase))))
                                       (- 110
-                                         (* 400
-                                            (animation/ping-pong 10 phase)))
+                                         (* 800
+                                            (animation/ping-pong 20 phase)))
                                       scroll-pane-width
                                       scroll-pane-height
                                       text  #_table))
@@ -89,9 +89,9 @@
                        :y margin
                        :width scroll-pane-width
                        :height scroll-pane-height)
-                #_(assoc (visuals/rectangle [255 0 0 100] 0 0)
-                       :x 10
-                       :y 10
+                (assoc (visuals/rectangle [255 0 0 100] 0 0)
+                       :x margin
+                       :y margin
                        :width scroll-pane-width
                        :height scroll-pane-height)]
      :x 0 :y 0 :width width :height height
@@ -102,12 +102,12 @@
      (time (create-scene-graph 100 100)))
 
 (defn start []
-  (do (spec-test/instrument)
+ #_ (do (spec-test/instrument)
       (spec/check-asserts true))
   
-  #_(do (spec-test/unstrument)
+  (do (spec-test/unstrument)
         (spec/check-asserts false))
 
   (.start (Thread. (fn []
                      (application/start-window #'create-scene-graph
-                                               :target-frame-rate 30)))))
+                                               :target-frame-rate 60)))))

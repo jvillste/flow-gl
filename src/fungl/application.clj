@@ -1,7 +1,8 @@
 (ns fungl.application
   (:require [clojure.core.async :as async]
             [flow-gl.csp :as csp]
-            (fungl [renderer :as renderer])
+            (fungl [renderer :as renderer]
+                   [cache :as cache])
             (flow-gl.gui [window :as window]
                          [layout :as layout]
                          [quad-renderer :as quad-renderer]
@@ -26,10 +27,12 @@
   (conj (stateful/state-bindings)
         (mouse/state-bindings)
         (keyboard/state-bindings)
-        (animation/state-bindings)))
+        (animation/state-bindings)
+        (cache/state-bindings)))
 
 (defn create-render-state [gl]
-  (stateful/state-bindings))
+  (conj (stateful/state-bindings)
+        (cache/state-bindings)))
 
 (defn render [gl scene-graph]
 

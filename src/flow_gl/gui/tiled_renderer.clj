@@ -1,10 +1,12 @@
 (ns flow-gl.gui.tiled-renderer
   (:require (flow-gl.opengl.jogl [render-target :as render-target])
+            [clojure.data :as data]
             (flow-gl.gui [stateful :as stateful]
                          [render-target-renderer :as render-target-renderer]
                          [scene-graph :as scene-graph]
                          [visuals :as visuals])
             (flow-gl.graphics [font :as font])
+            [taoensso.timbre.profiling :as timbre-profiling]
             (fungl [renderer :as renderer]))
   (:use clojure.test))
 
@@ -12,10 +14,12 @@
   {:tiles {}})
 
 (defn window-range [window-width offset length]
-  (range (int (Math/floor (/ offset
-                             window-width)))
-         (int (Math/ceil (/ (+ offset length)
-                            window-width)))))
+  (if (< 0 window-width)
+    (range (int (Math/floor (/ offset
+                               window-width)))
+           (int (Math/ceil (/ (+ offset length)
+                              window-width))))
+    []))
 
 (defn tiles-in-view [tile-width tile-height view-x view-y view-width view-height]
   (for [view-x (window-range tile-width view-x view-width)
@@ -37,11 +41,11 @@
 
 (def font (font/create "LiberationSans-Regular.ttf" 15))
 
-(require 'clojure.data)
+
 (defn render-tile [tile tiled-renderer-id renderers tile-width tile-height visualize-tiles scene-graph gl]
   (let [stripped-scene-graph (dissoc scene-graph :renderers :x :y)]
-    #_(prn (first (clojure.data/diff stripped-scene-graph
-                                     (:source-scene-graph tile))))
+    #_(prn (first (data/diff stripped-scene-graph
+                             (:source-scene-graph tile))))
     (assoc tile
            :width tile-width
            :height tile-height
@@ -56,62 +60,60 @@
                                        (:result-scene-graph tile)
                                        (let [pixel-x (* x tile-width)
                                              pixel-y (* y tile-height)]
-                                         (renderer/apply-renderers! {:children (cond-> [(assoc stripped-scene-graph
-                                                                                               :x (- pixel-x)
-                                                                                               :y (- pixel-y))]
-                                                                                 visualize-tiles
-                                                                                 (concat
-                                                                                  [(assoc (visuals/rectangle [255 255 255 50] 0 0)
-                                                                                          :x 1
-                                                                                          :y 1
-                                                                                          :width (- tile-width 1)
-                                                                                          :height (- tile-height 1))
-                                                                                   (assoc (visuals/rectangle [0 0 0 155] 15 15)
-                                                                                          :x 3
-                                                                                          :y 3
-                                                                                          :width 60
-                                                                                          :height 20)
-                                                                                   (assoc (visuals/text [255 0 0 255] font
-                                                                                                        (str x "," y))
-                                                                                          :x 10
-                                                                                          :y 5)]))
-                                                                     :x pixel-x
-                                                                     :y pixel-y
-                                                                     :width tile-width
-                                                                     :height tile-height
-                                                                     :renderers [(assoc (apply render-target-renderer/renderer
-                                                                                               renderers)
-                                                                                        :id [tiled-renderer-id ::tile x y tile-width tile-height])]} 
-                                                                    gl)))
-                                     )))))
+                                         (timbre-profiling/p :render-tile
+                                                             (renderer/apply-renderers! {:children (cond-> [(assoc stripped-scene-graph
+                                                                                                                   :x (- pixel-x)
+                                                                                                                   :y (- pixel-y))]
+                                                                                                     visualize-tiles
+                                                                                                     (concat
+                                                                                                      [(assoc (visuals/rectangle [255 255 255 50] 0 0)
+                                                                                                              :x 1
+                                                                                                              :y 1
+                                                                                                              :width (- tile-width 1)
+                                                                                                              :height (- tile-height 1))
+                                                                                                       (assoc (visuals/rectangle [0 0 0 155] 15 15)
+                                                                                                              :x 3
+                                                                                                              :y 3
+                                                                                                              :width 60
+                                                                                                              :height 20)
+                                                                                                       (assoc (visuals/text [255 0 0 255] font
+                                                                                                                            (str x "," y))
+                                                                                                              :x 10
+                                                                                                              :y 5)]))
+                                                                                         :x pixel-x
+                                                                                         :y pixel-y
+                                                                                         :width tile-width
+                                                                                         :height tile-height
+                                                                                         :renderers [(assoc (apply render-target-renderer/renderer
+                                                                                                                   renderers)
+                                                                                                            :id [tiled-renderer-id ::tile x y])]} 
+                                                                                        gl)))))))))
 
 (defn create-tile [coordinates]
   {:coordinates coordinates})
 
 (defn render [renderers tile-width tile-height tile-coordinates visualize-tiles state-atom gl scene-graph]
-  (let [scene-graph-at-origin (assoc scene-graph
-                                     :x 0
-                                     :y 0)
-        previous-tiles (:previous-tiles @state-atom)
-        tiles (reduce (fn [tiles coordinates]
-                        (assoc tiles
-                               coordinates
-                               (-> (or (get tiles
-                                            coordinates)
-                                       (create-tile coordinates))
-                                   (render-tile (::stateful/id @state-atom)
-                                                renderers
-                                                tile-width
-                                                tile-height
-                                                visualize-tiles
-                                                scene-graph
-                                                gl))))
-                      previous-tiles
-                      tile-coordinates)]
-    (swap! state-atom assoc :previous-tiles tiles)
-    (assoc (select-keys scene-graph [:x :y :width :height])
-           :children (map :result-scene-graph
-                          (vals (select-keys tiles tile-coordinates))))))
+  (let [tiles (reduce (fn [tiles coordinates]
+                                                  (assoc tiles
+                                                         coordinates
+                                                         (-> (or (get tiles
+                                                                      coordinates)
+                                                                 (create-tile coordinates))
+                                                             (render-tile (::stateful/id @state-atom)
+                                                                          renderers
+                                                                          tile-width
+                                                                          tile-height
+                                                                          visualize-tiles
+                                                                          scene-graph
+                                                                          gl))))
+                                                (:previous-tiles @state-atom)
+                                                tile-coordinates)]
+                              (swap! state-atom assoc :previous-tiles tiles)
+                              (assoc (select-keys scene-graph [:x :y :width :height])
+                                     :children (map :result-scene-graph
+                                                    (vals (select-keys tiles tile-coordinates)))))
+  #_(timbre-profiling/profile :info :render-tiled
+                            ))
 
 
 (defn renderer [renderers tile-width tile-height coordinates & {:keys [visualize-tiles] :or {visualize-tiles false}}]

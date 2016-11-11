@@ -77,21 +77,14 @@
           (->> (keys cache)
                (filter vector?))))
 
+
+
 (defn call-with-cache-atom [cache-atom function & arguments]
+  
   (swap! cache-atom update-in [:used] conj [function arguments])
   (if-let [value (get @cache-atom [function arguments])]
-    (do (flow-gl.debug/add-event [:cache-hit (:name (meta function))])
-        value)
+    value
     (let [value (apply function arguments)]
-      (flow-gl.debug/add-event [:cache-miss (:name (meta function))])
-
-      #_(when (= (str (:name (meta function)))
-               "resolve-view-calls")
-        (println "missed " (:name (meta function)))
-        #_(println "missed " (:name (meta function)) "but found" (->> (keys @cache-atom)
-                                                                    (filter vector?)
-                                                                    (filter (fn [[f2 args2]] (= f2 function)))
-                                                                    (map (fn [[f2 args2]] (take 2 (clojure.data/diff (drop 2 arguments) (drop 2 args2))))))))
       (swap! cache-atom assoc [function arguments] value)
       value)))
 
@@ -157,3 +150,12 @@
       (cached-function [1] 1)
       (remove-unused)
       (println (keys @cache))))
+
+
+(def ^:dynamic state-atom)
+
+(defn state-bindings []
+  {#'state-atom (create)})
+
+(defn call [function & arguments]
+  (apply call-with-cache-atom state-atom function arguments))

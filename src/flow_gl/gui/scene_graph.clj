@@ -27,12 +27,12 @@
 
 #_(spec/explain ::node {::x 1 ::y 1})
 
-(defn leave-nodes
+(defn leaf-nodes
   "Returns leave nodes in depth first and ascending z order with global x and y coordinates"
   ([node]
    
    ;; note that sort-by is stable, nodes with equal z preserve their ordering
-   (sort-by :z (leave-nodes node 0 0 0 [])))
+   (sort-by :z (leaf-nodes node 0 0 0 [])))
 
   ([node parent-x parent-y parent-z leaves]
 
@@ -44,7 +44,7 @@
        (loop [leaves leaves
               children (:children node)]
          (if-let [child (first children)]
-           (recur (leave-nodes child x y z leaves)
+           (recur (leaf-nodes child x y z leaves)
                   (rest children))
            leaves))
        (conj leaves
@@ -53,7 +53,7 @@
                     :y y
                     :z z))))))
 
-(spec/fdef leave-nodes
+(spec/fdef leaf-nodes
            :args (spec/or :one (spec/cat :node ::node)
                           :two (spec/cat :node ::node
                                          :parent-x ::coordinate
@@ -67,7 +67,7 @@
            {:x 5, :y 10, :expected-position 3, :z 0}
            {:x 15, :y 20, :expected-position 4, :z 10}
            {:x 15, :y 20, :expected-position 5, :z 10})
-         (leave-nodes {:y 5 :x 0 :children [{:x 5 :y 5 :children [{:x 5 :y 5 :expected-position 1}
+         (leaf-nodes {:y 5 :x 0 :children [{:x 5 :y 5 :children [{:x 5 :y 5 :expected-position 1}
                                                                   {:x 5 :y 5 :z 10 :children [{:x 5 :y 5 :expected-position 4}
                                                                                               {:x 5 :y 5 :expected-position 5}]}]}
                                             {:x 5 :y 5 :expected-position 2}
@@ -130,23 +130,33 @@
                            :y ::coordinate))
 
 
-(defn itersects? [node-1 node-2]
-  (or (in-coordinates? node-1
-                       (:x node-2)
-                       (:y node-2))
-      (in-coordinates? node-1
-                       (+ (:x node-2)
-                          (:width node-2))
-                       (:y node-2))
-      (in-coordinates? node-1
-                       (+ (:x node-2)
-                          (:width node-2))
-                       (+ (:y node-2)
-                          (:height node-2)))
-      (in-coordinates? node-1
-                       (:x node-2)
-                       (+ (:y node-2)
-                          (:height node-2)))))
+(defn intersects? [node-1 node-2]
+  (not (or (< (+ (:x node-1)
+                 (:width node-1))
+              (:x node-2))
+           (< (+ (:x node-2)
+                 (:width node-2))
+              (:x node-1))
+           
+           (< (+ (:y node-1)
+                 (:height node-1))
+              (:y node-2))
+           (< (+ (:y node-2)
+                 (:height node-2))
+              (:y node-1)))))
+
+(deftest intersects?-test
+  (is (intersects? {:x 0 :y 0 :width 100 :height 100}
+                   {:x 0 :y 0 :width 100 :height 100}))
+
+  (is (intersects? {:x 0 :y 0 :width 100 :height 100}
+                   {:x 10 :y 10 :width 100 :height 100}))
+
+  (is (intersects? {:x 0 :y 0 :width 100 :height 100}
+                   {:x -10 :y 10 :width 200 :height 100}))
+  
+  (is (not (intersects? {:x 0 :y 0 :width 100 :height 100}
+                        {:x -100 :y 10 :width 10 :height 10}))))
 
 (defn update-depth-first [scene-graph predicate function]
   (if-let [children (:children scene-graph)]

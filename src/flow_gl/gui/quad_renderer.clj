@@ -4,6 +4,7 @@
                          [drawable :as drawable]
                          [layoutable :as layoutable]
                          [scene-graph :as scene-graph])
+            (fungl [cache :as cache])
             (flow-gl.opengl.jogl [opengl :as opengl]
                                  [window :as window]
                                  [triangle-list :as triangle-list]
@@ -196,14 +197,20 @@
                         quad-renderer)]
     
     (-> quad-renderer
-        (update-in [:draws-after-garbage-collection] (fnil inc 0)))))
+        (update-in [:draws-after-garbage-collection] (fnil inc 0))))
+  #_(taoensso.timbre.profiling/p :draw
+                                 ))
 
 (defn draw-scene-graph [state gl scene-graph]
   (opengl/clear gl 0 0 0 1)
 
+  #_(taoensso.timbre.profiling/p :draw-scene-graph)
   (let [{:keys [width height]} (opengl/size gl)]
     (draw state
-          (scene-graph/leave-nodes scene-graph)
+          (filter (fn [node]
+                    (scene-graph/intersects? {:x 0 :y 0 :width width :height height}
+                                             node))
+                  (cache/call scene-graph/leaf-nodes scene-graph))
           width
           height
           gl)))
@@ -217,7 +224,7 @@
                :render (fn [state-atom gl scene-graph]
                          (swap! state-atom
                                 draw-scene-graph gl scene-graph)
-                         (select-keys scene-graph [:x :y :width :height]))})
+                         {})})
 
 ;; dynamic state
 
