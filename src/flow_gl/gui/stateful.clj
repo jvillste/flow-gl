@@ -14,6 +14,7 @@
 (def states-key :states)
 (def called-key :called)
 (def destructors-key :destructors)
+(def calls-after-delete-key :calls-after-delete)
 
 (defn set-stateful-state [all-stateful-state id stateful-state]
   (assoc-in all-stateful-state
@@ -53,19 +54,93 @@
      result]))
 
 (deftest call-with-state-atom-test
-  (let [destructor (fn [] (println "deleting stateful-1"))]
+  (let [initializer (fn [] 1)
+        destructor (fn [])
+        function (fn [state-atom] (swap! state-atom inc))]
     (is (= [{:states {:stateful-1 2} 
              :destructors {:stateful-1 destructor},
              :called #{:stateful-1}}
             2]
-           
-           (call-with-state-atom {} :stateful-1
-                                 (fn [] 1)
-                                 destructor
-                                 (fn [state-atom] (swap! state-atom inc)))))))
+
+           (-> (initialize-state)
+               (call-with-state-atom :stateful-1
+                                     initializer
+                                     destructor
+                                     function))))))
+
+(defn remove-stateful [all-stateful-state id]
+  (-> all-stateful-state
+      (update-in [states-key] dissoc id)
+      (update-in [destructors-key] dissoc id)))
+
+#_(update-in {:a {:b :c}} [:a] dissoc :b)
+
+(deftest remove-stateful-test
+  (is (= {:states {} 
+          :destructors {},
+          :called #{}}
+         (remove-stateful {:states {:stateful-1 :stateful-1-state}  
+                           :destructors {:stateful-1 :stateful-1-destructor},
+                           :called #{}}
+                          :stateful-1))))
 
 (defn delete-unused-states [all-stateful-state]
-  )
+  (let [ids-to-be-deleted (set/difference (apply hash-set (keys (states-key all-stateful-state)))
+                                          (called-key all-stateful-state))]
+    (doseq [id ids-to-be-deleted]
+      (when-let [destructor (get-in all-stateful-state [destructors-key id])]
+        (destructor)))
+
+    (-> (reduce remove-stateful
+                all-stateful-state
+                ids-to-be-deleted)
+        (assoc called-key #{}))))
+
+(deftest delete-unused-states-test
+  (let [deleted-atom (atom false)
+        initializer (fn [] 1)
+        destructor (fn []
+                     (reset! deleted-atom true))
+        function (fn [state-atom] (swap! state-atom inc))]
+    (let [[all-stateful-state result] (call-with-state-atom (initialize-state)
+                                                            :stateful-1
+                                                            initializer
+                                                            destructor
+                                                            function)
+          [all-stateful-state result] (call-with-state-atom all-stateful-state
+                                                            :stateful-2
+                                                            initializer
+                                                            destructor
+                                                            function)
+          all-stateful-state (delete-unused-states all-stateful-state)]
+      
+      (is (= {:states {:stateful-1 2
+                       :stateful-2 2}
+              :destructors {:stateful-1 destructor
+                            :stateful-2 destructor},
+              :called #{}}
+             all-stateful-state))
+      
+      (is (= false @deleted-atom))
+
+      (let [[all-stateful-state result] (call-with-state-atom all-stateful-state
+                                                              :stateful-2
+                                                              initializer
+                                                              destructor
+                                                              function)]
+        (is (= {:states {:stateful-1 2
+                         :stateful-2 3}
+                :destructors {:stateful-1 destructor
+                              :stateful-2 destructor},
+                :called #{:stateful-2}}
+               all-stateful-state))
+        
+        (is (= {:states {:stateful-2 3} 
+                :destructors {:stateful-2 destructor},
+                :called #{}}
+               (delete-unused-states all-stateful-state)))
+
+        (is (= true @deleted-atom))))))
 
 ;; dynamic state
 
