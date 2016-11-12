@@ -224,7 +224,9 @@
                :render (fn [state-atom gl scene-graph]
                          (swap! state-atom
                                 draw-scene-graph gl scene-graph)
-                         {})})
+                         {})
+               :delete-state (fn [state gl]
+                               (quad-batch/delete (:quad-batch state) gl))})
 
 ;; dynamic state
 

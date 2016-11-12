@@ -62,7 +62,7 @@
                                           :id [id :tiled])])]
      :width width
      :height height
-     :renderers [(assoc (render-target-renderer/renderer quad-renderer)
+     #_:renderers #_[(assoc (render-target-renderer/renderer quad-renderer)
                             :id [id :render-target])]}))
 
 #_(flow-gl.gui.scene-graph/bounding-box (flow-gl.gui.scene-graph/leave-nodes table))

@@ -25,7 +25,8 @@
 
     texture))
 
-(defn delete [texture gl]
+(defn delete [gl texture]
+  (assert (number? texture))
   (.glDeleteTextures gl 1 (int-array [texture]) 0))
 
 (defn load [gl texture width height data]
@@ -51,7 +52,8 @@
     (load-from-buffered-image gl texture image)
     texture))
 
-(defn bind [texture gl]
+(defn bind [gl texture]
+  (assert number? texture)
   (.glBindTexture gl GL2/GL_TEXTURE_2D texture))
 
 

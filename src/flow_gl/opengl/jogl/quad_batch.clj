@@ -256,7 +256,13 @@
     (shader/validate-program gl (:program quad-batch))
     quad-batch))
 
-
+(defn delete [quad-batch gl]
+  (buffer/delete gl (:texture-buffer-id quad-batch))
+  (buffer/delete gl (:quad-parameters-buffer-id quad-batch))
+  (shader/delete-program gl (:program quad-batch))
+  (vertex-array-object/delete gl (:vertex-array-object quad-batch))
+  (texture/delete gl (:texture-buffer-texture-id quad-batch))
+  (texture/delete gl (:quad-parameters-buffer-texture-id quad-batch)))
 
 (defn collect-garbage [quad-batch gl]
   (if (= (:next-free-quad quad-batch)

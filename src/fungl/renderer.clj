@@ -11,7 +11,9 @@
                                               (stateful/call-with-state-atom! [::renderer (:id renderer)] 
                                                                               (or  (fn [] ((:initialize-state renderer) gl))
                                                                                    (constantly {}))
-                                                                              (:delete-state renderer)
+                                                                              (fn [state]
+                                                                                (when-let [delete-state (:delete-state renderer)]
+                                                                                  (delete-state state gl)))
                                                                               (:render renderer)
                                                                               gl
                                                                               scene-graph))

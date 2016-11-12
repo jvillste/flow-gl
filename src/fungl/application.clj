@@ -24,14 +24,14 @@
       (layout/do-layout)))
 
 (defn create-event-handling-state []
-  (conj (stateful/state-bindings)
+  (conj (stateful/state-bindings :delete-after-calls 500)
         (mouse/state-bindings)
         (keyboard/state-bindings)
         (animation/state-bindings)
         (cache/state-bindings)))
 
 (defn create-render-state [gl]
-  (conj (stateful/state-bindings)
+  (conj (stateful/state-bindings :delete-after-calls 500)
         (cache/state-bindings)))
 
 (defn render [gl scene-graph]

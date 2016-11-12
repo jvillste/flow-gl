@@ -189,7 +189,7 @@
 
 (defn delete [render-target gl]
   (frame-buffer/delete (:frame-buffer render-target) gl)
-  (texture/delete (:texture render-target) gl))
+  (texture/delete gl (:texture render-target)))
 
 
 #_(defn draw-rectangle [nanovg x y width height r g b a]

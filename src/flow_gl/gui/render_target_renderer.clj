@@ -47,4 +47,4 @@
 (defn renderer [& renderers]
   {:initialize-state initialize-state
    :render (partial render renderers)
-   :delete-state (fn [state])})
+   :delete-state (fn [state gl] (render-target/delete (:render-target state) gl))})
