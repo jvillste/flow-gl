@@ -94,26 +94,26 @@
 
 (defn render [renderers tile-width tile-height tile-coordinates visualize-tiles state-atom gl scene-graph]
   (let [tiles (reduce (fn [tiles coordinates]
-                                                  (assoc tiles
-                                                         coordinates
-                                                         (-> (or (get tiles
-                                                                      coordinates)
-                                                                 (create-tile coordinates))
-                                                             (render-tile (::stateful/id @state-atom)
-                                                                          renderers
-                                                                          tile-width
-                                                                          tile-height
-                                                                          visualize-tiles
-                                                                          scene-graph
-                                                                          gl))))
-                                                (:previous-tiles @state-atom)
-                                                tile-coordinates)]
-                              (swap! state-atom assoc :previous-tiles tiles)
-                              (assoc (select-keys scene-graph [:x :y :width :height])
-                                     :children (map :result-scene-graph
-                                                    (vals (select-keys tiles tile-coordinates)))))
+                        (assoc tiles
+                               coordinates
+                               (-> (or (get tiles
+                                            coordinates)
+                                       (create-tile coordinates))
+                                   (render-tile (::stateful/id @state-atom)
+                                                renderers
+                                                tile-width
+                                                tile-height
+                                                visualize-tiles
+                                                scene-graph
+                                                gl))))
+                      (:previous-tiles @state-atom)
+                      tile-coordinates)]
+    (swap! state-atom assoc :previous-tiles tiles)
+    (assoc (select-keys scene-graph [:x :y :width :height])
+           :children (map :result-scene-graph
+                          (vals (select-keys tiles tile-coordinates)))))
   #_(timbre-profiling/profile :info :render-tiled
-                            ))
+                              ))
 
 
 (defn renderer [renderers tile-width tile-height coordinates & {:keys [visualize-tiles] :or {visualize-tiles false}}]

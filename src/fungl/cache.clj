@@ -34,7 +34,7 @@
             (println "called with " x)
             x)]
     (with-bindings (state-bindings)
-      (println "got" (call-cached f 1))
-      (println "got" (call-cached f 2))
-      (println "got" (call-cached f 2))
-      (println "got" (call-cached f 1)))))
+      (println "got" (call f 1))
+      (println "got" (call f 2))
+      (println "got" (call f 2))
+      (println "got" (call f 1)))))
