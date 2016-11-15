@@ -108,6 +108,8 @@
                (let [scene-graph (async/<!! renderable-scene-graph-channel)]
                  (when scene-graph
                    (window/with-gl window gl
+                     #_(taoensso.timbre.profiling/profile :info :render
+                                                        )
                      (render gl scene-graph))
                    (window/swap-buffers window)
                    (recur)))))
@@ -128,7 +130,6 @@
         (loop [scene-graph (create-scene-graph (window/width window)
                                                (window/height window))]
           (when (window/visible? window)
-
 
             (let [window-width (window/width window)
                   window-height (window/height window)

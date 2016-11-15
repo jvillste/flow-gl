@@ -7,20 +7,58 @@
 
 (spec/def ::mouse-event (spec/keys :req-un [:scene-graph/x :scene-graph/y]))
 
-(defn mouse-event-handler-nodes-in-coodriantes [graph x y]
-  (->> (scene-graph/flatten graph)
-       
-       (filter (fn [node]
-                 (and (:width node)
-                      (:height node)
-                      (scene-graph/in-coordinates? node x y)
-                      (if-let [hit-test (:hit-test node)]
-                        (hit-test node
-                                  (- x (:x node))
-                                  (- y (:y node)))
-                        true)
-                      (contains? node :mouse-event-handler))))
-       (sort-by :z)))
+
+#_(defn mouse-event-handler-nodes-in-coodriantes [graph x y]
+    (->> (scene-graph/flatten graph)
+         
+         (filter (fn [node]
+                   (and (:width node)
+                        (:height node)
+                        (scene-graph/in-coordinates? node x y)
+                        (if-let [hit-test (:hit-test node)]
+                          (hit-test node
+                                    (- x (:x node))
+                                    (- y (:y node)))
+                          true)
+                        (contains? node :mouse-event-handler))))
+         (sort-by :z)))
+
+(defn mouse-event-handler-nodes-in-coodriantes
+  ([node x y]
+   (mouse-event-handler-nodes-in-coodriantes node 0 0 0 x y[]))
+
+  ([node parent-x parent-y parent-z x y nodes]
+   (let [node-x (+ parent-x (:x node))
+         node-y (+ parent-y (:y node))
+         node-z (+ parent-z (or (:z node)
+                                0))
+         nodes (let [node (-> (assoc node
+                                     :x node-x
+                                     :y node-y
+                                     :z node-z)
+                              (dissoc :children))]
+                 (if (and (:width node)
+                          (:height node)
+                          (scene-graph/in-coordinates? node x y)
+                          (if-let [hit-test (:hit-test node)]
+                            (hit-test node
+                                      (- x (:x node))
+                                      (- y (:y node)))
+                            true)
+                          (contains? node :mouse-event-handler))
+                   (conj nodes node)
+                   nodes))]
+     (if (and (:children node)
+              (if-let [clip-mouse-events (:clip-mouse-events node)]
+                (clip-mouse-events node x y)
+                true))
+       (loop [nodes nodes
+              children (:children node)]
+         (if-let [child (first children)]
+           (recur (mouse-event-handler-nodes-in-coodriantes child node-x node-y node-z x y nodes)
+                  (rest children))
+           nodes))
+       nodes))))
 
 (deftest mouse-event-handlers-in-coodriantes-test
   (is (= '({:x 0, :y 5, :width 20, :height 20, :mouse-event-handler 1, :z 0}
@@ -32,7 +70,19 @@
                                                                {:x 5 :y 5 :width 5 :height 5}
                                                                {:x 50 :y 5 :width 5 :height 5
                                                                 :mouse-event-handler 3}]}
-                                                   5 10))))
+                                                   5 10)))
+
+  (let [clip (fn [node x y] false)]
+    (is (= [{:x 0, :y 5, :width 20, :height 20, :mouse-event-handler 1, :z 0, :clip-mouse-events clip}]
+           (mouse-event-handler-nodes-in-coodriantes {:x 0 :y 5 :width 20 :height 20
+                                                      :mouse-event-handler 1
+                                                      :clip-mouse-events clip
+                                                      :children [{:x 5 :y 5 :width 5 :height 5
+                                                                  :mouse-event-handler 2}
+                                                                 {:x 5 :y 5 :width 5 :height 5}
+                                                                 {:x 50 :y 5 :width 5 :height 5
+                                                                  :mouse-event-handler 3}]}
+                                                     5 10)))))
 
 (defn call-mouse-event-handler-for-node [event node]
   ((:mouse-event-handler node)
@@ -114,21 +164,12 @@
 
 (deftest send-mouse-over-events-test
   (spec-test/instrument `send-mouse-over-events)
+  
   (is (= {}
-         (send-mouse-over-events {1 (fn [event])}
-                                 [])))
-
-  (is (= {:path [:args :previous-mouse-event-handlers-by-id 1],
-          :pred 'fn?,
-          :val "foo",
-          :via [],
-          :in [0 1 1]}
-         (-> (clojure.test/is (thrown? Exception
-                                       (send-mouse-over-events {1 "foo"}
-                                                               [])))
-             ex-data
-             ::spec/problems
-             first))))
+         (send-mouse-over-events {1 {:mouse-event-handler (fn [node event])
+                                     :x 0
+                                     :y 0}}
+                                 []))))
 
 (defn initialize-state []
   {:mouse-event-handler-nodes-under-mouse-by-id {}})

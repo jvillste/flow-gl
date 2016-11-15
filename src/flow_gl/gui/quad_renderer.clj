@@ -204,7 +204,6 @@
 (defn draw-scene-graph [state gl scene-graph]
   (opengl/clear gl 0 0 0 1)
 
-  #_(taoensso.timbre.profiling/p :draw-scene-graph)
   (let [{:keys [width height]} (opengl/size gl)]
     (draw state
           (filter (fn [node]

@@ -1,4 +1,4 @@
-(ns examples.hi-tiled-rendering
+(ns examples.text-edit
   (:require [clojure.spec.test :as spec-test]
             [clojure.spec :as spec]
             [fungl.application :as application]

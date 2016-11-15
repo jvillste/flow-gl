@@ -29,11 +29,11 @@
   (cond
     (= :focus-gained
        (:type event))
-    (stateful/apply-to-stateful-state! id assoc :has-focus true)
+    (stateful/update-stateful-state! id assoc :has-focus true)
 
     (= :focus-lost
        (:type event))
-    (stateful/apply-to-stateful-state! id assoc :has-focus false)
+    (stateful/update-stateful-state! id assoc :has-focus false)
 
     
     (events/key-pressed? event :back-space)
@@ -48,48 +48,46 @@
                     (:character event)))))
 
 (defn text-editor [id text on-change]
-  (stateful/call-with-state! id
-
-                             [text
-                              on-change]
-                             
-                             (fn [] {:has-focus false})
-                             
-                             (fn [state id text on-change]
-                               (-> (assoc (text-box (if (:has-focus state)
-                                                      [255 255 255 255]
-                                                      [155 155 155 255])
-                                                    (or text
-                                                        ""))
-                                          :id id
-                                          :mouse-event-handler keyboard/set-focus-on-mouse-clicked!)
-                                   (keyboard/update-nodes-event-handler! (partial handle-text-editor-keyboard-event
-                                                                                  id
-                                                                                  text
-                                                                                  on-change))))))
+  (stateful/call-with-state-atom! id
+                                  
+                                  (fn [] {:has-focus false})
+                                  
+                                  (fn [state])
+                                  
+                                  (fn [state-atom]
+                                    (-> (assoc (text-box (if (:has-focus @state-atom)
+                                                           [255 255 255 255]
+                                                           [155 155 155 255])
+                                                         (or text
+                                                             ""))
+                                               :id id
+                                               :mouse-event-handler keyboard/set-focus-on-mouse-clicked!)
+                                        (keyboard/update-nodes-event-handler! (partial handle-text-editor-keyboard-event
+                                                                                       id
+                                                                                       text
+                                                                                       on-change))))))
 
 (defn root [id]
-  (stateful/call-with-state! id
+  (stateful/call-with-state-atom! id
+                                  (fn []
+                                    {:text-1 "foo"
+                                     :text-2 "bar"})
+                                  
+                                  (fn [state])
+                                  
+                                  (fn [state-atom]
+                                    (assoc layouts/vertical-stack
+                                           :children [(text-editor (conj id :text-editor-1)
+                                                                   (:text-1 @state-atom)
+                                                                   (fn [new-text]
+                                                                     (stateful/update-stateful-state! id assoc :text-1 new-text)))
+                                                      (text-editor (conj id :text-editor-2)
+                                                                   (:text-2 @state-atom)
+                                                                   (fn [new-text]
+                                                                     (stateful/update-stateful-state! id assoc :text-2 new-text)))
 
-                             []
-                             
-                             (fn []
-                               {:text-1 "foo"
-                                :text-2 "bar"})
-                             
-                             (fn [state id]
-                               (assoc layouts/vertical-stack
-                                      :children [(text-editor (conj id :text-editor-1)
-                                                              (:text-1 state)
-                                                              (fn [new-text]
-                                                                (stateful/apply-to-stateful-state! id assoc :text-1 new-text)))
-                                                 (text-editor (conj id :text-editor-2)
-                                                              (:text-2 state)
-                                                              (fn [new-text]
-                                                                (stateful/apply-to-stateful-state! id assoc :text-2 new-text)))
-
-                                                 (text-box [255 255 255 255]
-                                                           (pr-str state))]))))
+                                                      (text-box [255 255 255 255]
+                                                                (pr-str @state-atom))]))))
 
 
 
@@ -100,8 +98,8 @@
 (defn start []
   (spec-test/instrument)
   (spec/check-asserts true)
-  (application/start-window create-scene-graph)
-  #_(.start (Thread. (fn []
-                       (start-window)))))
+  #_(application/start-window create-scene-graph)
+  (.start (Thread. (fn []
+                       (application/start-window create-scene-graph)))))
 
 

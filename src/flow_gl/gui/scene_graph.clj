@@ -61,17 +61,17 @@
                                          :parent-z ::coordinate
                                          :leaves (spec/coll-of ::node))))
 
-(test/deftest leave-nodes-test
+(test/deftest leaf-nodes-test
   (is (= '({:x 10, :y 15, :expected-position 1, :z 0}
            {:x 5, :y 10, :expected-position 2, :z 0}
            {:x 5, :y 10, :expected-position 3, :z 0}
            {:x 15, :y 20, :expected-position 4, :z 10}
            {:x 15, :y 20, :expected-position 5, :z 10})
          (leaf-nodes {:y 5 :x 0 :children [{:x 5 :y 5 :children [{:x 5 :y 5 :expected-position 1}
-                                                                  {:x 5 :y 5 :z 10 :children [{:x 5 :y 5 :expected-position 4}
-                                                                                              {:x 5 :y 5 :expected-position 5}]}]}
-                                            {:x 5 :y 5 :expected-position 2}
-                                            {:x 5 :y 5 :expected-position 3}]}))))
+                                                                 {:x 5 :y 5 :z 10 :children [{:x 5 :y 5 :expected-position 4}
+                                                                                             {:x 5 :y 5 :expected-position 5}]}]}
+                                           {:x 5 :y 5 :expected-position 2}
+                                           {:x 5 :y 5 :expected-position 3}]}))))
 
 (defn flatten
   ([node]
