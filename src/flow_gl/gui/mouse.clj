@@ -8,7 +8,7 @@
 (spec/def ::mouse-event (spec/keys :req-un [:scene-graph/x :scene-graph/y]))
 
 
-#_(defn mouse-event-handler-nodes-in-coodriantes [graph x y]
+#_(defn mouse-event-handler-nodes-in-coordinates [graph x y]
     (->> (scene-graph/flatten graph)
          
          (filter (fn [node]
@@ -23,47 +23,27 @@
                         (contains? node :mouse-event-handler))))
          (sort-by :z)))
 
-(defn mouse-event-handler-nodes-in-coodriantes
-  ([node x y]
-   (mouse-event-handler-nodes-in-coodriantes node 0 0 0 x y[]))
 
-  ([node parent-x parent-y parent-z x y nodes]
-   (let [node-x (+ parent-x (:x node))
-         node-y (+ parent-y (:y node))
-         node-z (+ parent-z (or (:z node)
-                                0))
-         nodes (let [node (-> (assoc node
-                                     :x node-x
-                                     :y node-y
-                                     :z node-z)
-                              (dissoc :children))]
-                 (if (and (:width node)
-                          (:height node)
-                          (scene-graph/in-coordinates? node x y)
-                          (if-let [hit-test (:hit-test node)]
-                            (hit-test node
-                                      (- x (:x node))
-                                      (- y (:y node)))
-                            true)
-                          (contains? node :mouse-event-handler))
-                   (conj nodes node)
-                   nodes))]
-     (if (and (:children node)
-              (if-let [clip-mouse-events (:clip-mouse-events node)]
-                (clip-mouse-events node x y)
-                true))
-       (loop [nodes nodes
-              children (:children node)]
-         (if-let [child (first children)]
-           (recur (mouse-event-handler-nodes-in-coodriantes child node-x node-y node-z x y nodes)
-                  (rest children))
-           nodes))
-       nodes))))
+(defn mouse-event-handler-node-in-coordinates? [x y node]
+  (and (:width node)
+       (:height node)
+       (scene-graph/hits? node x y)
+       (contains? node :mouse-event-handler)))
+
+(defn clip-mouse-event? [x y node]
+  (if-let [clip-mouse-events (:clip-mouse-events node)]
+    (clip-mouse-events node x y)
+    false))
+
+(defn mouse-event-handler-nodes-in-coordinates [node x y]
+  (scene-graph/conditionaly-flatten node
+                                    (complement (partial clip-mouse-event? x y))
+                                    (partial mouse-event-handler-node-in-coordinates? x y)))
 
 (deftest mouse-event-handlers-in-coodriantes-test
   (is (= '({:x 0, :y 5, :width 20, :height 20, :mouse-event-handler 1, :z 0}
            {:x 5, :y 10, :width 5, :height 5, :mouse-event-handler 2, :z 0})
-         (mouse-event-handler-nodes-in-coodriantes {:x 0 :y 5 :width 20 :height 20
+         (mouse-event-handler-nodes-in-coordinates {:x 0 :y 5 :width 20 :height 20
                                                     :mouse-event-handler 1
                                                     :children [{:x 5 :y 5 :width 5 :height 5
                                                                 :mouse-event-handler 2}
@@ -72,9 +52,9 @@
                                                                 :mouse-event-handler 3}]}
                                                    5 10)))
 
-  (let [clip (fn [node x y] false)]
+  (let [clip (fn [node x y] true)]
     (is (= [{:x 0, :y 5, :width 20, :height 20, :mouse-event-handler 1, :z 0, :clip-mouse-events clip}]
-           (mouse-event-handler-nodes-in-coodriantes {:x 0 :y 5 :width 20 :height 20
+           (mouse-event-handler-nodes-in-coordinates {:x 0 :y 5 :width 20 :height 20
                                                       :mouse-event-handler 1
                                                       :clip-mouse-events clip
                                                       :children [{:x 5 :y 5 :width 5 :height 5
@@ -177,7 +157,7 @@
 
 
 (defn handle-mouse-event [state scene-graph event]
-  (let [mouse-event-handler-nodes-under-mouse (mouse-event-handler-nodes-in-coodriantes scene-graph
+  (let [mouse-event-handler-nodes-under-mouse (mouse-event-handler-nodes-in-coordinates scene-graph
                                                                                         (:x event)
                                                                                         (:y event))]
 

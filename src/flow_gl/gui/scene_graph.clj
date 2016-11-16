@@ -114,6 +114,35 @@
                                               {:x 5 :y 5 :expected-position 3}]}))))
 
 
+(defn conditionaly-flatten 
+  ([node descent-predicate include-predicate]
+   (conditionaly-flatten node 0 0 0 [] descent-predicate include-predicate))
+
+  ([node parent-x parent-y parent-z nodes descent-predicate include-predicate]
+   (let [node-x (+ parent-x (:x node))
+         node-y (+ parent-y (:y node))
+         node-z (+ parent-z (or (:z node)
+                                0))
+         nodes (let [node (-> (assoc node
+                                     :x node-x
+                                     :y node-y
+                                     :z node-z)
+                              (dissoc :children))]
+                 (if (or (not include-predicate)
+                         (include-predicate node))
+                   (conj nodes node)
+                   nodes))]
+     (if (and (:children node)
+              (or (not descent-predicate)
+                  (descent-predicate node)))
+       (loop [nodes nodes
+              children (:children node)]
+         (if-let [child (first children)]
+           (recur (conditionaly-flatten child node-x node-y node-z nodes descent-predicate include-predicate)
+                  (rest children))
+           nodes))
+       nodes))))
+
 (defn in-coordinates? [node x y]
   (and (>= x
            (:x node))
@@ -129,6 +158,13 @@
                            :x ::coordinate
                            :y ::coordinate))
 
+(defn hits? [node x y]
+  (and (in-coordinates? node x y)
+       (if-let [hit-test (:hit-test node)]
+         (hit-test node
+                   (- x (:x node))
+                   (- y (:y node)))
+         true)))
 
 (defn intersects? [node-1 node-2]
   (not (or (< (+ (:x node-1)

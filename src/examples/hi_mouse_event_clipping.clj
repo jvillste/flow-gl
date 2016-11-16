@@ -44,16 +44,30 @@
 
 
 (defn create-scene-graph [width height]
-  (let [margin 100]
+  (let [margin 100
+        mask {:children [(assoc (visuals/rectangle [255 0 0 255] 40 40)
+                                :x 40
+                                :y 40
+                                :width 100
+                                :height 50)]
+              :x 0
+              :y 0}]
     {:children [{:children [(assoc (stateful-rectangle :rectangle-1)
                                    :x 0
-                                   :y 0)]
+                                   :y 0)
+                            mask]
                  :x margin
                  :y margin
                  :width (- width (* 2 margin))
                  :height (- height (* 2 margin))
                  :clip-mouse-events (fn [node x y]
-                                      (scene-graph/in-coordinates? node x y))
+                                      (or (not (scene-graph/in-coordinates? node x y))
+                                          (some (fn [mask-node]
+                                                  (let [local-x (- x (:x node))
+                                                        local-y (- y (:y node))]
+                                                    (scene-graph/hits? mask-node
+                                                                 local-x local-y)))
+                                                (scene-graph/leaf-nodes mask))))
                  :renderers [(assoc (render-target-renderer/renderer (assoc quad-renderer/renderer
                                                                             :id :render-target-quad-renderer))
                                     :id :render-target)]}]
@@ -63,11 +77,11 @@
 
 
 (defn start []
-  #_ (do (spec-test/instrument)
-         (spec/check-asserts true))
+  (do (spec-test/instrument)
+      (spec/check-asserts true))
   
-  (do (spec-test/unstrument)
-      (spec/check-asserts false))
+  #_(do (spec-test/unstrument)
+        (spec/check-asserts false))
 
   (.start (Thread. (fn []
                      (application/start-window #'create-scene-graph
