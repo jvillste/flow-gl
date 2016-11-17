@@ -2,7 +2,8 @@
   (:require [flow-gl.graphics.text :as text]
             [flow-gl.graphics.rectangle :as rectangle]
 
-            (flow-gl.graphics [font :as font]))
+            (flow-gl.graphics [font :as font]
+                              [buffered-image :as buffered-image]))
   (:use clojure.test))
 
 (defn draw-rectangle [width height color corner-arc-width corner-arc-height]
@@ -30,4 +31,10 @@
    :image-function text/create-buffered-image
    :image-function-parameter-keys [:color :font :string]})
 
+(defn image [buffered-image]
+  {:buffered-image buffered-image
+   :width (.getWidth buffered-image)
+   :height (.getHeight buffered-image)
+   :image-function (fn [] buffered-image)
+   :image-function-parameter-keys []})
 

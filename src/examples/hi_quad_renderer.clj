@@ -17,7 +17,7 @@
                                    :close-automatically true)]
 
     (window/with-gl window gl
-      (let [quad-renderer (quad-renderer/create  gl)
+      (let [quad-renderer (quad-renderer/create gl)
             icon (buffered-image/create-from-file "pumpkin.png")
             font (font/create "LiberationSans-Regular.ttf" 40)
             window-size (opengl/size gl)]
