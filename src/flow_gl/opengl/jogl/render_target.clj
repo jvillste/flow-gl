@@ -192,6 +192,12 @@
   (texture/delete gl (:texture render-target)))
 
 
+(defn stateful [width height gl]
+  {:initialize-state (fn [] (create width height gl)) 
+   :delete-state (fn [render-target]
+                   (delete render-target gl))
+   :kind [width height]})
+
 #_(defn draw-rectangle [nanovg x y width height r g b a]
   (doto nanovg
     (NanoVG/fillColor (char r) (char g) (char b) (char a))

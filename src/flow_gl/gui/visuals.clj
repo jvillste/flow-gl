@@ -31,10 +31,20 @@
    :image-function text/create-buffered-image
    :image-function-parameter-keys [:color :font :string]})
 
+(defn hit-test-image [{:keys [buffered-image width height]} x y]
+  (let [x (int (* x (/ (- (.getWidth buffered-image)
+                          1)
+                       width)))
+        y (int (* y (/ (- (.getHeight buffered-image)
+                          1)
+                       width)))]
+    (= 255 (last (buffered-image/get-color buffered-image x y)))))
+
 (defn image [buffered-image]
   {:buffered-image buffered-image
    :width (.getWidth buffered-image)
    :height (.getHeight buffered-image)
    :image-function (fn [] buffered-image)
-   :image-function-parameter-keys []})
+   :image-function-parameter-keys []
+   :hit-test hit-test-image})
 

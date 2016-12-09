@@ -3,7 +3,7 @@
             (flow-gl.gui [stateful :as stateful])
             (fungl [renderer :as renderer])))
 
-(defn initialize-state [gl]
+(defn initialize-state []
   {})
 
 (defn quad [scene-graph render-target]
@@ -11,7 +11,7 @@
          :texture-id (:texture render-target)
          :texture-hash (hash scene-graph)))
 
-(defn render [renderers state-atom gl scene-graph]
+(defn render [state-atom gl scene-graph render]
   (let [{:keys [render-target previous-scene-graph]} @state-atom]
     (if (= scene-graph
            previous-scene-graph)
@@ -31,11 +31,7 @@
                                                       gl)))]
         
         (render-target/render-to render-target gl
-                                 (renderer/apply-renderers! (assoc scene-graph
-                                                                   :renderers renderers
-                                                                   :x 0
-                                                                   :y 0)
-                                                            gl))
+                                 (render))
 
         (swap! state-atom assoc
                :render-target render-target
@@ -43,6 +39,10 @@
         
         (quad scene-graph
               render-target)))))
+
+(defn stateful [gl]
+  {:initialize-state initialize-state
+   :delete-state (fn [state] (render-target/delete (:render-target state) gl))})
 
 (defn renderer [& renderers]
   {:initialize-state initialize-state

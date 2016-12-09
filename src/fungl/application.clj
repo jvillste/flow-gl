@@ -37,10 +37,12 @@
 (defn render [gl scene-graph]
 
   (renderer/apply-renderers! (assoc scene-graph
-                                    :renderers (if-let [renderers (:renderers scene-graph)]
-                                                 renderers
-                                                 [(assoc quad-renderer/renderer
-                                                         :id ::root-renderer)]))
+                                    :render (if-let [render (:render scene-graph)]
+                                              render
+                                              (fn [scene-graph gl]
+                                                (opengl/clear gl 0 0 0 1)
+                                                (stateful/with-state-atoms! [quad-renderer-atom :root-renderer (quad-renderer/stateful gl)]
+                                                  (quad-renderer/render quad-renderer-atom gl scene-graph)))))
                              gl)
   
   #_(let [{:keys [width height]} (opengl/size gl)]
@@ -51,11 +53,14 @@
 (defn handle-event [scene-graph event]
   (when (= :mouse
            (:source event))
-    (mouse/handle-mouse-event! scene-graph event))
+    (mouse/handle-mouse-event! event))
   
   (when (= :keyboard
            (:source event))
     (keyboard/handle-keyboard-event! scene-graph event)))
+
+(defn handle-new-scene-graph [scene-graph]
+  (mouse/handle-new-scene-graph! scene-graph))
 
 (defn create-window []
   (jogl-window/create 400 400
@@ -109,7 +114,7 @@
                  (when scene-graph
                    (window/with-gl window gl
                      #_(taoensso.timbre.profiling/profile :info :render
-                                                        )
+                                                          )
                      (render gl scene-graph))
                    (window/swap-buffers window)
                    (recur)))))
@@ -135,14 +140,16 @@
                   window-height (window/height window)
                   scene-graph (loop [events (read-events event-channel target-frame-rate)
                                      scene-graph scene-graph]
-
                                 
-                                (if-let [event (first events)]
-                                  (do (handle-event scene-graph event)
-                                      (recur (rest events)
-                                             (create-scene-graph window-width
-                                                                 window-height)))
-                                  scene-graph))]
+                                (handle-new-scene-graph scene-graph)
+                                (let [scene-graph (create-scene-graph window-width
+                                                                      window-height)]
+                                  (if-let [event (first events)]
+                                    (do (handle-event scene-graph event)
+                                        (recur (rest events)
+                                               (create-scene-graph window-width
+                                                                   window-height)))
+                                    scene-graph)))]
 
               (async/>!! renderable-scene-graph-channel
                          scene-graph)

@@ -3,10 +3,11 @@
                          [stateful :as stateful])))
 
 (defn apply-renderers! [scene-graph gl]
-  (scene-graph/update-depth-first scene-graph :renderers
+  (scene-graph/update-depth-first scene-graph :render
                                   (fn [scene-graph]
+                                    ((:render scene-graph) scene-graph gl)
                                     
-                                    (reduce (fn [scene-graph renderer]
+                                    #_(reduce (fn [scene-graph renderer]
                                               (assert (:id renderer) "renderers must have an id")
                                               (stateful/call-with-state-atom! [::renderer (:id renderer)] 
                                                                               (or  (fn [] ((:initialize-state renderer) gl))

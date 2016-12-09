@@ -16,8 +16,8 @@
 (spec/def ::height number?)
 (spec/def ::children (spec/* ::node))
 
-(spec/def ::node (spec/keys :req-un [::x ::y]
-                            :opt-un [::z ::children]))
+(spec/def ::node (spec/keys :req-un []
+                            :opt-un [::x ::y ::z ::children]))
 
 (spec/def ::layouted-children (spec/* ::layouted-node))
 (spec/def ::layouted-node (spec/merge ::node
@@ -36,8 +36,10 @@
 
   ([node parent-x parent-y parent-z leaves]
 
-   (let [x (+ parent-x (:x node))
-         y (+ parent-y (:y node))
+   (let [x (+ parent-x (or (:x node)
+                           0))
+         y (+ parent-y (or (:y node)
+                           0))
          z (+ parent-z (or (:z node)
                            0))]
      (if (:children node)
@@ -119,8 +121,10 @@
    (conditionaly-flatten node 0 0 0 [] descent-predicate include-predicate))
 
   ([node parent-x parent-y parent-z nodes descent-predicate include-predicate]
-   (let [node-x (+ parent-x (:x node))
-         node-y (+ parent-y (:y node))
+   (let [node-x (+ parent-x (or (:x node)
+                                0))
+         node-y (+ parent-y (or (:y node)
+                                0))
          node-z (+ parent-z (or (:z node)
                                 0))
          nodes (let [node (-> (assoc node

@@ -12,7 +12,8 @@
 
 (def font (font/create "LiberationSans-Regular.ttf" 15))
 
-(def state (atom {}))
+(def state (atom {:x 100
+                  :y 100}))
 
 (defn text-box [text]
   (assoc layouts/box
@@ -45,14 +46,12 @@
   (animation/swap-state! animation/start-if-not-running :rocket)
 
   {:children [(-> (visuals/image rocket)
-                  (assoc :x (* 100 (animation/ping-pong 20
-                                                        (animation/phase! :rocket)))
-                         :y (* 500 (animation/ping-pong 10
-                                                        (animation/phase! :rocket)))
-                         :height (+ 400 (* 100 (animation/ping-pong 5
-                                                              (animation/phase! :rocket))))
-                         :width (* 1600 (animation/ping-pong 5
-                                                            (animation/phase! :rocket)))))]
+                  (assoc :x (:x @state)
+                         :y (:y @state)
+                         :keyboard-event-handler (fn [event] (prn event))
+                         :id :rocket))]
+   :keyboard-event-handler (fn [event] (prn event))
+   :id :root
    :x 0
    :y 0
    :width width

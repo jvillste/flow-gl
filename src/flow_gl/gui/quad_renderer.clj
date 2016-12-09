@@ -202,7 +202,7 @@
                                  ))
 
 (defn draw-scene-graph [state gl scene-graph]
-  (opengl/clear gl 0 0 0 1)
+  #_(opengl/clear gl 0 0 0 0)
 
   (let [{:keys [width height]} (opengl/size gl)]
     (draw state
@@ -214,18 +214,22 @@
           height
           gl)))
 
+(defn render [state-atom gl scene-graph]
+  (swap! state-atom
+         draw-scene-graph gl scene-graph)
+  {})
+
 (defn initialize-state [gl]
   {:drawable-textures {}
    :drawn-drawables []
    :quad-batch (quad-batch/create gl)})
 
-(def renderer {:initialize-state initialize-state
-               :render (fn [state-atom gl scene-graph]
-                         (swap! state-atom
-                                draw-scene-graph gl scene-graph)
-                         {})
-               :delete-state (fn [state gl]
-                               (quad-batch/delete (:quad-batch state) gl))})
+
+(defn stateful [gl]
+  {:initialize-state (partial initialize-state gl)
+
+   :delete-state (fn [state]
+                   (quad-batch/delete (:quad-batch state) gl))})
 
 ;; dynamic state
 

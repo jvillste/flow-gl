@@ -121,10 +121,10 @@
                                      function))))))
 
 (defn call-with-state-atoms [all-stateful-state stateful-specifications function & arguments]
-  (let [add-state-atom (fn [{:keys [id initialize-state] :as stateful-specification}]
+  (let [add-state-atom (fn [{:keys [id kind initialize-state] :as stateful-specification}]
                          (assoc stateful-specification
                                 :state-atom (create-stateful-state-atom all-stateful-state
-                                                                        id
+                                                                        [id kind]
                                                                         initialize-state)))
         stateful-specs-with-state-atoms (map add-state-atom stateful-specifications)
         result (apply function (concat (map :state-atom stateful-specs-with-state-atoms)

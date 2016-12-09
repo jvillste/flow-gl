@@ -6,7 +6,8 @@
                          [visuals :as visuals]
                          [quad-renderer :as quad-renderer]
                          [render-target-renderer :as render-target-renderer]
-                         [animation :as animation])))
+                         [animation :as animation]
+                         [stateful :as stateful])))
 
 (defn box-in-a-box [id phase color]
   {:children [(assoc (visuals/rectangle color 0 0)
@@ -24,9 +25,14 @@
    :width 200
    :height 200
    :id id
-   :renderers [(assoc (render-target-renderer/renderer [(assoc quad-renderer/renderer
-                                                               :id [id :render-target-quad-renderer])])
-                      :id [id :render-target])]})
+   :render (fn [scene-graph gl]
+             (stateful/with-state-atoms! [quad-renderer-atom [id :render-target-quad-renderer] (quad-renderer/stateful gl)
+                                          render-target-renderer-atom [id :render-target] (render-target-renderer/stateful gl)]
+               
+               (render-target-renderer/render render-target-renderer-atom gl scene-graph
+                                              (fn []
+                                                (quad-renderer/render quad-renderer-atom gl (assoc scene-graph
+                                                                                                   :x 0 :y 0))))))})
 
 (defn create-scene-graph [width height]
   (animation/swap-state! animation/start-if-not-running :offset)
@@ -48,8 +54,9 @@
      :y 0
      :width width
      :height height
-     :renderers [(assoc quad-renderer/renderer
-                        :id :root-renderer)]}))
+     :render (fn [scene-graph gl]
+               (stateful/with-state-atoms! [quad-renderer-atom :root-renderer (quad-renderer/stateful gl)]
+                 (quad-renderer/render quad-renderer-atom gl scene-graph)))}))
 
 (defn start []
   (spec-test/instrument)

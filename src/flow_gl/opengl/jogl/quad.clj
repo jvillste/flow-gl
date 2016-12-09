@@ -22,7 +22,7 @@
            [java.awt Color]))
 
 
-  (def vertex-shader-source "
+(def vertex-shader-source "
   #version 140
   uniform mat4 projection_matrix;
   uniform vec4 quad_coordinates;
@@ -57,9 +57,9 @@
 
   }
 
-")
+  ")
 
-  (def fragment-shader-source "
+(def fragment-shader-source "
   #version 140
 
   in vec2 texture_coordinate;
@@ -71,9 +71,9 @@
   void main() {
   outColor = texture(texture, texture_coordinate);
   }
-")
+  ")
 
-  (def upside-down-fragment-shader-source "
+(def upside-down-fragment-shader-source "
   #version 140
 
   in vec2 texture_coordinate;
@@ -87,7 +87,7 @@
   }
 ")
 
-  (def alpha-fragment-shader-source "
+(def alpha-fragment-shader-source "
   #version 140
 
   in vec2 texture_coordinate;
@@ -105,8 +105,8 @@
   }
 ")
 
-  (def blur-fragment-shader-source "
-// adopted from https://github.com/mattdesl/lwjgl-basics/wiki/ShaderLesson5
+(def blur-fragment-shader-source "
+  // adopted from https://github.com/mattdesl/lwjgl-basics/wiki/ShaderLesson5
 
   #version 140
   
@@ -155,21 +155,21 @@
   // outColor = vec4(1.0, 0.0, 0.0, 1.0) * 1.5 * vec4(sum.rgb, 1.0);
   outColor = 1.5 * vec4(sum.rgb, 1.0);
   // outColor = sum;
-}")
+  }")
 
-(defn create [gl]
-  {:vertex-shader (shader/create-vertex-shader gl vertex-shader-source)})
-
-(defn delete [quad gl]
-  (shader/delete-shader gl (:vertex-shader quad)))
-
-(defn create-program [quad fragment-shader-source gl]
+(defn create-program [fragment-shader-source gl]
   (let [fragment-shader (shader/create-fragment-shader gl fragment-shader-source)
+        vertex-shader (shader/create-vertex-shader gl vertex-shader-source)
         program (shader/create-program gl
-                                       (:vertex-shader quad)
+                                       vertex-shader
                                        fragment-shader)]
     (shader/delete-shader gl fragment-shader)
+    (shader/delete-shader gl vertex-shader)
     program))
+
+(defn program-stateful [fragment-shader-source gl]
+  {:initialize-state (fn [] (create-program fragment-shader-source gl))
+   :delete-state (fn [program] (shader/delete-program gl program))})
 
 (defn draw [gl textures uniforms shader-program x y quad-width quad-height frame-buffer-width frame-buffer-height]
   (shader/enable-program gl

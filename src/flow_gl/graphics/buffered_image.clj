@@ -27,6 +27,10 @@
                     false
                     (Hashtable.))))
 
+(defn get-color [buffered-image x y]
+  (let [color (Color. (.getRGB buffered-image x y) true)]
+    [(.getRed color) (.getGreen color) (.getBlue color) (.getAlpha color)]))
+
 (defn create [width height]
   (BufferedImage. width height BufferedImage/TYPE_INT_ARGB)
   #_(create-from-raster (Raster/createInterleavedRaster DataBuffer/TYPE_BYTE
