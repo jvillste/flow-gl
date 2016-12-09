@@ -24,9 +24,7 @@
 (defn stateful-rectangle [id]
   (let [rectangle-state (get @state id)]
     (-> (visuals/rectangle (if (:mouse-over rectangle-state)
-                             (if (:mouse-down rectangle-state)
-                               [255 0 0 250]
-                               [255 255 255 250])
+                             [255 255 255 250]
                              [0 255 255 250])
                            80 80)
         (assoc :width 200
@@ -35,23 +33,18 @@
                :mouse-event-handler (fn [event]
                                       (swap! state update-in [id]
                                              (fn [rectangle-state]
-                                               (case (:type event)
-                                                 :nodes-under-mouse-changed (if (= id (:id (last (:nodes-under-mouse event))))
-                                                                              (assoc rectangle-state :mouse-over true)
-                                                                              (assoc rectangle-state :mouse-over false))
-
-
+                                               (if (= (:type event)
+                                                      :nodes-under-mouse-changed)
                                                  (if (= id (:id (last (:nodes-under-mouse event))))
-                                                   (case (:type event)
-                                                     :mouse-pressed (assoc rectangle-state
-                                                                           :mouse-down true)
-                                                     :mouse-released (assoc rectangle-state
-                                                                            :mouse-down false)
-                                                     :mouse-clicked  (do (swap! mask-state  (fnil (comp (fn [n] (mod n 3))
-                                                                                                        inc)
-                                                                                                  0))
-                                                                         rectangle-state)
-                                                     rectangle-state)
+                                                   (assoc rectangle-state :mouse-over true)
+                                                   (assoc rectangle-state :mouse-over false))
+                                                 (if (and (= id (:id (last (:nodes-under-mouse event))))
+                                                          (= :mouse-clicked
+                                                             (:type event)))
+                                                   (do (swap! mask-state (fn [state]
+                                                                           (-> (inc (or state 0))
+                                                                               (mod 3))))
+                                                       rectangle-state)
                                                    rectangle-state))))
                                       
                                       event)))))
@@ -76,8 +69,6 @@
   }
   ")
 
-(def pumpkin (buffered-image/create-from-file "pumpkin.png"))
-
 (defn apply-mask [mask scene-graph]
   {:children [(assoc scene-graph
                      :x 0 :y 0)]
@@ -95,12 +86,12 @@
    :render (fn [scene-graph gl]
              (let [{:keys [width height]} scene-graph]
                (stateful/with-state-atoms! [quad-renderer-atom :render-target-quad-renderer (quad-renderer/stateful gl)
-                                            render-target-atom :render-target (render-target/stateful width height gl)
+                                            render-target-1-atom :render-target-1 (render-target/stateful width height gl)
                                             render-target-2-atom :render-target-2 (render-target/stateful width height gl)
                                             render-target-3-atom :render-target-3 (render-target/stateful width height gl)
                                             program-atom [:program (hash mask-shader-source)]  (quad/program-stateful mask-shader-source gl)]
                  
-                 (render-target/render-to @render-target-atom gl
+                 (render-target/render-to @render-target-1-atom gl
                                           (opengl/clear gl 0 0 0 0)
                                           (quad-renderer/render quad-renderer-atom gl (assoc scene-graph
                                                                                              :x 0 :y 0)))
@@ -112,7 +103,7 @@
                                           (opengl/clear gl 0 0 0 0)
                                           
                                           (quad/draw gl
-                                                     ["texture" (:texture @render-target-atom)
+                                                     ["texture" (:texture @render-target-1-atom)
                                                       "mask_texture" (:texture @render-target-2-atom)]
                                                      []
                                                      @program-atom 
@@ -133,6 +124,7 @@
                   :height height})))})
 
 (def font (font/create "LiberationSans-Regular.ttf" 40))
+(def pumpkin (buffered-image/create-from-file "pumpkin.png"))
 
 (def mask (assoc (visuals/image pumpkin)
                  :x 100
@@ -142,9 +134,10 @@
   ;; (animation/swap-state! animation/set-wake-up 1000) ;; TODO: remove this
   
   (let [margin 0]
-    {:children (-> [(visuals/text [255 255 255 255]
-                                  font
-                                  (prn-str @mask-state))]
+    {:children (-> [(assoc (visuals/text [255 255 255 255]
+                                   font
+                                   (prn-str @mask-state))
+                           :y 200)]
                    (cond-> (#{0 2} @mask-state)
                      (conj (stateful-rectangle :rectangle-1)))
                    (cond-> (= 1 @mask-state)
