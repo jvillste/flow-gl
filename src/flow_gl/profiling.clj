@@ -10,7 +10,6 @@
                   ~@body)))
 
 
-
 (defn profile-fn-call [function-name f arguments]
   (profiling/p (keyword (namespace function-name)
                         (name function-name))
@@ -67,3 +66,6 @@
       (let [ns-fns (namespace-function-vars ns)]
         (doseq [f ns-fns]
           (profile-var f))))))
+
+(defmacro with-profiling [& args]
+  `(profiling/profile ~@args))

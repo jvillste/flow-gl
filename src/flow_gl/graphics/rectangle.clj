@@ -13,6 +13,10 @@
       (.fill (RoundRectangle2D$Double. (double 0) (double 0) (double width) (double height) (double corner-arc-width) (double corner-arc-height))))))
 
 (defn create-buffered-image [color width height corner-arc-width corner-arc-height]
+  (assert (and (< width 10000)
+               (< height 10000))
+          (str "Tried to create buffered image larger than 10.000 x 10.000. The requested size was " width " x " height))
+
   (let [buffered-image (buffered-image/create (max 1
                                                    width)
                                               (max 1

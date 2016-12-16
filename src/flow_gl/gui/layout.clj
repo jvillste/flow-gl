@@ -326,18 +326,26 @@
     (adapt-function node)
     node))
 
+(defn ensure-available-space [node]
+  (assoc node
+         :available-width (or (:available-width node)
+                              java.lang.Integer/MAX_VALUE)
+         :available-height (or (:available-height node)
+                               java.lang.Integer/MAX_VALUE)))
+
 (defn add-space [node]
   (if (:children node)
-    (do (spec/assert ::node-with-space node)
-        (if-let [space-function (:give-space node)]
-          (space-function node)
-          (update-in node [:children]
-                     (fn [children]
-                       (map (fn [child]
-                              (assoc child
-                                     :available-width (:available-width node)
-                                     :available-height (:available-height node)))
-                            children)))))
+    (let [node (ensure-available-space node)]
+      (if-let [space-function (:give-space node)]
+        (space-function node)
+        (update-in node [:children]
+                   (fn [children]
+                     (map (fn [child]
+                            (assoc child
+                                   :available-width (:available-width node)
+                                   :available-height (:available-height node)))
+                          children)))))
+    
     node))
 
 (defn size [node]

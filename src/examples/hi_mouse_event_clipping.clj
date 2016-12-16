@@ -30,7 +30,7 @@
         (assoc :width 200
                :height 200
                :id id
-               :mouse-event-handler (fn [event]
+               :mouse-event-handler (fn [node event]
                                       (swap! state update-in [id]
                                              (fn [rectangle-state]
                                                (if (= (:type event)

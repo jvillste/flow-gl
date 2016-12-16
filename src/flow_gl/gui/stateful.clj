@@ -33,6 +33,10 @@
 (defn get-stateful-state [all-stateful-state id]
   (get-in all-stateful-state [states-key id]))
 
+(defn get-or-initialize-stateful-state [all-stateful-state id initialize-state]
+  (or (get-stateful-state all-stateful-state id)
+      (initialize-state)))
+
 #_(defn call-with-state [all-stateful-state-atom initialize-state function id & arguments]
     (when (not (contains? @all-stateful-state-atom id))
       (swap! all-stateful-state-atom
@@ -89,12 +93,8 @@
       (cond-> (:delete-after-calls all-stateful-state)
         (delete-unused-states-after (:delete-after-calls all-stateful-state)))))
 
-(defn create-stateful-state-atom [all-stateful-state id initialize-state]
-  (atom (or (get-stateful-state all-stateful-state id)
-            (initialize-state))))
-
 (defn call-with-state-atom [all-stateful-state id initialize-state delete-state function & arguments]
-  (let [stateful-state-atom (create-stateful-state-atom all-stateful-state id initialize-state)
+  (let [stateful-state-atom (atom (get-or-initialize-stateful-state all-stateful-state id initialize-state))
         result (apply function
                       stateful-state-atom
                       arguments)]
@@ -123,9 +123,9 @@
 (defn call-with-state-atoms [all-stateful-state stateful-specifications function & arguments]
   (let [add-state-atom (fn [{:keys [id kind initialize-state] :as stateful-specification}]
                          (assoc stateful-specification
-                                :state-atom (create-stateful-state-atom all-stateful-state
-                                                                        [id kind]
-                                                                        initialize-state)))
+                                :state-atom (atom (get-or-initialize-stateful-state all-stateful-state
+                                                                                    [id kind]
+                                                                                    initialize-state))))
         stateful-specs-with-state-atoms (map add-state-atom stateful-specifications)
         result (apply function (concat (map :state-atom stateful-specs-with-state-atoms)
                                        arguments))]
@@ -225,8 +225,13 @@
            (apply update-stateful-state
                   all-stateful-state id function arguments))))
 
-#_(defn stateful-state! [id]
-    (stateful-state @all-stateful-state-atom id))
+(defn stateful-state! [id stateful-specification]
+  (or (get-stateful-state @all-stateful-state-atom id)
+      (swap! all-stateful-state-atom
+             set-stateful-state
+             id
+             ((:initialize-state stateful-specification)))
+      (get-stateful-state @all-stateful-state-atom id)))
 
 #_(defn call-with-state! [id arguments initialize-state function]
     (apply call-with-state
@@ -281,8 +286,8 @@
                                                   [id stateful-specification])
                                                 (partition 3 symbols-ids-and-stateful-specifications))
         symbols (map (fn [[sym id stateful-specification]]
-                   sym)
-                 (partition 3 symbols-ids-and-stateful-specifications))]
+                       sym)
+                     (partition 3 symbols-ids-and-stateful-specifications))]
     `(call-with-state-atoms! [~@ids-and-stateful-specifications]
                              (fn [~@symbols]
                                ~@body))))

@@ -2,16 +2,28 @@
   (:require [flow-gl.debug :as debug]
             [clojure.core.async :as async]
             [flow-gl.csp :as csp]
-            (flow-gl.gui [drawable :as drawable]
-                         [layout :as layout]
+            [fungl.application :as application]
+            (flow-gl.gui [layout :as layout]
+                         [visuals :as visuals]
+                         [quad-renderer :as quad-renderer]
+                         [tiled-renderer :as tiled-renderer]
+                         [animation :as animation]
                          [layouts :as layouts]
-                         [gui :as gui]
-                         [cache :as cache]
-                         [events :as events]
-                         [layoutable :as layoutable]
-                         [controls :as controls]
-                         [layout-dsl :as l]
-                         [transformer :as transformer]))
+                         [scene-graph :as scene-graph]
+                         [stateful :as stateful]
+                         [keyboard :as keyboard]
+                         [events :as events])
+            (flow-gl.graphics [font :as font])
+            #_(flow-gl.gui [drawable :as drawable]
+                           [layout :as layout]
+                           [layouts :as layouts]
+                           [gui :as gui]
+                           [cache :as cache]
+                           [events :as events]
+                           [layoutable :as layoutable]
+                           [controls :as controls]
+                           [layout-dsl :as l]
+                           [transformer :as transformer]))
   (:use clojure.test))
 
 (defn create-state []
@@ -44,7 +56,7 @@
               (update-in trace [:open-calls (:parent ending-call) :child-calls] conj ending-call)
               (-> trace
                   (update-in [:root-calls] conj ending-call)
-                  (update-in [:root-calls] #(vec (take-last 20 %))))))))
+                  (update-in [:root-calls] #(vec (take-last 10 %))))))))
       trace)))
 
 (deftest add-entry-test
@@ -142,7 +154,7 @@
 
 
 
-(defn  untrace-var
+(defn untrace-var
   ([ns s]
    (untrace-var (ns-resolve ns s)))
   ([v]
@@ -159,9 +171,6 @@
   (let [ns-fns (->> ns the-ns ns-interns vals)]
     (doseq [f ns-fns]
       (untrace-var f))))
-
-#_(defmacro untrace-ns [ns]
-    `(untrace-ns* ~ns))
 
 
 (defn trace-var
@@ -203,11 +212,6 @@
           (when (:trace (meta f))
             (trace-var f)))))))
 
-#_(defmacro trace-ns [ns]
-    `(trace-ns* ~ns))
-
-
-
 
 (defn traced?
   "Returns true if the given var is currently traced, false otherwise"
@@ -232,47 +236,53 @@
 (def selected-value-color [200 200 0 255])
 (def default-color [255 255 255 255])
 
+(defn text
+  ([value]
+   (text value [255 255 255 255]))
+
+  ([value color]
+   (text value color (font/create "LiberationMono-Regular.ttf" 15)))
+
+  ([value color font]
+   (visuals/text color
+                 font
+                 (str value))))
+
 (defn text-cell
   ([value]
    (text-cell value [255 255 255 255]))
 
   ([value color]
-   (l/margin 1 2 1 2 (controls/text value color))))
-
-(defn tab-view [view-context state]
-  (layouts/->FloatTop [(l/horizontally (for [tab-index (range (count (:tabs state)))]
-                                         (let [tab (get (:tabs state)
-                                                        tab-index)]
-                                           (-> (l/margin 1 2 1 2 (controls/text (:title tab)
-                                                                                (if (= (:selected-tab-index state)
-                                                                                       tab-index)
-                                                                                  [255 255 255 255]
-                                                                                  [100 100 100 255])))
-                                               (gui/on-mouse-clicked-with-view-context view-context
-                                                                                       (fn [state event]
-                                                                                         (assoc state :selected-tab-index tab-index)))))))
-                       (:content (get (:tabs state)
-                                      (:selected-tab-index state)))]))
-
-(defn tab [view-context]
-  {:local-state {:tabs []
-                 :selected-tab-index 0}
-   :view #'tab-view})
+   (layouts/with-margins 1 2 1 2 (text value color))))
 
 
+(defn mouse-clicked? [event]
+  (= :mouse-clicked
+     (:type event)))
 
+(defn set-mouse-clicked-handler [node function]
+  (assoc node :mouse-event-handler
+         (fn [node event]
+           (when (mouse-clicked? event)
+             (function))
+           event)))
 
-(defn open-button [view-context state call-id child-count]
-  (if ((:open-calls state) call-id)
-    (-> (text-cell (str "-" child-count))
-        (gui/on-mouse-clicked-with-view-context view-context
-                                                (fn [state event]
-                                                  (update-in state [:open-calls] disj call-id))))
+(defmacro when-mouse-clicked [node & body]
+  `(set-mouse-clicked-handler ~node (fn [] ~@body)))
 
-    (-> (text-cell (str "+" child-count))
-        (gui/on-mouse-clicked-with-view-context view-context
-                                                (fn [state event]
-                                                  (update-in state [:open-calls] conj call-id))))))
+(defn open-button [state-atom call-id child-count]
+  (if ((:open-calls @state-atom) call-id)
+    (assoc (text-cell (str "-" child-count))
+           :mouse-event-handler (fn [node event]
+                                  (when (mouse-clicked? event)
+                                    (swap! state-atom update-in [:open-calls] disj call-id))
+                                  event))
+
+    (assoc (text-cell (str "+" child-count))
+           :mouse-event-handler (fn [node event]
+                                  (when (mouse-clicked? event)
+                                    (swap! state-atom update-in [:open-calls] conj call-id))
+                                  event))))
 
 
 (defn map-type-name [map-value]
@@ -305,7 +315,7 @@
         "(atom)"
 
         (instance? clojure.lang.Var value)
-        "(var)"
+        (str "(var " (:ns (meta #'value-view)) "/" (:name (meta value)) ")")
 
         (instance? clojure.lang.LazySeq value)
         (str "(lazy-seq " (count (take 20 value)) ")")
@@ -336,286 +346,208 @@
 
 (declare value-view)
 
-(defn open-collection [name view-context open-values value]
-  (l/vertically (-> (text-cell (str "(" name))
-                    (gui/on-mouse-clicked-with-view-context view-context
-                                                            (fn [state event]
-                                                              (update-in state [:open-values] disj value))))
-                (l/margin 0 0 0 20 (l/vertically (for [content value]
-                                                   (value-view view-context open-values content false))))
+(defn close-value-on-mouse-click [node state-atom value]
+  (set-mouse-clicked-handler node (fn [] (swap! state-atom update-in [:open-values] disj value))))
 
-                (text-cell ")")))
+(defn open-collection [state-atom open-paren close-paren value]
+  (layouts/vertically (-> (text open-paren)
+                          (close-value-on-mouse-click state-atom value))
+                      (layouts/with-margins 0 0 0 20
+                        (layouts/vertically (for [content value]
+                                              (value-view state-atom content false))))
 
-(defn value-view [view-context open-values value root-value]
-  (if (or (number? value)
-          (keyword? value)
-          (string? value))
-    (text-cell (value-string value))
-    (if (or root-value
-            (open-values value))
-      (cond (map? value)
-            (l/vertically (-> (text-cell (str "-" (map-type-name value) "{"))
-                              (gui/on-mouse-clicked-with-view-context view-context
-                                                                      (fn [state event]
-                                                                        (update-in state [:open-values] disj value))))
-                          (l/margin 0 0 0 20 (l/vertically (for [key (keys value)]
-                                                             (l/horizontally (value-view view-context open-values key false)
-                                                                             (value-view view-context open-values (get value key) false)))))
-                          (text-cell "}"))
+                      (text close-paren)))
 
-            (vector? value)
-            (l/vertically (-> (text-cell "-[")
-                              (gui/on-mouse-clicked-with-view-context view-context
-                                                                      (fn [state event]
-                                                                        (update-in state [:open-values] disj value))))
-                          (l/margin 0 0 0 20 (l/vertically (for [content value]
-                                                             (value-view view-context open-values content false))))
+(defn open-ref [state-atom  open-paren close-paren value]
+  (layouts/vertically (-> (text-cell open-paren)
+                          (close-value-on-mouse-click state-atom value))
+                      (layouts/with-margins 0 0 0 20
+                        (value-view state-atom @value false))
+                      (text-cell close-paren)))
 
-                          (text-cell "]"))
+(defn value-view [state-atom value root-value]
+  (let [open-values (:open-values @state-atom)]
+    (if (or (number? value)
+            (keyword? value)
+            (string? value))
+      (text-cell (value-string value))
+      (if (or root-value
+              (open-values value))
+        (cond (map? value)
+              (layouts/vertically (-> (text-cell (str (map-type-name value) "{"))
+                                      (close-value-on-mouse-click state-atom value))
+                                  (layouts/with-margins 0 0 0 20 (layouts/vertically (for [key (keys value)]
+                                                                                       (layouts/horizontally (value-view state-atom key false)
+                                                                                                             (value-view state-atom (get value key) false)))))
+                                  (text-cell "}"))
 
-            (instance? clojure.lang.LazySeq value)
-            (open-collection "lazy-seq" view-context open-values value)
+              (vector? value)
+              (open-collection state-atom "[" "]" value)
 
-            (instance? clojure.lang.Cons value)
-            (open-collection "cons" view-context open-values value)
+              (instance? clojure.lang.LazySeq value)
+              (open-collection state-atom "(lazy-seq" ")" value)
 
-            (list? value)
-            (l/vertically (-> (text-cell "-(")
-                              (gui/on-mouse-clicked-with-view-context view-context
-                                                                      (fn [state event]
-                                                                        (update-in state [:open-values] disj value))))
-                          (l/margin 0 0 0 20 (l/vertically (for [content value]
-                                                             (value-view view-context open-values content false))))
+              (instance? clojure.lang.Cons value)
+              (open-collection state-atom "(cons" ")" value)
 
-                          (text-cell ")"))
+              (list? value)
+              (open-collection state-atom "(" ")" value)
+              
+              (instance? clojure.lang.Atom value)
+              (open-ref state-atom "(atom" ")" value)
 
+              (instance? clojure.lang.Var value)
+              (open-ref state-atom (str "(var " (:ns (meta #'value-view)) "/" (:name (meta value))) ")" value)
 
-            (instance?  clojure.lang.Atom value)
-            (l/vertically (-> (text-cell "(atom")
-                              (gui/on-mouse-clicked-with-view-context view-context
-                                                                      (fn [state event]
-                                                                        (update-in state [:open-values] disj value))))
-                          (l/margin 0 0 0 20 (value-view view-context open-values @value false))
-                          (text-cell ")"))
+              (set? value)
+              (open-collection state-atom "#(" ")" value)
 
-            (instance?  clojure.lang.Var value)
-            (l/vertically (-> (text-cell "(var")
-                              (gui/on-mouse-clicked-with-view-context view-context
-                                                                      (fn [state event]
-                                                                        (update-in state [:open-values] disj value))))
-                          (l/margin 0 0 0 20 (value-view view-context open-values @value false))
-                          (text-cell ")"))
+              (instance? java.lang.Exception value)
+              (text (str (type value) ": " (.getMessage value)))
 
-            (set? value)
-            (l/vertically (-> (text-cell "#{")
-                              (gui/on-mouse-clicked-with-view-context view-context
-                                                                      (fn [state event]
-                                                                        (update-in state [:open-values] disj value))))
-                          (l/margin 0 0 0 20 (l/vertically (for [content value]
-                                                             (value-view view-context open-values content false))))
-
-                          (text-cell "}"))
-
-            (instance? java.lang.Exception value)
-            (text-cell (str (type value) ": " (.getMessage value)))
-
-            :default (-> (text-cell (str "-" (value-string value)))
-                         (gui/on-mouse-clicked-with-view-context view-context
-                                                                 (fn [state event]
-                                                                   (update-in state [:open-values] disj value)))))
-      (-> (text-cell (value-string value))
-          (gui/on-mouse-clicked-with-view-context view-context
-                                                  (fn [state event]
-                                                    (update-in state [:open-values] conj value)))))))
-
-(defn value-inspector-view [view-context state]
-  (l/vertically (controls/text (str "hash " (hash (:value state))))
-                (gui/call-view controls/scroll-panel
-                               :value-inspector-scroll-panel
-                               {:content (value-view view-context
-                                                     (:open-values state)
-                                                     (:value state)
-                                                     true)})))
-
-(defn value-inspector [view-context]
-  {:local-state {:value 0
-                 :open-values #{}}
-   :view #'value-inspector-view})
+              :default (-> (text-cell (str "-" (value-string value)))
+                           (close-value-on-mouse-click state-atom value)))
+        
+        (assoc (text (value-string value))
+               :mouse-event-handler (fn [node event]
+                                      (when (mouse-clicked? event)
+                                        (swap! state-atom update-in [:open-values] conj value))
+                                      event))))))
 
 
-(defn call-view [view-context state call]
-  (let [character-width (:width (layoutable/preferred-size (controls/text "0")
-                                                           java.lang.Integer/MAX_VALUE
-                                                           java.lang.Integer/MAX_VALUE))]
-    (l/vertically (l/horizontally (l/minimum-size (* 4 character-width) 0
-                                                    (if (> (count (:child-calls call)) 0)
-                                                      (open-button view-context state (:call-id call) (count (:child-calls call)))
-                                                      (drawable/->Empty 0 0)))
+(defn initialize-value-view-state []
+  {:open-values #{}})
 
-                                  (l/minimum-size (* 5 character-width) 0
+(defn value-view-stateful []
+  {:initialize-state initialize-value-view-state})
+
+
+(defn call-view [state-atom call]
+  (let [character-width (:width (layout/size (layout/do-layout (text "0"))))]
+    (layouts/vertically (layouts/horizontally (layouts/with-minimum-size (* 4 character-width) 0
+                                                (if (> (count (:child-calls call)) 0)
+                                                  (open-button state-atom (:call-id call) (count (:child-calls call)))
+                                                  nil))
+
+                                              #_(layouts/with-minimum-size (* 5 character-width) 0
                                                   (text-cell (- (:call-ended call)
                                                                 (:call-started call))))
 
-                                  (text-cell (str "("
-                                                  (if-let [function-symbol (:function-symbol call)]
-                                                    (str (name function-symbol) " ")
-                                                    "")))
-                                  (for [argument (:arguments call)]
-                                    (-> (text-cell (value-string argument) (if (= argument
-                                                                                  (:selected-value state))
-                                                                             selected-value-color
-                                                                             default-color))
-                                        (gui/on-mouse-clicked-with-view-context view-context
-                                                                                (fn [state event]
-                                                                                  (assoc state :selected-value argument)))))
-                                  (text-cell ")")
-                                  (when (:function-symbol call)
-                                    (-> (text-cell (str " -> " (value-string (or (:exception call)
-                                                                                 (:result call))))
-                                                   (if (= (or (:exception call)
-                                                              (:result call))
-                                                          (:selected-value state))
-                                                     selected-value-color
-                                                     default-color))
-                                        (gui/on-mouse-clicked-with-view-context view-context
-                                                                                (fn [state event]
-                                                                                  (assoc state :selected-value (or (:exception call)
-                                                                                                                   (:result call))))))))
-                  (when ((:open-calls state) (:call-id call))
-                    (l/margin 0 0 0 20
-                              (l/vertically (for [child (:child-calls call)]
-                                              (call-view view-context state child))))))))
+                                              (text (str "("
+                                                              (if-let [function-symbol (:function-symbol call)]
+                                                                (str (name function-symbol) " ")
+                                                                "")))
+                                              (for [argument (:arguments call)]
+                                                (assoc (text (value-string argument)
+                                                             (if (= argument
+                                                                    (:selected-value @state-atom))
+                                                               selected-value-color
+                                                               default-color))
+                                                       :mouse-event-handler (fn [node event]
+                                                                              (when (mouse-clicked? event)
+                                                                                (swap! state-atom assoc :selected-value argument))
+                                                                              event)))
+                                              (text ")")
+                                              (when (:function-symbol call)
+                                                (assoc (text (str " -> " (value-string (or (:exception call)
+                                                                                                (:result call))))
+                                                                  (if (= (or (:exception call)
+                                                                             (:result call))
+                                                                         (:selected-value @state-atom))
+                                                                    selected-value-color
+                                                                    default-color))
+                                                       :mouse-event-handler (fn [node event]
+                                                                              (when (mouse-clicked? event)
+                                                                                (swap! state-atom assoc :selected-value (or (:exception call)
+                                                                                                                            (:result call))))
+                                                                              event))))
+                        (when ((:open-calls @state-atom) (:call-id call))
+                          (layouts/with-margins 0 0 0 (* 5 character-width)
+                            (apply layouts/vertically (for [child (:child-calls call)]
+                                                        (call-view state-atom child))))))))
+
+(defn trace-view [state-atom]
+  (layouts/vertically (for [root-call (:root-calls (:trace @state-atom))]
+                        (call-view state-atom root-call))))
 
 
+(defn do-layout [scene-graph width height]
+  (-> scene-graph
+      (assoc :x 0
+             :y 0
+             :available-width width
+             :available-height height)
+      (layout/do-layout)))
 
+(defn create-trace-scene-graph [state-atom width height]
+  (animation/swap-state! animation/set-wake-up 1000)
+  (-> (layouts/vertically
+       (trace-view state-atom)
+       (assoc (visuals/rectangle [255 255 255 255] 0 0)
+              :height 5)
+       (value-view state-atom
+                   (:selected-value @state-atom)
+                   true))
+      (assoc :x 0
+             :y 0
+             :available-width width
+             :available-height height)
+      (layout/do-layout)))
 
-(defn trace-view [view-context {:keys [trace] :as state}]
-  (layouts/->FloatTop [(-> (controls/text "clear" button-text-color)
-                           (gui/on-mouse-clicked-with-view-context view-context
-                                                                   (fn [state event]
-                                                                     (async/put! (:input-channel state) {:clear-trace true})
-                                                                     (assoc state :selected-value nil))))
-                       (layouts/->FloatLeft [(gui/call-view controls/scroll-panel
-                                                            :call-scroll-panel
-                                                            {:content (l/vertically
-                                                                       (for [root-call (:root-calls trace)]
-                                                                         (when (not ((:hidden-threads state) (:thread root-call)))
-                                                                           (l/horizontally (l/minimum-size 40 0 (text-cell (:thread root-call)))
-                                                                                           (call-view view-context state root-call)))))})
-                                             (l/float-left (l/margin 0 3 0 3 (drawable/->Rectangle 3 10 [255 255 255 255]))
-                                                           (gui/call-view value-inspector :value-inspector {:value (:selected-value state)}))])]))
-
-(defn thread-view [view-context state]
-  (layouts/grid (concat [[(l/margin 0 5 0 0 (controls/text "thread"))
-                          (controls/text "hidden")]]
-                        (for [thread (->> (-> state :trace :root-calls)
-                                          (map :thread)
-                                          (apply hash-set))]
-                          [(controls/text thread) (if ((:hidden-threads state) thread)
-                                                    (-> (controls/text "X")
-                                                        (gui/on-mouse-clicked-with-view-context view-context
-                                                                                                (fn [state event]
-                                                                                                  (update-in state [:hidden-threads] disj thread))))
-                                                    (-> (controls/text "O")
-                                                        (gui/on-mouse-clicked-with-view-context view-context
-                                                                                                (fn [state event]
-                                                                                                  (update-in state [:hidden-threads] conj thread)))))]))))
-
-(declare trace-root-view)
-
-
-
-(defn functions-view [view-context state]
-  (l/vertically (gui/call-and-bind view-context
-                                   state
-                                   :namespace-filter
-                                   :text
-                                   controls/text-editor
-                                   :namespace-filter)
-                (l/horizontally (l/margin 0 10 0 0 (l/vertically (for [namespace  (->> (all-ns)
-                                                                                       (filter #(if (not (= "" (:namespace-filter state)))
-                                                                                                  (.contains (str (.name %)) (:namespace-filter state))
-                                                                                                  true))
-                                                                                       (sort-by #(.name %)))]
-                                                                   (-> (controls/text (.name namespace)
-                                                                                      (if (= (:selected-namespace state)
-                                                                                             namespace)
-                                                                                        [255 255 255 255]
-                                                                                        selected-value-color))
-                                                                       (gui/on-mouse-clicked-with-view-context view-context
-                                                                                                               (fn [state event]
-                                                                                                                 (assoc state :selected-namespace namespace)))))))
-                                (when-let [selected-namespace (:selected-namespace state)]
-
-                                  (l/vertically (l/horizontally (l/margin 0 5 0 0 (-> (controls/text "trace all" button-text-color)
-                                                                                      (gui/on-mouse-clicked-with-view-context view-context
-                                                                                                                              (fn [state event]
-                                                                                                                                (trace-ns selected-namespace)
-                                                                                                                                (assoc state :refresh-time (.getTime (java.util.Date.)))))))
-                                                                (-> (controls/text "untrace all" button-text-color)
-                                                                    (gui/on-mouse-clicked-with-view-context view-context
-                                                                                                            (fn [state event]
-                                                                                                              (untrace-ns selected-namespace)
-                                                                                                              (assoc state :refresh-time (.getTime (java.util.Date.)))))))
-                                                (layouts/grid (concat [[(l/margin 0 5 0 0 (controls/text "function" header-text-color))
-                                                                        (controls/text "traced?" header-text-color)]]
-                                                                      (for [function-var (namespace-function-vars selected-namespace)]
-                                                                        [(controls/text (-> function-var meta :name))
-                                                                         (if (traced? function-var)
-                                                                           (-> (controls/text "X")
-                                                                               (gui/on-mouse-clicked-with-view-context view-context
-                                                                                                                       (fn [state event]
-                                                                                                                         (untrace-var function-var)
-                                                                                                                         (assoc state :refresh-time (.getTime (java.util.Date.))))))
-
-                                                                           (-> (controls/text "O")
-                                                                               (gui/on-mouse-clicked-with-view-context view-context
-                                                                                                                       (fn [state event]
-                                                                                                                         (trace-var function-var)
-                                                                                                                         (assoc state :refresh-time (.getTime (java.util.Date.)))))))]))))))))
-
-
-(defn trace-root-view [view-context state]
-  (l/preferred (gui/call-view tab :tab  {:tabs [{:title "trace"
-                                                 :content (trace-view view-context state)}
-                                                {:title "threads"
-                                                 :content (thread-view view-context state)}
-                                                {:title "functions"
-                                                 :content (functions-view view-context state)}]})))
-
-(defn create-trace-control [input-channel trace-channel] 
-  (fn [view-context]
-    (let [throttled-channel (csp/throttle-at-constant-rate trace-channel 500)]
-
-      (async/go-loop []
-        (when-let [new-trace (async/<! throttled-channel)]
-          (gui/apply-to-state view-context assoc :trace new-trace)
-          (recur))))
-
-    {:local-state {:trace (create-state)
-                   :input-channel input-channel
-                   :open-calls #{}
-                   :hidden-threads #{}
-                   :namespace-filter "flow"}
-     :view #'trace-root-view}))
+(defn start-trace-printer [trace-channel] 
+  (let [state-atom (atom (conj {:trace (create-state)
+                                :open-calls #{}}
+                               (initialize-value-view-state)))
+        event-channel (application/start-window (partial create-trace-scene-graph
+                                                         state-atom))
+        throttled-channel (csp/throttle-at-constant-rate trace-channel 500)]
+    
+    (async/go-loop []
+      (when-let [new-trace (async/<! throttled-channel)]
+        (swap! state-atom
+               assoc :trace
+               new-trace)
+        (async/put! event-channel {:type :request-redraw})
+        (recur)))))
 
 
 (defmacro with-trace [& body]
   `(let [input-channel# (async/chan 50)
          trace-channel# (async/chan)]
      (start-tracer input-channel# trace-channel#)
-     (gui/start-control (create-trace-control input-channel# trace-channel#))
+     #_(gui/start-control (create-trace-control input-channel# trace-channel#))
+     (start-trace-printer trace-channel#)
      (debug/with-debug-channel input-channel# ~@body)
      #_(Thread/sleep 1000)
      #_(async/close! input-channel#)))
 
+(defn start []
+  #_(application/start-window (partial create-trace-scene-graph
+                                       (atom (create-state))))
 
-(defn inspect-value [value]
-  (async/thread (gui/start-app (gui/control-to-application value-inspector {:value value}))))
+  (let [state-atom (atom (initialize-value-view-state))
+        value-atom (atom :a)]
+    (application/start-window (fn [width height]
+                                (-> (value-view state-atom
+                                                {:string "haa"
+                                                 :map {:a {:b {:c :d}}}
+                                                 :vector [1 2 3]
+                                                 :list '(1 2 3)
+                                                 :lazy (for [i (range 3)]
+                                                         i)
+                                                 :cons (cons :a (cons :b [:c]))
+                                                 :atom value-atom
+                                                 :var (var value-view )
+                                                 :fn (fn [])}
+                                                true)
+                                    (do-layout width height))))))
+
+#_(defn inspect-value [value]
+    (async/thread (gui/start-app (gui/control-to-application value-inspector {:value value}))))
 
 #_(run-tests)
 
 
 #_(with-trace
-  (log {:foo [:bar :baz]}))
+    (log {:foo [:bar :baz]}))
 

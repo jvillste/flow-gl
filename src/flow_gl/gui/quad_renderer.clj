@@ -83,19 +83,23 @@
                new-keys))
       new-quads)))
 
+(defn assert-size-is-not-infinite [quad]
+  (when (= (:width quad)
+           java.lang.Integer/MAX_VALUE)
+    (throw (ex-info "Quad has infinite width." {:quad quad})))
+  
+  (when (= (:height quad)
+           java.lang.Integer/MAX_VALUE)
+    (throw (ex-info "Quad has infinite height." {:quad quad}))))
+
 (defn create-textures [quads]
   (map (fn [quad]
-         (when (= (:width quad)
-                  java.lang.Integer/MAX_VALUE)
-           (throw (ex-info "Quad has infinite width." {:quad quad})))
-         
-         (when (= (:height quad)
-                  java.lang.Integer/MAX_VALUE)
-           (throw (ex-info "Quad has infinite height." {:quad quad})))
 
-         (-> (cond (:texture-id quad) (select-keys quad [:texture-id :width :height])
-                   (:image-function quad) {:image (apply (:image-function quad)
-                                                         (image-function-parameters quad))} 
+         (-> (cond (:texture-id quad) (do (assert-size-is-not-infinite quad)
+                                          (select-keys quad [:texture-id :width :height]))
+                   (:image-function quad) (do (assert-size-is-not-infinite quad)
+                                              {:image (apply (:image-function quad)
+                                                             (image-function-parameters quad))}) 
                    :default nil)
              (assoc :texture-key (:texture-key quad))))
        quads))

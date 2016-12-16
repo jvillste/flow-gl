@@ -73,15 +73,24 @@
                                                      5 10)))))
 
 (defn call-mouse-event-handler-for-node [event node]
-  ((:mouse-event-handler node)
-   #_node
-   (if (and (:x event) (:y event))
-     (assoc event
-            :local-x (- (:x event)
-                        (:x node))
-            :local-y (- (:y event)
-                        (:y node)))
-     event)))
+  (let [event-after-call ((:mouse-event-handler node)
+                          node
+                          (if (and (:x event) (:y event))
+                            (assoc event
+                                   :local-x (- (:x event)
+                                               (:x node))
+                                   :local-y (- (:y event)
+                                               (:y node)))
+                            event))]
+    
+    (when (spec/invalid? (spec/conform ::mouse-event event-after-call))
+      (throw (ex-info "Handler did not return valid mouse event"
+                      {:returned-event event-after-call
+                       :node node})))
+    
+    event-after-call))
+
+
 
 (spec/fdef call-mouse-event-handler-for-node
            :args (spec/cat :event ::mouse-event
@@ -160,21 +169,23 @@
 
 (defn send-nodes-under-mouse-changed-events [previous-nodes-under-mouse current-nodes-under-mouse]
   (if (not= previous-nodes-under-mouse current-nodes-under-mouse)
-    (let [affected-mouse-event-handlers (reduce (fn [handlers node]
-                                                  (if (and (:id node)
-                                                           (:mouse-event-handler node))
-                                                    (assoc handlers
-                                                           (:id node)
-                                                           (:mouse-event-handler node))
-                                                    handlers))
-                                                {}
-                                                (concat previous-nodes-under-mouse
-                                                        current-nodes-under-mouse))]
+    (let [affected-mouse-event-handler-nodes (reduce (fn [handlers node]
+                                                       (if (and (:id node)
+                                                                (:mouse-event-handler node))
+                                                         (assoc handlers
+                                                                (:id node)
+                                                                node)
+                                                         handlers))
+                                                     {}
+                                                     (concat previous-nodes-under-mouse
+                                                             current-nodes-under-mouse))]
 
-      (doseq [handler (vals affected-mouse-event-handlers)]
-        (handler {:type :nodes-under-mouse-changed
-                  :handling-phase :on-target
-                  :nodes-under-mouse current-nodes-under-mouse})))))
+      (doseq [node (vals affected-mouse-event-handler-nodes)]
+        ((:mouse-event-handler node)
+         node
+         {:type :nodes-under-mouse-changed
+          :handling-phase :on-target
+          :nodes-under-mouse current-nodes-under-mouse})))))
 
 (spec/fdef send-mouse-over-events
            :args (spec/cat :previous-mouse-event-handlers-by-id (spec/map-of (constantly true) ::scene-graph/node)

@@ -126,41 +126,41 @@
              (window/close window)
              (throw e))))
     
-    
-    (try
-      (with-bindings (create-event-handling-state)
 
-        
-        
-        (loop [scene-graph (create-scene-graph (window/width window)
-                                               (window/height window))]
-          (when (window/visible? window)
+    (async/thread
+      (try
+        (with-bindings (create-event-handling-state)
+          
+          (loop [scene-graph (create-scene-graph (window/width window)
+                                                 (window/height window))]
+            (when (window/visible? window)
 
-            (let [window-width (window/width window)
-                  window-height (window/height window)
-                  scene-graph (loop [events (read-events event-channel target-frame-rate)
-                                     scene-graph scene-graph]
-                                
-                                (handle-new-scene-graph scene-graph)
-                                (let [scene-graph (create-scene-graph window-width
-                                                                      window-height)]
-                                  (if-let [event (first events)]
-                                    (do (handle-event scene-graph event)
-                                        (recur (rest events)
-                                               (create-scene-graph window-width
-                                                                   window-height)))
-                                    scene-graph)))]
+              (let [window-width (window/width window)
+                    window-height (window/height window)
+                    scene-graph (loop [events (read-events event-channel target-frame-rate)
+                                       scene-graph scene-graph]
+                                  
+                                  (handle-new-scene-graph scene-graph)
+                                  (let [scene-graph (create-scene-graph window-width
+                                                                        window-height)]
+                                    (if-let [event (first events)]
+                                      (do (handle-event scene-graph event)
+                                          (recur (rest events)
+                                                 (create-scene-graph window-width
+                                                                     window-height)))
+                                      scene-graph)))]
 
-              (async/>!! renderable-scene-graph-channel
-                         scene-graph)
-              (recur scene-graph)))))
+                (async/>!! renderable-scene-graph-channel
+                           scene-graph)
+                (recur scene-graph)))))
 
-      (println "exiting event handling loop")
+        (println "exiting event handling loop")
 
-      (catch Throwable e
-        (.printStackTrace e *out*)
-        (window/close window)
-        (throw e))
-      (finally
-        (async/close! renderable-scene-graph-channel)))))
+        (catch Throwable e
+          (.printStackTrace e *out*)
+          (window/close window)
+          (throw e))
+        (finally
+          (async/close! renderable-scene-graph-channel))))
+    event-channel))
 
