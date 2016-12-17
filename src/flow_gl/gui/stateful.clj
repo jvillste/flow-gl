@@ -22,6 +22,7 @@
             [states-key id]
             stateful-state))
 
+
 (defn update-stateful-state [all-stateful-state id function & arguments]
   (update-in all-stateful-state
              [states-key id]
@@ -32,6 +33,7 @@
 
 (defn get-stateful-state [all-stateful-state id]
   (get-in all-stateful-state [states-key id]))
+
 
 (defn get-or-initialize-stateful-state [all-stateful-state id initialize-state]
   (or (get-stateful-state all-stateful-state id)
@@ -210,7 +212,6 @@
 
 
 
-
 ;; dynamic state
 
 (def ^:dynamic all-stateful-state-atom)
@@ -227,11 +228,32 @@
 
 (defn stateful-state! [id stateful-specification]
   (or (get-stateful-state @all-stateful-state-atom id)
-      (swap! all-stateful-state-atom
-             set-stateful-state
-             id
-             ((:initialize-state stateful-specification)))
-      (get-stateful-state @all-stateful-state-atom id)))
+      (do (swap! all-stateful-state-atom
+                 set-stateful-state
+                 id
+                 ((:initialize-state stateful-specification)))
+          (get-stateful-state @all-stateful-state-atom id))))
+
+(defn reducer! [id]
+  (or (get-in @all-stateful-state-atom [:reducers id])
+      (do (swap! all-stateful-state-atom
+                 assoc-in
+                 [:reducers id]
+                 (fn [function & arguments]
+                   (apply update-stateful-state! id function arguments)))
+          (get-in @all-stateful-state-atom [:reducers id]))))
+
+(defn state-and-reducer! [id stateful-specification]
+  [(stateful-state! id stateful-specification)
+   (reducer! id)])
+
+(deftest state-and-reducer!-test
+  (with-bindings (state-bindings)
+    (let [stateful-specification {:initialize-state (fn [] 1)}
+          [state reduce!] (state-and-reducer! :foo stateful-specification)]
+      (is (= 1 state))
+      (reduce! inc)
+      (is (= 2 (stateful-state! :foo stateful-specification))))))
 
 #_(defn call-with-state! [id arguments initialize-state function]
     (apply call-with-state
@@ -315,3 +337,5 @@
 
 #_(defn delete-unused-states-after! [calls]
     (swap! all-stateful-state-atom delete-unused-states calls))
+
+

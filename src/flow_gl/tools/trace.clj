@@ -231,6 +231,7 @@
 
 ;; UI
 
+(def keyword-color [100 255 100 255])
 (def button-text-color [100 255 255 255])
 (def header-text-color [200 200 200 255])
 (def selected-value-color [200 200 0 255])
@@ -346,79 +347,85 @@
 
 (declare value-view)
 
-(defn close-value-on-mouse-click [node state-atom value]
-  (set-mouse-clicked-handler node (fn [] (swap! state-atom update-in [:open-values] disj value))))
+(defn close-value-on-mouse-click [node reduce! value]
+  (set-mouse-clicked-handler node (fn [] (reduce! update-in [:open-values] disj value))))
 
-(defn open-collection [state-atom open-paren close-paren value]
+(defn open-collection [state reduce! open-paren close-paren value]
   (layouts/vertically (-> (text open-paren)
-                          (close-value-on-mouse-click state-atom value))
+                          (close-value-on-mouse-click reduce! value))
                       (layouts/with-margins 0 0 0 20
                         (layouts/vertically (for [content value]
-                                              (value-view state-atom content false))))
+                                              (value-view state reduce! content false))))
 
                       (text close-paren)))
 
-(defn open-ref [state-atom  open-paren close-paren value]
-  (layouts/vertically (-> (text-cell open-paren)
-                          (close-value-on-mouse-click state-atom value))
+(defn open-ref [state reduce! open-paren close-paren value]
+  (layouts/vertically (-> (text open-paren)
+                          (close-value-on-mouse-click state reduce! value))
                       (layouts/with-margins 0 0 0 20
-                        (value-view state-atom @value false))
-                      (text-cell close-paren)))
+                        (value-view state reduce! @value false))
+                      (text close-paren)))
 
-(defn value-view [state-atom value root-value]
-  (let [open-values (:open-values @state-atom)]
-    (if (or (number? value)
-            (keyword? value)
-            (string? value))
-      (text-cell (value-string value))
-      (if (or root-value
-              (open-values value))
-        (cond (map? value)
-              (layouts/vertically (-> (text-cell (str (map-type-name value) "{"))
-                                      (close-value-on-mouse-click state-atom value))
-                                  (layouts/with-margins 0 0 0 20 (layouts/vertically (for [key (keys value)]
-                                                                                       (layouts/horizontally (value-view state-atom key false)
-                                                                                                             (value-view state-atom (get value key) false)))))
-                                  (text-cell "}"))
+(defn value-view [state reduce! value root-value]
+  (let [open-values (:open-values state)]
+    (cond (number? value)
+          (text-cell (value-string value))
 
-              (vector? value)
-              (open-collection state-atom "[" "]" value)
+          (keyword? value)
+          (text (value-string value) keyword-color)
 
-              (instance? clojure.lang.LazySeq value)
-              (open-collection state-atom "(lazy-seq" ")" value)
+          (string? value)
+          (text-cell (value-string value))
 
-              (instance? clojure.lang.Cons value)
-              (open-collection state-atom "(cons" ")" value)
+          :default
+          (if (or root-value
+                  (open-values value))
+            (cond (map? value)
+                  (layouts/vertically (-> (text-cell (str (map-type-name value) "{"))
+                                          (close-value-on-mouse-click state value))
+                                      (layouts/with-margins 0 0 0 20 (layouts/vertically (for [key (keys value)]
+                                                                                           (layouts/horizontally (layouts/with-margins 0 5 0 0  (value-view state reduce! key false))
+                                                                                                                 (value-view state reduce! (get value key) false)))))
+                                      (text-cell "}"))
 
-              (list? value)
-              (open-collection state-atom "(" ")" value)
-              
-              (instance? clojure.lang.Atom value)
-              (open-ref state-atom "(atom" ")" value)
+                  (vector? value)
+                  (open-collection state reduce! "[" "]" value)
 
-              (instance? clojure.lang.Var value)
-              (open-ref state-atom (str "(var " (:ns (meta #'value-view)) "/" (:name (meta value))) ")" value)
+                  (instance? clojure.lang.LazySeq value)
+                  (open-collection state reduce! "(lazy-seq" ")" value)
 
-              (set? value)
-              (open-collection state-atom "#(" ")" value)
+                  (instance? clojure.lang.Cons value)
+                  (open-collection state reduce! "(cons" ")" value)
 
-              (instance? java.lang.Exception value)
-              (text (str (type value) ": " (.getMessage value)))
+                  (list? value)
+                  (open-collection state reduce! "(" ")" value)
+                  
+                  (instance? clojure.lang.Atom value)
+                  (open-ref state reduce! "(atom" ")" value)
 
-              :default (-> (text-cell (str "-" (value-string value)))
-                           (close-value-on-mouse-click state-atom value)))
-        
-        (assoc (text (value-string value))
-               :mouse-event-handler (fn [node event]
-                                      (when (mouse-clicked? event)
-                                        (swap! state-atom update-in [:open-values] conj value))
-                                      event))))))
+                  (instance? clojure.lang.Var value)
+                  (open-ref state reduce! (str "(var " (:ns (meta #'value-view)) "/" (:name (meta value))) ")" value)
+
+                  (set? value)
+                  (open-collection state reduce! "#(" ")" value)
+
+                  (instance? java.lang.Exception value)
+                  (text (str (type value) ": " (.getMessage value)))
+
+                  :default (-> (text-cell (str "-" (value-string value)))
+                               (close-value-on-mouse-click state value)))
+            
+            (assoc (text (value-string value))
+                   :mouse-event-handler (fn [node event]
+                                          (when (mouse-clicked? event)
+                                            (reduce! update-in [:open-values] conj value))
+                                          event))))))
 
 
 (defn initialize-value-view-state []
   {:open-values #{}})
 
-(defn value-view-stateful []
+(def value-view-stateful
   {:initialize-state initialize-value-view-state})
 
 
@@ -434,9 +441,9 @@
                                                                 (:call-started call))))
 
                                               (text (str "("
-                                                              (if-let [function-symbol (:function-symbol call)]
-                                                                (str (name function-symbol) " ")
-                                                                "")))
+                                                         (if-let [function-symbol (:function-symbol call)]
+                                                           (str (name function-symbol) " ")
+                                                           "")))
                                               (for [argument (:arguments call)]
                                                 (assoc (text (value-string argument)
                                                              (if (= argument
@@ -450,12 +457,12 @@
                                               (text ")")
                                               (when (:function-symbol call)
                                                 (assoc (text (str " -> " (value-string (or (:exception call)
-                                                                                                (:result call))))
-                                                                  (if (= (or (:exception call)
-                                                                             (:result call))
-                                                                         (:selected-value @state-atom))
-                                                                    selected-value-color
-                                                                    default-color))
+                                                                                           (:result call))))
+                                                             (if (= (or (:exception call)
+                                                                        (:result call))
+                                                                    (:selected-value @state-atom))
+                                                               selected-value-color
+                                                               default-color))
                                                        :mouse-event-handler (fn [node event]
                                                                               (when (mouse-clicked? event)
                                                                                 (swap! state-atom assoc :selected-value (or (:exception call)
@@ -485,9 +492,14 @@
        (trace-view state-atom)
        (assoc (visuals/rectangle [255 255 255 255] 0 0)
               :height 5)
-       (value-view state-atom
+       (value-view (stateful/stateful-state! :value-view value-view-stateful)
+                   (stateful/reducer! :value-view)
                    (:selected-value @state-atom)
-                   true))
+                   true)
+       #_(stateful/with-state-atoms! [value-view-state-atom :value-view value-view-stateful]
+           (value-view value-view-state-atom
+                       (:selected-value @state-atom)
+                       true)))
       (assoc :x 0
              :y 0
              :available-width width
@@ -495,9 +507,8 @@
       (layout/do-layout)))
 
 (defn start-trace-printer [trace-channel] 
-  (let [state-atom (atom (conj {:trace (create-state)
-                                :open-calls #{}}
-                               (initialize-value-view-state)))
+  (let [state-atom (atom {:trace (create-state)
+                          :open-calls #{}})
         event-channel (application/start-window (partial create-trace-scene-graph
                                                          state-atom))
         throttled-channel (csp/throttle-at-constant-rate trace-channel 500)]
@@ -525,22 +536,23 @@
   #_(application/start-window (partial create-trace-scene-graph
                                        (atom (create-state))))
 
-  (let [state-atom (atom (initialize-value-view-state))
-        value-atom (atom :a)]
+  (let [value-atom (atom :a)]
     (application/start-window (fn [width height]
-                                (-> (value-view state-atom
-                                                {:string "haa"
-                                                 :map {:a {:b {:c :d}}}
-                                                 :vector [1 2 3]
-                                                 :list '(1 2 3)
-                                                 :lazy (for [i (range 3)]
-                                                         i)
-                                                 :cons (cons :a (cons :b [:c]))
-                                                 :atom value-atom
-                                                 :var (var value-view )
-                                                 :fn (fn [])}
-                                                true)
-                                    (do-layout width height))))))
+                                (let [[state reduce!] (stateful/state-and-reducer! :value-view value-view-stateful)]
+                                  (-> (value-view state
+                                                  reduce!
+                                                  {:string "haa"
+                                                   :map {:a {:b {:c :d}}}
+                                                   :vector [1 2 3]
+                                                   :list '(1 2 3)
+                                                   :lazy (for [i (range 3)]
+                                                           i)
+                                                   :cons (cons :a (cons :b [:c]))
+                                                   :atom value-atom
+                                                   :var (var value-view )
+                                                   :fn (fn [])}
+                                                  true)
+                                      (do-layout width height)))))))
 
 #_(defn inspect-value [value]
     (async/thread (gui/start-app (gui/control-to-application value-inspector {:value value}))))
