@@ -2,7 +2,8 @@
   (:require [flow-gl.debug :as debug]
             [clojure.core.async :as async]
             [flow-gl.csp :as csp]
-            [fungl.application :as application]
+            (fungl [cache :as cache]
+                   [application :as application])
             (flow-gl.gui [layout :as layout]
                          [visuals :as visuals]
                          [quad-renderer :as quad-renderer]
@@ -271,18 +272,18 @@
 (defmacro when-mouse-clicked [node & body]
   `(set-mouse-clicked-handler ~node (fn [] ~@body)))
 
-(defn open-button [state-atom call-id child-count]
-  (if ((:open-calls @state-atom) call-id)
+(defn open-button [state reduce! call-id child-count]
+  (if ((:open-calls state) call-id)
     (assoc (text-cell (str "-" child-count))
            :mouse-event-handler (fn [node event]
                                   (when (mouse-clicked? event)
-                                    (swap! state-atom update-in [:open-calls] disj call-id))
+                                    (reduce! update-in [:open-calls] disj call-id))
                                   event))
 
     (assoc (text-cell (str "+" child-count))
            :mouse-event-handler (fn [node event]
                                   (when (mouse-clicked? event)
-                                    (swap! state-atom update-in [:open-calls] conj call-id))
+                                    (reduce! update-in [:open-calls] conj call-id))
                                   event))))
 
 
@@ -429,11 +430,11 @@
   {:initialize-state initialize-value-view-state})
 
 
-(defn call-view [state-atom call]
+(defn call-view [state reduce! call]
   (let [character-width (:width (layout/size (layout/do-layout (text "0"))))]
     (layouts/vertically (layouts/horizontally (layouts/with-minimum-size (* 4 character-width) 0
                                                 (if (> (count (:child-calls call)) 0)
-                                                  (open-button state-atom (:call-id call) (count (:child-calls call)))
+                                                  (open-button state reduce! (:call-id call) (count (:child-calls call)))
                                                   nil))
 
                                               #_(layouts/with-minimum-size (* 5 character-width) 0
@@ -447,12 +448,12 @@
                                               (for [argument (:arguments call)]
                                                 (assoc (text (value-string argument)
                                                              (if (= argument
-                                                                    (:selected-value @state-atom))
+                                                                    (:selected-value state))
                                                                selected-value-color
                                                                default-color))
                                                        :mouse-event-handler (fn [node event]
                                                                               (when (mouse-clicked? event)
-                                                                                (swap! state-atom assoc :selected-value argument))
+                                                                                (reduce! assoc :selected-value argument))
                                                                               event)))
                                               (text ")")
                                               (when (:function-symbol call)
@@ -460,22 +461,22 @@
                                                                                            (:result call))))
                                                              (if (= (or (:exception call)
                                                                         (:result call))
-                                                                    (:selected-value @state-atom))
+                                                                    (:selected-value state))
                                                                selected-value-color
                                                                default-color))
                                                        :mouse-event-handler (fn [node event]
                                                                               (when (mouse-clicked? event)
-                                                                                (swap! state-atom assoc :selected-value (or (:exception call)
-                                                                                                                            (:result call))))
+                                                                                (reduce! assoc :selected-value (or (:exception call)
+                                                                                                                   (:result call))))
                                                                               event))))
-                        (when ((:open-calls @state-atom) (:call-id call))
+                        (when ((:open-calls state) (:call-id call))
                           (layouts/with-margins 0 0 0 (* 5 character-width)
                             (apply layouts/vertically (for [child (:child-calls call)]
-                                                        (call-view state-atom child))))))))
+                                                        (call-view state reduce! child))))))))
 
-(defn trace-view [state-atom]
-  (layouts/vertically (for [root-call (:root-calls (:trace @state-atom))]
-                        (call-view state-atom root-call))))
+(defn trace-view [state reduce!]
+  (layouts/vertically (for [root-call (:root-calls (:trace state))]
+                        (call-view state reduce! root-call))))
 
 
 (defn do-layout [scene-graph width height]
@@ -486,15 +487,16 @@
              :available-height height)
       (layout/do-layout)))
 
-(defn create-trace-scene-graph [state-atom width height]
-  (animation/swap-state! animation/set-wake-up 1000)
+(defn create-trace-scene-graph [state reduce! width height]
+  (println "create-trace-scene-graph")
+  #_(animation/swap-state! animation/set-wake-up 1000)
   (-> (layouts/vertically
-       (trace-view state-atom)
+       (trace-view state reduce!)
        (assoc (visuals/rectangle [255 255 255 255] 0 0)
               :height 5)
        (value-view (stateful/stateful-state! :value-view value-view-stateful)
                    (stateful/reducer! :value-view)
-                   (:selected-value @state-atom)
+                   (:selected-value state)
                    true)
        #_(stateful/with-state-atoms! [value-view-state-atom :value-view value-view-stateful]
            (value-view value-view-state-atom
@@ -506,21 +508,29 @@
              :available-height height)
       (layout/do-layout)))
 
-(defn start-trace-printer [trace-channel] 
-  (let [state-atom (atom {:trace (create-state)
-                          :open-calls #{}})
-        event-channel (application/start-window (partial create-trace-scene-graph
-                                                         state-atom))
-        throttled-channel (csp/throttle-at-constant-rate trace-channel 500)]
-    
+(defn trace-printer-stateful [trace-channel reduce!]
+  (let [throttled-channel (csp/throttle-at-constant-rate trace-channel 500)]
     (async/go-loop []
-      (when-let [new-trace (async/<! throttled-channel)]
-        (swap! state-atom
-               assoc :trace
-               new-trace)
-        (async/put! event-channel {:type :request-redraw})
-        (recur)))))
+      (when-let [new-trace (async/<! trace-channel)]
+        (reduce! assoc :trace
+                 new-trace)
+        (animation/swap-state! animation/set-wake-up 0)
+        #_(async/put! event-channel {:type :request-redraw})
+        (recur))))
+  
+  {:initialize-state (fn []
+                       {:trace (create-state)
+                        :open-calls #{}})})
 
+(defn start-trace-printer [trace-channel] 
+  (let [event-channel (application/start-window (fn [width height]
+                                                  (let [reduce! (stateful/reducer! :trace-printer)]
+                                                    (cache/call #'create-trace-scene-graph
+                                                                (stateful/stateful-state! :trace-printer (trace-printer-stateful trace-channel
+                                                                                                                                 reduce!))
+                                                                reduce!
+                                                                width
+                                                                height))))]))
 
 (defmacro with-trace [& body]
   `(let [input-channel# (async/chan 50)
