@@ -51,14 +51,14 @@
                            gl)))
 
 (defn handle-event [scene-graph event]
-  (taoensso.timbre.profiling/profile :info :handle-event
-                                     (when (= :mouse
-                                              (:source event))
-                                       (mouse/handle-mouse-event! event))
+  (do ;;taoensso.timbre.profiling/profile :info :handle-event
+   (when (= :mouse
+            (:source event))
+     (mouse/handle-mouse-event! event))
 
-                                     (when (= :keyboard
-                                              (:source event))
-                                       (keyboard/handle-keyboard-event! scene-graph event))))
+   (when (= :keyboard
+            (:source event))
+     (keyboard/handle-keyboard-event! scene-graph event))))
 
 (defn handle-new-scene-graph [scene-graph]
   (mouse/handle-new-scene-graph! scene-graph))
@@ -114,8 +114,9 @@
                (let [scene-graph (async/<!! renderable-scene-graph-channel)]
                  (when scene-graph
                    (window/with-gl window gl
-                     (taoensso.timbre.profiling/profile :info :render
-                                                        (render gl scene-graph)))
+                     (render gl scene-graph)
+                     #_(taoensso.timbre.profiling/profile :info :render
+                                                          (render gl scene-graph)))
                    (window/swap-buffers window)
                    (recur)))))
 

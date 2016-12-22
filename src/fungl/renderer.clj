@@ -1,25 +1,26 @@
 (ns fungl.renderer
-  (:require (flow-gl.gui [scene-graph :as scene-graph]
+  (:require (fungl [callable :as callable])
+            (flow-gl.gui [scene-graph :as scene-graph]
                          [stateful :as stateful])))
 
 (defn apply-renderers! [scene-graph gl]
   (scene-graph/update-depth-first scene-graph :render
                                   (fn [scene-graph]
-                                    ((:render scene-graph) scene-graph gl)
+                                    (callable/call (:render scene-graph) scene-graph gl)
                                     
                                     #_(reduce (fn [scene-graph renderer]
-                                              (assert (:id renderer) "renderers must have an id")
-                                              (stateful/call-with-state-atom! [::renderer (:id renderer)] 
-                                                                              (or  (fn [] ((:initialize-state renderer) gl))
-                                                                                   (constantly {}))
-                                                                              (fn [state]
-                                                                                (when-let [delete-state (:delete-state renderer)]
-                                                                                  (delete-state state gl)))
-                                                                              (:render renderer)
-                                                                              gl
-                                                                              scene-graph))
-                                            scene-graph
-                                            (:renderers scene-graph)))))
+                                                (assert (:id renderer) "renderers must have an id")
+                                                (stateful/call-with-state-atom! [::renderer (:id renderer)] 
+                                                                                (or  (fn [] ((:initialize-state renderer) gl))
+                                                                                     (constantly {}))
+                                                                                (fn [state]
+                                                                                  (when-let [delete-state (:delete-state renderer)]
+                                                                                    (delete-state state gl)))
+                                                                                (:render renderer)
+                                                                                gl
+                                                                                scene-graph))
+                                              scene-graph
+                                              (:renderers scene-graph)))))
 
 
 #_(defn initialize-state []

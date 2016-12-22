@@ -50,6 +50,19 @@
     {:children [(assoc content-scene-graph
                        :x x-translation
                        :y y-translation
+                       :render (fn [scene-graph gl]
+                                 (stateful/with-state-atoms! [tiled-render-atom [id :tiled-renderer] tiled-renderer/stateful
+                                                              quad-renderer-atom [id :quad-renderer] (quad-renderer/stateful gl)
+                                                              render-target-renderer-atom [id :render-target] (render-target-renderer/stateful gl)]
+
+                                   
+                                   
+                                   (render-target-renderer/render render-target-renderer-atom gl scene-graph
+                                                                  (fn []
+                                                                    (quad-renderer/render quad-renderer-atom gl (assoc scene-graph
+                                                                                                                       :x 0 :y 0))))))
+
+                       
                        :renderers [(assoc (let [tile-width width
                                                 tile-height height]
                                             (tiled-renderer/renderer [quad-renderer]

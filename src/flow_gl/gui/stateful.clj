@@ -89,7 +89,7 @@
 (defn register-call [all-stateful-state id delete-state new-stateful-state]
   (-> all-stateful-state
       (set-stateful-state id new-stateful-state)
-      (assoc-in [destructors-key id] delete-state)
+      (assoc-in [destructors-key id ] delete-state)
       (update called-key (fnil conj #{}) id)
       (update calls-after-delete-key (fnil inc 0))
       (cond-> (:delete-after-calls all-stateful-state)
@@ -131,9 +131,9 @@
         stateful-specs-with-state-atoms (map add-state-atom stateful-specifications)
         result (apply function (concat (map :state-atom stateful-specs-with-state-atoms)
                                        arguments))]
-    [(reduce (fn [all-stateful-state {:keys [id state-atom delete-state]}]
+    [(reduce (fn [all-stateful-state {:keys [id kind state-atom delete-state]}]
                (register-call all-stateful-state
-                              id
+                              [id kind] 
                               delete-state
                               @state-atom))
              all-stateful-state
@@ -146,11 +146,11 @@
         stateful-delete-state (fn [state])
         stateful-specification {:initialize-state  stateful-initialize-state :delete-state stateful-delete-state}
         all-stateful-state (initialize-state)]
-    (is (= [{:states {:stateful-1 6, :stateful-2 1},
+    (is (= [{:states {[:stateful-1 nil] 6, [:stateful-2 nil] 1},
              :destructors
-             {:stateful-1 stateful-delete-state
-              :stateful-2 stateful-delete-state},
-             :called #{:stateful-1 :stateful-2},
+             {[:stateful-1 nil] stateful-delete-state
+              [:stateful-2 nil] stateful-delete-state},
+             :called #{[:stateful-1 nil] [:stateful-2 nil]},
              :calls-after-delete 2}
             6]
            (call-with-state-atoms all-stateful-state
@@ -295,13 +295,21 @@
                                        @stateul-1-state-atom)
                                      5)))
 
-      (is (= {:states {:stateful-1 6, :stateful-2 1},
+      (is (= {:states {[:stateful-1 nil] 6, [:stateful-2 nil] 1},
               :destructors
-              {:stateful-1 stateful-delete-state
-               :stateful-2 stateful-delete-state},
-              :called #{:stateful-1 :stateful-2},
+              {[:stateful-1 nil] stateful-delete-state
+               [:stateful-2 nil] stateful-delete-state},
+              :called #{[:stateful-1 nil] [:stateful-2 nil]},
               :calls-after-delete 2}
-             @all-stateful-state-atom)))))
+             @all-stateful-state-atom))
+
+      (is (= 11
+             (call-with-state-atoms! [:stateful-1 stateful-specification
+                                      :stateful-2 stateful-specification]
+                                     (fn [stateul-1-state-atom stateful-2-state-atom value]
+                                       (swap! stateul-1-state-atom + value)
+                                       @stateul-1-state-atom)
+                                     5))))))
 
 (defmacro with-state-atoms! [symbols-ids-and-stateful-specifications & body]
   (let [ids-and-stateful-specifications (mapcat (fn [[_ id stateful-specification]]
@@ -327,13 +335,19 @@
                (swap! stateul-1-state-atom + 5)
                @stateul-1-state-atom)))
 
-      (is (= {:states {:stateful-1 6, :stateful-2 1},
+      (is (= {:states {[:stateful-1 nil] 6, [:stateful-2 nil] 1},
               :destructors
-              {:stateful-1 stateful-delete-state
-               :stateful-2 stateful-delete-state},
-              :called #{:stateful-1 :stateful-2},
+              {[:stateful-1 nil] stateful-delete-state
+               [:stateful-2 nil] stateful-delete-state},
+              :called #{[:stateful-1 nil] [:stateful-2 nil]},
               :calls-after-delete 2}
-             @all-stateful-state-atom)))))
+             @all-stateful-state-atom))
+      (is (= 11
+             (with-state-atoms! [stateul-1-state-atom :stateful-1 stateful-specification
+                                 stateful-2-state-atom :stateful-2 stateful-specification]
+               
+               (swap! stateul-1-state-atom + 5)
+               @stateul-1-state-atom))))))
 
 #_(defn delete-unused-states-after! [calls]
     (swap! all-stateful-state-atom delete-unused-states calls))

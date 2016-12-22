@@ -1,5 +1,6 @@
 (ns flow-gl.tools.trace
   (:require [flow-gl.debug :as debug]
+            [flow-gl.opengl.jogl.opengl :as opengl]
             [clojure.core.async :as async]
             [flow-gl.csp :as csp]
             (fungl [cache :as cache]
@@ -13,7 +14,8 @@
                          [scene-graph :as scene-graph]
                          [stateful :as stateful]
                          [keyboard :as keyboard]
-                         [events :as events])
+                         [events :as events]
+                         [render-target-renderer :as render-target-renderer])
             (flow-gl.graphics [font :as font])
             #_(flow-gl.gui [drawable :as drawable]
                            [layout :as layout]
@@ -419,6 +421,7 @@
             (assoc (text (value-string value))
                    :mouse-event-handler (fn [node event]
                                           (when (mouse-clicked? event)
+                                            (println "clicked " value)
                                             (reduce! update-in [:open-values] conj value))
                                           event))))))
 
@@ -431,6 +434,7 @@
 
 
 (defn call-view [state reduce! call]
+  (println "call view")
   (let [character-width (:width (layout/size (layout/do-layout (text "0"))))]
     (layouts/vertically (layouts/horizontally (layouts/with-minimum-size (* 4 character-width) 0
                                                 (if (> (count (:child-calls call)) 0)
@@ -474,9 +478,28 @@
                             (apply layouts/vertically (for [child (:child-calls call)]
                                                         (call-view state reduce! child))))))))
 
+
+(defn render-to-texture-render [id scene-graph gl]
+  (println "render to texture")
+  (stateful/with-state-atoms! [quad-renderer-atom [id :render-to-texture-quad-renderer]  (quad-renderer/stateful gl)
+                               render-target-renderer-atom [id :render-to-texture-render-target] (render-target-renderer/stateful gl)]
+    #_(println "previous " id @quad-renderer-atom #_@render-target-renderer-atom #_(:previous-scene-graph @render-target-renderer-atom))
+    (render-target-renderer/render render-target-renderer-atom gl scene-graph
+                                   (fn []
+                                     (println "rendering to texture")
+                                     (opengl/clear gl 0 0 0 0)
+                                     (quad-renderer/render quad-renderer-atom gl (assoc scene-graph
+                                                                                        :x 0 :y 0))))))
+(defn render-to-texture [node id]
+  (assoc node
+         :render [render-to-texture-render id]))
+
+
 (defn trace-view [state reduce!]
-  (layouts/vertically (for [root-call (:root-calls (:trace state))]
-                        (call-view state reduce! root-call))))
+  (println "trace-view")
+  (-> (layouts/vertically (for [root-call (:root-calls (:trace state))]
+                            (cache/call call-view state reduce! root-call)))
+      (render-to-texture :trace-view)))
 
 
 (defn do-layout [scene-graph width height]
@@ -488,10 +511,10 @@
       (layout/do-layout)))
 
 (defn create-trace-scene-graph [state reduce! width height]
-  (println "create-trace-scene-graph")
+  #_(println "create-trace-scene-graph")
   #_(animation/swap-state! animation/set-wake-up 1000)
   (-> (layouts/vertically
-       (trace-view state reduce!)
+       (cache/call trace-view state reduce!)
        (assoc (visuals/rectangle [255 255 255 255] 0 0)
               :height 5)
        (value-view (stateful/stateful-state! :value-view value-view-stateful)
@@ -525,12 +548,12 @@
 (defn start-trace-printer [trace-channel] 
   (let [event-channel (application/start-window (fn [width height]
                                                   (let [reduce! (stateful/reducer! :trace-printer)]
-                                                    (cache/call #'create-trace-scene-graph
-                                                                (stateful/stateful-state! :trace-printer (trace-printer-stateful trace-channel
-                                                                                                                                 reduce!))
-                                                                reduce!
-                                                                width
-                                                                height))))]))
+                                                    (#'create-trace-scene-graph
+                                                     (stateful/stateful-state! :trace-printer (trace-printer-stateful trace-channel
+                                                                                                                      reduce!))
+                                                     reduce!
+                                                     width
+                                                     height))))]))
 
 (defmacro with-trace [& body]
   `(let [input-channel# (async/chan 50)
@@ -542,27 +565,39 @@
      #_(Thread/sleep 1000)
      #_(async/close! input-channel#)))
 
-(defn start []
-  #_(application/start-window (partial create-trace-scene-graph
-                                       (atom (create-state))))
+#_(defn start []
+    #_(application/start-window (partial create-trace-scene-graph
+                                         (atom (create-state))))
 
-  (let [value-atom (atom :a)]
-    (application/start-window (fn [width height]
-                                (let [[state reduce!] (stateful/state-and-reducer! :value-view value-view-stateful)]
-                                  (-> (value-view state
-                                                  reduce!
-                                                  {:string "haa"
-                                                   :map {:a {:b {:c :d}}}
-                                                   :vector [1 2 3]
-                                                   :list '(1 2 3)
-                                                   :lazy (for [i (range 3)]
-                                                           i)
-                                                   :cons (cons :a (cons :b [:c]))
-                                                   :atom value-atom
-                                                   :var (var value-view )
-                                                   :fn (fn [])}
-                                                  true)
-                                      (do-layout width height)))))))
+    (let [value-atom (atom :a)]
+      (application/start-window (fn [width height]
+                                  (let [[state reduce!] (stateful/state-and-reducer! :value-view value-view-stateful)]
+                                    (-> (value-view state
+                                                    reduce!
+                                                    {:string "haa"
+                                                     :map {:a {:b {:c :d}}}
+                                                     :vector [1 2 3]
+                                                     :list '(1 2 3)
+                                                     :lazy (for [i (range 3)]
+                                                             i)
+                                                     :cons (cons :a (cons :b [:c]))
+                                                     :atom value-atom
+                                                     :var (var value-view )
+                                                     :fn (fn [])}
+                                                    true)
+                                        (do-layout width height)))))))
+
+(defn foo [x] {:x x})
+(defn bar [x] (foo (+ 1 x)))
+
+(defn start []
+  (trace-var #'foo)
+  (trace-var #'bar)
+  #_(with-trace
+      (bar 10))
+  (with-trace
+    (log {:foo [:bar :baz]}
+         {:foo [:foobar :foobaz]})))
 
 #_(defn inspect-value [value]
     (async/thread (gui/start-app (gui/control-to-application value-inspector {:value value}))))

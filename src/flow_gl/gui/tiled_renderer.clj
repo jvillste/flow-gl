@@ -115,6 +115,7 @@
   #_(timbre-profiling/profile :info :render-tiled
                               ))
 
+(def stateful {:initialize-state initialize-state})
 
 (defn renderer [renderers tile-width tile-height coordinates & {:keys [visualize-tiles] :or {visualize-tiles false}}]
   {:initialize-state initialize-state
@@ -122,4 +123,6 @@
    
    ;;:delete-state (fn [state])
    })
+
+
 

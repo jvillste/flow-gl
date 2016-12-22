@@ -123,7 +123,7 @@
   (trace/log "create-scene-graph")
   #_(animation/swap-state! animation/set-wake-up 1000) ;; TODO: remove this
   
-  (layout/do-layout {:children [(layouts/vertically (table (for [x (range 2)]
+  (layout/do-layout {:children [(layouts/vertically (table (for [x (range 3)]
                                                              (for [y (range 2)]
                                                                #_(assoc (visuals/rectangle [255 255 255 255]
                                                                                            0 0)
@@ -157,14 +157,7 @@
                                         
                                         {:width 10
                                          :height 10}])))
-(defn foo [x] {:x x})
-(defn bar [x] (foo (+ 1 x)))
 
-#_(defn start []
-    (trace/trace-var #'foo)
-    (trace/trace-var #'bar)
-    (trace/with-trace
-      (bar 10)))
 
 (defn start []
   (trace/trace-ns 'flow-gl.gui.layouts)
