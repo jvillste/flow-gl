@@ -213,7 +213,7 @@
           (filter (fn [node]
                     (scene-graph/intersects? {:x 0 :y 0 :width width :height height}
                                              node))
-                  (cache/call scene-graph/leaf-nodes scene-graph))
+                  (cache/call! scene-graph/leaf-nodes scene-graph))
           width
           height
           gl)))

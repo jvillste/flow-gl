@@ -1,6 +1,9 @@
 (ns flow-gl.gui.stateful
-  (:require [clojure.set :as set])
+  (:require [clojure.set :as set]
+            [fungl.depend :as depend])
   (:use [clojure.test]))
+
+
 
 (defn initialize-state [& {:keys [delete-after-calls] :or {delete-after-calls nil}}]
   (if delete-after-calls
@@ -66,7 +69,8 @@
 
   (let [ids-to-be-deleted (set/difference (apply hash-set (keys (states-key all-stateful-state)))
                                           (called-key all-stateful-state))]
-    (println "deleting states" ids-to-be-deleted)
+    (println "deleting states" ids-to-be-deleted
+             "called was" (called-key all-stateful-state))
 
     (doseq [id ids-to-be-deleted]
       (when-let [destructor (get-in all-stateful-state [destructors-key id])]
@@ -87,9 +91,13 @@
     all-stateful-state))
 
 (defn register-call [all-stateful-state id delete-state new-stateful-state]
+  (depend/add-dependency {:type ::stateful
+                          :id id}
+                         new-stateful-state)
+  
   (-> all-stateful-state
       (set-stateful-state id new-stateful-state)
-      (assoc-in [destructors-key id ] delete-state)
+      (assoc-in [destructors-key id] delete-state)
       (update called-key (fnil conj #{}) id)
       (update calls-after-delete-key (fnil inc 0))
       (cond-> (:delete-after-calls all-stateful-state)
@@ -123,6 +131,7 @@
                                      function))))))
 
 (defn call-with-state-atoms [all-stateful-state stateful-specifications function & arguments]
+  (println "call with state atoms" function)
   (let [add-state-atom (fn [{:keys [id kind initialize-state] :as stateful-specification}]
                          (assoc stateful-specification
                                 :state-atom (atom (get-or-initialize-stateful-state all-stateful-state
@@ -271,14 +280,22 @@
                                               (map (fn [[id stateful-specification]]
                                                      (assoc stateful-specification
                                                             :id id)))) 
-        result-atom (atom nil)]
-    (swap! all-stateful-state-atom
-           (fn [all-stateful-state]
-             (let [[all-stateful-state result] (apply call-with-state-atoms
-                                                      all-stateful-state stateful-specifications-with-ids function arguments)]
-               (reset! result-atom result)
-               all-stateful-state)))
-    @result-atom))
+        ;;result-atom (atom nil)
+        ]
+
+    ;; TODO: make this thread safe. If we swap! the all-stateful-state-atom function may be called multiple times.
+    (let [[all-stateful-state result] (apply call-with-state-atoms
+                                             @all-stateful-state-atom stateful-specifications-with-ids function arguments)]
+      (reset! all-stateful-state-atom all-stateful-state)
+      result)
+    
+    #_(swap! all-stateful-state-atom
+             (fn [all-stateful-state]
+               (let [[all-stateful-state result] (apply call-with-state-atoms
+                                                        all-stateful-state stateful-specifications-with-ids function arguments)]
+                 (reset! result-atom result)
+                 all-stateful-state)))
+    #_@result-atom))
 
 
 (deftest call-with-state-atoms!-test
@@ -348,6 +365,18 @@
                
                (swap! stateul-1-state-atom + 5)
                @stateul-1-state-atom))))))
+
+(defmethod depend/current-value ::stateful [dependency]
+  (get-stateful-state @all-stateful-state-atom (:id dependency)))
+
+
+(defmethod depend/dependency-added ::stateful [dependency]
+  (swap! all-stateful-state-atom
+         update called-key (fnil conj #{}) (:id dependency))
+
+  (println "dependency added" (:id dependency)
+           (get @all-stateful-state-atom
+                called-key)))
 
 #_(defn delete-unused-states-after! [calls]
     (swap! all-stateful-state-atom delete-unused-states calls))

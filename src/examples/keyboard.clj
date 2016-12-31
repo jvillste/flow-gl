@@ -7,8 +7,6 @@
             [datomic.api :as d]
             (flow-gl.gui [drawable :as drawable]
                          [gui :as gui]
-                         [transformer :as transformer]
-                         [renderer :as renderer]
                          [window :as window]
                          [layout :as layout]
                          [layouts :as layouts]

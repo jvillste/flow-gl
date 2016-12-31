@@ -170,7 +170,7 @@
   #_(do (spec-test/unstrument)
         (spec/check-asserts false))
 
-  (trace/with-trace
+  (do #_trace/with-trace
     (application/start-window (fn [width height]
                                 (trace/trace-var #'create-scene-graph)
                                 (#'create-scene-graph width height)) 

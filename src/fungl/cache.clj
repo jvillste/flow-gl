@@ -1,32 +1,57 @@
 (ns fungl.cache
+  (:require [fungl.depend :as depend])
   (:import [com.google.common.cache CacheBuilder CacheLoader]
            [java.util.concurrent TimeUnit])
   (:use clojure.test))
 
-
-(defn create [& args]
-  (-> (CacheBuilder/newBuilder)
-      #_(.expireAfterAccess 30 TimeUnit/SECONDS)
-      (.maximumSize 100)
-      (.build (proxy [CacheLoader] []
-                (load [[function arguments]] (apply function arguments))))))
+(def ^:dynamic state)
 
 
-(defn call-with-cache [cache function & arguments]
-  (.get cache [function arguments]))
+(defn create-state [& args]
+  {:cache (-> (CacheBuilder/newBuilder)
+              #_(.expireAfterAccess 30 TimeUnit/SECONDS)
+              (.maximumSize 100)
+              (.build (proxy [CacheLoader] []
+                        (load [[function arguments]]
+                          (println "calling " function)
+                          (depend/with-dependencies
+                            (let [result (apply function arguments)]
+                              (swap! (:dependencies state)
+                                     assoc
+                                     [function arguments]
+                                     (depend/current-dependencies))
+                              result))))))
+   :dependencies (atom {})})
 
+(defn call-with-cache [state function & arguments]
 
-(def ^:dynamic cache)
+  (loop [dependencies (get @(:dependencies state)
+                           [function arguments])]
+    (if-let [[dependency value] (first dependencies)]
+      (if (not= value (depend/current-value dependency))
+        (do #_(println "invalidating " [function arguments]
+                     "because" value " is not "(depend/current-value dependency))
+            (swap! (:dependencies state)
+                   dissoc [function arguments])
+            (.invalidate (:cache state) [function arguments]))
+        (recur (rest dependencies)))
+      (doseq [[dependency value] (get @(:dependencies state)
+                                      [function arguments])]
+        #_(println "adding dependency to " (:id dependency)
+                 (:type dependency))
+        (depend/add-dependency dependency value))))
+  
+  (.get (:cache state) [function arguments]))
+
 
 (defn state-bindings []
-  {#'cache (create)})
+  {#'state (create-state)})
 
-(defn call [function & arguments]
+(defn call! [function & arguments]
   (apply call-with-cache
-         cache
+         state
          function
          arguments))
-
 
 
 (defn start []
@@ -34,7 +59,7 @@
             (println "called with " x)
             x)]
     (with-bindings (state-bindings)
-      (println "got" (call f 1))
-      (println "got" (call f 2))
-      (println "got" (call f 2))
-      (println "got" (call f 1)))))
+      (println "got" (call! f 1))
+      (println "got" (call! f 2))
+      (println "got" (call! f 2))
+      (println "got" (call! f 1)))))

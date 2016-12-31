@@ -13,14 +13,13 @@
 (def state (atom {}))
 
 (defn text-box [color text]
-  (assoc layouts/box
-         :margin 5
-         :children [(visuals/rectangle color
-                                       5
-                                       5)
-                    (visuals/text [0 0 0 255]
-                                  font
-                                  text)]))
+  (layouts/box 5
+                      (visuals/rectangle color
+                                         5
+                                         5)
+                      (visuals/text [0 0 0 255]
+                                    font
+                                    text)))
 
 (defn character-editor-keyboard-event-handler [id keyboard-event]
   (case (:type keyboard-event)

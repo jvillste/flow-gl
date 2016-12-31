@@ -24,7 +24,7 @@
       (layout/do-layout)))
 
 (defn create-event-handling-state []
-  (conj (stateful/state-bindings :delete-after-calls 500)
+  (conj (stateful/state-bindings :delete-after-calls 50)
         (mouse/state-bindings)
         (keyboard/state-bindings)
         (animation/state-bindings)
@@ -88,7 +88,7 @@
 
 (defn start-window [create-scene-graph & {:keys [window
                                                  target-frame-rate
-                                                 ;;                                                  handle-event
+                                                                                                   handle-event
                                                  ;;                                                  render
                                                  ;;                                                  create-event-handling-state
                                                  ;;                                                  create-render-state
@@ -96,7 +96,7 @@
                                                  ]
                                           :or {window (create-window)
                                                target-frame-rate 60
-                                               ;;                                                handle-event handle-event
+                                                                                               handle-event handle-event
                                                ;;                                                read-events read-events
                                                ;;                                                render render
                                                ;;                                                create-event-handling-state create-event-handling-state

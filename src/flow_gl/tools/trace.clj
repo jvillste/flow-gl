@@ -499,7 +499,7 @@
   (println "trace-view")
   (-> (layouts/vertically (for [root-call (:root-calls (:trace state))]
                             (cache/call call-view state reduce! root-call)))
-      (render-to-texture :trace-view)))
+      #_(render-to-texture :trace-view)))
 
 
 (defn do-layout [scene-graph width height]

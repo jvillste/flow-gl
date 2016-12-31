@@ -1,22 +1,28 @@
 (ns fungl.depend
   (:use clojure.test))
 
+(defmulti dependency-added :type)
+(defmulti current-value :type)
+
 (def ^:dynamic dependencies [])
 
 (defn with-dependencies-impl [function]
   (binding [dependencies (conj dependencies (atom {}))]
-    (function)
-    (when (< 1 (count dependencies))
-      (swap! (last (drop-last dependencies))
-             conj @(last dependencies)))))
+    (let [result (function)]
+      (when (< 1 (count dependencies))
+        (swap! (last (drop-last dependencies))
+               conj @(last dependencies)))
+      result)))
 
 (defmacro with-dependencies [& body]
   `(with-dependencies-impl (fn [] ~@body)))
 
-(defn add-dependency [key value]
+(defn add-dependency [dependency value]
+
   (when-let [current-dependencies (last dependencies)]
-    (swap! current-dependencies
-           assoc key value)))
+    (do (dependency-added dependency)
+        (swap! current-dependencies
+               assoc dependency value))))
 
 (defn current-dependencies []
   @(last dependencies))
@@ -35,3 +41,11 @@
            (current-dependencies))))
 
   (add-dependency :baz 1))
+
+
+
+
+
+
+#_(defn deref-depended-atom [depended-atom]
+    (add-dependency))

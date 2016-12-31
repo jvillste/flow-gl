@@ -2,28 +2,28 @@
   (:require [clojure.spec.test :as spec-test]
             [clojure.spec :as spec]
             [fungl.application :as application]
+            (fungl [cache :as cache]
+                   [callable :as callable])
             (flow-gl.gui [layouts :as layouts]
                          [keyboard :as keyboard]
                          [visuals :as visuals]
                          [stateful :as stateful]
                          [events :as events])
 
-            (flow-gl.graphics [font :as font])))
+            (flow-gl.graphics [font :as font]))
+  (:use [clojure.test]))
 
 (def font (font/create "LiberationSans-Regular.ttf" 15))
 
 (defn text-box [color text]
-  (assoc layouts/box
-         :margin 5
-         :children [(visuals/rectangle color
-                                       5
-                                       5)
-                    (assoc layouts/minimum-size
-                           :minimum-width 50
-                           :minimum-height 0
-                           :children [(visuals/text [0 0 0 255]
-                                                    font
-                                                    text)])]))
+  (layouts/with-minimum-size 50 0
+    (layouts/box 5
+                 (visuals/rectangle color
+                                    5
+                                    5)
+                 (visuals/text [0 0 0 255]
+                               font
+                               text))))
 
 (defn handle-text-editor-keyboard-event [id text on-change event]
   (cond
@@ -37,17 +37,18 @@
 
     
     (events/key-pressed? event :back-space)
-    (on-change (apply str (drop-last text)))
+    (callable/call on-change (apply str (drop-last text)))
 
     (and (:character event)
          (not= (:key event)
                :enter)
          (= (:type event)
             :key-pressed))
-    (on-change (str text
-                    (:character event)))))
+    (callable/call on-change (str text
+                                  (:character event)))))
 
 (defn text-editor [id text on-change]
+  (println "text-editor" id)
   (stateful/call-with-state-atom! id
                                   
                                   (fn [] {:has-focus false})
@@ -67,8 +68,14 @@
                                                                                        text
                                                                                        on-change))))))
 
+
+(defn on-text-change [stateful-id key new-text]
+  (stateful/update-stateful-state! stateful-id assoc key new-text))
+
 (defn root [id]
+
   (stateful/call-with-state-atom! id
+                                  
                                   (fn []
                                     {:text-1 "foo"
                                      :text-2 "bar"})
@@ -76,15 +83,16 @@
                                   (fn [state])
                                   
                                   (fn [state-atom]
+                                    (println "root")
                                     (assoc layouts/vertical-stack
-                                           :children [(text-editor (conj id :text-editor-1)
+                                           :children [(cache/call! text-editor
+                                                                   (conj id :text-editor-1)
                                                                    (:text-1 @state-atom)
-                                                                   (fn [new-text]
-                                                                     (stateful/update-stateful-state! id assoc :text-1 new-text)))
-                                                      (text-editor (conj id :text-editor-2)
+                                                                   [on-text-change id :text-1])
+                                                      (cache/call! text-editor
+                                                                   (conj id :text-editor-2)
                                                                    (:text-2 @state-atom)
-                                                                   (fn [new-text]
-                                                                     (stateful/update-stateful-state! id assoc :text-2 new-text)))
+                                                                   [on-text-change id :text-2])
 
                                                       (text-box [255 255 255 255]
                                                                 (pr-str @state-atom))]))))
@@ -95,11 +103,44 @@
   (-> (root [:root])
       (application/do-layout width height)))
 
+
+
+(deftest cache-test
+  (let [foo-call-count (atom 0)
+        bar-call-count (atom 0)
+        bar (fn [x]
+              (stateful/with-state-atoms! [bar-atom :bar {:initialize-state (fn [] 1)}]
+                (swap! bar-call-count inc)
+                (+ x @bar-atom)))
+        foo (fn [x]
+              (stateful/with-state-atoms! [foo-atom :foo {:initialize-state (fn [] 1)}]
+                (swap! foo-call-count inc)
+                (+ @foo-atom
+                   (bar x))))]
+    (with-bindings (application/create-event-handling-state)
+      (is (= 0
+             @foo-call-count))
+      (is (= 12
+             (cache/call! foo 10)))
+      (is (= 1
+             @foo-call-count))
+      
+      (is (= 12
+             (cache/call! foo 10)))
+      (is (= 1
+             @foo-call-count))
+
+      (is (= 6
+             (cache/call! foo 5)))
+      (is (= 2
+             @foo-call-count)))))
+
+
 (defn start []
   (spec-test/instrument)
   (spec/check-asserts true)
   #_(application/start-window create-scene-graph)
   (.start (Thread. (fn []
-                       (application/start-window create-scene-graph)))))
+                     (application/start-window create-scene-graph)))))
 
 
