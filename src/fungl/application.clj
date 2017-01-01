@@ -52,13 +52,13 @@
 
 (defn handle-event [scene-graph event]
   (do ;;taoensso.timbre.profiling/profile :info :handle-event
-   (when (= :mouse
-            (:source event))
-     (mouse/handle-mouse-event! event))
+    (when (= :mouse
+             (:source event))
+      (mouse/handle-mouse-event! event))
 
-   (when (= :keyboard
-            (:source event))
-     (keyboard/handle-keyboard-event! scene-graph event))))
+    (when (= :keyboard
+             (:source event))
+      (keyboard/handle-keyboard-event! scene-graph event))))
 
 (defn handle-new-scene-graph [scene-graph]
   (mouse/handle-new-scene-graph! scene-graph))
@@ -88,7 +88,7 @@
 
 (defn start-window [create-scene-graph & {:keys [window
                                                  target-frame-rate
-                                                                                                   handle-event
+                                                 handle-event
                                                  ;;                                                  render
                                                  ;;                                                  create-event-handling-state
                                                  ;;                                                  create-render-state
@@ -96,7 +96,7 @@
                                                  ]
                                           :or {window (create-window)
                                                target-frame-rate 60
-                                                                                               handle-event handle-event
+                                               handle-event handle-event
                                                ;;                                                read-events read-events
                                                ;;                                                render render
                                                ;;                                                create-event-handling-state create-event-handling-state
