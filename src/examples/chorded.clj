@@ -22,14 +22,15 @@
                              text)))
 
 (defn handle-keyboard-event [scene-graph event]
-  (if (= :keyboard (:source event))
+  (if (and (= :keyboard (:source event))
+           (not (:is-auto-repeat event)))
     (if (= :key-pressed
            (:type event))
       (swap! state conj (:character event))
       (if (= :key-released
              (:type event))
         (swap! state disj (:character event)))))
-  (prn event)
+  #_(prn event)
   (application/handle-event scene-graph event))
 
 (defn create-scene-graph [width height]

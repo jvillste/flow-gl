@@ -117,6 +117,7 @@
                 (swap! foo-call-count inc)
                 (+ @foo-atom
                    (bar x))))]
+    (println "--------------------")
     (with-bindings (application/create-event-handling-state)
       (is (= 0
              @foo-call-count))

@@ -29,7 +29,7 @@
                            [function arguments])]
     (if-let [[dependency value] (first dependencies)]
       (if (not= value (depend/current-value dependency))
-        (do #_(println "invalidating " [function arguments]
+        (do (println "invalidating " [function arguments]
                      "because" value " is not "(depend/current-value dependency))
             (swap! (:dependencies state)
                    dissoc [function arguments])
