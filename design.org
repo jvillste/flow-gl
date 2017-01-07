@@ -54,6 +54,38 @@ https://www.youtube.com/watch?v=109yVjGUFUs&list=PLhYdcB_7fSYg_JZtMHBLLzMoqbStNg
 ** Components use lenses/cursors to read and modify their own state
 ** I think reagent's reactive atoms are simpler
 *** Layout's would not need to be able to modify the application state during the layout because each component's local state would be in separate atoms.
+** Requirements
+*** Initialize state
+**** Start core.async go loops
+**** Reserve resources from GPU
+**** Create atoms
+*** Destruct state
+**** Release resources from GPU
+**** Close core.async channels
+*** Invalidate cache when state changes
+**** Make cached function calls depend on referenced atoms
+**** Support cached function calls during cached function calls
+** Solutions
+*** Reagent atom
+**** Implement the same interfaces as Clojures atom and notify dereferences
+**** Components have constructors that are called when the component is used first time
+**** Destructors are not supported
+***** Maybe with Reacts life cycle callbacks?
+**** Reagent components complect state management to scene graph generation
+*** Reflex atom
+**** Extend Clojures atom to notify dereferences
+*** Use cached function calls as constructors
+**** Destructors could be given with the constructor
+***** (cache/call destructor constructor agument1 argument2)
+**** How to track state change in atoms returned by constructor?
+*** Atom registry
+**** constructor must return an atom
+**** The atoms value is checked for change when cache is hit
+**** A destructor can be provied when the state is retrieved from the registry
+***** (atom-registry/get-atom :id-1 constructor destructor)
+*** Value registry
+**** gives a value for an id or initializes it with a given constructor
+**** Keeps track of referenced values
 * Concurrency
 ** core.async
 * Datomic and datascript

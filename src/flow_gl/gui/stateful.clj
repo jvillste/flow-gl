@@ -3,12 +3,8 @@
             [fungl.depend :as depend])
   (:use [clojure.test]))
 
-
-
 (defn initialize-state [& {:keys [delete-after-calls] :or {delete-after-calls nil}}]
-  (if delete-after-calls
-    {:delete-after-calls delete-after-calls}
-    {}))
+  {:delete-after-calls delete-after-calls})
 
 #_(defn delete-unused-states [all-stateful-state]
     (reduce (fn [all-stateful-state id])

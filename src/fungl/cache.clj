@@ -1,6 +1,6 @@
 (ns fungl.cache
   (:require [fungl.depend :as depend])
-  (:import [com.google.common.cache CacheBuilder CacheLoader]
+  (:import [com.google.common.cache CacheBuilder CacheLoader RemovalListener]
            [java.util.concurrent TimeUnit])
   (:use clojure.test))
 
@@ -20,7 +20,11 @@
                                      assoc
                                      [function arguments]
                                      (depend/current-dependencies))
-                              result))))))
+                              result)))))
+              
+              (.removalListener (proxy [RemovalListener] []
+                                  (onRemoval [removal-notification]
+                                    (prn "removed from cache:" (.getKey removal-notification))))))
    :dependencies (atom {})})
 
 (defn call-with-cache [state function & arguments]
@@ -38,7 +42,7 @@
       (doseq [[dependency value] (get @(:dependencies state)
                                       [function arguments])]
         #_(println "adding dependency to " (:id dependency)
-                 (:type dependency))
+                   (:type dependency))
         (depend/add-dependency dependency value))))
   
   (.get (:cache state) [function arguments]))

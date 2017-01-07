@@ -1,9 +1,10 @@
-(ns examples.hi-stateful
+(ns examples.hi-atom-registry
   (:require [clojure.spec.test :as spec-test]
             [clojure.spec :as spec]
             [fungl.application :as application]
             (fungl [cache :as cache]
-                   [callable :as callable])
+                   [callable :as callable]
+                   [atom-registry :as atom-registry])
             (flow-gl.gui [layouts :as layouts]
                          [keyboard :as keyboard]
                          [visuals :as visuals]
@@ -105,17 +106,21 @@
 
 
 (deftest cache-test
+  (with-bindings (application/create-event-handling-state)
+    (is (= 1 @(atom-registry/get! :baz {:create (fn [] 1)}))))
+  
+  
   (let [foo-call-count (atom 0)
         bar-call-count (atom 0)
         bar (fn [x]
-              (stateful/with-state-atoms! [bar-atom :bar {:initialize-state (fn [] 1)}]
+              (let [bar-atom (atom-registry/get! :bar {:create (fn [] 1)})]
                 (swap! bar-call-count inc)
                 (+ x @bar-atom)))
         foo (fn [x]
-              (stateful/with-state-atoms! [foo-atom :foo {:initialize-state (fn [] 1)}]
+              (let [foo-atom (atom-registry/get! :foo {:create (fn [] 1)})]
                 (swap! foo-call-count inc)
                 (+ @foo-atom
-                   (bar x))))]
+                   1 #_(bar x))))]
     (println "--------------------")
     (with-bindings (application/create-event-handling-state)
       (is (= 0

@@ -2,7 +2,8 @@
   (:require [clojure.core.async :as async]
             [flow-gl.csp :as csp]
             (fungl [renderer :as renderer]
-                   [cache :as cache])
+                   [cache :as cache]
+                   [value-registry :as value-registry])
             (flow-gl.gui [window :as window]
                          [layout :as layout]
                          [quad-renderer :as quad-renderer]
@@ -28,7 +29,8 @@
         (mouse/state-bindings)
         (keyboard/state-bindings)
         (animation/state-bindings)
-        (cache/state-bindings)))
+        (cache/state-bindings)
+        (value-registry/state-bindings)))
 
 (defn create-render-state [gl]
   (conj (stateful/state-bindings :delete-after-calls 500)
