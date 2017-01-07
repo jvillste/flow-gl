@@ -3,12 +3,8 @@
             [fungl.depend :as depend])
   (:use [clojure.test]))
 
-
-
 (defn initialize-state [& {:keys [delete-after-calls] :or {delete-after-calls nil}}]
-  (if delete-after-calls
-    {:delete-after-calls delete-after-calls}
-    {}))
+  {:delete-after-calls delete-after-calls})
 
 #_(defn delete-unused-states [all-stateful-state]
     (reduce (fn [all-stateful-state id])
@@ -91,10 +87,6 @@
     all-stateful-state))
 
 (defn register-call [all-stateful-state id delete-state new-stateful-state]
-  (depend/add-dependency {:type ::stateful
-                          :id id}
-                         new-stateful-state)
-  
   (-> all-stateful-state
       (set-stateful-state id new-stateful-state)
       (assoc-in [destructors-key id] delete-state)
@@ -271,7 +263,12 @@
 (defn call-with-state-atom! [id initialize-state delete-state function & arguments]
   (let [[all-stateful-state result] (apply call-with-state-atom
                                            @all-stateful-state-atom id initialize-state delete-state function arguments)]
+    
     (reset! all-stateful-state-atom all-stateful-state)
+    
+    (depend/add-dependency {:type ::stateful
+                            :id id}
+                           (stateful-state! id {:initialize-state initialize-state}))
     result))
 
 
@@ -280,22 +277,22 @@
                                               (map (fn [[id stateful-specification]]
                                                      (assoc stateful-specification
                                                             :id id)))) 
-        ;;result-atom (atom nil)
-        ]
+        result-atom (atom nil)]
 
-    ;; TODO: make this thread safe. If we swap! the all-stateful-state-atom function may be called multiple times.
-    (let [[all-stateful-state result] (apply call-with-state-atoms
-                                             @all-stateful-state-atom stateful-specifications-with-ids function arguments)]
-      (reset! all-stateful-state-atom all-stateful-state)
-      result)
+    (swap! all-stateful-state-atom
+           (fn [all-stateful-state]
+             (let [[all-stateful-state result] (apply call-with-state-atoms
+                                                      all-stateful-state stateful-specifications-with-ids function arguments)]
+               (reset! result-atom result)
+               all-stateful-state)))
     
-    #_(swap! all-stateful-state-atom
-             (fn [all-stateful-state]
-               (let [[all-stateful-state result] (apply call-with-state-atoms
-                                                        all-stateful-state stateful-specifications-with-ids function arguments)]
-                 (reset! result-atom result)
-                 all-stateful-state)))
-    #_@result-atom))
+    (doseq [[id stateful-specification] (partition 2 stateful-specifications-and-ids)]
+      (depend/add-dependency {:type ::stateful
+                              :id [id (:kind stateful-specification)]}
+                             (stateful-state! [id (:kind stateful-specification)]
+                                              stateful-specification)))
+    
+    @result-atom))
 
 
 (deftest call-with-state-atoms!-test
