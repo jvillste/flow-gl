@@ -13,7 +13,7 @@
               (.maximumSize 100)
               (.build (proxy [CacheLoader] []
                         (load [[function arguments]]
-                          (println "calling " function)
+                          #_(println "calling " function)
                           (depend/with-dependencies
                             (let [result (apply function arguments)]
                               (swap! (:dependencies state)

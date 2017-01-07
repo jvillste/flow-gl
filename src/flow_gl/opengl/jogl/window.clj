@@ -70,7 +70,8 @@
                                 (.getWhen event)
                                 (.isShiftDown event)
                                 (.isControlDown event)
-                                (.isAltDown event)))
+                                (.isAltDown event)
+                                (.isAutoRepeat event)))
 
 (defn create-mouse-event [event type]
   (conj (create-event event type)

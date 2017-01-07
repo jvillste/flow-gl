@@ -44,10 +44,11 @@
 
 (defn create-scene-graph [width height]
   (animation/swap-state! animation/start-if-not-running :rocket)
-
+  (animation/swap-state! animation/set-wake-up 1000)
   {:children [(-> (visuals/image rocket)
                   (assoc :x (:x @state)
                          :y (:y @state)
+                         :width 100
                          :keyboard-event-handler (fn [event] (prn event))
                          :id :rocket))]
    :keyboard-event-handler (fn [event] (prn event))
@@ -57,11 +58,21 @@
    :width width
    :height height})
 
+(defn handle-event [scene-graph event]
+  (when (and (= :key-pressed (:type event))
+             (= :keyboard (:source event)))
+    (prn event)
+    (case (:key event)
+      :right (swap! state update :x (fn [x] (min 200 (+ x 10))))
+      :left (swap! state update :x (fn [x] (max 0 (- x 10))))
+      ;;      :left (swap! state update :x (fn [x] (- x 10)))
+      nil)))
 
 (defn start []
   (spec-test/instrument)
   (spec/check-asserts true)
 
   (.start (Thread. (fn []
-                     (application/start-window #'create-scene-graph)))))
+                     (application/start-window #'create-scene-graph
+                                               :handle-event #'handle-event)))))
 

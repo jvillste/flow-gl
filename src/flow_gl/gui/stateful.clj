@@ -131,7 +131,7 @@
                                      function))))))
 
 (defn call-with-state-atoms [all-stateful-state stateful-specifications function & arguments]
-  (println "call with state atoms" function)
+  #_(println "call with state atoms" function)
   (let [add-state-atom (fn [{:keys [id kind initialize-state] :as stateful-specification}]
                          (assoc stateful-specification
                                 :state-atom (atom (get-or-initialize-stateful-state all-stateful-state
