@@ -48,7 +48,8 @@
   {:children [(-> (visuals/image rocket)
                   (assoc :x (:x @state)
                          :y (:y @state)
-                         :width 100
+                         :width 200
+                         :height 200
                          :keyboard-event-handler (fn [event] (prn event))
                          :id :rocket))]
    :keyboard-event-handler (fn [event] (prn event))
@@ -63,8 +64,10 @@
              (= :keyboard (:source event)))
     (prn event)
     (case (:key event)
-      :right (swap! state update :x (fn [x] (min 200 (+ x 10))))
+      :right (swap! state update :x (fn [x] (min 400 (+ x 10))))
       :left (swap! state update :x (fn [x] (max 0 (- x 10))))
+      :up (swap! state update :y (fn [y] (max 0 (- y 10))))
+      :down (swap! state update :y (fn [y] (min 500 (+ y 10))))
       ;;      :left (swap! state update :x (fn [x] (- x 10)))
       nil)))
 
