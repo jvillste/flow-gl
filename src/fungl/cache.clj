@@ -20,11 +20,7 @@
                                      assoc
                                      [function arguments]
                                      (depend/current-dependencies))
-                              result)))))
-              
-              #_(.removalListener (proxy [RemovalListener] []
-                                    (onRemoval [removal-notification]
-                                      (prn "removed from cache:" (.getKey removal-notification))))))
+                              result))))))
    :dependencies (atom {})})
 
 (defn call-with-cache [state function & arguments]
@@ -38,6 +34,7 @@
                    dissoc [function arguments])
             (.invalidate (:cache state) [function arguments]))
         (recur (rest dependencies)))
+      
       (doseq [[dependency value] (get @(:dependencies state)
                                       [function arguments])]
         #_(println "adding dependency to " (:id dependency)
