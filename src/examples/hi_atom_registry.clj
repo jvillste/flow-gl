@@ -4,7 +4,8 @@
             [fungl.application :as application]
             (fungl [cache :as cache]
                    [callable :as callable]
-                   [atom-registry :as atom-registry])
+                   [atom-registry :as atom-registry]
+                   [value-registry :as value-registry])
             (flow-gl.gui [layouts :as layouts]
                          [keyboard :as keyboard]
                          [visuals :as visuals]
@@ -26,15 +27,15 @@
                                font
                                text))))
 
-(defn handle-text-editor-keyboard-event [id text on-change event]
+(defn handle-text-editor-keyboard-event [state-atom text on-change event]
   (cond
     (= :focus-gained
        (:type event))
-    (stateful/update-stateful-state! id assoc :has-focus true)
+    (swap! state-atom assoc :has-focus true)
 
     (= :focus-lost
        (:type event))
-    (stateful/update-stateful-state! id assoc :has-focus false)
+    (swap! state-atom assoc :has-focus false)
 
     
     (events/key-pressed? event :back-space)
@@ -49,60 +50,45 @@
                                   (:character event)))))
 
 (defn text-editor [id text on-change]
-  (println "text-editor" id)
-  (stateful/call-with-state-atom! id
-                                  
-                                  (fn [] {:has-focus false})
-                                  
-                                  (fn [state])
-                                  
-                                  (fn [state-atom]
-                                    (-> (assoc (text-box (if (:has-focus @state-atom)
-                                                           [255 255 255 255]
-                                                           [155 155 155 255])
-                                                         (or text
-                                                             ""))
-                                               :id id
-                                               :mouse-event-handler keyboard/set-focus-on-mouse-clicked!)
-                                        (keyboard/update-nodes-event-handler! (partial handle-text-editor-keyboard-event
-                                                                                       id
-                                                                                       text
-                                                                                       on-change))))))
+  (println "text editor")
+  (let [state-atom (atom-registry/get! id {:create (fn [] {:has-focus false})})]
+    (-> (assoc (text-box (if (:has-focus @state-atom)
+                           [255 255 255 255]
+                           [155 155 155 255])
+                         (or text
+                             ""))
+               :id id
+               :mouse-event-handler keyboard/set-focus-on-mouse-clicked!)
+        (keyboard/update-nodes-event-handler! (partial handle-text-editor-keyboard-event
+                                                       state-atom
+                                                       text
+                                                       on-change)))))
 
 
-(defn on-text-change [stateful-id key new-text]
-  (stateful/update-stateful-state! stateful-id assoc key new-text))
+(defn on-text-change [state-atom key new-text]
+  (swap! state-atom assoc key new-text))
 
 (defn root [id]
+  (let [state-atom (atom-registry/get! id {:create (fn [] {:text-1 "foo"
+                                                           :text-2 "bar"})})]
+    (println "root")
+    (layouts/vertically (cache/call! text-editor
+                                     [id :text-editor-1]
+                                     (:text-1 @state-atom)
+                                     [on-text-change state-atom :text-1])
+                        (cache/call! text-editor
+                                     [id :text-editor-2]
+                                     (:text-2 @state-atom)
+                                     [on-text-change state-atom :text-2])
 
-  (stateful/call-with-state-atom! id
-                                  
-                                  (fn []
-                                    {:text-1 "foo"
-                                     :text-2 "bar"})
-                                  
-                                  (fn [state])
-                                  
-                                  (fn [state-atom]
-                                    (println "root")
-                                    (assoc layouts/vertical-stack
-                                           :children [(cache/call! text-editor
-                                                                   (conj id :text-editor-1)
-                                                                   (:text-1 @state-atom)
-                                                                   [on-text-change id :text-1])
-                                                      (cache/call! text-editor
-                                                                   (conj id :text-editor-2)
-                                                                   (:text-2 @state-atom)
-                                                                   [on-text-change id :text-2])
-
-                                                      (text-box [255 255 255 255]
-                                                                (pr-str @state-atom))]))))
-
+                        (text-box [255 255 255 255]
+                                  (pr-str @state-atom)))))
 
 
 (defn create-scene-graph [width height]
-  (-> (root [:root])
+  (-> (cache/call! root :root)
       (application/do-layout width height)))
+
 
 
 (deftest cache-test
@@ -112,15 +98,16 @@
   
   (let [foo-call-count (atom 0)
         bar-call-count (atom 0)
+        value-specification {:create (fn [] 1)}
         bar (fn [x]
-              (let [bar-atom (atom-registry/get! :bar {:create (fn [] 1)})]
+              (let [bar-atom (atom-registry/get! :bar value-specification)]
                 (swap! bar-call-count inc)
                 (+ x @bar-atom)))
         foo (fn [x]
-              (let [foo-atom (atom-registry/get! :foo {:create (fn [] 1)})]
+              (let [foo-atom (atom-registry/get! :foo value-specification)]
                 (swap! foo-call-count inc)
                 (+ @foo-atom
-                   1 #_(bar x))))]
+                   (bar x))))]
     (println "--------------------")
     (with-bindings (application/create-event-handling-state)
       (is (= 0
@@ -135,9 +122,26 @@
       (is (= 1
              @foo-call-count))
 
-      (is (= 6
+      (is (= 7
              (cache/call! foo 5)))
       (is (= 2
+             @foo-call-count))
+      (reset! (atom-registry/get! :bar value-specification)
+              20)
+      (is (= 26
+             (cache/call! foo 5)))
+
+      (value-registry/delete-unused-values! 0)
+      (is (= 26
+             (cache/call! foo 5)))
+      (is (= 3
+             @foo-call-count))
+
+      (value-registry/delete-unused-values! -1)
+      (value-registry/delete-unused-values! -1)
+      (is (= 7
+             (cache/call! foo 5)))
+      (is (= 4
              @foo-call-count)))))
 
 

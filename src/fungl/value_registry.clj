@@ -38,7 +38,6 @@
       (assoc :references-after-delete 0)))
 
 (defn mark-reference [state id]
-  (prn state)
   (-> state
       (update-in [:referenced] conj id)
       (update-in [:references-after-delete] inc)))
@@ -56,7 +55,6 @@
         value (get-value state id)]
 
     (when-let [on-get (get-in @state-atom [:specifications id :on-get])]
-      (println "calling on get" on-get)
       (on-get id
               value))
 
@@ -73,8 +71,7 @@
 (defn delete-unused-values [state-atom minimum-references-after-previous-delete]
   (when (> (:references-after-delete @state-atom)
            minimum-references-after-previous-delete)
-    (let [[old-state new-state] (swap-and-return-old! state-atom remove-unused-values)]
-
+    (let [[old-state new-state] (swap-and-return-old-and-new! state-atom remove-unused-values)]
       (doseq [id (unused-ids old-state)]
         (when-let [destructor (get-in old-state [:specifications id :on-delete])]
           (destructor (get-value old-state id)))))))

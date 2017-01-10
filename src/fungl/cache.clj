@@ -22,18 +22,17 @@
                                      (depend/current-dependencies))
                               result)))))
               
-              (.removalListener (proxy [RemovalListener] []
-                                  (onRemoval [removal-notification]
-                                    (prn "removed from cache:" (.getKey removal-notification))))))
+              #_(.removalListener (proxy [RemovalListener] []
+                                    (onRemoval [removal-notification]
+                                      (prn "removed from cache:" (.getKey removal-notification))))))
    :dependencies (atom {})})
 
 (defn call-with-cache [state function & arguments]
-
   (loop [dependencies (get @(:dependencies state)
                            [function arguments])]
     (if-let [[dependency value] (first dependencies)]
       (if (not= value (depend/current-value dependency))
-        (do (println "invalidating " [function arguments]
+        (do #_(println "invalidating " [function arguments]
                      "because" value " is not "(depend/current-value dependency))
             (swap! (:dependencies state)
                    dissoc [function arguments])
