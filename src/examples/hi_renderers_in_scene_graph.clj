@@ -8,7 +8,8 @@
                          [quad-renderer :as quad-renderer]
                          [render-target-renderer :as render-target-renderer]
                          [animation :as animation]
-                         [stateful :as stateful])))
+                         [stateful :as stateful])
+            (flow-gl.opengl.jogl [opengl :as opengl])))
 
 (defn box-in-a-box [id phase color]
   {:children [(assoc (visuals/rectangle color 0 0)
@@ -27,8 +28,8 @@
    :height 200
    :id id
    :render (fn [scene-graph gl]
-             (stateful/with-state-atoms! [quad-renderer-atom [id :render-target-quad-renderer] (quad-renderer/stateful gl)
-                                          render-target-renderer-atom [id :render-target] (render-target-renderer/stateful gl)]
+             (let [quad-renderer-atom (atom-registry/get! [id :render-target-quad-renderer] (quad-renderer/atom-specification gl)) 
+                   render-target-renderer-atom (atom-registry/get! [id :render-target] (render-target-renderer/atom-specification gl))]
                
                (render-target-renderer/render render-target-renderer-atom gl scene-graph
                                               (fn []
@@ -56,7 +57,8 @@
      :width width
      :height height
      :render (fn [scene-graph gl]
-               (stateful/with-state-atoms! [quad-renderer-atom :root-renderer (quad-renderer/stateful gl)]
+               (let [quad-renderer-atom (atom-registry/get! :root-renderer  (quad-renderer/atom-specification gl))]
+                 (opengl/clear gl 0 0 0 0)
                  (quad-renderer/render quad-renderer-atom gl scene-graph)))}))
 
 (defn start []

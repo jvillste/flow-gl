@@ -5,6 +5,7 @@
             [clojure.data :as data]))
 
 (defn initialize-state []
+  (println "creating render target renderer")
   {})
 
 (defn quad [scene-graph render-target]
@@ -44,6 +45,12 @@
 (defn stateful [gl]
   {:initialize-state initialize-state
    :delete-state (fn [state] (render-target/delete (:render-target state) gl))})
+
+(defn atom-specification [gl]
+  {:create initialize-state
+   :delete (fn [state-atom]
+             (println "deleting render target renderer")
+             (render-target/delete (:render-target @state-atom) gl))})
 
 (defn renderer [& renderers]
   {:initialize-state initialize-state

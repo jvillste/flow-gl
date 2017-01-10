@@ -31,6 +31,7 @@
 
 
 (defn remove-unused-values [state]
+  (println "removing " (unused-ids state))
   (-> (reduce remove-value
               state
               (unused-ids state))

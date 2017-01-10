@@ -224,6 +224,7 @@
   {})
 
 (defn initialize-state [gl]
+  (println "creating quad renderer")
   {:drawable-textures {}
    :drawn-drawables []
    :quad-batch (quad-batch/create gl)})
@@ -234,6 +235,12 @@
 
    :delete-state (fn [state]
                    (quad-batch/delete (:quad-batch state) gl))})
+
+(defn atom-specification [gl]
+  {:create (partial initialize-state gl)
+   :delete (fn [state-atom]
+             (println "deleting quad renderer")
+             (quad-batch/delete (:quad-batch @state-atom) gl))})
 
 ;; dynamic state
 

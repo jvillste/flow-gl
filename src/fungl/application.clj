@@ -3,7 +3,8 @@
             [flow-gl.csp :as csp]
             (fungl [renderer :as renderer]
                    [cache :as cache]
-                   [value-registry :as value-registry])
+                   [value-registry :as value-registry]
+                   [atom-registry :as atom-registry])
             (flow-gl.gui [window :as window]
                          [layout :as layout]
                          [quad-renderer :as quad-renderer]
@@ -34,7 +35,8 @@
 
 (defn create-render-state [gl]
   (conj (stateful/state-bindings :delete-after-calls 500)
-        (cache/state-bindings)))
+        (cache/state-bindings)
+        (value-registry/state-bindings)))
 
 (defn render [gl scene-graph]
 
@@ -43,7 +45,7 @@
                                               render
                                               (fn [scene-graph gl]
                                                 (opengl/clear gl 0 0 0 1)
-                                                (stateful/with-state-atoms! [quad-renderer-atom :root-renderer (quad-renderer/stateful gl)]
+                                                (let [quad-renderer-atom (atom-registry/get! :root-renderer (quad-renderer/atom-specification gl))]
                                                   (quad-renderer/render quad-renderer-atom gl scene-graph)))))
                              gl)
   
@@ -117,6 +119,7 @@
                  (when scene-graph
                    (window/with-gl window gl
                      (render gl scene-graph)
+                     (value-registry/delete-unused-values! 500)
                      #_(taoensso.timbre.profiling/profile :info :render
                                                           (render gl scene-graph)))
                    (window/swap-buffers window)
