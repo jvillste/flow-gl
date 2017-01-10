@@ -155,6 +155,8 @@
 
                 (async/>!! renderable-scene-graph-channel
                            scene-graph)
+                
+                (value-registry/delete-unused-values! 100)
                 (recur scene-graph)))))
 
         (println "exiting event handling loop")

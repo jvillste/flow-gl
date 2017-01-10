@@ -1,7 +1,8 @@
 (ns examples.hi-renderers-in-scene-graph
   (:require [clojure.spec.test :as spec-test]
             [clojure.spec :as spec]
-            [fungl.application :as application]
+            (fungl [atom-registry :as atom-registry]
+                   [application :as application])
             (flow-gl.gui [layout :as layout]
                          [visuals :as visuals]
                          [quad-renderer :as quad-renderer]

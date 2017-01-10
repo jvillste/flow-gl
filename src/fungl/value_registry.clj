@@ -73,7 +73,7 @@
            minimum-references-after-previous-delete)
     (let [[old-state new-state] (swap-and-return-old-and-new! state-atom remove-unused-values)]
       (doseq [id (unused-ids old-state)]
-        (when-let [destructor (get-in old-state [:specifications id :on-delete])]
+        (when-let [destructor (get-in old-state [:specifications id :delete])]
           (destructor (get-value old-state id)))))))
 
 
