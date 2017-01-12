@@ -4,7 +4,8 @@
             [clojure.core.async :as async]
             [flow-gl.csp :as csp]
             (fungl [cache :as cache]
-                   [application :as application])
+                   [application :as application]
+                   [atom-registry :as atom-registry])
             (flow-gl.gui [layout :as layout]
                          [visuals :as visuals]
                          [quad-renderer :as quad-renderer]
@@ -319,7 +320,7 @@
         "(atom)"
 
         (instance? clojure.lang.Var value)
-        (str "(var " (:ns (meta #'value-view)) "/" (:name (meta value)) ")")
+        (str "(var " (:ns (meta value)) "/" (:name (meta value)) ")")
 
         (instance? clojure.lang.LazySeq value)
         (str "(lazy-seq " (count (take 20 value)) ")")
@@ -498,7 +499,7 @@
 (defn trace-view [state reduce!]
   (println "trace-view")
   (-> (layouts/vertically (for [root-call (:root-calls (:trace state))]
-                            (cache/call call-view state reduce! root-call)))
+                            (cache/call! call-view state reduce! root-call)))
       #_(render-to-texture :trace-view)))
 
 
@@ -514,7 +515,7 @@
   #_(println "create-trace-scene-graph")
   #_(animation/swap-state! animation/set-wake-up 1000)
   (-> (layouts/vertically
-       (cache/call trace-view state reduce!)
+       (cache/call! trace-view state reduce!)
        (assoc (visuals/rectangle [255 255 255 255] 0 0)
               :height 5)
        (value-view (stateful/stateful-state! :value-view value-view-stateful)
@@ -545,12 +546,38 @@
                        {:trace (create-state)
                         :open-calls #{}})})
 
-(defn start-trace-printer [trace-channel] 
+(def trace-printer-atom-specification
+  {:create (fn []
+             {:trace (create-state)
+              :open-calls #{}})})
+
+(defn create-trace-printer [id trace-channel]
+  (let [state-atom  (atom-registry/get! id trace-printer-atom-specification)
+        throttled-channel (csp/throttle-at-constant-rate trace-channel 500)]
+    (println "creating trace printer")
+    (async/go-loop []
+      (when-let [new-trace (async/<! throttled-channel)]
+        (println "got trace")
+        (swap! state-atom
+               assoc :trace
+               new-trace)
+        (animation/swap-state! animation/set-wake-up 0)
+        #_(async/put! event-channel {:type :request-redraw})
+        (recur)))
+    state-atom))
+
+(defn reducer-for-atom [reduced-atom]
+  (fn [function & arguments]
+    (apply swap! reduced-atom function arguments)))
+
+
+(defn start-trace-printer [trace-channel]
+  #_(create-trace-printer :trace-printer trace-channel)
   (let [event-channel (application/start-window (fn [width height]
-                                                  (let [reduce! (stateful/reducer! :trace-printer)]
+                                                  (let [trace-printer-state-atom (cache/call! create-trace-printer :trace-printer trace-channel)
+                                                        reduce! (cache/call! reducer-for-atom trace-printer-state-atom)]
                                                     (#'create-trace-scene-graph
-                                                     (stateful/stateful-state! :trace-printer (trace-printer-stateful trace-channel
-                                                                                                                      reduce!))
+                                                     @trace-printer-state-atom
                                                      reduce!
                                                      width
                                                      height))))]))

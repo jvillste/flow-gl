@@ -1,8 +1,11 @@
 (ns examples.table
   (:require [clojure.spec.test :as spec-test]
             [clojure.spec :as spec]
-            [fungl.application :as application]
-            (fungl [cache :as cache])
+            (fungl [application :as application]
+                   [handler :as handler]
+                   [cache :as cache]
+                   [atom-registry :as atom-registry]
+                   [callable :as callable])
             [flow-gl.profiling :as profiling]
             [flow-gl.tools.trace :as trace]
             (flow-gl.gui [layout :as layout]
@@ -61,43 +64,35 @@
                         (:character event)))
         state)))
 
-(def text-editor-stateful
-  {:initialize-state (fn [] {})})
+(def text-editor-atom-specification
+  {:create (fn [] {})})
 
-(defn render-text-editor [id text on-change state]
-  (-> #_(assoc layouts/minimum-size
-               :minimum-width 50
-               :minimum-height 0
-               :children [(assoc (text-box (if (:has-focus state)
-                                             [255 255 255 255]
-                                             [155 155 155 255])
-                                           (or text
-                                               ""))
-                                 :id id
-                                 :mouse-event-handler keyboard/set-focus-on-mouse-clicked!)])
-      (assoc (text-box (if (:has-focus state)
-                         [255 255 255 255]
-                         [155 155 155 255])
-                       (or text
-                           ""))
-             :id id
-             :mouse-event-handler keyboard/set-focus-on-mouse-clicked!)
-      
-      (keyboard/update-nodes-event-handler! (fn [event]
-                                              (stateful/with-state-atoms! [text-editor-state-atom id text-editor-stateful]
-                                                (swap! text-editor-state-atom
-                                                       handle-text-editor-keyboard-event
-                                                       text
-                                                       on-change
-                                                       event))))))
+(defn render-text-editor [id text on-change state-atom]
+  (println "render-text-editor")
+  (let [state (atom-registry/deref! state-atom)]
+    (layouts/with-minimum-size 50 0
+      (-> (assoc (text-box (if (:has-focus state)
+                             [255 255 255 255]
+                             [155 155 155 255])
+                           (or text
+                               ""))
+                 :id id
+                 :mouse-event-handler keyboard/set-focus-on-mouse-clicked!)
+          (keyboard/update-nodes-event-handler! (fn [event]
+                                                  (swap! state-atom
+                                                         handle-text-editor-keyboard-event
+                                                         text
+                                                         on-change
+                                                         event)))))))
 
 (defn text-editor [id text on-change]
-  (render-text-editor id
-                      text
-                      on-change
-                      (stateful/stateful-state! id text-editor-stateful)))
+  (cache/call! render-text-editor
+               id
+               text
+               on-change
+               (atom-registry/get! id text-editor-atom-specification)))
 
-(defonce state (atom {[0 0] "foo"}))
+(defonce state-atom (atom {[0 0] "foo"}))
 
 (defn table [rows]
   (let [rows-with-sizes (map (fn [row]
@@ -119,6 +114,17 @@
                                                               (layouts/with-margins 1 1 1 1
                                                                 (layouts/with-minimum-size width 0 node))))))))
 
+
+(handler/def-handler-creator create-text-change-handler [state-atom x y] [new-text]
+  (swap! state-atom assoc [x y] new-text))
+
+#_(.id handle-text-change-implementation)
+
+#_(defn create-on-text-change [state-atom x y]
+    (fn [new-text]
+      (swap! state-atom assoc [x y] new-text)))
+
+
 (defn create-scene-graph [width height]
   (trace/log "create-scene-graph")
   #_(animation/swap-state! animation/set-wake-up 1000) ;; TODO: remove this
@@ -131,14 +137,14 @@
                                                                         :height 20)
 
                                                                (text-editor [:editor x y] 
-                                                                            (or (get @state [x y])
+                                                                            (or (get @state-atom [x y])
                                                                                 "")
-                                                                            (fn [new-text]
-                                                                              (swap! state assoc [x y] new-text)))))) 
+                                                                            
+                                                                            (create-text-change-handler state-atom x y))))) 
                                                     
                                                     (visuals/text [255 255 255 255]
                                                                   font
-                                                                  (prn-str @state)))]
+                                                                  (prn-str @state-atom)))]
                      :available-width width
                      :available-height height
                      :x 10
@@ -171,7 +177,7 @@
         (spec/check-asserts false))
 
   (do #_trace/with-trace
-    (application/start-window (fn [width height]
-                                (trace/trace-var #'create-scene-graph)
-                                (#'create-scene-graph width height)) 
-                              :target-frame-rate 30)))
+      (application/start-window (fn [width height]
+                                  (trace/trace-var #'create-scene-graph)
+                                  (#'create-scene-graph width height)) 
+                                :target-frame-rate 30)))
