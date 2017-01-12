@@ -9,8 +9,8 @@
 
    and then calling (create-number-handler 1) always returns
    the same function (fn [y] (+ x y)) with a context where x is 1.
-   Calling (create-number-handler 2) returns the same function,
-   but with a context where x is 2"
+   Calling (create-number-handler 2) returns similar function,
+   but with a context where x is 2."
   
   [name fixed-arguments handler-arguments & body]
   (let [implementation-name (symbol (str name "-creator"))]
