@@ -118,6 +118,7 @@
   {#'state-atom (atom (initialize-state))})
 
 (defn set-focused-event-handler! [event-handler]
+  (println "set focused" event-handler)
   (move-focus-and-send-move-events! state-atom
                                     set-focused-event-handler
                                     event-handler))
@@ -135,8 +136,10 @@
                                     node))
 
 (defn update-nodes-event-handler! [node event-handler]
-  (when (= (:id node)
-           (:focused-node-id @state-atom))
+  (println "updating nodes handler" event-handler (:focused-handler @state-atom))
+  (when (and (= (:id node)
+                (:focused-node-id @state-atom))
+             (not= event-handler (:focused-handler @state-atom)))
     (set-focused-event-handler! event-handler))
 
   (assoc node :keyboard-event-handler event-handler))

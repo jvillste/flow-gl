@@ -10,10 +10,10 @@
 (defn create-state [& args]
   {:cache (-> (CacheBuilder/newBuilder)
               #_(.expireAfterAccess 30 TimeUnit/SECONDS)
-              (.maximumSize 100)
+              (.maximumSize 100000)
               (.build (proxy [CacheLoader] []
                         (load [[function arguments]]
-                          #_(println "calling " function)
+
                           (depend/with-dependencies
                             (let [result (apply function arguments)]
                               (swap! (:dependencies state)
@@ -29,7 +29,7 @@
     (if-let [[dependency value] (first dependencies)]
       (if (not= value (depend/current-value dependency))
         (do #_(println "invalidating " [function arguments]
-                     "because" value " is not "(depend/current-value dependency))
+                       "because" value " is not "(depend/current-value dependency))
             (swap! (:dependencies state)
                    dissoc [function arguments])
             (.invalidate (:cache state) [function arguments]))
@@ -44,14 +44,36 @@
   (.get (:cache state) [function arguments]))
 
 
+
+
 (defn state-bindings []
   {#'state (create-state)})
 
 (defn call! [function & arguments]
-  (apply call-with-cache
-         state
-         function
-         arguments))
+  (if (bound? #'state)
+      (apply call-with-cache
+             state
+             function
+             arguments)
+      (apply function
+             arguments)))
+
+(defmacro defn-memoized [name arguments & body]
+  
+  (let [implementation-name (symbol (namespace name)
+                                    (str name "-implementation"))]
+    `(do (declare ~name)
+         (defn ~implementation-name ~arguments
+           ~@body)
+         (defn ~name ~arguments
+           (call! ~implementation-name ~@arguments)))))
+
+(defmacro def-10 [name]
+  `(def ~name 10))
+
+(defmacro def-add-10 [name name2]
+  `(def ~name (+ ~name2 10)))
+
 
 
 (defn start []

@@ -4,9 +4,9 @@
             (fungl [renderer :as renderer]
                    [cache :as cache]
                    [value-registry :as value-registry]
-                   [atom-registry :as atom-registry])
+                   [atom-registry :as atom-registry]
+                   [layout :as layout])
             (flow-gl.gui [window :as window]
-                         [layout :as layout]
                          [quad-renderer :as quad-renderer]
                          [scene-graph :as scene-graph]
                          [mouse :as mouse]
@@ -87,6 +87,8 @@
     
     (animation/swap-state! animation/set-time-in-milliseconds (System/currentTimeMillis))    
     (animation/swap-state! animation/remove-wake-up)
+
+    (println "got " (count events) "events")
     
     events))
 
@@ -136,31 +138,32 @@
     (async/thread
       (try
         (with-bindings (create-event-handling-state)
-          
-          (loop [scene-graph (create-scene-graph (window/width window)
-                                                 (window/height window))]
-            (when (window/visible? window)
+          (let [initial-scene-graph (create-scene-graph (window/width window)
+                                                        (window/height window))]
+            (handle-new-scene-graph initial-scene-graph)
+            (loop [scene-graph initial-scene-graph]
+              (when (window/visible? window)
 
-              (let [window-width (window/width window)
-                    window-height (window/height window)
-                    scene-graph (loop [events (read-events event-channel target-frame-rate)
-                                       scene-graph scene-graph]
-                                  
-                                  (handle-new-scene-graph scene-graph)
-                                  (let [scene-graph (create-scene-graph window-width
-                                                                        window-height)]
-                                    (if-let [event (first events)]
-                                      (do (handle-event scene-graph event)
-                                          (recur (rest events)
-                                                 (create-scene-graph window-width
-                                                                     window-height)))
-                                      scene-graph)))]
+                (let [window-width (window/width window)
+                      window-height (window/height window)
+                      scene-graph (do ;;taoensso.timbre.profiling/profile :info :handle-vents
+                                    (loop [events (read-events event-channel target-frame-rate)
+                                           scene-graph scene-graph]
+                                      
+                                      (if-let [event (first events)]
+                                        (do (handle-event scene-graph event)
+                                            (let [scene-graph (create-scene-graph window-width
+                                                                                  window-height)]
+                                              (handle-new-scene-graph scene-graph)
+                                              (recur (rest events)
+                                                     scene-graph)))
+                                        scene-graph)))]
 
-                (async/>!! renderable-scene-graph-channel
-                           scene-graph)
-                
-                (value-registry/delete-unused-values! 100)
-                (recur scene-graph)))))
+                  (async/>!! renderable-scene-graph-channel
+                             scene-graph)
+                  
+                  (value-registry/delete-unused-values! 10000)
+                  (recur scene-graph))))))
 
         (println "exiting event handling loop")
 
