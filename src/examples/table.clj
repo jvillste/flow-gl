@@ -1,6 +1,7 @@
 (ns examples.table
   (:require [clojure.spec.test :as spec-test]
             [clojure.spec :as spec]
+            [taoensso.timbre :as timbre]
             (fungl [application :as application]
                    [handler :as handler]
                    [cache :as cache]
@@ -44,7 +45,7 @@
                              text)))
 
 (defn handle-text-editor-keyboard-event [state text on-change event]
-  (println "got event " event)
+  (println "got event" state text on-change event)
   (cond
     (= :focus-gained
        (:type event))
@@ -55,7 +56,8 @@
     (assoc state :has-focus false)
     
     (events/key-pressed? event :back-space)
-    (do (on-change (apply str (drop-last text)))
+    (do (println "dropping last to" state (apply str (drop-last text)))
+        (on-change (apply str (drop-last text)))
         state)
 
     (and (:character event)
@@ -65,13 +67,17 @@
             :key-pressed))
     (do (on-change (str text
                         (:character event)))
-        state)))
+        state)
+    
+    :default
+    state))
 
 (def text-editor-atom-specification
   {:create (fn [] {})})
 
 
 (handler/def-handler-creator create-text-editor-keyboard-event-handler [state-atom text on-change] [event]
+  (trace/log "keyb handler" text)
   (swap! state-atom
          handle-text-editor-keyboard-event
          text
@@ -79,24 +85,25 @@
          event))
 
 (defn render-text-editor [id text on-change state-atom]
-  #_(println "render-text-editor")
   (let [state (atom-registry/deref! state-atom)]
     (layouts/with-minimum-size 50 0
-      (-> (assoc (text-box (if (:has-focus state)
+      (assoc (text-box (if (:has-focus state)
                              [255 255 255 255]
                              [155 155 155 255])
                            (or text
                                ""))
                  :id id
-                 :mouse-event-handler keyboard/set-focus-on-mouse-clicked!)
-          (keyboard/update-nodes-event-handler! (value-registry/get! [:keyboard-event-handler id text on-change]
-                                                                     {:create (fn [] (fn [event]
-                                                                                       (swap! state-atom
-                                                                                              handle-text-editor-keyboard-event
-                                                                                              text
-                                                                                              on-change
-                                                                                              event)))})
-                                                #_(create-text-editor-keyboard-event-handler state-atom text on-change))))))
+                 :mouse-event-handler keyboard/set-focus-on-mouse-clicked!
+                 :keyboard-event-handler (create-text-editor-keyboard-event-handler state-atom text on-change))
+      #_(-> 
+          (keyboard/update-nodes-event-handler! #_(value-registry/get! [:keyboard-event-handler id text on-change]
+                                                                       {:create (fn [] (fn [event]
+                                                                                         (swap! state-atom
+                                                                                                handle-text-editor-keyboard-event
+                                                                                                text
+                                                                                                on-change
+                                                                                                event)))})
+                                                (create-text-editor-keyboard-event-handler state-atom text on-change))))))
 
 (defn text-editor [id text on-change]
   (cache/call! render-text-editor
@@ -127,6 +134,7 @@
 
 
 (handler/def-handler-creator create-text-change-handler [state-atom x y] [new-text]
+  (println "new text" x y new-text)
   (swap! state-atom assoc [x y] new-text))
 
 #_(.id handle-text-change-implementation)
@@ -135,16 +143,15 @@
     (fn [new-text]
       (swap! state-atom assoc [x y] new-text)))
 (defn render-editor-table [state-atom]
-  #_(println "editor table")
-  (layouts/vertically (table (for [x (range 10)]
-                               (for [y (range 10)]
+  (layouts/vertically (table (for [x (range 3)]
+                               (for [y (range 1)]
                                  #_(assoc (visuals/rectangle [255 255 255 255]
                                                              0 0)
                                           :width (+ 10 (int (rand 50)))
                                           :height 20)
 
                                  (text-editor [:editor x y] 
-                                              (or (get @state-atom [x y])
+                                              (or (get (atom-registry/deref! state-atom) [x y])
                                                   "")
                                               
                                               (create-text-change-handler state-atom x y))))) 
@@ -208,22 +215,20 @@
 
 
 (defn editor-table [id]
-  (taoensso.timbre.profiling/p :editor-table-called)
   (cache/call! render-editor-table
                (atom-registry/get! id {:create (fn [] {[0 0] "foo"})})))
 
 (defn create-scene-graph [width height]
-  (println "create-scene-graph")
   (do ;;taoensso.timbre.profiling/profile :info :create-scene-graph
     #_(trace/log "create-scene-graph")
     #_(animation/swap-state! animation/set-wake-up 1000) ;; TODO: remove this
-    (assoc (time (application/do-layout (cache/call! editor-table :editor)
+    (assoc (time (application/do-layout ( #_cache/call! editor-table :editor)
                                         width height))
            :render (fn [scene-graph gl]
                      (opengl/clear gl 0 0 0 1)
-                     (println "rendering")
-                     (time (let [quad-renderer-atom (atom-registry/get! :root-renderer (quad-renderer/atom-specification gl))]
-                             (quad-renderer/render quad-renderer-atom gl scene-graph)))))
+
+                     (do #_time (let [quad-renderer-atom (atom-registry/get! :root-renderer (quad-renderer/atom-specification gl))]
+                                  (quad-renderer/render quad-renderer-atom gl scene-graph)))))
 
     #_(application/do-layout (text-box [255 255 255 255]
                                        "haa")
@@ -245,15 +250,19 @@
                                         {:width 10
                                          :height 10}])))
 
-
+(trace/trace-ns 'examples.table)
 (defn start []
-  (trace/trace-ns 'fungl.layouts)
+  (trace/trace-ns 'examples.table)
+  (trace/trace-var 'fungl.cache/call-with-cache)
+  (trace/untrace-ns 'fungl.layouts)
+  (trace/untrace-ns 'fungl.layout)
+  
   #_(trace/untrace-var 'fungl/do-layout)
 
-  #_(profiling/unprofile-ns 'fungl.layouts)
-  (profiling/profile-ns 'fungl.layouts)
-  (profiling/profile-ns 'fungl.layout)
-  (profiling/profile-ns 'examples.table)
+  (profiling/unprofile-ns 'fungl.layouts)
+  (profiling/unprofile-ns 'fungl.layouts)
+  (profiling/unprofile-ns 'fungl.layout)
+  (profiling/unprofile-ns 'examples.table)
   
   #_(do (spec-test/instrument)
         (spec/check-asserts true))
@@ -261,8 +270,8 @@
   (do (spec-test/unstrument)
       (spec/check-asserts false))
 
-  (do #_trace/with-trace
-      (application/start-window (fn [width height]
-                                  (trace/trace-var #'create-scene-graph)
-                                  (#'create-scene-graph width height)) 
-                                :target-frame-rate 30)))
+  (trace/with-trace
+    (application/start-window (fn [width height]
+                                (trace/trace-var #'create-scene-graph)
+                                (#'create-scene-graph width height)) 
+                              :target-frame-rate 30)))

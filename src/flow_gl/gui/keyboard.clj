@@ -1,6 +1,8 @@
 (ns flow-gl.gui.keyboard
   (:require [clojure.spec :as spec]
+            [fungl.cache :as cache]
             [flow-gl.utils :as utils]
+            [taoensso.timbre :as timbre]
             (flow-gl.gui [scene-graph :as scene-graph])
             [clojure.test :as test :refer [deftest is]]))
 
@@ -118,7 +120,6 @@
   {#'state-atom (atom (initialize-state))})
 
 (defn set-focused-event-handler! [event-handler]
-  (println "set focused" event-handler)
   (move-focus-and-send-move-events! state-atom
                                     set-focused-event-handler
                                     event-handler))
@@ -136,17 +137,68 @@
                                     node))
 
 (defn update-nodes-event-handler! [node event-handler]
-  (println "updating nodes handler" event-handler (:focused-handler @state-atom))
-  (when (and (= (:id node)
-                (:focused-node-id @state-atom))
-             (not= event-handler (:focused-handler @state-atom)))
-    (set-focused-event-handler! event-handler))
+
+  (when (= (:id node)
+           (:focused-node-id @state-atom))
+    (flow-gl.tools.trace/log "setting focused handler" (:focused-node-id @state-atom) event-handler)
+    (swap! state-atom set-focused-event-handler event-handler))
 
   (assoc node :keyboard-event-handler event-handler))
 
+
+(defn keyboard-event-handlers
+  ([scene-graph]
+   (cache/call! keyboard-event-handlers scene-graph {}))
+  ([scene-graph handlers]
+   (let [handlers (if-let [keyboard-event-handler (:keyboard-event-handler scene-graph)] 
+                    (conj {(:id scene-graph)
+                           keyboard-event-handler}
+                          handlers)
+                    handlers)]
+     (loop [children (:children scene-graph)
+            handlers handlers]
+       (if-let [child (first children)]
+         (recur (rest children)
+                (conj handlers
+                      (cache/call! keyboard-event-handlers child)))
+         handlers)))))
+
+(deftest keyboard-event-handlers-test
+  (is (= {1 :handler-1}
+         (keyboard-event-handlers {:id 1
+                                   :keyboard-event-handler :handler-1})))
+
+  (is (= {1 :handler-1
+          2 :handler-2}
+         (keyboard-event-handlers {:id 1
+                                   :keyboard-event-handler :handler-1
+                                   :children [{:id 2
+                                               :keyboard-event-handler :handler-2}]})))
+
+  (with-bindings (cache/state-bindings)
+    (is (= {1 :handler-1
+            2 :handler-2
+            5 :handler-5}
+           (keyboard-event-handlers {:id 1
+                                     :keyboard-event-handler :handler-1
+                                     :children [{:id 2
+                                                 :keyboard-event-handler :handler-2}
+                                                {:id 3}
+                                                {:id 4
+                                                 :children [{:id 5
+                                                             :keyboard-event-handler :handler-5}]}]})))))
+
+(defn handle-new-scene-graph! [scene-graph]
+  (when-let [focused-handler (get (keyboard-event-handlers scene-graph)
+                                  (:focused-node-id @state-atom))]
+    (set-focused-event-handler! focused-handler)))
+
 (defn set-focus-on-mouse-clicked! [node event]
-  (when (= :mouse-clicked
-           (:type event))
+  (when (and (= :mouse-clicked
+                (:type event))
+             (not= (:id node)
+                   (:focused-node-id @state-atom)))
+    #_(swap! state-atom set-focused-node (:id node) (:keyboard-event-handler node))
     (set-focused-node! node))
   event)
 

@@ -65,6 +65,7 @@
       (keyboard/handle-keyboard-event! scene-graph event))))
 
 (defn handle-new-scene-graph [scene-graph]
+  (keyboard/handle-new-scene-graph! scene-graph)
   (mouse/handle-new-scene-graph! scene-graph))
 
 (defn create-window []
@@ -88,8 +89,6 @@
     (animation/swap-state! animation/set-time-in-milliseconds (System/currentTimeMillis))    
     (animation/swap-state! animation/remove-wake-up)
 
-    (println "got " (count events) "events")
-    
     events))
 
 (defn start-window [create-scene-graph & {:keys [window

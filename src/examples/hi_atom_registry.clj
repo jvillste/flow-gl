@@ -119,7 +119,9 @@
                 (conj {:foo-atom-in-foo @foo-atom
                        :argument-for-foo x}
                       (cache/call! bar x))))]
+
     (println "--------------------")
+    
     (with-bindings (application/create-event-handling-state)
       (testing "first call should result to evaluating all functions"
         (is (= {:foo-atom-in-foo 1,

@@ -5,19 +5,20 @@
             [flow-gl.csp :as csp]
             (fungl [cache :as cache]
                    [application :as application]
-                   [atom-registry :as atom-registry])
-            (flow-gl.gui [layout :as layout]
-                         [visuals :as visuals]
+                   [atom-registry :as atom-registry]
+                   [layouts :as layouts]
+                   [layout :as layout])
+            (flow-gl.gui [visuals :as visuals]
                          [quad-renderer :as quad-renderer]
                          [tiled-renderer :as tiled-renderer]
                          [animation :as animation]
-                         [layouts :as layouts]
                          [scene-graph :as scene-graph]
                          [stateful :as stateful]
                          [keyboard :as keyboard]
                          [events :as events]
                          [render-target-renderer :as render-target-renderer])
-            (flow-gl.graphics [font :as font])
+            (flow-gl.graphics [font :as font]
+                              [rectangle :as rectangle])
             #_(flow-gl.gui [drawable :as drawable]
                            [layout :as layout]
                            [layouts :as layouts]
@@ -323,7 +324,14 @@
         (str "(var " (:ns (meta value)) "/" (:name (meta value)) ")")
 
         (instance? clojure.lang.LazySeq value)
-        (str "(lazy-seq " (count (take 20 value)) ")")
+        (str "(LazySeq " (count (take 20 value)) ")")
+
+
+        (instance? clojure.lang.ArraySeq value)
+        (str "(ArraySeq " (count value) ")")
+
+        (seq? value)
+        (str "(seq " (count value) ")")
 
         (map? value)
         (str (map-type-name value) "{" (count (keys value)) "}")
@@ -335,7 +343,7 @@
         (str "[" (count value) "]")
 
         (function? value)
-        "fn"
+        (str value)
 
         (nil? value)
         "nil"
@@ -365,7 +373,7 @@
 
 (defn open-ref [state reduce! open-paren close-paren value]
   (layouts/vertically (-> (text open-paren)
-                          (close-value-on-mouse-click state reduce! value))
+                          (close-value-on-mouse-click reduce! value))
                       (layouts/with-margins 0 0 0 20
                         (value-view state reduce! @value false))
                       (text close-paren)))
@@ -375,6 +383,9 @@
     (cond (number? value)
           (text-cell (value-string value))
 
+          (fn? value)
+          (text-cell (value-string value))
+          
           (keyword? value)
           (text (value-string value) keyword-color)
 
@@ -386,7 +397,7 @@
                   (open-values value))
             (cond (map? value)
                   (layouts/vertically (-> (text-cell (str (map-type-name value) "{"))
-                                          (close-value-on-mouse-click state value))
+                                          (close-value-on-mouse-click reduce! value))
                                       (layouts/with-margins 0 0 0 20 (layouts/vertically (for [key (keys value)]
                                                                                            (layouts/horizontally (layouts/with-margins 0 5 0 0  (value-view state reduce! key false))
                                                                                                                  (value-view state reduce! (get value key) false)))))
@@ -394,6 +405,9 @@
 
                   (vector? value)
                   (open-collection state reduce! "[" "]" value)
+
+                  (instance? clojure.lang.ArraySeq value)
+                  (open-collection state reduce! "(ArraySeq" ")" value)
 
                   (instance? clojure.lang.LazySeq value)
                   (open-collection state reduce! "(lazy-seq" ")" value)
@@ -403,6 +417,9 @@
 
                   (list? value)
                   (open-collection state reduce! "(" ")" value)
+
+                  (seq? value)
+                  (open-collection state reduce! "(seq" ")" value)
                   
                   (instance? clojure.lang.Atom value)
                   (open-ref state reduce! "(atom" ")" value)
@@ -417,12 +434,11 @@
                   (text (str (type value) ": " (.getMessage value)))
 
                   :default (-> (text-cell (str "-" (value-string value)))
-                               (close-value-on-mouse-click state value)))
+                               (close-value-on-mouse-click  reduce! value)))
             
             (assoc (text (value-string value))
                    :mouse-event-handler (fn [node event]
                                           (when (mouse-clicked? event)
-                                            (println "clicked " value)
                                             (reduce! update-in [:open-values] conj value))
                                           event))))))
 
@@ -435,7 +451,6 @@
 
 
 (defn call-view [state reduce! call]
-  (println "call view")
   (let [character-width (:width (layout/size (layout/do-layout (text "0"))))]
     (layouts/vertically (layouts/horizontally (layouts/with-minimum-size (* 4 character-width) 0
                                                 (if (> (count (:child-calls call)) 0)
@@ -451,15 +466,16 @@
                                                            (str (name function-symbol) " ")
                                                            "")))
                                               (for [argument (:arguments call)]
-                                                (assoc (text (value-string argument)
-                                                             (if (= argument
-                                                                    (:selected-value state))
-                                                               selected-value-color
-                                                               default-color))
-                                                       :mouse-event-handler (fn [node event]
-                                                                              (when (mouse-clicked? event)
-                                                                                (reduce! assoc :selected-value argument))
-                                                                              event)))
+                                                (layouts/with-margins 0 0 0 5
+                                                  (assoc (text (value-string argument)
+                                                               (if (= argument
+                                                                      (:selected-value state))
+                                                                 selected-value-color
+                                                                 default-color))
+                                                         :mouse-event-handler (fn [node event]
+                                                                                (when (mouse-clicked? event)
+                                                                                  (reduce! assoc :selected-value argument))
+                                                                                event))))
                                               (text ")")
                                               (when (:function-symbol call)
                                                 (assoc (text (str " -> " (value-string (or (:exception call)
@@ -481,13 +497,11 @@
 
 
 (defn render-to-texture-render [id scene-graph gl]
-  (println "render to texture")
   (stateful/with-state-atoms! [quad-renderer-atom [id :render-to-texture-quad-renderer]  (quad-renderer/stateful gl)
                                render-target-renderer-atom [id :render-to-texture-render-target] (render-target-renderer/stateful gl)]
     #_(println "previous " id @quad-renderer-atom #_@render-target-renderer-atom #_(:previous-scene-graph @render-target-renderer-atom))
     (render-target-renderer/render render-target-renderer-atom gl scene-graph
                                    (fn []
-                                     (println "rendering to texture")
                                      (opengl/clear gl 0 0 0 0)
                                      (quad-renderer/render quad-renderer-atom gl (assoc scene-graph
                                                                                         :x 0 :y 0))))))
@@ -497,10 +511,18 @@
 
 
 (defn trace-view [state reduce!]
-  (println "trace-view")
-  (-> (layouts/vertically (for [root-call (:root-calls (:trace state))]
-                            (cache/call! call-view state reduce! root-call)))
-      #_(render-to-texture :trace-view)))
+  (let [last-call-started (:call-started (last (:root-calls (:trace state))))]
+    (-> (layouts/vertically (for [root-call (:root-calls (:trace state))]
+                              (do #_(prn root-call)
+                                  (layouts/box 2 (visuals/rectangle [0 150 0 (max 0
+                                                                                  (- 255
+                                                                                     (* 255
+                                                                                        (/ (- last-call-started
+                                                                                              (:call-started root-call))
+                                                                                           5000))))]
+                                                                    0 0)
+                                               (cache/call! call-view state reduce! root-call)))))
+        #_(render-to-texture :trace-view))))
 
 
 (defn do-layout [scene-graph width height]
@@ -513,7 +535,7 @@
 
 (defn create-trace-scene-graph [state reduce! width height]
   #_(println "create-trace-scene-graph")
-  #_(animation/swap-state! animation/set-wake-up 1000)
+  (animation/swap-state! animation/set-wake-up 1000)
   (-> (layouts/vertically
        (cache/call! trace-view state reduce!)
        (assoc (visuals/rectangle [255 255 255 255] 0 0)
@@ -538,6 +560,7 @@
       (when-let [new-trace (async/<! trace-channel)]
         (reduce! assoc :trace
                  new-trace)
+        
         (animation/swap-state! animation/set-wake-up 0)
         #_(async/put! event-channel {:type :request-redraw})
         (recur))))
@@ -554,10 +577,8 @@
 (defn create-trace-printer [id trace-channel]
   (let [state-atom  (atom-registry/get! id trace-printer-atom-specification)
         throttled-channel (csp/throttle-at-constant-rate trace-channel 500)]
-    (println "creating trace printer")
     (async/go-loop []
       (when-let [new-trace (async/<! throttled-channel)]
-        (println "got trace")
         (swap! state-atom
                assoc :trace
                new-trace)

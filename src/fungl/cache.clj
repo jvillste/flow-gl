@@ -1,5 +1,6 @@
 (ns fungl.cache
-  (:require [fungl.depend :as depend])
+  (:require [fungl.depend :as depend]
+            #_[flow-gl.tools.trace :as trace])
   (:import [com.google.common.cache CacheBuilder CacheLoader RemovalListener]
            [java.util.concurrent TimeUnit])
   (:use clojure.test))
@@ -13,7 +14,7 @@
               (.maximumSize 100000)
               (.build (proxy [CacheLoader] []
                         (load [[function arguments]]
-
+                          #_(trace/log "loading to cache" function arguments)
                           (depend/with-dependencies
                             (let [result (apply function arguments)]
                               (swap! (:dependencies state)
@@ -24,12 +25,19 @@
    :dependencies (atom {})})
 
 (defn call-with-cache [state function & arguments]
+
+  #_(apply function arguments)
+
+  (flow-gl.tools.trace/log "dependencies" (get @(:dependencies state)
+                                               [function arguments]))
   (loop [dependencies (get @(:dependencies state)
                            [function arguments])]
     (if-let [[dependency value] (first dependencies)]
       (if (not= value (depend/current-value dependency))
         (do #_(println "invalidating " [function arguments]
                        "because" value " is not "(depend/current-value dependency))
+            (flow-gl.tools.trace/log "invalidating" function arguments
+                                     "because not" value "=" (depend/current-value dependency))
             (swap! (:dependencies state)
                    dissoc [function arguments])
             (.invalidate (:cache state) [function arguments]))
@@ -40,6 +48,11 @@
         #_(println "adding dependency to " (:id dependency)
                    (:type dependency))
         (depend/add-dependency dependency value))))
+
+  (when (.containsKey (.asMap (:cache state))
+                      [function arguments])
+    #_(trace/log "cache hit" function arguments))
+  
   
   (.get (:cache state) [function arguments]))
 
@@ -51,12 +64,12 @@
 
 (defn call! [function & arguments]
   (if (bound? #'state)
-      (apply call-with-cache
-             state
-             function
-             arguments)
-      (apply function
-             arguments)))
+    (apply call-with-cache
+           state
+           function
+           arguments)
+    (apply function
+           arguments)))
 
 (defmacro defn-memoized [name arguments & body]
   
