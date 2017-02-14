@@ -28,7 +28,7 @@
 
   #_(apply function arguments)
 
-  (flow-gl.tools.trace/log "dependencies" (get @(:dependencies state)
+  #_(flow-gl.tools.trace/log "dependencies" (get @(:dependencies state)
                                                [function arguments]))
   (loop [dependencies (get @(:dependencies state)
                            [function arguments])]
@@ -36,7 +36,7 @@
       (if (not= value (depend/current-value dependency))
         (do #_(println "invalidating " [function arguments]
                        "because" value " is not "(depend/current-value dependency))
-            (flow-gl.tools.trace/log "invalidating" function arguments
+            #_(flow-gl.tools.trace/log "invalidating" function arguments
                                      "because not" value "=" (depend/current-value dependency))
             (swap! (:dependencies state)
                    dissoc [function arguments])

@@ -119,8 +119,8 @@
                (let [scene-graph (async/<!! renderable-scene-graph-channel)]
                  (when scene-graph
                    (window/with-gl window gl
-                     (render gl scene-graph)
-                     (value-registry/delete-unused-values! 500)
+                     (do #_time (do (render gl scene-graph)
+                                    (value-registry/delete-unused-values! 500)))
                      #_(taoensso.timbre.profiling/profile :info :render
                                                           (render gl scene-graph)))
                    (window/swap-buffers window)
@@ -145,7 +145,7 @@
 
                 (let [window-width (window/width window)
                       window-height (window/height window)
-                      scene-graph (do ;;taoensso.timbre.profiling/profile :info :handle-vents
+                      scene-graph (do ;; taoensso.timbre.profiling/profile :info :handle-vents
                                     (loop [events (read-events event-channel target-frame-rate)
                                            scene-graph scene-graph]
                                       

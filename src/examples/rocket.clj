@@ -40,7 +40,7 @@
                {:width (:available-width node)
                 :height 50})})
 
-(def rocket (buffered-image/create-from-file "rocket.png"))
+(def rocket (buffered-image/create-from-file "pumpkin.png" #_"rocket.png"))
 
 (defn create-scene-graph [width height]
   (animation/swap-state! animation/start-if-not-running :rocket)
@@ -48,7 +48,11 @@
   {:children [(-> (visuals/image rocket)
                   (assoc :x (:x @state)
                          :y (:y @state)
-                         :width 200
+                         :width (+ 200
+                                   (animation/linear-mapping (animation/ping-pong 1
+                                                                                  (animation/phase! :rocket
+                                                                                                    1000))
+                                                             0 100))  #_(* (animation/phase! :rocket) 200) 
                          :height 200
                          :keyboard-event-handler (fn [event] (prn event))
                          :id :rocket))]

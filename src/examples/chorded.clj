@@ -22,6 +22,7 @@
                              text)))
 
 (defn handle-keyboard-event [scene-graph event]
+  (prn event)
   (if (and (= :keyboard (:source event))
            (not (:is-auto-repeat event)))
     (if (= :key-pressed

@@ -1,5 +1,6 @@
 (ns flow-gl.gui.scene-graph
-  (:require [clojure.spec :as spec]
+  (:require [fungl.cache :as cache]
+            [clojure.spec :as spec]
             [clojure.test :as test :refer [deftest is]]))
 
 #_(defprotocol Node
@@ -77,7 +78,7 @@
 
 (defn flatten
   ([node]
-   (flatten node 0 0 0 []))
+   (cache/call! flatten node 0 0 0 []))
 
   ([node parent-x parent-y parent-z nodes]
    (let [x (+ parent-x (:x node))
@@ -94,7 +95,7 @@
        (loop [nodes nodes
               children (:children node)]
          (if-let [child (first children)]
-           (recur (flatten child x y z nodes)
+           (recur (cache/call! flatten child x y z nodes)
                   (rest children))
            nodes))
        nodes))))

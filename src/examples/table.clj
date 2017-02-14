@@ -45,7 +45,6 @@
                              text)))
 
 (defn handle-text-editor-keyboard-event [state text on-change event]
-  (println "got event" state text on-change event)
   (cond
     (= :focus-gained
        (:type event))
@@ -56,8 +55,7 @@
     (assoc state :has-focus false)
     
     (events/key-pressed? event :back-space)
-    (do (println "dropping last to" state (apply str (drop-last text)))
-        (on-change (apply str (drop-last text)))
+    (do (on-change (apply str (drop-last text)))
         state)
 
     (and (:character event)
@@ -134,7 +132,6 @@
 
 
 (handler/def-handler-creator create-text-change-handler [state-atom x y] [new-text]
-  (println "new text" x y new-text)
   (swap! state-atom assoc [x y] new-text))
 
 #_(.id handle-text-change-implementation)
@@ -143,8 +140,8 @@
     (fn [new-text]
       (swap! state-atom assoc [x y] new-text)))
 (defn render-editor-table [state-atom]
-  (layouts/vertically (table (for [x (range 3)]
-                               (for [y (range 1)]
+  (layouts/vertically (table (for [x (range 10)]
+                               (for [y (range 20)]
                                  #_(assoc (visuals/rectangle [255 255 255 255]
                                                              0 0)
                                           :width (+ 10 (int (rand 50)))
@@ -222,7 +219,7 @@
   (do ;;taoensso.timbre.profiling/profile :info :create-scene-graph
     #_(trace/log "create-scene-graph")
     #_(animation/swap-state! animation/set-wake-up 1000) ;; TODO: remove this
-    (assoc (time (application/do-layout ( #_cache/call! editor-table :editor)
+    (assoc (do #_time (application/do-layout ( #_cache/call! editor-table :editor)
                                         width height))
            :render (fn [scene-graph gl]
                      (opengl/clear gl 0 0 0 1)
@@ -250,10 +247,10 @@
                                         {:width 10
                                          :height 10}])))
 
-(trace/trace-ns 'examples.table)
+(trace/untrace-ns 'examples.table)
 (defn start []
-  (trace/trace-ns 'examples.table)
-  (trace/trace-var 'fungl.cache/call-with-cache)
+  (trace/untrace-ns 'examples.table)
+  (trace/untrace-var 'fungl.cache/call-with-cache)
   (trace/untrace-ns 'fungl.layouts)
   (trace/untrace-ns 'fungl.layout)
   
@@ -263,6 +260,7 @@
   (profiling/unprofile-ns 'fungl.layouts)
   (profiling/unprofile-ns 'fungl.layout)
   (profiling/unprofile-ns 'examples.table)
+  (profiling/profile-ns 'fungl.application)
   
   #_(do (spec-test/instrument)
         (spec/check-asserts true))
@@ -270,7 +268,7 @@
   (do (spec-test/unstrument)
       (spec/check-asserts false))
 
-  (trace/with-trace
+  (do #_trace/with-trace
     (application/start-window (fn [width height]
                                 (trace/trace-var #'create-scene-graph)
                                 (#'create-scene-graph width height)) 

@@ -1,5 +1,7 @@
 (ns flow-gl.gui.visuals
-  (:require [flow-gl.graphics.text :as text]
+  (:require (fungl [cache :as cache])
+            [flow-gl.graphics.text :as text]
+            
             [flow-gl.graphics.rectangle :as rectangle]
 
             (flow-gl.graphics [font :as font]
@@ -30,6 +32,28 @@
    :height (font/height font)
    :image-function text/create-buffered-image
    :image-function-parameter-keys [:color :font :string]})
+
+(defn text-area [color font string]
+  {:type ::text-area
+   :color color
+   :font font
+   :string string
+   :adapt-to-space (fn [node]
+                     (assoc node :layouts (if (and string (not= string ""))
+                                            (text/layouts-for-text color
+                                                                   font
+                                                                   string
+                                                                   (:available-width node))
+                                            nil)))
+   
+   :get-size (fn [node]
+               (if-let [layouts (:layouts node)] 
+                 (text/layouts-size layouts)
+                 {:width 0
+                  :height (font/height font)}))
+   
+   :image-function text/create-buffered-image-for-layouts
+   :image-function-parameter-keys [:layouts]})
 
 (defn hit-test-image [{:keys [buffered-image width height]} x y]
   (let [x (int (* x (/ (- (.getWidth buffered-image)

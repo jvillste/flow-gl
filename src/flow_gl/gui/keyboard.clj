@@ -140,7 +140,7 @@
 
   (when (= (:id node)
            (:focused-node-id @state-atom))
-    (flow-gl.tools.trace/log "setting focused handler" (:focused-node-id @state-atom) event-handler)
+    #_(flow-gl.tools.trace/log "setting focused handler" (:focused-node-id @state-atom) event-handler)
     (swap! state-atom set-focused-event-handler event-handler))
 
   (assoc node :keyboard-event-handler event-handler))
