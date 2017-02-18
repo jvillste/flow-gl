@@ -39,21 +39,21 @@
    :font font
    :string string
    :adapt-to-space (fn [node]
-                     (assoc node :layouts (if (and string (not= string ""))
-                                            (text/layouts-for-text color
-                                                                   font
-                                                                   string
-                                                                   (:available-width node))
-                                            nil)))
+                     (assoc node :rows (if (and string (not= string ""))
+                                         (text/rows-for-text color
+                                                             font
+                                                             string
+                                                             (:available-width node))
+                                         nil)))
    
    :get-size (fn [node]
-               (if-let [layouts (:layouts node)] 
-                 (text/layouts-size layouts)
+               (if-let [rows (:rows node)] 
+                 (text/rows-size rows)
                  {:width 0
                   :height (font/height font)}))
    
    :image-function text/create-buffered-image-for-layouts
-   :image-function-parameter-keys [:layouts]})
+   :image-function-parameter-keys [:rows]})
 
 (defn hit-test-image [{:keys [buffered-image width height]} x y]
   (let [x (int (* x (/ (- (.getWidth buffered-image)

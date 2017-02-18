@@ -44,76 +44,91 @@
                             (font/create "LiberationSans-Regular.ttf" 15)
                             (vector-to-awt-color [255 255 255 255])))
 
-(defn layouts [line-break-measurer width]
+(defn rows [line-break-measurer width]
   (.setPosition line-break-measurer 0)
-  (loop [layouts []]
+  (loop [position 0
+         rows []]
     (if-let [layout (.nextLayout line-break-measurer width)]
-      (recur (conj layouts layout))
-      layouts)))
+      (let [new-position (.getPosition line-break-measurer)]
+        (recur new-position
+               (conj rows {:layout layout
+                           :from position
+                           :to new-position} )))
+      
+      rows)))
 
 
 (defn line-break-measurer [color-vector font text]
-  (LineBreakMeasurer.
-   (.getIterator (create-attributed-string text font (vector-to-awt-color color-vector)))
-   (.getFontRenderContext (.getGraphics (BufferedImage. 1 1 BufferedImage/TYPE_INT_ARGB)))))
+  (let [graphics (.getGraphics (BufferedImage. 1 1 BufferedImage/TYPE_INT_ARGB))]
+    (.setRenderingHint graphics RenderingHints/KEY_TEXT_ANTIALIASING RenderingHints/VALUE_TEXT_ANTIALIAS_LCD_HBGR)
+    (LineBreakMeasurer.
+     (.getIterator (create-attributed-string text font (vector-to-awt-color color-vector)))
+     (.getFontRenderContext graphics))))
 
 
-(defn layouts-for-text [color-vector font string width]
-  (layouts (line-break-measurer color-vector
-                                font
-                                string)
-           width))
+(defn rows-for-text [color-vector font string width]
+  (rows (line-break-measurer color-vector
+                             font
+                             string)
+        width))
 
 (comment
-  (count (layouts (line-break-measurer [255 255 255 255]
-                                       (font/create "LiberationSans-Regular.ttf" 15)
-                                       "a b c")
-                  10)))
+  
+  (layouts-for-text [255 255 255 255]
+                    (font/create "LiberationSans-Regular.ttf" 15)
+                    "a b c"
+                    10))
 
-(defn layouts-size [layouts]
+(defn layout-height [layout]
+  (+ (.getDescent layout)
+     (.getAscent layout)
+     (.getLeading layout)))
+
+(defn row-height [row]
+  (layout-height (:layout row)))
+
+(defn rows-size [rows]
   (loop [height 0
          width 0
-         layouts layouts]
-    (if-let [layout (first layouts)]
-      (let [bounds (.getBounds layout)]
-        (recur (+ height
-                  (.getHeight bounds))
-               (max width (.getWidth bounds))
-               (rest layouts)))
-      
+         rows rows]
+    (if-let [layout (:layout (first rows))]
+      (recur (+ height
+                (.getDescent layout)
+                (.getAscent layout)
+                (.getLeading layout))
+             (max width (.getVisibleAdvance layout))
+             (rest rows))
       {:width width
        :height height})))
 
 (comment
-  (layouts-size (layouts (line-break-measurer [255 255 255 255]
-                                              (font/create "LiberationSans-Regular.ttf" 15)
-                                              "a b c")
-                         10)))
+  (rows-size (rows (line-break-measurer [255 255 255 255]
+                                        (font/create "LiberationSans-Regular.ttf" 15)
+                                        "a b c")
+                   100)))
 
-(defn draw-layouts [graphics layouts]
-  (.setRenderingHint graphics RenderingHints/KEY_TEXT_ANTIALIASING RenderingHints/VALUE_TEXT_ANTIALIAS_LCD_HBGR)
+(defn draw-rows [graphics rows]
   (loop [y 0
-         layouts layouts]
-    (when-let [layout (first layouts)]
-      (do (prn "ascent" (.getAscent layout))
-          (.draw layout graphics 0 (- (+ y (.getAscent layout))
-                                   3)))
+         rows rows]
+    (when-let [layout (:layout (first rows))]
+      (do (.draw layout graphics 0 (+ y (.getAscent layout))))
       (recur (+ y
-                (.getHeight (.getBounds layout)))
-             (rest layouts)))))
+                (.getAscent layout)
+                (.getDescent layout)
+                (.getLeading layout))
+             (rest rows)))))
 
 
-(defn create-buffered-image-for-layouts [layouts]
-  
-  (let [layouts-size (layouts-size layouts)
+(defn create-buffered-image-for-rows [rows]
+  (let [size (rows-size rows)
         buffered-image (buffered-image/create (max 1
-                                                   (:width layouts-size))
+                                                   (:width size))
                                               (max 1
-                                                   (:height layouts-size)))]
+                                                   (:height size)))]
 
 
-    (when layouts
-      (draw-layouts (buffered-image/get-graphics buffered-image)
-                    layouts))
+    (when rows
+      (draw-rows (buffered-image/get-graphics buffered-image)
+                 rows))
 
     buffered-image))
