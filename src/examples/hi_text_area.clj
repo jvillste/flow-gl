@@ -39,16 +39,20 @@
    :image-function text/create-buffered-image-for-rows
    :image-function-parameter-keys [:rows]})
 
-(defn caret-x [row index]
+(defn trailing-x [row index]
   (first (.getCaretInfo (:layout row)
                         #_(TextHitInfo/leading index)
                         (TextHitInfo/trailing index))))
 
-(comment (caret-x (first (rows [255 255 255 255]
-                               font
-                               "ab" #_"one two three five six seven eight nine ten"
-                               100))
-                  2))
+(defn leading-x [row index]
+  (first (.getCaretInfo (:layout row)
+                        (TextHitInfo/leading index))))
+
+(comment (trailing-x (first (rows [255 255 255 255]
+                                  font
+                                  "ab" #_"one two three five six seven eight nine ten"
+                                  100))
+                     2))
 
 (defn character-position [rows index]
   (loop [y 0
@@ -57,20 +61,26 @@
     (if-let [row (first rows)]
       (if (and (>= index (:from row))
                (< index (:to row)))
-        {:x (caret-x row (- index (:from row)))
+        {:x (leading-x row (- index (:from row)))
          :y y
          :row-number row-number
          :height (text/row-height row)}
-        (recur (+ y (text/row-height row))
-               (rest rows)
-               (inc row-number)))
+        (if (empty? (rest rows))
+          {:x (trailing-x row
+                          (dec (text/row-length row)))
+           :y y
+           :row-number row-number
+           :height (text/row-height row)}
+          (recur (+ y (text/row-height row))
+                 (rest rows)
+                 (inc row-number))))
       nil)))
 
 (comment (character-position (rows [255 255 255 255]
                                    font
                                    "ab" #_"one two three five six seven eight nine ten"
                                    100)
-                             1))
+                             3))
 
 (defn index-at-coordinates [rows x y]
   (loop [row-y 0

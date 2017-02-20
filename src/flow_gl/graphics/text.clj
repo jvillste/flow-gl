@@ -57,6 +57,8 @@
       
       rows)))
 
+(defn row-length [row]
+  (.getCharacterCount (:layout row)))
 
 (defn line-break-measurer [color-vector font text]
   (let [graphics (.getGraphics (BufferedImage. 1 1 BufferedImage/TYPE_INT_ARGB))]
