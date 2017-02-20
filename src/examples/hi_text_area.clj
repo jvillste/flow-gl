@@ -89,9 +89,9 @@
       (if (and (>= y row-y)
                (< y (+ row-y (text/row-height row))))
         (+ (:from row)
-           (.getCharIndex (.hitTestChar (:layout row)
-                                        x
-                                        (- y row-y))))
+           (.getInsertionIndex (.hitTestChar (:layout row)
+                                             x
+                                             (- y row-y))))
         (recur (+ row-y (text/row-height row))
                (rest rows)))
       nil)))
