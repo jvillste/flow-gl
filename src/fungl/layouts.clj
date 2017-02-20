@@ -207,3 +207,16 @@
      :left-margin left-margin
 
      :children [child]}))
+
+(defn superimpose [& children]
+  (let [children (flatten-contents children)]
+    {:children children
+     :get-size (fn [node]
+                 (let [child-sizes (map layout/size
+                                        children)]
+                   {:width (apply max
+                                  (map :width
+                                       child-sizes))
+                    :height (apply max
+                                   (map :height
+                                        child-sizes))}))}))
