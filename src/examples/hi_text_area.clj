@@ -11,7 +11,8 @@
                          
                          
                          [visuals :as visuals]))
-  (:import [java.awt.font TextHitInfo]))
+  (:import [java.awt.font TextHitInfo])
+  (:use clojure.test))
 
 (def font (font/create "LiberationSans-Regular.ttf" 18))
 
@@ -33,7 +34,6 @@
 (defn rows-node [rows]
   {:rows rows
    :get-size (fn [node]
-               (prn "rows-size" (text/rows-size (:rows node)))
                (text/rows-size (:rows node)))
    
    :image-function text/create-buffered-image-for-rows
@@ -96,36 +96,86 @@
                (rest rows)))
       nil)))
 
-(defn index-at-previous-row [rows index]
+(defn index-at-previous-row [rows x index]
   (let [position (character-position rows index)]
     (if (< 0 (:row-number position))
       (index-at-coordinates rows
-                            (inc (:x position))
+                            x
                             (- (:y position)
                                (text/row-height (nth rows (:row-number position))))) 
       index)))
 
 
-(defn index-at-next-row [rows index]
+(defn index-at-next-row [rows x index]
   (let [position (character-position rows index)]
     (if (> (dec (count rows))
            (:row-number position))
       (index-at-coordinates rows
-                            (inc (:x position))
+                            x
                             (+ (:y position)
                                (text/row-height (nth rows (:row-number position))))) 
       index)))
 
+(defn insert-string [target index source]
+  (-> (StringBuilder. target)
+      (.insert index
+               source)
+      (.toString)))
+
+(defn delete-string [target from to]
+  (-> (StringBuilder. target)
+      (.delete from
+               to)
+      (.toString)))
+
+(deftest delete-string-test
+  (is (= "ade"
+         (delete-string "abcde" 1 3)))
+
+  (is (= "acde"
+         (delete-string "abcde" 1 2)))
+
+  (is (= "abcd"
+         (delete-string "abcde" 4 5))))
+
 (defn handle-action [state rows action & parameters]
-  (case action
-    :previous-row (assoc state :index (index-at-previous-row rows (:index state)))
-    :next-row (assoc state :index (index-at-next-row rows (:index state)))
-    :back (update state :index (fn [index]
-                                 (max 0 (dec index))))
-    :forward (update state :index (fn [index]
-                                    (min (:to (last rows))
-                                         (inc index))))
-    state))
+  (let [state (if (#{:previous-row :next-row} action)
+                (assoc state :x-on-first-line-change (or (:x-on-first-line-change state)
+                                                         (:x (character-position rows (:index state)))))
+                (if (= :no-action action)
+                  state
+                  (dissoc state :x-on-first-line-change)))]
+    (prn action (:x-on-first-line-change state))
+    (case action
+      :previous-row (assoc state :index (index-at-previous-row rows
+                                                               (:x-on-first-line-change state)
+                                                               (:index state)))
+      :next-row (assoc state :index (index-at-next-row rows
+                                                       (:x-on-first-line-change state)
+                                                       (:index state)))
+      :back (update state :index (fn [index]
+                                   (max 0 (dec index))))
+      :forward (update state :index (fn [index]
+                                      (min (:to (last rows))
+                                           (inc index))))
+      :insert-character (let [[character] parameters]
+                          (-> state
+                              (update :text
+                                      insert-string
+                                      (:index state)
+                                      (str character))
+                              (update :index inc)))
+      :back-space (if (< 0 (:index state))
+                    (-> state
+                        (update :text
+                                delete-string
+                                (dec (:index state))
+                                (:index state))
+                        (update :index dec))
+                    state)
+      state))
+  )
+
 
 (defn keyboard-event-to-action [event]
   (if (= :key-pressed
@@ -143,8 +193,15 @@
       :right
       [:forward]
 
-      [:no-action])
+      :back-space
+      [:back-space]
+
+      (if-let [character (:character event)]
+        [:insert-character character]
+        [:no-action]))
     [:no-action]))
+
+
 
 (defn create-scene-graph [width height]
 
