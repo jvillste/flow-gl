@@ -52,7 +52,7 @@
                  {:width 0
                   :height (font/height font)}))
    
-   :image-function text/create-buffered-image-for-layouts
+   :image-function text/create-buffered-image-for-rows
    :image-function-parameter-keys [:rows]})
 
 (defn hit-test-image [{:keys [buffered-image width height]} x y]
