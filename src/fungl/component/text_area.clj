@@ -139,7 +139,7 @@
   (is (= "abcd"
          (delete-string "abcde" 4 5))))
 
-(defn handle-action [state text rows on-change action & parameters]
+(defn handle-action [state rows action & parameters]
   (let [state (if (#{:previous-row :next-row} action)
                 (assoc state :x-on-first-line-change (or (:x-on-first-line-change state)
                                                          (:x (character-position rows (:index state)))))
@@ -160,14 +160,11 @@
                                       (min (:to (last rows))
                                            (inc index))))
       :insert-character (let [[character] parameters]
-                          (on-change (insert-string text
-                                                    (:index state)
-                                                    (str character)))
                           (-> state
-                              #_(update :text
-                                        insert-string
-                                        (:index state)
-                                        (str character))
+                              (update :text
+                                      insert-string
+                                      (:index state)
+                                      (str character))
                               (update :index inc)))
       :back-space (if (< 0 (:index state))
                     (-> state
@@ -211,8 +208,7 @@
 
 (def atom-specification
   {:create (fn []
-             {:index 0
-              :text "one two three five six seven eight nine ten"})})
+             {:index 0})})
 
 (def default-style {:font font
                     :color [100 100 100 255]})
@@ -222,7 +218,9 @@
    :id id
    :adapt-to-space (fn [node]
 
-                     (let [state @state-atom
+                     (let [state (assoc @state-atom
+                                        :text text)
+                           
                            style (conj default-style
                                        style)
                            rows (text/rows-for-text (:color style)
@@ -249,12 +247,11 @@
                                                          event)
                                   :keyboard-event-handler (fn [event]
                                                             (swap! state-atom (fn [state]
-                                                                                (apply handle-action
-                                                                                       state
-                                                                                       text
-                                                                                       rows
-                                                                                       on-change
-                                                                                       (keyboard-event-to-action event)))))))))})
+                                                                                (on-change state
+                                                                                           (apply handle-action
+                                                                                                  state
+                                                                                                  rows
+                                                                                                  (keyboard-event-to-action event))))))))))})
 
 (defn text-area [id style text on-change]
   (#_cache/call! create-scene-graph
@@ -270,21 +267,23 @@
   (animation/swap-state! animation/set-wake-up 1000)
 
   (let [state-atom (atom-registry/get! :root {:create (fn []
-                                                        {:text-1 "one two three five six seven eight nine ten"
-                                                         :text-2 "one two three five six seven eight nine ten"})})]
+                                                        {:text-1 "text 1"
+                                                         :text-2 "text 2"})})]
     (-> (layouts/with-margins 10 10 10 10
           (layouts/vertically
            (text-area :area-1
                       {:color [255 255 255 255]}
                       (:text-1 @state-atom)
-                      (fn [new-text]
-                        (swap! state-atom assoc :text-1 new-text)))
+                      (fn [old-state new-state]
+                        (swap! state-atom assoc :text-1 (:text new-state))
+                        new-state))
            
            (text-area :area-2
                       {:color [255 255 255 255]}
                       (:text-2 @state-atom)
-                      (fn [new-text]
-                        (swap! state-atom assoc :text-2 new-text)))
+                      (fn [old-state new-state]
+                        (swap! state-atom assoc :text-2 (:text new-state))
+                        new-state))
            
            (text (prn-str @state-atom))))
         (application/do-layout width height))))
