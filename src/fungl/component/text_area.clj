@@ -4,7 +4,8 @@
             (fungl [application :as application]
                    [atom-registry :as atom-registry]
                    [layouts :as layouts]
-                   [cache :as cache])
+                   [cache :as cache]
+                   [handler :as handler])
             (flow-gl.graphics [font :as font]
                               [text :as text])
             (flow-gl.gui [animation :as animation]
@@ -139,72 +140,87 @@
   (is (= "abcd"
          (delete-string "abcde" 4 5))))
 
-(defn handle-action [state rows action & parameters]
-  (let [state (if (#{:previous-row :next-row} action)
+
+;; Commands
+
+(defn previous-row [state rows]
+  (assoc state :index (index-at-previous-row rows
+                                             (:x-on-first-line-change state)
+                                             (:index state))))
+(defn next-row [state rows]
+  (assoc state :index (index-at-next-row rows
+                                         (:x-on-first-line-change state)
+                                         (:index state))))
+
+(defn backward [state rows]
+  (update state :index (fn [index]
+                         (max 0 (dec index)))))
+
+(defn forward [state rows]
+  (update state :index (fn [index]
+                         (min (:to (last rows))
+                              (inc index)))))
+
+(defn delete-backward [state rows]
+  (if (< 0 (:index state))
+    (-> state
+        (update :text
+                delete-string
+                (dec (:index state))
+                (:index state))
+        (update :index dec))
+    state))
+
+(defn gain-focus [state rows]
+  (assoc state :has-focus true))
+
+(defn loose-focus [state rows]
+  (assoc state :has-focus false))
+
+(defn insert-character [state rows character]
+  (-> state
+      (update :text
+              insert-string
+              (:index state)
+              (str character))
+      (update :index inc)))
+
+(defn handle-command [state rows action & parameters]
+  (let [state (if (#{previous-row next-row} action)
                 (assoc state :x-on-first-line-change (or (:x-on-first-line-change state)
                                                          (:x (character-position rows (:index state)))))
-                (if (= :no-action action)
-                  state
-                  (dissoc state :x-on-first-line-change)))]
+                (dissoc state :x-on-first-line-change))]
+    (apply action
+           state
+           rows
+           parameters)))
 
-    (case action
-      :previous-row (assoc state :index (index-at-previous-row rows
-                                                               (:x-on-first-line-change state)
-                                                               (:index state)))
-      :next-row (assoc state :index (index-at-next-row rows
-                                                       (:x-on-first-line-change state)
-                                                       (:index state)))
-      :back (update state :index (fn [index]
-                                   (max 0 (dec index))))
-      :forward (update state :index (fn [index]
-                                      (min (:to (last rows))
-                                           (inc index))))
-      :insert-character (let [[character] parameters]
-                          (-> state
-                              (update :text
-                                      insert-string
-                                      (:index state)
-                                      (str character))
-                              (update :index inc)))
-      :back-space (if (< 0 (:index state))
-                    (-> state
-                        (update :text
-                                delete-string
-                                (dec (:index state))
-                                (:index state))
-                        (update :index dec))
-                    state)
-      :gain-focus (assoc state :has-focus true)
-      :loose-focus (assoc state :has-focus false)
-      state)))
-
-
-(defn keyboard-event-to-action [event]
+(defn keyboard-event-to-command [event]
   (if (= :key-pressed
          (:type event))
     (case (:key event)
       :up
-      [:previous-row]
+      [previous-row]
       
       :down
-      [:next-row]
+      [next-row]
 
       :left
-      [:back]
+      [backward]
 
       :right
-      [:forward]
+      [forward]
 
       :back-space
-      [:back-space]
+      [delete-backward]
 
       (if-let [character (:character event)]
-        [:insert-character character]
-        [:no-action]))
+        [insert-character character]
+        nil))
     (case (:type event)
-      :focus-gained [:gain-focus]
-      :focus-lost [:loose-focus]
-      [:no-action])))
+      :focus-gained [gain-focus]
+      :focus-lost [loose-focus]
+      nil)))
 
 (def atom-specification
   {:create (fn []
@@ -213,7 +229,33 @@
 (def default-style {:font font
                     :color [100 100 100 255]})
 
+(handler/def-handler-creator create-text-area-keyboard-event-handler [state-atom on-change rows] [event]
+  (when-let [command-and-paramters (keyboard-event-to-command event)]
+    (swap! state-atom
+           (fn [state]
+             (on-change state
+                        (apply handle-command
+                               state
+                               rows
+                               command-and-paramters))))))
+
+(handler/def-handler-creator create-text-area-mouse-event-handler [state-atom on-change rows] [node event]
+  (if (= (:type event)
+         :mouse-clicked)
+    (do (keyboard/set-focused-node! node)
+        (when-let [index (index-at-coordinates rows
+                                               (:local-x event)
+                                               (:local-y event))]
+          (swap! state-atom (fn [state]
+                              (on-change state
+                                         (assoc state
+                                                :index index)))))))
+  event)
+
+
+
 (defn create-scene-graph [id text style on-change state-atom]
+  (swap! state-atom assoc :text text)
   {:type ::text-area
    :id id
    :adapt-to-space (fn [node]
@@ -236,22 +278,12 @@
                                                                :y (:y caret-position)
                                                                :height (:height caret-position)))
                                                       (rows-node rows)))
-                           (assoc :mouse-event-handler (fn [node event]
-                                                         (if (= (:type event)
-                                                                :mouse-clicked)
-                                                           (do (keyboard/set-focused-node! node)
-                                                               (when-let [index (index-at-coordinates rows
-                                                                                                      (:local-x event)
-                                                                                                      (:local-y event))]
-                                                                 (swap! state-atom assoc :index index))))
-                                                         event)
-                                  :keyboard-event-handler (fn [event]
-                                                            (swap! state-atom (fn [state]
-                                                                                (on-change state
-                                                                                           (apply handle-action
-                                                                                                  state
-                                                                                                  rows
-                                                                                                  (keyboard-event-to-action event))))))))))})
+                           (assoc :mouse-event-handler (create-text-area-mouse-event-handler state-atom
+                                                                                             on-change
+                                                                                             rows)
+                                  :keyboard-event-handler (create-text-area-keyboard-event-handler state-atom
+                                                                                                   on-change
+                                                                                                   rows)))))})
 
 (defn text-area [id style text on-change]
   (#_cache/call! create-scene-graph
@@ -262,12 +294,14 @@
                  (atom-registry/get! id atom-specification)))
 
 
+
 (defn create-demo-scene-graph [width height]
 
   (animation/swap-state! animation/set-wake-up 1000)
 
   (let [state-atom (atom-registry/get! :root {:create (fn []
-                                                        {:text-1 "text 1"
+                                                        {:text-1 (apply str
+                                                                        (repeat 10 "foo bar "))
                                                          :text-2 "text 2"})})]
     (-> (layouts/with-margins 10 10 10 10
           (layouts/vertically
