@@ -1,7 +1,7 @@
 (ns flow-gl.opengl.jogl.buffer
   (:refer-clojure :exclude [read])
   (:require [flow-gl.graphics.native-buffer :as native-buffer])
-  (:import [javax.media.opengl GL2]))
+  (:import [com.jogamp.opengl GL2]))
 
 (defn create-gl-buffer [gl]
   (let [result-buffer (int-array 1)]

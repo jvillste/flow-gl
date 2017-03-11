@@ -19,7 +19,7 @@
                               [font :as font]
                               [text :as text]
                               [native-buffer :as native-buffer]))
-  (:import [javax.media.opengl GL2]
+  (:import [com.jogamp.opengl GL2]
            [java.io PrintWriter StringWriter]
            [java.nio IntBuffer]
            [java.awt Color])
