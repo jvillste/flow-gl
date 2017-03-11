@@ -185,12 +185,14 @@
               (str character))
       (update :index inc)))
 
-(defn handle-command [state rows action & parameters]
-  (let [state (if (#{previous-row next-row} action)
+;; Commands end
+
+(defn handle-command [state rows command & parameters]
+  (let [state (if (#{previous-row next-row} command)
                 (assoc state :x-on-first-line-change (or (:x-on-first-line-change state)
                                                          (:x (character-position rows (:index state)))))
                 (dissoc state :x-on-first-line-change))]
-    (apply action
+    (apply command
            state
            rows
            parameters)))
@@ -239,7 +241,7 @@
                                rows
                                command-and-paramters))))))
 
-(handler/def-handler-creator create-text-area-mouse-event-handler [state-atom on-change rows] [node event]
+(handler/def-handler-creator create-text-area-mouse-event-handler [state-atom rows] [node event]
   (if (= (:type event)
          :mouse-clicked)
     (do (keyboard/set-focused-node! node)
@@ -247,51 +249,53 @@
                                                (:local-x event)
                                                (:local-y event))]
           (swap! state-atom (fn [state]
-                              (on-change state
-                                         (assoc state
-                                                :index index)))))))
+                              (assoc state
+                                     :index index))))))
   event)
 
 
-
-(defn create-scene-graph [id text style on-change state-atom]
-  (swap! state-atom assoc :text text)
+(defn create-scene-graph [id style handle-rows state]
+  (assert (:text state))
   {:type ::text-area
    :id id
    :adapt-to-space (fn [node]
-
-                     (let [state (assoc @state-atom
-                                        :text text)
-                           
-                           style (conj default-style
+                     (let [style (conj default-style
                                        style)
                            rows (text/rows-for-text (:color style)
                                                     (:font style)
-                                                    text
+                                                    (:text state)
                                                     (:available-width node))
                            caret-position (character-position rows (:index state))]
-                       (-> node
-                           (conj (layouts/superimpose (when (:has-focus state)
-                                                        (assoc (visuals/rectangle [255 255 255 255] 0 0)
-                                                               :width 1
-                                                               :x (:x caret-position)
-                                                               :y (:y caret-position)
-                                                               :height (:height caret-position)))
-                                                      (rows-node rows)))
-                           (assoc :mouse-event-handler (create-text-area-mouse-event-handler state-atom
-                                                                                             on-change
-                                                                                             rows)
-                                  :keyboard-event-handler (create-text-area-keyboard-event-handler state-atom
-                                                                                                   on-change
-                                                                                                   rows)))))})
 
-(defn text-area [id style text on-change]
-  (#_cache/call! create-scene-graph
-                 id
-                 text
-                 style
-                 on-change
-                 (atom-registry/get! id atom-specification)))
+                       (when handle-rows
+                         (handle-rows rows))
+
+                       (conj node
+                             (layouts/superimpose (when (:has-focus state)
+                                                    (assoc (visuals/rectangle [255 255 255 255] 0 0)
+                                                           :width 1
+                                                           :x (:x caret-position)
+                                                           :y (:y caret-position)
+                                                           :height (:height caret-position)))
+                                                  (rows-node rows)))))})
+
+
+(defn text-area [id style text on-change & options]
+  (let [state-atom (atom-registry/get! id atom-specification)]
+
+    (swap! state-atom assoc :text text)
+    
+    (assoc (#_cache/call! create-scene-graph
+                          id
+                          style
+                          (fn [rows]
+                            (swap! state-atom assoc :rows rows))
+                          @state-atom)
+           :mouse-event-handler (create-text-area-mouse-event-handler state-atom
+                                                                      (:rows @state-atom))
+           :keyboard-event-handler (create-text-area-keyboard-event-handler state-atom
+                                                                            on-change
+                                                                            (:rows @state-atom)))))
 
 
 
@@ -312,7 +316,7 @@
                         (swap! state-atom assoc :text-1 (:text new-state))
                         new-state))
            
-           (text-area :area-2
+           #_(text-area :area-2
                       {:color [255 255 255 255]}
                       (:text-2 @state-atom)
                       (fn [old-state new-state]

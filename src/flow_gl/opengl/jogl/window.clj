@@ -111,7 +111,7 @@
          runner-atom (atom (fn [gl]))
          window (GLWindow/create gl-capabilities)]
 
-     
+     #_(prn (.getMaximumSurfaceScale window (float-array 2)))
 
      (when event-channel
        (doto window
