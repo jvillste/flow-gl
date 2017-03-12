@@ -14,7 +14,9 @@
                {:width (apply max
                               (conj (map :width (:children node))
                                     0))
-                :height (reduce + (map :height (:children node)))})
+                :height (+ (* (dec (count (:children node)))
+                              (:margin node))
+                           (reduce + (map :height (:children node))))})
    
    :give-space (fn [node]
                  (update-in node [:children]
@@ -35,14 +37,20 @@
                                           (assoc child
                                                  :x 0
                                                  :y y))
-                                    (+ y (:height child))
+                                    (+ y (:height child)
+                                       (:margin node))
                                     (rest children))
                              layouted-nodes))))})
 
 (defn vertically [& children]
   (assoc vertical-stack
+         :margin 0
          :children (flatten-contents children)))
 
+(defn vertically-with-margin [margin & children]
+  (assoc vertical-stack
+         :margin margin
+         :children (flatten-contents children)))
 
 (def horizontal-stack
   {:get-size (fn [node]
