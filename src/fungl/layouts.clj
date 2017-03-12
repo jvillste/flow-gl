@@ -46,7 +46,9 @@
 
 (def horizontal-stack
   {:get-size (fn [node]
-               {:width (reduce + (map :width (:children node)))
+               {:width (+ (* (dec (count (:children node)))
+                             (:margin node))
+                          (reduce + (map :width (:children node))))
                 :height (apply max
                                (conj (map :height (:children node))
                                      0))})
@@ -69,12 +71,19 @@
                                           (assoc child
                                                  :x x
                                                  :y 0))
-                                    (+ x (:width child))
+                                    (+ x (:width child)
+                                       (:margin node))
                                     (rest children))
                              layouted-nodes))))})
 
 (defn horizontally [& children]
   (assoc horizontal-stack
+         :margin 0
+         :children (flatten-contents children)))
+
+(defn horizontally-with-margin [margin & children]
+  (assoc horizontal-stack
+         :margin margin
          :children (flatten-contents children)))
 
 ;; box
