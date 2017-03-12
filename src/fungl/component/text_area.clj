@@ -118,13 +118,13 @@
                                (text/row-height (nth rows (:row-number position))))) 
       index)))
 
-(defn insert-string [target index source]
+(defn insert [target index source]
   (-> (StringBuilder. target)
       (.insert index
                source)
       (.toString)))
 
-(defn delete-string [target from to]
+(defn delete [target from to]
   (-> (StringBuilder. target)
       (.delete from
                to)
@@ -132,13 +132,13 @@
 
 (deftest delete-string-test
   (is (= "ade"
-         (delete-string "abcde" 1 3)))
+         (delete "abcde" 1 3)))
 
   (is (= "acde"
-         (delete-string "abcde" 1 2)))
+         (delete "abcde" 1 2)))
 
   (is (= "abcd"
-         (delete-string "abcde" 4 5))))
+         (delete "abcde" 4 5))))
 
 
 ;; Commands
@@ -165,7 +165,7 @@
   (if (< 0 (:index state))
     (-> state
         (update :text
-                delete-string
+                delete
                 (dec (:index state))
                 (:index state))
         (update :index dec))
@@ -177,10 +177,10 @@
 (defn loose-focus [state rows]
   (assoc state :has-focus false))
 
-(defn insert-character [state rows character]
+(defn insert-string [state rows character]
   (-> state
       (update :text
-              insert-string
+              insert
               (:index state)
               (str character))
       (update :index inc)))
@@ -217,16 +217,17 @@
       [delete-backward]
 
       (if-let [character (:character event)]
-        [insert-character character]
+        [insert-string character]
         nil))
     (case (:type event)
       :focus-gained [gain-focus]
       :focus-lost [loose-focus]
       nil)))
 
+(defn initialize-state [] {:index 0})
+
 (def atom-specification
-  {:create (fn []
-             {:index 0})})
+  {:create initialize-state})
 
 (def default-style {:font font
                     :color [100 100 100 255]})
@@ -254,29 +255,28 @@
   event)
 
 
-(defn create-scene-graph [id style handle-rows state]
-  (assert (:text state))
-  {:type ::text-area
-   :id id
-   :adapt-to-space (fn [node]
+(defn create-scene-graph [text index style handle-rows]
+  (assert text)
+  
+  {:adapt-to-space (fn [node]
                      (let [style (conj default-style
                                        style)
                            rows (text/rows-for-text (:color style)
                                                     (:font style)
-                                                    (:text state)
-                                                    (:available-width node))
-                           caret-position (character-position rows (:index state))]
+                                                    text
+                                                    (:available-width node))]
 
                        (when handle-rows
                          (handle-rows rows))
 
                        (conj node
-                             (layouts/superimpose (when (:has-focus state)
-                                                    (assoc (visuals/rectangle [255 255 255 255] 0 0)
-                                                           :width 1
-                                                           :x (:x caret-position)
-                                                           :y (:y caret-position)
-                                                           :height (:height caret-position)))
+                             (layouts/superimpose (when index
+                                                    (let [caret-position (character-position rows index)]
+                                                      (assoc (visuals/rectangle (:color style) 0 0)
+                                                             :width 1
+                                                             :x (:x caret-position)
+                                                             :y (:y caret-position)
+                                                             :height (:height caret-position))))
                                                   (rows-node rows)))))})
 
 
@@ -284,18 +284,19 @@
   (let [state-atom (atom-registry/get! id atom-specification)]
 
     (swap! state-atom assoc :text text)
-    
-    (assoc (#_cache/call! create-scene-graph
-                          id
-                          style
-                          (fn [rows]
-                            (swap! state-atom assoc :rows rows))
-                          @state-atom)
-           :mouse-event-handler (create-text-area-mouse-event-handler state-atom
-                                                                      (:rows @state-atom))
-           :keyboard-event-handler (create-text-area-keyboard-event-handler state-atom
-                                                                            on-change
-                                                                            (:rows @state-atom)))))
+    (let [state @state-atom]
+      (assoc (create-scene-graph (:text state)
+                                 (when (:has-focus state)
+                                   (:index state))
+                                 style
+                                 (fn [rows]
+                                   (swap! state-atom assoc :rows rows)))
+             :id id
+             :mouse-event-handler (create-text-area-mouse-event-handler state-atom
+                                                                        (:rows @state-atom))
+             :keyboard-event-handler (create-text-area-keyboard-event-handler state-atom
+                                                                              on-change
+                                                                              (:rows @state-atom))))))
 
 
 
@@ -309,21 +310,22 @@
                                                          :text-2 "text 2"})})]
     (-> (layouts/with-margins 10 10 10 10
           (layouts/vertically
-           (text-area :area-1
-                      {:color [255 255 255 255]}
-                      (:text-1 @state-atom)
-                      (fn [old-state new-state]
-                        (swap! state-atom assoc :text-1 (:text new-state))
-                        new-state))
+           (layouts/with-margins 0 0 10 0
+             (text-area :area-1
+                        {:color [255 255 255 255]}
+                        (:text-1 @state-atom)
+                        (fn [old-state new-state]
+                          (swap! state-atom assoc :text-1 (:text new-state))
+                          new-state)))
            
-           #_(text-area :area-2
+           (text-area :area-2
                       {:color [255 255 255 255]}
                       (:text-2 @state-atom)
                       (fn [old-state new-state]
                         (swap! state-atom assoc :text-2 (:text new-state))
                         new-state))
            
-           (text (prn-str @state-atom))))
+           #_(text (prn-str @state-atom))))
         (application/do-layout width height))))
 
 (defn start []
