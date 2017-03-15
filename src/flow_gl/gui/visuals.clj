@@ -1,5 +1,6 @@
 (ns flow-gl.gui.visuals
-  (:require (fungl [cache :as cache])
+  (:require (fungl [cache :as cache]
+                   [handler :as handler])
             [flow-gl.graphics.text :as text]
             
             [flow-gl.graphics.rectangle :as rectangle]
@@ -33,24 +34,30 @@
    :image-function text/create-buffered-image
    :image-function-parameter-keys [:color :font :string]})
 
+
+(handler/def-handler-creator create-text-area-adapt-to-space [color font string] [node]
+  (assoc node :rows (if (and string (not= string ""))
+                      (text/rows-for-text color
+                                          font
+                                          string
+                                          (:available-width node))
+                      nil)))
+
+
+(handler/def-handler-creator create-text-area-get-size [font] [node]
+  (if-let [rows (:rows node)] 
+    (text/rows-size rows)
+    {:width 0
+     :height (font/height font)}))
+
 (defn text-area [color font string]
   {:type ::text-area
    :color color
    :font font
    :string string
-   :adapt-to-space (fn [node]
-                     (assoc node :rows (if (and string (not= string ""))
-                                         (text/rows-for-text color
-                                                             font
-                                                             string
-                                                             (:available-width node))
-                                         nil)))
+   :adapt-to-space (create-text-area-adapt-to-space color font string)
    
-   :get-size (fn [node]
-               (if-let [rows (:rows node)] 
-                 (text/rows-size rows)
-                 {:width 0
-                  :height (font/height font)}))
+   :get-size (create-text-area-get-size font)
    
    :image-function text/create-buffered-image-for-rows
    :image-function-parameter-keys [:rows]})

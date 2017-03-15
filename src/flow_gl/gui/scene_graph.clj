@@ -31,7 +31,6 @@
 (defn leaf-nodes
   "Returns leave nodes in depth first and ascending z order with global x and y coordinates"
   ([node]
-   
    ;; note that sort-by is stable, nodes with equal z preserve their ordering
    (sort-by :z (leaf-nodes node 0 0 0 [])))
 

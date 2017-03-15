@@ -205,15 +205,19 @@
   #_(taoensso.timbre.profiling/p :draw
                                  ))
 
+(defn nodes-in-view [scene-graph width height]
+  #_(cache/call! scene-graph/leaf-nodes scene-graph)
+  (filter (fn [node]
+            (scene-graph/intersects? {:x 0 :y 0 :width width :height height}
+                                     node))
+          (cache/call! scene-graph/leaf-nodes scene-graph)))
+
 (defn draw-scene-graph [state gl scene-graph]
   #_(opengl/clear gl 0 0 0 0)
 
   (let [{:keys [width height]} (opengl/size gl)]
     (draw state
-          (filter (fn [node]
-                    (scene-graph/intersects? {:x 0 :y 0 :width width :height height}
-                                             node))
-                  (cache/call! scene-graph/leaf-nodes scene-graph))
+          (nodes-in-view scene-graph width height)
           width
           height
           gl)))

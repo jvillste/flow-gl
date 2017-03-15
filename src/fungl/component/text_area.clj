@@ -33,10 +33,12 @@
                         string
                         width))
 
+(defn get-rows-node-size [node]
+  (text/rows-size (:rows node)))
+
 (defn rows-node [rows]
   {:rows rows
-   :get-size (fn [node]
-               (text/rows-size (:rows node)))
+   :get-size get-rows-node-size
    
    :image-function text/create-buffered-image-for-rows
    :image-function-parameter-keys [:rows]})
@@ -254,30 +256,32 @@
                                      :index index))))))
   event)
 
+(handler/def-handler-creator create-adapt-to-space [text index style handle-rows] [node]
+  (let [style (conj default-style
+                    style)
+        rows (cache/call!  text/rows-for-text
+                           (:color style)
+                           (:font style)
+                           text
+                           (:available-width node))]
+
+    (when handle-rows
+      (handle-rows rows))
+
+    (conj node
+          (layouts/superimpose (when index
+                                 (let [caret-position (character-position rows index)]
+                                   (assoc (visuals/rectangle (:color style) 0 0)
+                                          :width 1
+                                          :x (:x caret-position)
+                                          :y (:y caret-position)
+                                          :height (:height caret-position))))
+                               (rows-node rows)))))
 
 (defn create-scene-graph [text index style handle-rows]
   (assert text)
   
-  {:adapt-to-space (fn [node]
-                     (let [style (conj default-style
-                                       style)
-                           rows (text/rows-for-text (:color style)
-                                                    (:font style)
-                                                    text
-                                                    (:available-width node))]
-
-                       (when handle-rows
-                         (handle-rows rows))
-
-                       (conj node
-                             (layouts/superimpose (when index
-                                                    (let [caret-position (character-position rows index)]
-                                                      (assoc (visuals/rectangle (:color style) 0 0)
-                                                             :width 1
-                                                             :x (:x caret-position)
-                                                             :y (:y caret-position)
-                                                             :height (:height caret-position))))
-                                                  (rows-node rows)))))})
+  {:adapt-to-space (create-adapt-to-space text index style handle-rows)})
 
 
 (defn text-area [id style text on-change & options]

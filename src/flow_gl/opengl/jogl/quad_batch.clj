@@ -448,6 +448,9 @@
       quad-batch)))
 
 (defn finish-adding-textures [quad-batch texel-count textures]
+
+  (assert (instance? Long (:next-free-texel quad-batch)))
+  (assert (instance? Long texel-count))
   (assoc quad-batch
          :next-free-texel (+ (:next-free-texel quad-batch)
                              texel-count)
@@ -472,8 +475,8 @@
 (defn texel-count [dimensions]
   (reduce (fn [texel-count dimension]
             (+ texel-count
-               (* (:width dimension)
-                  (:height dimension))))
+               (* (long (:width dimension))
+                  (long (:height dimension)))))
           0
           dimensions))
 
@@ -492,6 +495,7 @@
                                      :int
                                      (:next-free-texel quad-batch)
                                      texel-count)]
+    (assert (instance? Long texel-count))
 
     (doseq [image images]
       (.put buffer
@@ -512,6 +516,9 @@
 
     (loop [textures textures
            offset (:next-free-texel quad-batch)]
+      (assert (instance? Long offset))
+
+      
       (if-let [texture (first textures)]
         (do (texture/copy-to-buffer gl
                                     (:texture-id texture)

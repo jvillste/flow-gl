@@ -9,7 +9,9 @@
   {})
 
 (defn quad [scene-graph render-target]
-  (assoc (select-keys scene-graph [:x :y :width :height])
+  (assoc (select-keys scene-graph [:x :y])
+         :width (:width render-target)
+         :height (:height render-target)
          :texture-id (:texture render-target)
          :texture-hash (hash scene-graph)))
 
@@ -31,6 +33,9 @@
                                 (render-target/create (:width scene-graph)
                                                       (:height scene-graph)
                                                       gl)))]
+
+        #_(prn "diff "(first (data/diff scene-graph
+                               previous-scene-graph)))
         
         (render-target/render-to render-target gl
                                  (render))

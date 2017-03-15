@@ -125,7 +125,9 @@
     (shader/delete-program gl shader-program)))
 
 (defn create [width height gl]
-  (let [frame-buffer (frame-buffer/create gl)
+  (let [width (int width)
+        height (int height)
+        frame-buffer (frame-buffer/create gl)
         frame-buffer-texture (texture/create gl)
         stencil-buffer (render-buffer/create-stencil-buffer width height gl)]
 
@@ -136,7 +138,7 @@
     (.glTexParameteri gl GL2/GL_TEXTURE_2D GL2/GL_TEXTURE_WRAP_S GL2/GL_CLAMP_TO_EDGE)
     (.glTexParameteri gl GL2/GL_TEXTURE_2D GL2/GL_TEXTURE_WRAP_T GL2/GL_CLAMP_TO_EDGE)
 
-    (.glTexImage2D gl GL2/GL_TEXTURE_2D 0 #_GL2/GL_RGBA32F GL2/GL_RGBA (int width) (int height) 0 GL2/GL_RGBA GL2/GL_UNSIGNED_BYTE nil)
+    (.glTexImage2D gl GL2/GL_TEXTURE_2D 0 #_GL2/GL_RGBA32F GL2/GL_RGBA width height 0 GL2/GL_RGBA GL2/GL_UNSIGNED_BYTE nil)
 
 
     (frame-buffer/bind frame-buffer gl)
