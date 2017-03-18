@@ -148,19 +148,20 @@
 
 ;; with-minimum-size
 
-(spec/def ::minimum-width int?)
-(spec/def ::minimum-height int?)
+(defn get-limited-size [{:keys [width-limit height-limit compare-function children]}]
+  {:width (if width-limit
+            (compare-function width-limit
+                              (:width (first children)))
+            (:width (first children)))
+   
+   :height (if height-limit
+             (compare-function height-limit
+                               (:height (first children)))
+             (:height (first children)))})
 
-(defn minimum-size-get-size [{:keys [minimum-width minimum-height children]}]
-  (spec/assert ::minimum-width minimum-width)
-  (spec/assert ::minimum-height minimum-height)
-  
-  {:width (max minimum-width
-               (:width (first children)))
-   :height (max minimum-height
-                (:height (first children)))} )
 
-(defn minimum-size-make-layout [{:keys [width height] :as node}]
+
+(defn make-limited-layout [{:keys [width height] :as node}]
   (update-in node
              [:children]
              (fn [[child]]
@@ -171,13 +172,42 @@
                                           :width width
                                           :height height))])))
 
+(defn give-limited-space [{:keys [width-limit height-limit compare-function available-width available-height children] :as node}]
+  (assoc node :children
+         [(assoc (first children)
+                 :available-width (if width-limit
+                                    (compare-function width-limit
+                                                      available-width)
+                                    available-width) 
+                 :available-height (if height-limit
+                                     (compare-function height-limit
+                                                       available-height)
+                                     available-height))]))
+
 (defn with-minimum-size [minimum-width minimum-height child]
   (when child
-    {:get-size minimum-size-get-size
-     :make-layout minimum-size-make-layout
+    {:get-size get-limited-size
+     :give-space give-limited-space
+     :make-layout make-limited-layout
+     :compare-function max
+     
+     :width-limit minimum-width
+     :height-limit minimum-height
+     
+     :children [child]}))
 
-     :minimum-width minimum-width
-     :minimum-height minimum-height
+
+;; with-maximum-size
+
+(defn with-maximum-size [maximum-width maximum-height child]
+  (when child
+    {:get-size get-limited-size
+     :give-space give-limited-space
+     :make-layout make-limited-layout
+
+     :width-limit maximum-width
+     :height-limit maximum-height
+     :compare-function min
      
      :children [child]}))
 
@@ -225,15 +255,95 @@
 
      :children [child]}))
 
+
+;; superimpose
+
+(defn superimpose-get-size [node]
+  (let [child-sizes (map layout/size
+                         (:children node))]
+    {:width (apply max
+                   (map :width
+                        child-sizes))
+     :height (apply max
+                    (map :height
+                         child-sizes))}))
+
 (defn superimpose [& children]
   (let [children (flatten-contents children)]
     {:children children
-     :get-size (fn [node]
-                 (let [child-sizes (map layout/size
-                                        children)]
-                   {:width (apply max
-                                  (map :width
-                                       child-sizes))
-                    :height (apply max
-                                   (map :height
-                                        child-sizes))}))}))
+     :get-size superimpose-get-size}))
+
+
+;; flow
+
+(defn flow-row [nodes maximum-width]
+  (loop [height 0
+         row-width 0
+         row-nodes []
+         remaining-nodes nodes]
+    (if-let [node (first remaining-nodes)]
+      (let [node-size (layout/size node)]
+        (if (and (> (+ row-width
+                       (:width node-size))
+                    maximum-width)
+                 (not (empty? row-nodes)))
+          {:row-nodes row-nodes
+           :height height
+           :unused-nodes remaining-nodes}
+          (recur (max height (:height node-size))
+                 (+ row-width
+                    (:width node-size))
+                 (conj row-nodes node)
+                 (rest remaining-nodes))))
+      {:row-nodes row-nodes
+       :height height
+       :unused-nodes remaining-nodes})))
+
+(defn make-flow-row-layout [nodes y height]
+  (loop [x 0
+         nodes nodes
+         layouted-nodes []]
+    (if-let [node (first nodes)]
+      (let [preferred-size (layout/size node)]
+        (recur (+ x
+                  (:width preferred-size))
+               (rest nodes)
+               (conj layouted-nodes
+                     (assoc node
+                            :x x
+                            :y y
+                            :width (:width preferred-size)
+                            :height height))))
+      layouted-nodes)))
+
+(defn make-flow-layout [node]
+  (assoc node :children
+         (loop [layouted-children []
+                y 0
+                children (:children node)]
+           (if (seq children)
+             (let [row (flow-row children (:available-width node))]
+               (recur (concat layouted-children (make-flow-row-layout (:row-nodes row)
+                                                                      y
+                                                                      (:height row)))
+                      (+ y
+                         (:height row))
+                      (:unused-nodes row)))
+             layouted-children))))
+
+(defn get-flow-size [node]
+  {:width (:available-width node)
+   :height (loop [y 0
+                  children (:children node)]
+             (if (seq children)
+               (let [row (flow-row children (:available-width node))]
+                 (recur (+ y
+                           (:height row))
+                        (:unused-nodes row)))
+               y))})
+
+
+(defn flow [& children]
+  {:get-size get-flow-size
+   :make-layout make-flow-layout
+   :children (flatten-contents children)})

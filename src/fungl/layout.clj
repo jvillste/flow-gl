@@ -19,11 +19,11 @@
                                java.lang.Integer/MAX_VALUE)))
 
 
-(cache/defn-memoized add-space [node]
+(cache/defn-memoized give-space [node]
   (if (:children node)
     (let [node (ensure-available-space node)]
-      (if-let [space-function (:give-space node)]
-        (space-function node)
+      (if-let [give-space-function (:give-space node)]
+        (give-space-function node)
         (update-in node [:children]
                    (fn [children]
                      (map (fn [child]
@@ -34,7 +34,7 @@
     
     node))
 
-(defn size [node]
+(cache/defn-memoized size [node]
   (if-let [get-size (:get-size node)]
     (get-size node)
     {:width (or (:width node)
@@ -65,7 +65,7 @@
   #_(println "do-layout")
   (-> node
       (adapt-to-space)
-      (add-space)
+      (give-space)
       (update-in [:children]
                  (fn [children]
                    (if children

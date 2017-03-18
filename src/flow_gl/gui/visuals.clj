@@ -24,15 +24,26 @@
    :image-function-parameter-keys [:width :height :color :corner-arc-width :corner-arc-height]
    :hit-test hit-test-rectangle})
 
-(defn text [color font string]
-  {:type ::text
-   :color color
-   :font font
-   :string string
-   :width (font/width font string)
-   :height (font/height font)
-   :image-function text/create-buffered-image
-   :image-function-parameter-keys [:color :font :string]})
+(defn text
+  ([color font string]
+   {:type ::text
+    :color color
+    :font font
+    :string string
+    :width (font/width font string)
+    :height (font/height font)
+    :image-function text/create-buffered-image
+    :image-function-parameter-keys [:color :font :string]})
+
+  ([color string]
+   (text color
+         (font/create "LiberationSans-Regular.ttf" 18)
+         string))
+  
+  ([string]
+   (text [255 255 255 255]
+         (font/create "LiberationSans-Regular.ttf" 18)
+         string)))
 
 
 (handler/def-handler-creator create-text-area-adapt-to-space [color font string] [node]
