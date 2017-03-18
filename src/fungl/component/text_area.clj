@@ -189,8 +189,12 @@
 
 ;; Commands end
 
+
 (defn handle-command [state rows command & parameters]
-  (let [state (if (#{previous-row next-row} command)
+
+  (let [state (if (#{previous-row next-row} (if (var? command)
+                                              @command
+                                              command))
                 (assoc state :x-on-first-line-change (or (:x-on-first-line-change state)
                                                          (:x (character-position rows (:index state)))))
                 (dissoc state :x-on-first-line-change))]
