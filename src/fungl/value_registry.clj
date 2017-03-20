@@ -18,7 +18,10 @@
 (defn ensure-value [state id specification]
   (if (get-in state [:values id])
     state
-    (initialize-value state id specification)))
+    (if (not specification)
+      (throw (ex-info (str "no value found for id " id " and no specification given")
+                      {}))
+      (initialize-value state id specification))))
 
 (defn remove-value [state id]
   (-> state
@@ -86,8 +89,12 @@
 (defn state-bindings [& options]
   {#'state-atom (atom (apply initialize-state options))})
 
-(defn get! [id specification]
-  (get state-atom id specification))
+(defn get!
+  ([id specification]
+   (get state-atom id specification))
+  
+  ([id]
+   (get state-atom id nil)))
 
 (defn delete-unused-values! [minimum-references-after-previous-delete]
   (delete-unused-values state-atom minimum-references-after-previous-delete))

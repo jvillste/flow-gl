@@ -27,9 +27,12 @@
   (add-dependency value-atom)
   @value-atom)
 
-(defn get! [id specification]
-  (value-registry/get! id
-                       (refine-specification id specification)))
+(defn get!
+  ([id specification]
+   (value-registry/get! id
+                        (refine-specification id specification)))
+  ([id]
+   (value-registry/get! id)))
 
 (defmethod depend/current-value ::atom-registry [dependency]
   @(value-registry/get! (:id dependency)
