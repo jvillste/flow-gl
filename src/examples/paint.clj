@@ -10,12 +10,15 @@
                          [animation :as animation]
                          [stateful :as stateful])
             (flow-gl.opengl.jogl [opengl :as opengl]
-                                 [quad :as quad])))
+                                 [quad :as quad]
+                                 [render-target :as render-target])))
 
 (def fragment-shader-source "
   #version 140
 
-  uniform float points;
+  uniform int number_of_points;
+
+  uniform vec2 points[50];
 
   in vec2 texture_coordinate;
 
@@ -32,9 +35,29 @@
   }
 
   void main() {
-  outColor = vec4(1,1,1,distance_to_line(texture_coordinate, vec2(0.2,0.2), vec2(0.5,0.5), 0.1) / 0.005);
+    float distance = 1;
+    for (int i = 0; i < (number_of_points - 1); i++){
+      distance = min(distance, distance_to_line(texture_coordinate, points[i], points[i+1], 0.1));
+
+    }
+
+    outColor = vec4(1,1,1, min(0.1, distance/ 0.002));
   }
   ")
+
+(defn create-render-target [gl width height]
+  (let [render-target (render-target/create width height gl)]
+    (render-target/render-to render-target gl
+                             (opengl/clear gl 0 0 0 1))
+    render-target))
+
+(defn atom-specification [gl width height]
+  {:create (fn []
+             {:source (create-render-target gl width height)
+              :target (create-render-target gl width height)})
+   :delete (fn [state-atom]
+             (render-target/delete (:source @state-atom) gl)
+             (render-target/delete (:target @state-atom) gl))})
 
 (defn create-scene-graph [width height]
   (animation/swap-state! animation/set-wake-up 1000)
@@ -43,16 +66,42 @@
    :width width
    :height height
    :render (fn [scene-graph gl]
-             (let [program (quad/create-program fragment-shader-source gl)]
+             (let [state-atom (atom-registry/get! [:state width height] (atom-specification gl width height))]
                (opengl/clear gl 0 0 0 0)
-               (quad/draw gl [] [:1f "x" 0.0]
-                          program
+               
+               (render-target/render-to (:target @state-atom)
+                                        gl
+
+                                        (let [program (quad/create-program fragment-shader-source gl)]
+                                          (let [points [0.8 0.2
+                                                        0.8 0.8
+                                                        0.6 1.0
+                                                        0.5 0.5
+                                                        0.2 0.2]]
+                                            (quad/draw gl ["texture" (:texture (:source @state-atom))]
+                                                       [:2fv "points" points
+                                                        :1i "number_of_points" (/ (count points)
+                                                                                  2)]
+                                                       program
+                                                       0 0
+                                                       width
+                                                       height
+                                                       width
+                                                       height))))
+
+               (quad/draw gl ["texture" (:texture (:target @state-atom))]
+                          []
+                          (quad/create-program quad/fragment-shader-source gl)
                           0 0
                           width
                           height
                           width
-                          height))
-             )})
+                          height)
+               
+               (swap! state-atom (fn [state]
+                                   (assoc state
+                                          :source (:target state)
+                                          :target (:source state))))))})
 
 (defn start []
   (.start (Thread. (fn []

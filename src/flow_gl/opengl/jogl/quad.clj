@@ -85,7 +85,7 @@
   void main() {
   outColor = texture(texture, vec2(texture_coordinate[0], 1 - texture_coordinate[1]));
   }
-")
+  ")
 
 (def alpha-fragment-shader-source "
   #version 140
@@ -103,7 +103,7 @@
   vec4 texture_color = texture(texture, texture_coordinate);
   outColor = vec4(texture_color[0],texture_color[1],texture_color[2],texture_color[3] * alpha);
   }
-")
+  ")
 
 (def blur-fragment-shader-source "
   // adopted from https://github.com/mattdesl/lwjgl-basics/wiki/ShaderLesson5
@@ -189,7 +189,12 @@
         :2f (let [[value1 value2] values]
               (.glUniform2f gl location value1 value2))
         :4f (let [[value1 value2 value3 value4] values]
-              (.glUniform4f gl location value1 value2 value3 value4)))))
+              (.glUniform4f gl location value1 value2 value3 value4))
+        :2fv (.glUniform2fv gl
+                            location
+                            (/ (count values) 2)
+                            (float-array values)
+                            0))))
 
   (shader/set-float4-matrix-uniform gl
                                     shader-program

@@ -23,7 +23,7 @@
            [java.awt Color]))
 
 
-  (def vertex-shader-source "
+(def vertex-shader-source "
   #version 140
   uniform mat4 projection_matrix;
   uniform vec4 quad_coordinates;
@@ -58,9 +58,9 @@
 
   }
 
-")
+  ")
 
-  (def render-target-fragment-shader-source "
+(def render-target-fragment-shader-source "
   #version 140
 
   in vec2 texture_coordinate;
@@ -72,9 +72,9 @@
   void main() {
   outColor = texture(texture, texture_coordinate);
   }
-")
+  ")
 
-  (def fragment-shader-source "
+(def fragment-shader-source "
   #version 140
 
   in vec2 texture_coordinate;
@@ -86,9 +86,10 @@
   void main() {
   outColor = texture(texture, vec2(texture_coordinate[0], 1 - texture_coordinate[1]));
   }
-")
+  ")
 
 (defn draw-quad [gl textures fragment-shader-source x y quad-width quad-height frame-buffer-width frame-buffer-height]
+
   (let [shader-program (shader/compile-program gl
                                                vertex-shader-source
                                                fragment-shader-source)]
@@ -106,8 +107,8 @@
     (shader/set-float4-matrix-uniform gl
                                       shader-program
                                       "projection_matrix"
-                                      (math/projection-matrix-2d frame-buffer-width
-                                                                 frame-buffer-height))
+                                      (flatten (math/projection-matrix-2d frame-buffer-width
+                                                                          frame-buffer-height)))
 
     (shader/set-float4-uniform gl
                                shader-program
@@ -201,11 +202,11 @@
    :kind [width height]})
 
 #_(defn draw-rectangle [nanovg x y width height r g b a]
-  (doto nanovg
-    (NanoVG/fillColor (char r) (char g) (char b) (char a))
-    (NanoVG/beginPath)
-    (NanoVG/rect x y width height)
-    (NanoVG/fill)))
+    (doto nanovg
+      (NanoVG/fillColor (char r) (char g) (char b) (char a))
+      (NanoVG/beginPath)
+      (NanoVG/rect x y width height)
+      (NanoVG/fill)))
 
 (defn blit [render-target gl]
   (let [{:keys [width height]} (opengl/size gl)]
