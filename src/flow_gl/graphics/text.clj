@@ -34,9 +34,10 @@
 
 (defn create-attributed-string [text font color]
   (let [attributed-string (AttributedString. text)]
-    (doto attributed-string
-      (.addAttribute TextAttribute/FONT (font/graphics-font font))
-      (.addAttribute TextAttribute/FOREGROUND color))
+    (if (not= "" text)
+      (doto attributed-string
+        (.addAttribute TextAttribute/FONT (font/graphics-font font))
+        (.addAttribute TextAttribute/FOREGROUND color)))
     attributed-string))
 
 (comment
@@ -102,6 +103,7 @@
              (rest rows))
       {:width width
        :height height})))
+
 
 (comment
   (rows-size (rows (line-break-measurer [255 255 255 255]
