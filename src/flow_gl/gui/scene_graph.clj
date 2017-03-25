@@ -199,19 +199,18 @@
                         {:x -100 :y 10 :width 10 :height 10}))))
 
 (defn update-depth-first [scene-graph predicate function]
-  (if-let [children (:children scene-graph)]
-    (let [scene-graph (update-in scene-graph
+  (let [scene-graph (if-let [children (:children scene-graph)]
+                      (update-in scene-graph
                                  [:children]
                                  (fn [children]
                                    (doall (map (fn [child]
                                                  (update-depth-first child predicate function))
-                                               children))))]
-      (if (predicate scene-graph)
-        (function scene-graph)
-        scene-graph))
+                                               children))))
+                      scene-graph)]
     (if (predicate scene-graph)
-      (do (println (:id scene-graph))
-          (function scene-graph)) 
+      (let [result (function scene-graph)]
+        (spec/assert ::node result)
+        result)
       scene-graph)))
 
 (deftest apply-depth-first-test

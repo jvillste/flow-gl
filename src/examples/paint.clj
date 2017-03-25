@@ -18,6 +18,8 @@
 
   uniform int number_of_points;
 
+  uniform sampler2D texture;
+
   uniform vec2 points[50];
 
   in vec2 texture_coordinate;
@@ -38,10 +40,11 @@
     float distance = 1;
     for (int i = 0; i < (number_of_points - 1); i++){
       distance = min(distance, distance_to_line(texture_coordinate, points[i], points[i+1], 0.1));
-
     }
 
-    outColor = vec4(1,1,1, min(0.1, distance/ 0.002));
+    outColor = texture(texture, texture_coordinate) +  vec4(1,0,1, 1.0 - distance_to_line(texture_coordinate, points[0], points[1], 0.1)/ 0.01);
+
+    //outColor = vec4(1,0,1, distance); //max( 0.0, 1.0 - distance));
   }
   ")
 
@@ -51,57 +54,106 @@
                              (opengl/clear gl 0 0 0 1))
     render-target))
 
-(defn atom-specification [gl width height]
+(defn render-state-atom-specification [gl width height]
   {:create (fn []
              {:source (create-render-target gl width height)
-              :target (create-render-target gl width height)})
+              :target (create-render-target gl width height)
+              :blit-program (quad/create-program quad/fragment-shader-source gl)})
    :delete (fn [state-atom]
              (render-target/delete (:source @state-atom) gl)
              (render-target/delete (:target @state-atom) gl))})
 
+(defn swap-and-return-old-and-new! [atom f & args]
+  (loop []
+    (let [old @atom
+          new (apply f old args)]
+      (if (compare-and-set! atom old new)
+        [old new]
+        (recur)))))
+
 (defn create-scene-graph [width height]
-  (animation/swap-state! animation/set-wake-up 1000)
-  {:x 0
-   :y 0
-   :width width
-   :height height
-   :render (fn [scene-graph gl]
-             (let [state-atom (atom-registry/get! [:state width height] (atom-specification gl width height))]
-               (opengl/clear gl 0 0 0 0)
-               
-               (render-target/render-to (:target @state-atom)
-                                        gl
+  (let [event-state-atom (atom-registry/get! :state {:create (fn [] {:points []})})]
+    (animation/swap-state! animation/set-wake-up 1000)
+    {:x 0
+     :y 0
+     :width width
+     :height height
+     :children [(let [canvas-width 500
+                      canvas-height 500]
+                  {:x 100
+                   :y 0
+                   :width canvas-width
+                   :height canvas-height
+                   :id :canvas
+                   :mouse-event-handler (fn [node event]
+                                          (when (= (:type event)
+                                                   :mouse-dragged)
+                                            (swap! event-state-atom update :points conj [(:local-x event)
+                                                                                         (:local-y event)]))
+                                          event)
+                   :render (fn [scene-graph gl]
+                             (let [render-state-atom (atom-registry/get! [:state canvas-width canvas-height] (render-state-atom-specification gl canvas-width canvas-height))
+                                   points (:points (first (swap-and-return-old-and-new! event-state-atom assoc :points [])))
+                                   points (if (= 1 (count points))
+                                            (concat points points)
+                                            points)
+                                   points (map (fn [[x y]]
+                                                 [(float (/ x canvas-width))
+                                                  (- 1.0 (float (/ y canvas-height)))])
+                                               points)
+                                   coordinates (flatten points)]
 
-                                        (let [program (quad/create-program fragment-shader-source gl)]
-                                          (let [points [0.8 0.2
-                                                        0.8 0.8
-                                                        0.6 1.0
-                                                        0.5 0.5
-                                                        0.2 0.2]]
-                                            (quad/draw gl ["texture" (:texture (:source @state-atom))]
-                                                       [:2fv "points" points
-                                                        :1i "number_of_points" (/ (count points)
-                                                                                  2)]
-                                                       program
-                                                       0 0
-                                                       width
-                                                       height
-                                                       width
-                                                       height))))
+                               (when (> (count coordinates)
+                                        0)
+                                 (opengl/clear gl 0 0 0 1)
+                                 #_(let [program (quad/create-program fragment-shader-source gl)]
+                                     (quad/draw gl
+                                                ["texture" (:texture (:source @render-state-atom))]
+                                                [:2fv "points" coordinates
+                                                 :1i "number_of_points" (/ (count points)
+                                                                           2)]
+                                                program
+                                                0 0
+                                                width
+                                                height
+                                                width
+                                                height))
+                                 (render-target/render-to (:target @render-state-atom) gl
+                                                          #_(opengl/clear gl 0 0 0 0)
+                                                          (let [program (quad/create-program fragment-shader-source gl)]
+                                                            (quad/draw gl
+                                                                       ["texture" (:texture (:source @render-state-atom))]
+                                                                       [:2fv "points" coordinates
+                                                                        :1i "number_of_points" (/ (count points)
+                                                                                                  2)]
+                                                                       program
+                                                                       0 0
+                                                                       canvas-width
+                                                                       canvas-width
+                                                                       canvas-width
+                                                                       canvas-width)))
 
-               (quad/draw gl ["texture" (:texture (:target @state-atom))]
-                          []
-                          (quad/create-program quad/fragment-shader-source gl)
-                          0 0
-                          width
-                          height
-                          width
-                          height)
-               
-               (swap! state-atom (fn [state]
-                                   (assoc state
-                                          :source (:target state)
-                                          :target (:source state))))))})
+                                 (swap! render-state-atom (fn [state]
+                                                            (assoc state
+                                                                   :source (:target state)
+                                                                   :target (:source state)))))
+
+                               #_(quad/draw gl ["texture" (:texture (:target @render-state-atom))]
+                                          []
+                                          (:blit-program @render-state-atom)
+                                          0 0
+                                          width
+                                          height
+                                          width
+                                          height)
+                               
+                               (assoc (select-keys scene-graph [:x :y])
+                                      :width canvas-width
+                                      :height canvas-height
+                                      :texture-id (:texture (:target @render-state-atom))
+                                      :texture-hash (hash scene-graph))
+
+                               ))})]}))
 
 (defn start []
   (.start (Thread. (fn []
