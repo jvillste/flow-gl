@@ -19,8 +19,9 @@
   (if (get-in state [:values id])
     state
     (if (not specification)
-      (throw (ex-info (str "no value found for id " id " and no specification given")
-                      {}))
+      state
+      #_(throw (ex-info (str "no value found for id " id " and no specification given")
+                        {}))
       (initialize-value state id specification))))
 
 (defn remove-value [state id]
@@ -58,8 +59,9 @@
         value (get-value state id)]
 
     (when-let [on-get (get-in @state-atom [:specifications id :on-get])]
-      (on-get id
-              value))
+      (when value
+        (on-get id
+                value)))
 
     value))
 

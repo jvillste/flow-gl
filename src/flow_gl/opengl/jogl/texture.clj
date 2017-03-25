@@ -48,6 +48,11 @@
   (.glBindBuffer gl GL2/GL_PIXEL_PACK_BUFFER buffer)
   (.glGetTexImage gl GL2/GL_TEXTURE_2D 0 GL2/GL_BGRA GL2/GL_UNSIGNED_BYTE offset))
 
+(defn create-for-buffered-image [buffered-image gl]
+  (let [texture (create gl)]
+    (load-from-buffered-image gl texture buffered-image)
+    texture))
+
 (defn create-for-file [file-name gl]
   (let [image (buffered-image/create-from-file file-name)
         texture (create gl)]
