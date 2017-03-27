@@ -52,7 +52,8 @@
   }
 
   gl_Position = projection_matrix * vec4(quad_coordinates[0] + quad_coordinates[2] * texture_coordinate.x,
-  quad_coordinates[1] + quad_coordinates[3] * (1 - texture_coordinate.y),
+//  quad_coordinates[1] + quad_coordinates[3] * (1 - texture_coordinate.y),
+  quad_coordinates[1] + quad_coordinates[3] * texture_coordinate.y,
   0.0, 1.0);
 
   }
@@ -158,6 +159,7 @@
   }")
 
 (defn create-program [fragment-shader-source gl]
+  (println "create program")
   (let [fragment-shader (shader/create-fragment-shader gl fragment-shader-source)
         vertex-shader (shader/create-vertex-shader gl vertex-shader-source)
         program (shader/create-program gl

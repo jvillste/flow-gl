@@ -4,7 +4,8 @@
             (fungl [atom-registry :as atom-registry]
                    [application :as application]
                    [layouts :as layouts]
-                   [layout :as layout])
+                   [layout :as layout]
+                   [cache :as cache])
             (flow-gl.gui 
              
              [visuals :as visuals]
@@ -64,10 +65,9 @@
   out vec4 outColor;
 
   void main() {
-    // outColor = texture(source_texture, texture_coordinate);
-//  outColor = vec4(1,0,0, texture(source_texture, texture_coordinate).a);
-      outColor = vec4(1,0,0, abs(texture(target_texture, texture_coordinate).a - texture(source_texture, texture_coordinate).a));
+      vec2 flipped_texture_coordinate = vec2(texture_coordinate.x, 1.0 - texture_coordinate.y);
 
+      outColor = vec4(1,0,0, abs(texture(target_texture, texture_coordinate).a - texture(source_texture, texture_coordinate).a));
   }
   ")
 
@@ -108,10 +108,16 @@
                                                   (opengl/clear gl 0 0 0 1)
                                                   (when canvas-state-atom
                                                     (quad/draw gl
-                                                               ["target_texture" (texture/create-for-buffered-image target-buffered-image gl)
+                                                               ["target_texture" (cache/call-with-key! texture/create-for-buffered-image
+                                                                                                       target-buffered-image
+                                                                                                       target-buffered-image
+                                                                                                       gl)
                                                                 "source_texture" (:texture (:target @canvas-state-atom))]
                                                                []
-                                                               (quad/create-program diff-fragment-shader-source gl)
+                                                               (cache/call-with-key! quad/create-program
+                                                                                     diff-fragment-shader-source
+                                                                                     diff-fragment-shader-source
+                                                                                     gl)
                                                                0 0
                                                                diff-width
                                                                diff-height
@@ -153,7 +159,7 @@
                                                                                 points)
                                                                        points (map (fn [[x y]]
                                                                                      [(float (/ x canvas-width))
-                                                                                      (- 1.0 (float (/ y canvas-height)))])
+                                                                                      (float (/ y canvas-height))])
                                                                                    points)
                                                                        coordinates (flatten points)]
 
@@ -162,7 +168,10 @@
                                                                      (opengl/clear gl 0 0 0 1)
                                                                      (render-target/render-to (:target @canvas-state-atom) gl
                                                                                               #_(opengl/clear gl 0 0 0 0)
-                                                                                              (let [program (quad/create-program fragment-shader-source gl)]
+                                                                                              (let [program (cache/call-with-key! quad/create-program
+                                                                                                                                  fragment-shader-source
+                                                                                                                                  fragment-shader-source
+                                                                                                                                  gl)]
                                                                                                 (quad/draw gl
                                                                                                            ["texture" (:texture (:source @canvas-state-atom))]
                                                                                                            [:2fv "points" coordinates
