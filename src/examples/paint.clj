@@ -28,6 +28,8 @@
 
   uniform vec2 points[50];
 
+  uniform int erase;
+
   in vec2 texture_coordinate;
 
   out vec4 outColor;
@@ -44,13 +46,18 @@
 
   void main() {
     float distance = 1;
-    for (int i = 0; i < (number_of_points - 1); i++){
+    for (int i = 0; i < (number_of_points -1); i++){
       distance = min(distance, distance_to_line(texture_coordinate, points[i], points[i+1], 0.1));
     }
 
-    outColor = texture(texture, texture_coordinate) +  vec4(1,0,1, 1.0 - distance_to_line(texture_coordinate, points[0], points[1], 0.1)/ 0.01);
+    // outColor = vec4(0,0,0, max(texture(texture, texture_coordinate), 1.0 - distance_to_line(texture_coordinate, points[0], points[1], 0.1)/ 0.01));
 
-    //outColor = vec4(1,0,1, distance); //max( 0.0, 1.0 - distance));
+vec2 flipped_texture_coordinate = vec2(texture_coordinate.x, 1.0 - texture_coordinate.y);
+     outColor = vec4(0,0,0, max(texture(texture, flipped_texture_coordinate).a, 1.0 - distance / 0.01));
+   //  outColor = vec4(0,0,0, max(texture(texture, texture_coordinate).a, 1.0 - distance / 0.01));
+//     outColor = vec4(0,0,0, 1.0 - distance / 0.01);
+
+    //outColor = vec4(0,0,0, distance); //max( 0.0, 1.0 - distance));
   }
   ")
 
@@ -67,21 +74,20 @@
   void main() {
       vec2 flipped_texture_coordinate = vec2(texture_coordinate.x, 1.0 - texture_coordinate.y);
 
-      outColor = vec4(1,0,0, abs(texture(target_texture, texture_coordinate).a - texture(source_texture, texture_coordinate).a));
+      outColor = vec4(1,0,0, abs(texture(target_texture, texture_coordinate).a - texture(source_texture, flipped_texture_coordinate).a));
   }
   ")
 
 (defn create-render-target [gl width height]
   (let [render-target (render-target/create width height gl)]
     (render-target/render-to render-target gl
-                             (opengl/clear gl 0 0 0 0))
+                             (opengl/clear gl 1 1 1 0))
     render-target))
 
 (defn canvas-state-atom-specification [gl width height]
   {:create (fn []
              {:source (create-render-target gl width height)
-              :target (create-render-target gl width height)
-              :blit-program (quad/create-program quad/fragment-shader-source gl)})
+              :target (create-render-target gl width height)})
    :delete (fn [state-atom]
              (render-target/delete (:source @state-atom) gl)
              (render-target/delete (:target @state-atom) gl))})
@@ -105,7 +111,7 @@
                      canvas-state-atom (atom-registry/get! canvas-state-id)]
                  (render-target-renderer/render render-target-renderer-atom gl scene-graph
                                                 (fn []
-                                                  (opengl/clear gl 0 0 0 1)
+                                                  (opengl/clear gl 1 1 1 1)
                                                   (when canvas-state-atom
                                                     (quad/draw gl
                                                                ["target_texture" (cache/call-with-key! texture/create-for-buffered-image
@@ -135,7 +141,10 @@
          :y 0
          :width width
          :height height
-         :children [(layouts/horizontally-with-margin 10
+         :children [(assoc (visuals/rectangle [255 255 255 255] 0 0)
+                           :width width
+                           :height height)
+                    (layouts/horizontally-with-margin 10
                                                       (layouts/vertically-with-margin 10
                                                                                       (visuals/image target-buffered-image)
                                                                                       (diff-view target-buffered-image
@@ -161,13 +170,14 @@
                                                                                      [(float (/ x canvas-width))
                                                                                       (float (/ y canvas-height))])
                                                                                    points)
-                                                                       coordinates (flatten points)]
-
-                                                                   (when (> (count coordinates)
-                                                                            0)
-                                                                     (opengl/clear gl 0 0 0 1)
+                                                                       coordinates (flatten points)
+                                                                       paint (> (count coordinates)
+                                                                                0)]
+                                                                   (when paint
+                                                                     (prn coordinates (/ (count coordinates)
+                                                                                         2))
                                                                      (render-target/render-to (:target @canvas-state-atom) gl
-                                                                                              #_(opengl/clear gl 0 0 0 0)
+                                                                                              #_(opengl/clear gl 1 1 1 1)
                                                                                               (let [program (cache/call-with-key! quad/create-program
                                                                                                                                   fragment-shader-source
                                                                                                                                   fragment-shader-source
@@ -175,7 +185,7 @@
                                                                                                 (quad/draw gl
                                                                                                            ["texture" (:texture (:source @canvas-state-atom))]
                                                                                                            [:2fv "points" coordinates
-                                                                                                            :1i "number_of_points" (/ (count points)
+                                                                                                            :1i "number_of_points" (/ (count coordinates)
                                                                                                                                       2)]
                                                                                                            program
                                                                                                            0 0
@@ -192,7 +202,7 @@
                                                                    (assoc (select-keys scene-graph [:x :y])
                                                                           :width canvas-width
                                                                           :height canvas-height
-                                                                          :texture-id (:texture (:source @canvas-state-atom))
+                                                                          :texture-id (:texture (:source  @canvas-state-atom))
                                                                           :texture-hash (hash scene-graph))))})]}
         (application/do-layout width height))))
 
