@@ -42,9 +42,9 @@
 (defn get-graphics [buffered-image]
   (.createGraphics buffered-image))
 
-(defn clear [buffered-image]
+(defn clear [buffered-image r g b a]
   (let [graphics (get-graphics buffered-image)]
-    (.setBackground graphics (Color. 255 255 255 0))
+    (.setBackground graphics (Color. r g b a))
     (.clearRect graphics 0 0 (.getWidth buffered-image) (.getHeight buffered-image))))
 
 (defn create-from-file [file-name]

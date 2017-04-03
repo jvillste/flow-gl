@@ -6,9 +6,10 @@
                    [layouts :as layouts]
                    [layout :as layout]
                    [cache :as cache]
-                   [handler :as handler])
+                   [handler :as handler]
+                   )
             (flow-gl.gui 
-             
+             [keyboard :as keyboard]
              [visuals :as visuals]
              [quad-renderer :as quad-renderer]
              [render-target-renderer :as render-target-renderer]
@@ -18,7 +19,9 @@
                                  [quad :as quad]
                                  [texture :as texture]
                                  [render-target :as render-target])
-            [flow-gl.graphics.buffered-image :as buffered-image])
+            (flow-gl.graphics [font :as font]
+                              [buffered-image :as buffered-image]
+                              [text :as text]))
   (:use clojure.test))
 
 (def fragment-shader-source "
@@ -30,7 +33,7 @@
 
   uniform vec2 points[50];
 
-  uniform int erase;
+  uniform vec4 paint_color;
 
   in vec2 texture_coordinate;
 
@@ -54,7 +57,9 @@
     distance = min(1,distance);
 
      vec2 flipped_texture_coordinate = vec2(texture_coordinate.x, 1.0 - texture_coordinate.y);
-     outColor = vec4(0,0,0, max(texture(texture, flipped_texture_coordinate).a,  1.0 - distance));
+     vec4 texture_color = texture(texture, flipped_texture_coordinate);
+
+     outColor = (texture_color * distance) + (paint_color * (1.0 - distance));
 
 
     //outColor = vec4(0,0,0, distance); //max( 0.0, 1.0 - distance));
@@ -74,14 +79,18 @@
   void main() {
       vec2 flipped_texture_coordinate = vec2(texture_coordinate.x, 1.0 - texture_coordinate.y);
 
-      outColor = vec4(1,0,0, abs(texture(target_texture, texture_coordinate).a - texture(source_texture, flipped_texture_coordinate).a));
+     // outColor = vec4(1,0,0, abs(texture(target_texture, texture_coordinate).a - texture(source_texture, flipped_texture_coordinate).a));
+
+  vec4 difference = texture(target_texture, texture_coordinate) - texture(source_texture, flipped_texture_coordinate);
+  
+  outColor = vec4(1,0,0, abs( (difference.r + difference.g + difference.b) / 3.0));
   }
   ")
 
 (defn create-render-target [gl width height]
   (let [render-target (render-target/create width height gl)]
     (render-target/render-to render-target gl
-                             (opengl/clear gl 1 1 1 0))
+                             (opengl/clear gl 1 1 1 1))
     render-target))
 
 (defn canvas-state-atom-specification [gl width height]
@@ -102,12 +111,12 @@
 
 
 (defn diff-view [target-buffered-image canvas-state-id]
-  (let [diff-width 200
-        diff-height 200]
+  (let [diff-width 100 #_(.getWidth target-buffered-image)
+        diff-height 100 #_(.getHeight target-buffered-image)]
     {:width diff-width
      :height diff-height
      :render (fn [scene-graph gl]
-               (let [render-target-renderer-atom (atom-registry/get! :diff (render-target-renderer/atom-specification gl))
+               (let [render-target-renderer-atom (atom-registry/get! [:diff diff-width diff-height]  (render-target-renderer/atom-specification gl))
                      canvas-state-atom (atom-registry/get! canvas-state-id)]
                  (render-target-renderer/render render-target-renderer-atom gl scene-graph
                                                 (fn []
@@ -130,7 +139,21 @@
                                                                diff-width
                                                                diff-height))))))}))
 
-(def target-buffered-image (buffered-image/create-from-file "pumpkin.png"))
+(def target-buffered-image #_(buffered-image/create-from-file "pumpkin.png")
+  (let [font (font/create "LiberationSans-Regular.ttf" 100)
+        text "O"
+        color [0 0 0 255]
+        buffered-image (text/create-buffered-image color
+                                                   font
+                                                   text)]
+    (buffered-image/clear buffered-image 255 255 255 255)
+    (text/draw (buffered-image/get-graphics buffered-image)
+               color
+               font
+               text)
+    buffered-image))
+
+
 
 (defn create-events-set [& events]
   (apply sorted-set-by (fn [a b]
@@ -218,7 +241,6 @@
                                           (float (/ (:y event)
                                                     height))])
                                        events))]
-    (prn coordinates)
     (render-target/render-to (:target @canvas-state-atom) gl
                              (let [program (cache/call-with-key! quad/create-program
                                                                  fragment-shader-source
@@ -228,7 +250,9 @@
                                           ["texture" (:texture (:source @canvas-state-atom))]
                                           [:2fv "points" coordinates
                                            :1i "number_of_points" (/ (count coordinates)
-                                                                     2)]
+                                                                     2)
+                                           :4f "paint_color" (:color (first events))]
+                                          
                                           program
                                           0 0
                                           width
@@ -241,10 +265,8 @@
                                       :source (:target state)
                                       :target (:source state))))))
 
-(handler/def-handler-creator create-canvas-renderer [events] [scene-graph gl]
-  (let [canvas-state-atom (atom-registry/get! [:canvas-state
-                                               (:width scene-graph)
-                                               (:height scene-graph)]
+(handler/def-handler-creator create-canvas-renderer [events canvas-state-id] [scene-graph gl]
+  (let [canvas-state-atom (atom-registry/get! canvas-state-id
                                               (canvas-state-atom-specification gl
                                                                                (:width scene-graph)
                                                                                (:height scene-graph)))
@@ -252,7 +274,7 @@
     
     (doseq [stroke strokes]
       (when (not= [(:last-painted-event @canvas-state-atom)]
-                       stroke)
+                  stroke)
         
         (draw-stroke (if (= 1 (count stroke))
                        [(first stroke)
@@ -270,11 +292,13 @@
 (handler/def-handler-creator create-canvas-mouse-event-handler [event-state-atom] [node event]
   (when-let [paint-event (case (:type event)
                            :mouse-pressed {:type :start-stroke
+                                           :color (:paint-color @event-state-atom)
                                            :x (:local-x event)
                                            :y (:local-y event)
                                            :time (:time event)}
 
                            :mouse-dragged {:type :draw-stroke
+                                           :color (:paint-color @event-state-atom)
                                            :x (:local-x event)
                                            :y (:local-y event)
                                            :time (:time event)}
@@ -289,12 +313,32 @@
   event)
 
 
+(handler/def-handler-creator create-keyboard-event-handler [event-state-atom] [event]
+
+  (when (and (= 32 (:key-code event))
+             (= :key-pressed (:type event))
+             (not (:is-auto-repeat event)))
+    (println "press")
+    (swap! event-state-atom assoc :paint-color [1 1 1 1]))
+
+  (when (and (= 32 (:key-code event))
+             (= :key-released (:type event))
+             (not (:is-auto-repeat event)))
+    (println "release")
+    (swap! event-state-atom assoc :paint-color [0 0 0 1])))
+
+(defn with-borders [child]
+  (layouts/box 10 (visuals/rectangle [0 0 0 255] 20 20)
+               child))
 
 (defn create-scene-graph [width height]
-  (let [canvas-width 500
-        canvas-height 500
-        event-state-atom (atom-registry/get! :state {:create (fn [] {:events (create-events-set)})})]
+  (let [canvas-width (.getWidth target-buffered-image)
+        canvas-height (.getHeight target-buffered-image)
+        event-state-atom (atom-registry/get! :state {:create (fn [] {:events (create-events-set)
+                                                                     :paint-color [1 0 0 1]})})
+        canvas-state-id [:canvas-state canvas-width canvas-height]]
     (animation/swap-state! animation/set-wake-up 1000)
+    (keyboard/set-focused-event-handler! (create-keyboard-event-handler event-state-atom))
     (-> {:x 0
          :y 0
          :width width
@@ -303,17 +347,22 @@
                            :width width
                            :height height)
                     (layouts/horizontally-with-margin 10
+                                                      
                                                       (layouts/vertically-with-margin 10
-                                                                                      (visuals/image target-buffered-image)
-                                                                                      (diff-view target-buffered-image
-                                                                                                 [:canvas-state canvas-width canvas-height]))
-                                                      {:x 200
-                                                       :y 0
-                                                       :width canvas-width
-                                                       :height canvas-height
-                                                       :id :canvas
-                                                       :mouse-event-handler (create-canvas-mouse-event-handler event-state-atom)
-                                                       :render (create-canvas-renderer (:events @event-state-atom))})]}
+                                                                                      (with-borders
+                                                                                        (visuals/image target-buffered-image))
+                                                                                      (with-borders
+                                                                                        (diff-view target-buffered-image
+                                                                                                   canvas-state-id)))
+                                                      
+                                                      (with-borders
+                                                        {:x 200
+                                                         :y 0
+                                                         :width (* 2 canvas-width)
+                                                         :height (* 2 canvas-height)
+                                                         :id :canvas
+                                                         :mouse-event-handler (create-canvas-mouse-event-handler event-state-atom)
+                                                         :render (create-canvas-renderer (:events @event-state-atom) canvas-state-id)}))]}
         (application/do-layout width height))))
 
 (defn start []
