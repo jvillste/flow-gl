@@ -6,8 +6,7 @@
                    [layouts :as layouts]
                    [layout :as layout]
                    [cache :as cache]
-                   [handler :as handler]
-                   )
+                   [handler :as handler])
             (flow-gl.gui 
              [keyboard :as keyboard]
              [visuals :as visuals]
@@ -22,6 +21,8 @@
             (flow-gl.graphics [font :as font]
                               [buffered-image :as buffered-image]
                               [text :as text]))
+  (:import  [javax.imageio ImageIO]
+            [java.io File])
   (:use clojure.test))
 
 (def fragment-shader-source "
@@ -52,7 +53,7 @@
   void main() {
     float distance = 1;
     for (int i = 0; i < (number_of_points -1); i++){
-      distance = min(distance, distance_to_line(texture_coordinate, points[i], points[i+1], 0.1) / 0.01);
+      distance = min(distance, distance_to_line(texture_coordinate, points[i], points[i+1], 0.001) / 0.005);
     }
     distance = min(1,distance);
 
@@ -111,10 +112,10 @@
 
 
 (defn diff-view [target-buffered-image canvas-state-id]
-  (let [diff-width 100 #_(.getWidth target-buffered-image)
-        diff-height 100 #_(.getHeight target-buffered-image)]
-    {:width diff-width
-     :height diff-height
+  (let [diff-width (.getWidth target-buffered-image)
+        diff-height (.getHeight target-buffered-image)]
+    {:width (* 2 diff-width)
+     :height (* 2 diff-height)
      :render (fn [scene-graph gl]
                (let [render-target-renderer-atom (atom-registry/get! [:diff diff-width diff-height]  (render-target-renderer/atom-specification gl))
                      canvas-state-atom (atom-registry/get! canvas-state-id)]
@@ -139,19 +140,34 @@
                                                                diff-width
                                                                diff-height))))))}))
 
-(def target-buffered-image #_(buffered-image/create-from-file "pumpkin.png")
-  (let [font (font/create "LiberationSans-Regular.ttf" 100)
-        text "O"
-        color [0 0 0 255]
-        buffered-image (text/create-buffered-image color
-                                                   font
-                                                   text)]
-    (buffered-image/clear buffered-image 255 255 255 255)
-    (text/draw (buffered-image/get-graphics buffered-image)
-               color
-               font
-               text)
-    buffered-image))
+#_(def target-buffered-image (buffered-image/create-from-file #_"pumpkin.png" "/Users/jukka/Pictures/how-to-draw-a-dragon-from-skyrim-step-9_1_000000153036_5.gif"))
+
+(def target-buffered-image
+  (let [original-image (ImageIO/read (File. "/Users/jukka/Pictures/how-to-draw-a-dragon-from-skyrim-step-9_1_000000153036_5.gif"))
+        size (max (.getWidth original-image) (.getHeight original-image))
+        new-image (buffered-image/create size
+                                         size)]
+    (.drawImage (buffered-image/get-graphics new-image)
+                original-image
+                nil
+                0
+                0)
+    new-image))
+
+#_(def target-buffered-image #_(buffered-image/create-from-file "pumpkin.png")
+    (let [font (font/create "LiberationSans-Regular.ttf" 100)
+          text "O"
+          color [0 0 0 255]
+          size (max 1
+                    (font/width font text)
+                    (font/height font))
+          buffered-image (buffered-image/create size size)]
+      (buffered-image/clear buffered-image 255 255 255 255)
+      (text/draw (buffered-image/get-graphics buffered-image)
+                 color
+                 font
+                 text)
+      buffered-image))
 
 
 
@@ -240,7 +256,9 @@
                                                     width))
                                           (float (/ (:y event)
                                                     height))])
-                                       events))]
+                                       (filter (fn [event]
+                                                 (not= :end-stroke (:type event)))
+                                               events)))]
     (render-target/render-to (:target @canvas-state-atom) gl
                              (let [program (cache/call-with-key! quad/create-program
                                                                  fragment-shader-source
@@ -332,12 +350,15 @@
                child))
 
 (defn create-scene-graph [width height]
-  (let [canvas-width (.getWidth target-buffered-image)
-        canvas-height (.getHeight target-buffered-image)
+  (let [target-scale 0.6
+        target-width (.getWidth target-buffered-image)
+        target-height (.getHeight target-buffered-image) 
+        canvas-width (int (* target-scale (max target-width target-height))) 
+        canvas-height (int (* target-scale (max target-width target-height)))
         event-state-atom (atom-registry/get! :state {:create (fn [] {:events (create-events-set)
-                                                                     :paint-color [1 0 0 1]})})
+                                                                     :paint-color [0 0 0 1]})})
         canvas-state-id [:canvas-state canvas-width canvas-height]]
-    (animation/swap-state! animation/set-wake-up 1000)
+    ;;(animation/swap-state! animation/set-wake-up 1000)
     (keyboard/set-focused-event-handler! (create-keyboard-event-handler event-state-atom))
     (-> {:x 0
          :y 0
@@ -347,19 +368,22 @@
                            :width width
                            :height height)
                     (layouts/horizontally-with-margin 10
-                                                      
                                                       (layouts/vertically-with-margin 10
                                                                                       (with-borders
-                                                                                        (visuals/image target-buffered-image))
+                                                                                        (assoc (visuals/image target-buffered-image)
+                                                                                               :width (int (* target-scale target-width))
+                                                                                               :height (int (* target-scale target-height))))
                                                                                       (with-borders
-                                                                                        (diff-view target-buffered-image
-                                                                                                   canvas-state-id)))
+                                                                                        (assoc (diff-view target-buffered-image
+                                                                                                          canvas-state-id)
+                                                                                               :width canvas-width
+                                                                                               :height canvas-height )))
                                                       
                                                       (with-borders
                                                         {:x 200
                                                          :y 0
-                                                         :width (* 2 canvas-width)
-                                                         :height (* 2 canvas-height)
+                                                         :width canvas-width
+                                                         :height canvas-width
                                                          :id :canvas
                                                          :mouse-event-handler (create-canvas-mouse-event-handler event-state-atom)
                                                          :render (create-canvas-renderer (:events @event-state-atom) canvas-state-id)}))]}

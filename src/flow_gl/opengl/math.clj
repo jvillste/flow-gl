@@ -11,6 +11,15 @@
                   [0.0           0.0             2.0 1.0]
                   [0.0           0.0             0.0 1.0]]))
 
+(defn projection-matrix-3d [near far left right top bottom]
+  (matrix/matrix [[(/ (* 2.0 near) (- right left)) 0.0 (/ (+ right left) (- right left)) 0.0]
+                  
+                  [0.0 (/ (* 2.0 near) (- top bottom)) (/ (+ top bottom) (- top bottom)) 0.0]
+
+                  [0.0 0.0 (- (/ (+ far near) (- far near))) (- (/ (* 2.0 far near) (- far near)))]
+
+                  [0.0  0.0  -1.0 0.0]]))
+
 
 (defn z-rotation-matrix [angle]
   (matrix/matrix [[(Math/cos angle) (- (Math/sin angle)) 0.0 0.0]

@@ -18,7 +18,7 @@
                          vertex-color-buffer-id
                          vertex-color-buffer])
 
-  (def vertex-shader-source "
+(def vertex-shader-source "
   #version 140
   uniform mat4 projection_matrix;
 
@@ -32,10 +32,26 @@
   color = vertex_color_attribute;
   }
 
-")
+  ")
+
+(def vertex-shader-source-3d "
+  #version 140
+  uniform mat4 projection_matrix;
+
+  in vec3 vertex_coordinate_attribute;
+  in vec4 vertex_color_attribute;
+
+  out vec4 color;
+
+  void main() {
+  gl_Position = projection_matrix * vec4(vertex_coordinate_attribute, 1.0);
+  color = vertex_color_attribute;
+  }
+
+  ")
 
 
-  (def fragment-shader-source "
+(def fragment-shader-source "
   #version 140
 
   in vec4 color;
@@ -44,7 +60,7 @@
   void main() {
   outColor = color;
   }
-")
+  ")
 
 
 
@@ -56,10 +72,10 @@
                                      float-buffer)
 
     (assoc triangle-list
-      :float-buffer float-buffer
-      :number-of-triangles (/ (count coordinates)
-                              2
-                              3))))
+           :float-buffer float-buffer
+           :number-of-triangles (/ (count coordinates)
+                                   2
+                                   3))))
 
 (defn update [triangle-list coordinates colors gl]
   (let [float-buffer (native-buffer/ensure-buffer-capacity-with-values (:float-buffer triangle-list)
@@ -78,7 +94,7 @@
   (.glBindBuffer gl GL2/GL_ARRAY_BUFFER (:vertex-coordinate-buffer-id triangle-list))
   (.glVertexAttribPointer gl
                           (int (:vertex-coordinate-attribute-index triangle-list))
-                          (int 2)
+                          (int (:dimensions triangle-list))
                           (int GL2/GL_FLOAT)
                           false
                           (int 0)
@@ -99,16 +115,18 @@
 
   triangle-list)
 
-(defn create [gl mode]
+(defn create [gl mode dimensions]
   (let [shader-program (shader/compile-program gl
-                                               vertex-shader-source
+                                               (if (= 2 dimensions)
+                                                 vertex-shader-source
+                                                 vertex-shader-source-3d)
                                                fragment-shader-source)
         vertex-array-object (vertex-array-object/create gl)]
 
     (vertex-array-object/bind gl vertex-array-object)
 
-
     (-> (map->TriangleList {:mode mode
+                            :dimensions dimensions
                             :vertex-array-object (vertex-array-object/create gl)
                             :float-buffer (native-buffer/create-native-buffer :float 256)
                             :vertex-coordinate-attribute-index (.glGetAttribLocation gl shader-program "vertex_coordinate_attribute")
@@ -119,8 +137,8 @@
 
         (initialize-vertex-array-object gl))))
 
-(defn create-for-coordinates [gl mode coordinates colors]
-  (-> (create gl mode)
+(defn create-for-coordinates [gl mode dimensions coordinates colors]
+  (-> (create gl mode dimensions)
       (update gl
               coordinates
               colors)))
@@ -131,14 +149,18 @@
   (shader/delete-program gl (:shader-program triangle-list))
   triangle-list)
 
-(defn set-size [triangle-list width height gl]
+(defn set-projection-matrix [triangle-list projection-matrix gl]
   (shader/enable-program gl (:shader-program triangle-list))
   (shader/set-float4-matrix-uniform gl
                                     (:shader-program triangle-list)
                                     "projection_matrix"
-                                    (math/core-matrix-to-opengl-matrix (math/projection-matrix-2d width
-                                                                                                  height)))
+                                    projection-matrix)
   triangle-list)
+
+(defn set-size [triangle-list width height gl]
+  (set-projection-matrix triangle-list (math/core-matrix-to-opengl-matrix (math/projection-matrix-2d width
+                                                                                                     height))
+                         gl))
 
 (defn render [triangle-list gl]
   (vertex-array-object/bind gl (:vertex-array-object triangle-list))
@@ -152,7 +174,6 @@
   (vertex-array-object/bind gl 0)
 
   triangle-list)
-
 
 
 (defn render-coordinates [triangle-list coordinates colors gl]

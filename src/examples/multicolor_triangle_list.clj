@@ -31,12 +31,12 @@
     (let [triangle-list (window/with-gl window gl
                           (multicolor-triangle-list/create gl :triangles))
 
-          rectangles (doall (for [x (range 300)
-                                  y (range 300)]
-                              {:x (* x 3)
-                               :y (* y 3)
-                               :width 2
-                               :height 2}))
+          rectangles (doall (for [x (range 30)
+                                  y (range 30)]
+                              {:x (* x 10)
+                               :y (* y 10)
+                               :width 8
+                               :height 8}))
           coordinates (doall (map float (mapcat quad rectangles)))
           colors (doall (map float (apply concat (repeat (/ (count coordinates) 2) [1 0 1 1]))))]
 
