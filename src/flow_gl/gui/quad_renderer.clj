@@ -181,8 +181,11 @@
            :quad-batch new-quad-batch
            :drawable-textures new-drawable-textures)))
 
+
+
 (defn draw [quad-renderer quads width height gl]
-  (let [quad-renderer (load-new-textures quad-renderer
+  (let [;;quads (map (partial scale-quad 0.3) quads)
+        quad-renderer (load-new-textures quad-renderer
                                          quads
                                          gl)
         quad-renderer (assoc quad-renderer
@@ -204,6 +207,8 @@
         (update-in [:draws-after-garbage-collection] (fnil inc 0))))
   #_(taoensso.timbre.profiling/p :draw
                                  ))
+
+
 
 (defn nodes-in-view [scene-graph width height]
   #_(cache/call! scene-graph/leaf-nodes scene-graph)

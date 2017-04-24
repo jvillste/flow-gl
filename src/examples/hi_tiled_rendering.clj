@@ -2,16 +2,17 @@
   (:require [clojure.spec.test :as spec-test]
             [clojure.spec :as spec]
             [fungl.application :as application]
-            (flow-gl.gui [layout :as layout]
-                         [visuals :as visuals]
+            (fungl [layout :as layout]
+                   [layouts :as layouts])
+            (flow-gl.gui [visuals :as visuals]
                          [quad-renderer :as quad-renderer]
                          [tiled-renderer :as tiled-renderer]
                          [render-target-renderer :as render-target-renderer]
-                         [animation :as animation]
-                         [layouts :as layouts])
-            (flow-gl.graphics [font :as font])))
+                         [animation :as animation])
+            (flow-gl.graphics [font :as font])
+            [clojure.java.io :as io]))
 
-(def font (font/create "LiberationSans-Regular.ttf" 15))
+(def font (font/create (.getPath (io/resource "LiberationSans-Regular.ttf")) 15))
 
 (def state (atom {}))
 
@@ -35,7 +36,7 @@
                (application/do-layout 1000 1000)))
 
 (def text
-  (-> (with-open [rdr (clojure.java.io/reader "src/examples/hi_tiled_rendering.clj")]
+  (-> (with-open [rdr (clojure.java.io/reader "README.md" #_"src/examples/hi_tiled_rendering.clj")]
         (apply layouts/vertically
                (for [line (doall (line-seq rdr))]
                  (visuals/text [255 255 255 255]

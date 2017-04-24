@@ -126,6 +126,9 @@
     (shader/delete-program gl shader-program)))
 
 (defn create [width height gl]
+  (assert (not= width Integer/MAX_VALUE) "Tried to create a render target with infinite width.")
+  (assert (not= height Integer/MAX_VALUE) "Tried to create a render target with infinite height.")
+  
   (let [width (int width)
         height (int height)
         frame-buffer (frame-buffer/create gl)
@@ -200,6 +203,11 @@
    :delete-state (fn [render-target]
                    (delete render-target gl))
    :kind [width height]})
+
+(defn atom-specification [width height gl]
+  {:create (fn [] (create width height gl)) 
+   :delete (fn [render-target-atom]
+             (delete @render-target-atom gl))})
 
 #_(defn draw-rectangle [nanovg x y width height r g b a]
     (doto nanovg

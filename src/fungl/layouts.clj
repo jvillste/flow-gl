@@ -165,7 +165,7 @@
   (update-in node
              [:children]
              (fn [[child]]
-               [(layout/add-layout (assoc child
+               [(layout/make-layout (assoc child
                                           :x 0
                                           :y 0
                                           :z 0
@@ -272,6 +272,24 @@
   (let [children (flatten-contents children)]
     {:children children
      :get-size superimpose-get-size}))
+
+;; preferred-size
+
+(defn preferred-size-get-size [node]
+  (layout/size (first (:children node))))
+
+(defn preferred-size-make-layout [node]
+  (let [child (first (:children node))
+        {:keys [width height]} (layout/size node)]
+    (assoc node :children [(assoc child
+                                  :width width
+                                  :height height)])))
+
+(defn with-preferred-size [child]
+  {:children [child]
+   :get-size preferred-size-get-size
+   :make-layout preferred-size-make-layout})
+
 
 
 ;; flow
