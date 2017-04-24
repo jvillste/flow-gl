@@ -75,6 +75,8 @@
                                            {:x 5 :y 5 :expected-position 2}
                                            {:x 5 :y 5 :expected-position 3}]}))))
 
+
+
 (defn flatten
   ([node]
    (cache/call! flatten node 0 0 0 []))
@@ -197,6 +199,10 @@
   
   (is (not (intersects? {:x 0 :y 0 :width 100 :height 100}
                         {:x -100 :y 10 :width 10 :height 10}))))
+
+(defn in-region? [x y width height node]
+  (intersects? {:x 0 :y 0 :width width :height height}
+               node))
 
 (defn update-depth-first [scene-graph predicate function]
   (let [scene-graph (if-let [children (:children scene-graph)]

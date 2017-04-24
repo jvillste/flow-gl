@@ -99,8 +99,7 @@
                                                  ;;                                                  create-render-state
                                                  ;;                                                  read-events
                                                  ]
-                                          :or {window (create-window)
-                                               target-frame-rate 60
+                                          :or {target-frame-rate 60
                                                handle-event handle-event
                                                ;;                                                read-events read-events
                                                ;;                                                render render
@@ -108,7 +107,8 @@
                                                ;;                                                create-render-state create-render-state
                                                }}]
 
-  (let [event-channel (window/event-channel window)
+  (let [window (or window (create-window))
+        event-channel (window/event-channel window)
         renderable-scene-graph-channel (async/chan)]
     
     ;; use async/thread to inherit bindings such as flow-gl.debug/dynamic-debug-channel

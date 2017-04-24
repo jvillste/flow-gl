@@ -7,7 +7,8 @@
                          [visuals :as visuals])
             (flow-gl.graphics [font :as font])
             [taoensso.timbre.profiling :as timbre-profiling]
-            (fungl [renderer :as renderer]))
+            (fungl [renderer :as renderer])
+            [clojure.java.io :as io])
   (:use clojure.test))
 
 (defn initialize-state [gl]
@@ -39,7 +40,7 @@
   (is (= '([-1 -1])
          (tiles-in-view 100 100 -20 -20 10 10))))
 
-(def font (font/create "LiberationSans-Regular.ttf" 15))
+(def font (font/create (.getPath (io/resource "LiberationSans-Regular.ttf")) 15))
 
 
 (defn render-tile [tile tiled-renderer-id renderers tile-width tile-height visualize-tiles scene-graph gl]

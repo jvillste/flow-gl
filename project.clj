@@ -1,6 +1,7 @@
 (defproject flow-gl "1.0.0-SNAPSHOT"
   :description "FIXME: write description"
   :repositories {"sonatype-oss-public" "https://oss.sonatype.org/content/groups/public/"} ;; for priority-map
+  :resource-paths ["resources"]
   :dependencies [[org.clojure/clojure "1.9.0-alpha12"]
                  [net.mikera/core.matrix "0.33.2"]
                  [com.taoensso/timbre "3.3.1"]

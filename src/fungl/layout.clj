@@ -45,7 +45,7 @@
 (cache/defn-memoized add-size [node]
   (conj node (size node)))
 
-(cache/defn-memoized add-layout [node]
+(cache/defn-memoized make-layout [node]
   (if-let [layout-function (:make-layout node)]
     (layout-function node)
     (update-in node [:children]
@@ -73,4 +73,4 @@
                           children)
                      nil)))
       (add-size)
-      (add-layout)))
+      (make-layout)))

@@ -58,6 +58,17 @@
                 0)
     new-image))
 
+(defn resize [original-image width height]
+  (let [new-image (create width height)]
+    (.drawImage (get-graphics new-image)
+                original-image
+                0
+                0
+                width
+                height
+                nil)
+    new-image))
+
 (defn create-resized-from-file [file-name width height]
   (let [original-image (ImageIO/read (File. file-name))
         new-image (create width
