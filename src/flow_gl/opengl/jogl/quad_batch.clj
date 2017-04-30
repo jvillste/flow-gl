@@ -448,7 +448,6 @@
       quad-batch)))
 
 (defn finish-adding-textures [quad-batch texel-count textures]
-
   (assert (instance? Long (:next-free-texel quad-batch)))
   (assert (instance? Long texel-count))
   (assoc quad-batch

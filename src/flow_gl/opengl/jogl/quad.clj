@@ -52,7 +52,7 @@
   }
 
   gl_Position = projection_matrix * vec4(quad_coordinates[0] + quad_coordinates[2] * texture_coordinate.x,
-//  quad_coordinates[1] + quad_coordinates[3] * (1 - texture_coordinate.y),
+  //  quad_coordinates[1] + quad_coordinates[3] * (1 - texture_coordinate.y),
   quad_coordinates[1] + quad_coordinates[3] * texture_coordinate.y,
   0.0, 1.0);
 
@@ -190,6 +190,8 @@
         :1f (.glUniform1f gl location values)
         :2f (let [[value1 value2] values]
               (.glUniform2f gl location value1 value2))
+        :3f (let [[value1 value2 value3] values]
+              (.glUniform3f gl location value1 value2 value3))
         :4f (let [[value1 value2 value3 value4] values]
               (.glUniform4f gl location value1 value2 value3 value4))
         :2fv (.glUniform2fv gl

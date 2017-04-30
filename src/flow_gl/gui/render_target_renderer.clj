@@ -54,8 +54,8 @@
 (defn atom-specification [gl]
   {:create initialize-state
    :delete (fn [state-atom]
-             (println "deleting render target renderer")
-             (render-target/delete (:render-target @state-atom) gl))})
+             (when-let [render-target (:render-target @state-atom)] 
+              (render-target/delete render-target gl)))})
 
 (defn renderer [& renderers]
   {:initialize-state initialize-state

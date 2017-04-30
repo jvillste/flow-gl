@@ -144,16 +144,21 @@
 
     (.glTexImage2D gl GL2/GL_TEXTURE_2D 0 #_GL2/GL_RGBA32F GL2/GL_RGBA width height 0 GL2/GL_RGBA GL2/GL_UNSIGNED_BYTE nil)
 
+    (let [read (frame-buffer/get-read gl)
+          draw (frame-buffer/get-draw gl)]
+      
+      (frame-buffer/bind frame-buffer gl)
+      (frame-buffer/bind-texture frame-buffer-texture gl)
+      (frame-buffer/bind-stencil stencil-buffer gl)
 
-    (frame-buffer/bind frame-buffer gl)
-    (frame-buffer/bind-texture frame-buffer-texture gl)
-    (frame-buffer/bind-stencil stencil-buffer gl)
+      (.glDrawBuffers gl 1 (int-array [GL2/GL_COLOR_ATTACHMENT0]) 0)
 
-    (.glDrawBuffers gl 1 (int-array [GL2/GL_COLOR_ATTACHMENT0]) 0)
+      (assert (= (.glCheckFramebufferStatus gl GL2/GL_FRAMEBUFFER) GL2/GL_FRAMEBUFFER_COMPLETE))
 
-    (assert (= (.glCheckFramebufferStatus gl GL2/GL_FRAMEBUFFER) GL2/GL_FRAMEBUFFER_COMPLETE))
+      (frame-buffer/bind-read read gl)
+      (frame-buffer/bind-draw draw gl))
 
-    (frame-buffer/bind 0 gl)
+    #_(frame-buffer/bind 0 gl)
 
     {:frame-buffer frame-buffer
      :texture frame-buffer-texture
