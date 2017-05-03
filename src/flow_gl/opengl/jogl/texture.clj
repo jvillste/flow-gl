@@ -44,8 +44,6 @@
 (defn copy-to-buffer [gl texture buffer offset]
   (assert (instance? Long offset))
 
-  (prn "texture" texture)
-  (prn "buffer" buffer)
   (.glBindTexture gl GL2/GL_TEXTURE_2D texture)
   (.glBindBuffer gl GL2/GL_PIXEL_PACK_BUFFER buffer)
   (.glGetTexImage gl GL2/GL_TEXTURE_2D 0 GL2/GL_BGRA GL2/GL_UNSIGNED_BYTE offset))

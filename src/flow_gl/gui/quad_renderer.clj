@@ -233,7 +233,6 @@
   {})
 
 (defn initialize-state [gl]
-  (println "creating quad renderer")
   {:drawable-textures {}
    :drawn-drawables []
    :quad-batch (quad-batch/create gl)})

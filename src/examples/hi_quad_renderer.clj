@@ -7,7 +7,8 @@
                               [buffered-image :as buffered-image])
 
             (flow-gl.opengl.jogl [opengl :as opengl]
-                                 [window :as jogl-window]))
+                                 [window :as jogl-window])
+            [clojure.java.io :as io])
   (:use flow-gl.utils
         clojure.test))
 
@@ -17,9 +18,9 @@
                                    :close-automatically true)]
 
     (window/with-gl window gl
-      (let [quad-renderer (quad-renderer/create gl)
-            icon (buffered-image/create-from-file "pumpkin.png")
-            font (font/create "LiberationSans-Regular.ttf" 40)
+      (let [quad-renderer (quad-renderer/initialize-state gl)
+            icon (buffered-image/create-from-file (.getPath (io/resource "pumpkin.png")))
+            font (font/create (.getPath (io/resource "LiberationSans-Regular.ttf")) 40)
             window-size (opengl/size gl)]
 
         (opengl/clear gl 0 0 0 1)

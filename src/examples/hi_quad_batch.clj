@@ -8,7 +8,8 @@
             (flow-gl.opengl.jogl [opengl :as opengl]
                                  [window :as jogl-window]
                                  [quad-batch :as quad-batch]
-                                 [render-target :as render-target]))
+                                 [render-target :as render-target])
+            [clojure.java.io :as io])
   (:use flow-gl.utils
         clojure.test))
 
@@ -20,9 +21,9 @@
 
     (window/with-gl window gl
       (let [quad-batch (quad-batch/create gl)
-            icon (buffered-image/create-from-file "pumpkin.png")
+            icon (buffered-image/create-from-file (.getPath (io/resource "pumpkin.png")))
             text (text/create-buffered-image [255 255 255 255]
-                                             (font/create "LiberationSans-Regular.ttf" 40)
+                                             (font/create (.getPath (io/resource "LiberationSans-Regular.ttf")) 40)
                                              "Hello quad batch!")
             quad-batch (quad-batch/add-textures quad-batch
                                                 gl

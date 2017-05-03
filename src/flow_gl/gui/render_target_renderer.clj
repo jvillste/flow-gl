@@ -17,6 +17,10 @@
 
 (defn render [state-atom gl scene-graph render]
   (let [{:keys [render-target previous-scene-graph]} @state-atom]
+    #_(prn (= scene-graph
+            previous-scene-graph)
+         (first (clojure.data/diff scene-graph
+                             previous-scene-graph)))
     (if (= scene-graph
            previous-scene-graph)
       (quad scene-graph
@@ -35,7 +39,7 @@
                                                       gl)))]
 
         #_(prn "diff "(first (data/diff scene-graph
-                               previous-scene-graph)))
+                                        previous-scene-graph)))
         
         (render-target/render-to render-target gl
                                  (render))
@@ -55,7 +59,7 @@
   {:create initialize-state
    :delete (fn [state-atom]
              (when-let [render-target (:render-target @state-atom)] 
-              (render-target/delete render-target gl)))})
+               (render-target/delete render-target gl)))})
 
 (defn renderer [& renderers]
   {:initialize-state initialize-state

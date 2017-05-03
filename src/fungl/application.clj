@@ -91,9 +91,16 @@
 
     events))
 
+(defmacro with-profiling [do-profile id & body]
+  `(if ~do-profile
+     (taoensso.timbre.profiling/profile :info ~id
+                                        ~@body)
+     (do ~@body)))
+
 (defn start-window [create-scene-graph & {:keys [window
                                                  target-frame-rate
                                                  handle-event
+                                                 profiling
                                                  ;;                                                  render
                                                  ;;                                                  create-event-handling-state
                                                  ;;                                                  create-render-state
@@ -101,6 +108,7 @@
                                                  ]
                                           :or {target-frame-rate 60
                                                handle-event handle-event
+                                               profiling false
                                                ;;                                                read-events read-events
                                                ;;                                                render render
                                                ;;                                                create-event-handling-state create-event-handling-state
@@ -119,11 +127,9 @@
                (let [scene-graph (async/<!! renderable-scene-graph-channel)]
                  (when scene-graph
                    (window/with-gl window gl
-                     (do ;;taoensso.timbre.profiling/profile :info :render #_time
-                                                        (do (render gl scene-graph)
-                                                            (value-registry/delete-unused-values! 500)))
-                     #_(taoensso.timbre.profiling/profile :info :render
-                                                          (render gl scene-graph)))
+                     (with-profiling profiling :render
+                       (render gl scene-graph)
+                       (value-registry/delete-unused-values! 500)))
                    (window/swap-buffers window)
                    (recur)))))
 
@@ -146,18 +152,18 @@
 
                 (let [window-width (window/width window)
                       window-height (window/height window)
-                      scene-graph (do ;;taoensso.timbre.profiling/profile :info :handle-vents
-                                                                     (loop [events (read-events event-channel target-frame-rate)
-                                                                            scene-graph scene-graph]
-                                                                       
-                                                                       (if-let [event (first events)]
-                                                                         (do (handle-event scene-graph event)
-                                                                             (let [scene-graph (create-scene-graph window-width
-                                                                                                                   window-height)]
-                                                                               (handle-new-scene-graph scene-graph)
-                                                                               (recur (rest events)
-                                                                                      scene-graph)))
-                                                                         scene-graph)))]
+                      scene-graph (with-profiling profiling :handle-events
+                                    (loop [events (read-events event-channel target-frame-rate)
+                                           scene-graph scene-graph]
+                                      
+                                      (if-let [event (first events)]
+                                        (do (handle-event scene-graph event)
+                                            (let [scene-graph (create-scene-graph window-width
+                                                                                  window-height)]
+                                              (handle-new-scene-graph scene-graph)
+                                              (recur (rest events)
+                                                     scene-graph)))
+                                        scene-graph)))]
 
                   (async/>!! renderable-scene-graph-channel
                              scene-graph)
