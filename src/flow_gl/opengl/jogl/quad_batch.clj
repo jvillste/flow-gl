@@ -14,13 +14,14 @@
                               [font :as font]
                               [text :as text]
                               [native-buffer :as native-buffer]))
+  (:use [clojure.test])
 
   (:import [javax.media.opengl GL2]
            [java.io PrintWriter StringWriter]
            [java.nio IntBuffer]
            [java.awt Color]))
 
-(def quad-parameters-size 9)
+(def quad-parameters-size 10)
 (def parent-offset 0)
 (def x-offset 1)
 (def y-offset 2)
@@ -30,6 +31,9 @@
 (def quad-width-offset 6)
 (def quad-height-offset 7)
 (def upside-down-offset 8)
+
+(def first-available-texture-unit-for-gl-textures 2)
+(def gl-texture-unit-count 7)
 
 (defn read-quad-parameters [quad-batch gl id]
   (let [[parent x y width height texture-offset] (buffer/read gl
@@ -71,10 +75,13 @@
   uniform isamplerBuffer quad_index_sampler;
 
   out vec2 texture_coordinate;
+  out float glTexture;
+  out vec2 glTexture_coordinates;
+
   flat out int texture_offset;
   flat out int texture_width;
 
-  const int quad_parameters_size = 9;
+  const int quad_parameters_size = 10;
 
   void main() {
 
@@ -87,12 +94,17 @@
   // 6 quad width
   // 7 quad height
   // 8 upside down
+  // 9 gl texture
+
+
 
   int quad_index;
   if(use_quad_index_buffer == 1)
   quad_index = texelFetch(quad_index_sampler, gl_InstanceID).x;
   else
   quad_index = gl_InstanceID;
+
+  glTexture = texelFetch(quad_parameters, quad_index * quad_parameters_size + 9).x;
 
   ivec2 texture_size = ivec2(texelFetch(quad_parameters, quad_index * quad_parameters_size + 3).x,
   texelFetch(quad_parameters, quad_index * quad_parameters_size + 4).x);
@@ -101,23 +113,28 @@
   texelFetch(quad_parameters, quad_index * quad_parameters_size + 7).x);
 
   vec2 vertex_coordinates;
+  
 
   switch(gl_VertexID) {
   case 0:
   texture_coordinate = vec2(0.0, 0.0);
   vertex_coordinates = vec2(0.0, 0.0);
+  glTexture_coordinates = vec2(0.0, 0.0);
   break;
   case 1:
   texture_coordinate = vec2(0.0, texture_size.y);
   vertex_coordinates = vec2(0.0, quad_size.y);
+  glTexture_coordinates = vec2(0.0, 1.0);
   break;
   case 2:
   texture_coordinate = vec2(texture_size.x, 0.0);
   vertex_coordinates = vec2(quad_size.x, 0.0);
+  glTexture_coordinates = vec2(1.0, 0.0);
   break;
   case 3:
   texture_coordinate = vec2(texture_size.x, texture_size.y);
   vertex_coordinates = vec2(quad_size.x, quad_size.y);
+  glTexture_coordinates = vec2(1.0, 1.0);
   break;
   }
 
@@ -138,9 +155,15 @@
 (def fragment-shader-source "
   #version 140
 
+  uniform sampler2D[7] glTextures;
+
   uniform samplerBuffer texture;
 
   in vec2 texture_coordinate;
+
+  in vec2 glTexture_coordinates;
+  in float glTexture;
+
   flat in int texture_offset;
   flat in int texture_width;
 
@@ -154,8 +177,27 @@
   //vec4 color = texelFetch(texture, int(texture_offset + texture_coordinate.y * texture_width + texture_coordinate.x));
 
   vec4 color;
-  color  = texelFetch(texture, int(texture_offset + texture_int_coordinate.y * texture_width + texture_int_coordinate.x));
-  outColor = vec4(color.b, color.g, color.r, color.a);
+  int glTexture_index = int(glTexture);
+
+  if(glTexture_index == -1){
+    color  = texelFetch(texture, int(texture_offset + texture_int_coordinate.y * texture_width + texture_int_coordinate.x));
+    outColor = vec4(color.b, color.g, color.r, color.a);
+  }else if(glTexture_index == 0){
+     outColor  = texture(glTextures[0], glTexture_coordinates); 
+  }else if(glTexture_index == 1){
+     outColor  = texture(glTextures[1], glTexture_coordinates); 
+  }else if(glTexture_index == 2){
+     outColor  = texture(glTextures[2], glTexture_coordinates); 
+  }else if(glTexture_index == 3){
+     outColor  = texture(glTextures[3], glTexture_coordinates); 
+  }else if(glTexture_index == 4){
+     outColor  = texture(glTextures[4], glTexture_coordinates); 
+  }else if(glTexture_index == 5){
+     outColor  = texture(glTextures[5], glTexture_coordinates); 
+  }else if(glTexture_index == 6){
+     outColor  = texture(glTextures[6], glTexture_coordinates); 
+  }
+
   }
   ")
 
@@ -221,6 +263,15 @@
                             number-of-texels)
     texture-buffer-id))
 
+(defn set-gl-textures-uniform [shader-program first-texture-unit texture-unit-count gl]
+  (.glUniform1iv gl
+                 (.glGetUniformLocation gl shader-program "glTextures")
+                 texture-unit-count
+                 (int-array (range first-texture-unit
+                                   (+ first-texture-unit
+                                      texture-unit-count)))
+                 0))
+
 (defn create [gl]
   ;;(opengl/initialize gl)
 
@@ -251,6 +302,14 @@
                     :quad-parameters-buffer-texture-id (texture/create-texture-object gl)
 
                     :allocated-texels initial-number-of-texels}]
+
+    (shader/enable-program gl
+                           (:program quad-batch))
+
+    (set-gl-textures-uniform (:program quad-batch)
+                             first-available-texture-unit-for-gl-textures
+                             gl-texture-unit-count
+                             gl)
 
     (vertex-array-object/bind gl (:vertex-array-object quad-batch))
     (shader/validate-program gl (:program quad-batch))
@@ -530,12 +589,33 @@
     (finish-adding-textures quad-batch texel-count (map #(assoc % :upside-down true)
                                                         textures))))
 
-(defn draw [quad-batch gl width height model-matrix]
+
+(defn bind-gl-textures [shader-program first-texture-unit textures gl]
+  (dorun (map-indexed (fn [index texture]
+                        (prn "binding "
+                             (+ index
+                                first-texture-unit
+                                GL2/GL_TEXTURE0)
+                             texture)
+                        (.glActiveTexture gl (+ index
+                                                first-texture-unit
+                                                GL2/GL_TEXTURE0))
+                        (.glBindTexture gl GL2/GL_TEXTURE_2D texture))
+                      textures)))
+
+
+
+(defn draw [quad-batch gl width height model-matrix gl-textures]
 
   (vertex-array-object/bind gl (:vertex-array-object quad-batch))
 
   (shader/enable-program gl
                          (:program quad-batch))
+
+  (bind-gl-textures (:program quad-batch)
+                    first-available-texture-unit-for-gl-textures
+                    gl-textures
+                    gl)
 
   (bind-texture-buffer gl
                        (:texture-buffer-id quad-batch)
@@ -570,12 +650,31 @@
                           "use_quad_index_buffer"
                           0)
 
-
+  #_(shader/validate-program gl (:program quad-batch))
   (.glDrawArraysInstanced gl GL2/GL_TRIANGLE_STRIP 0 4 (:next-free-quad quad-batch))
 
   (vertex-array-object/bind gl 0)
 
   quad-batch)
+
+#_(clojure.reflect/reflect javax.media.opengl.GL2GL3)
+#_(flowgl.reflect/search-method javax.media.opengl.GL2GL3 "glUni")
+
+
+
+(defn map-textures-to-texture-units [textures first-texture-unit]
+  (apply hash-map
+         (apply concat
+                (map-indexed (fn [index gl-texture]
+                               [gl-texture
+                                (+ index
+                                   first-texture-unit)])
+                             textures))))
+
+(deftest map-textures-to-texture-units-test
+  (is (= {1 4, 3 6, 2 5}
+         (map-textures-to-texture-units [1 2 3]
+                                        4))))
 
 (defn draw-quads
   ([quad-batch gl quads width height]
@@ -592,7 +691,19 @@
                       (grow-quad-buffers gl
                                          quad-batch
                                          quad-count)
-                      quad-batch)]
+                      quad-batch)
+         gl-textures (->> quads
+                          (filter :gl-texture)
+                          (map :gl-texture)
+                          (apply hash-set)
+                          (vec))
+
+         gl-texture-to-texture-unit (map-textures-to-texture-units gl-textures
+                                                                   0 #_first-available-texture-unit-for-gl-textures)]
+     (prn gl-texture-to-texture-unit)
+
+     
+     
 
      (let [count (* quad-parameters-size
                     quad-count)
@@ -620,7 +731,13 @@
                                  ^int      (:height texture))))
            (.put buffer (int (if (:upside-down texture)
                                1
-                               0)))))
+                               0)))
+           (prn "index uniform" (or (get gl-texture-to-texture-unit
+                         (:gl-texture quad))
+                    -1))
+           (.put buffer (int (or (get gl-texture-to-texture-unit
+                                      (:gl-texture quad))
+                                 -1)))))
 
        (.rewind buffer)
 
@@ -632,10 +749,12 @@
                                          buffer)
 
        (draw (assoc quad-batch
+
+                    
                     :draw-count (inc (or (:draw-count quad-batch)
                                          0))
                     :int-buffer buffer
-                    :next-free-quad quad-count) gl width height model-matrix)))))
+                    :next-free-quad quad-count) gl width height model-matrix gl-textures)))))
 
 
 

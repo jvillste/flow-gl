@@ -44,10 +44,10 @@
                 []))))
 
 (defn texture-key [quad]
-  (if-let [texture-hash (:texture-hash quad)]
-    texture-hash
-    (hash (concat [(:image-function quad)]
-                  (image-function-parameters quad)))))
+  (or (:texture-hash quad)
+      (:texture-id quad)
+      (hash (concat [(:image-function quad)]
+                    (image-function-parameters quad)))))
 
 (defn unused-drawable-textures [drawable-textures quads]
   (reduce dissoc drawable-textures (map texture-key quads)))

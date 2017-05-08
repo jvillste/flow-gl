@@ -19,6 +19,7 @@
                          [render-target-renderer :as render-target-renderer])
             (flow-gl.graphics [font :as font]
                               [rectangle :as rectangle])
+            [clojure.java.io :as io]
             #_(flow-gl.gui [drawable :as drawable]
                            [layout :as layout]
                            [layouts :as layouts]
@@ -247,7 +248,7 @@
    (text value [255 255 255 255]))
 
   ([value color]
-   (text value color (font/create "LiberationMono-Regular.ttf" 15)))
+   (text value color (font/create (.getPath (io/resource "LiberationSans-Regular.ttf")) 15)))
 
   ([value color font]
    (visuals/text color

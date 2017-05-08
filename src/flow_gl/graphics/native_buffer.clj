@@ -65,9 +65,6 @@
     :short unchecked-short
     :float float))
 
-
-
-
 (defn put-float-values [^FloatBuffer native-buffer values]
   (doseq [^Float value values]
     (.put native-buffer value))
@@ -126,8 +123,12 @@
       (.limit native-buffer minimum-capacity)
       native-buffer))
 
-(defn create-native-buffer-with-values [values]
-  (let [native-buffer (create-native-buffer (value-type (first values))
-                                            (count values))]
-    (put-values native-buffer values)
-    native-buffer))
+(defn create-native-buffer-with-values
+  ([values]
+   (create-native-buffer-with-values (value-type (first values))
+                                     values))
+  ([type values]
+   (let [native-buffer (create-native-buffer type
+                                             (count values))]
+     (put-values native-buffer values)
+     native-buffer)))
