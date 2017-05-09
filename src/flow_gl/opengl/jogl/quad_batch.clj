@@ -96,8 +96,6 @@
   // 8 upside down
   // 9 gl texture
 
-
-
   int quad_index;
   if(use_quad_index_buffer == 1)
   quad_index = texelFetch(quad_index_sampler, gl_InstanceID).x;
@@ -119,22 +117,22 @@
   case 0:
   texture_coordinate = vec2(0.0, 0.0);
   vertex_coordinates = vec2(0.0, 0.0);
-  glTexture_coordinates = vec2(0.0, 0.0);
+  glTexture_coordinates = vec2(0.0, 1.0);
   break;
   case 1:
   texture_coordinate = vec2(0.0, texture_size.y);
   vertex_coordinates = vec2(0.0, quad_size.y);
-  glTexture_coordinates = vec2(0.0, 1.0);
+  glTexture_coordinates = vec2(0.0, 0.0);
   break;
   case 2:
   texture_coordinate = vec2(texture_size.x, 0.0);
   vertex_coordinates = vec2(quad_size.x, 0.0);
-  glTexture_coordinates = vec2(1.0, 0.0);
+  glTexture_coordinates = vec2(1.0, 1.0);
   break;
   case 3:
   texture_coordinate = vec2(texture_size.x, texture_size.y);
   vertex_coordinates = vec2(quad_size.x, quad_size.y);
-  glTexture_coordinates = vec2(1.0, 1.0);
+  glTexture_coordinates = vec2(1.0, 0.0);
   break;
   }
 
@@ -592,11 +590,6 @@
 
 (defn bind-gl-textures [shader-program first-texture-unit textures gl]
   (dorun (map-indexed (fn [index texture]
-                        (prn "binding "
-                             (+ index
-                                first-texture-unit
-                                GL2/GL_TEXTURE0)
-                             texture)
                         (.glActiveTexture gl (+ index
                                                 first-texture-unit
                                                 GL2/GL_TEXTURE0))
@@ -612,6 +605,10 @@
   (shader/enable-program gl
                          (:program quad-batch))
 
+  (assert (<= (count gl-textures)
+              gl-texture-unit-count)
+          (str "Too much gl textures:" (count gl-textures) "/" gl-texture-unit-count))
+  
   (bind-gl-textures (:program quad-batch)
                     first-available-texture-unit-for-gl-textures
                     gl-textures
@@ -684,6 +681,7 @@
    #_(flow-gl.debug/set-metric :draw-quads (System/currentTimeMillis))
    #_(flow-gl.debug/set-metric :allocated-quads (:allocated-quads quad-batch))
    #_(flow-gl.debug/set-metric :quad-count (count quads))
+
    (let [quad-count (count quads)
 
          quad-batch (if (< (:allocated-quads quad-batch)
@@ -699,10 +697,7 @@
                           (vec))
 
          gl-texture-to-texture-unit (map-textures-to-texture-units gl-textures
-                                                                   0 #_first-available-texture-unit-for-gl-textures)]
-     (prn gl-texture-to-texture-unit)
-
-     
+                                                                   0)]
      
 
      (let [count (* quad-parameters-size
@@ -712,13 +707,14 @@
 
 
        (doseq [quad quads]
-         (let [texture (if (contains? quad :texture-id)
+         (let [texture (if (:texture-id quad)
                          (get (:textures-in-use quad-batch)
                               (:texture-id quad))
-                         {:first-texel 0
-                          :width 0
+                         {:width 0
                           :height 0
+                          :first-texel 0
                           :upside-down false})]
+           
            (.put buffer (int (or (:parent quad) -1)))
            (.put buffer (int (:x quad)))
            (.put buffer (int (:y quad)))
@@ -729,12 +725,11 @@
                                  ^int      (:width texture))))
            (.put buffer (int (or (:height quad)
                                  ^int      (:height texture))))
-           (.put buffer (int (if (:upside-down texture)
+           (.put buffer (int (if (or (:upside-down texture)
+                                     (:gl-texture quad))
                                1
                                0)))
-           (prn "index uniform" (or (get gl-texture-to-texture-unit
-                         (:gl-texture quad))
-                    -1))
+           
            (.put buffer (int (or (get gl-texture-to-texture-unit
                                       (:gl-texture quad))
                                  -1)))))
@@ -749,12 +744,15 @@
                                          buffer)
 
        (draw (assoc quad-batch
-
-                    
                     :draw-count (inc (or (:draw-count quad-batch)
                                          0))
                     :int-buffer buffer
-                    :next-free-quad quad-count) gl width height model-matrix gl-textures)))))
+                    :next-free-quad quad-count)
+             gl
+             width
+             height
+             model-matrix
+             gl-textures)))))
 
 
 

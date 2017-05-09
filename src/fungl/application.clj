@@ -1,5 +1,6 @@
 (ns fungl.application
   (:require [clojure.core.async :as async]
+            [taoensso.timbre.profiling :as profiling]
             [flow-gl.csp :as csp]
             (fungl [renderer :as renderer]
                    [cache :as cache]

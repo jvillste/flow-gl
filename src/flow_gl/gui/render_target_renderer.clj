@@ -12,7 +12,7 @@
   (assoc (select-keys scene-graph [:x :y])
          :width (:width render-target)
          :height (:height render-target)
-         :texture-id (:texture render-target)
+         :gl-texture (:texture render-target)
          :texture-hash (hash scene-graph)))
 
 (defn render [state-atom gl scene-graph render]

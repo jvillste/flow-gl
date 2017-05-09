@@ -53,8 +53,10 @@
   (reduce dissoc drawable-textures (map texture-key quads)))
 
 (defn has-texture? [quad-renderer quad]
-  (contains? (:drawable-textures quad-renderer)
-             (:texture-key quad)))
+  (or (contains? (:drawable-textures quad-renderer)
+                 (:texture-key quad))
+      (and (:gl-texture quad)
+           (not (:add-to-atlas quad)))))
 
 (defn set-texture [drawable-textures texture-key texture-id]
   (assoc drawable-textures texture-key texture-id))
@@ -184,6 +186,7 @@
 
 
 (defn draw [quad-renderer quads width height gl]
+
   (let [;;quads (map (partial scale-quad 0.3) quads)
         quad-renderer (load-new-textures quad-renderer
                                          quads
@@ -194,9 +197,8 @@
 
                              :quad-batch (quad-batch/draw-quads (:quad-batch quad-renderer)
                                                                 gl
-                                                                (filter :texture-id
-                                                                        (add-texture-ids quads
-                                                                                         (:drawable-textures quad-renderer)))
+                                                                (add-texture-ids quads
+                                                                                 (:drawable-textures quad-renderer))
                                                                 width height))
         quad-renderer (if (= (:draws-after-garbage-collection quad-renderer)
                              10)

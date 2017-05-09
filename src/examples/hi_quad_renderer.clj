@@ -7,7 +7,8 @@
                               [buffered-image :as buffered-image])
 
             (flow-gl.opengl.jogl [opengl :as opengl]
-                                 [window :as jogl-window])
+                                 [window :as jogl-window]
+                                 [texture :as texture])
             [clojure.java.io :as io])
   (:use flow-gl.utils
         clojure.test))
@@ -26,13 +27,19 @@
         (opengl/clear gl 0 0 0 1)
 
         (quad-renderer/draw quad-renderer
-                            (concat [{:x 150
+                            (concat [{:x 250
+                                      :y 10
+                                      :width (.getWidth icon)
+                                      :height (.getHeight icon)
+                                      :gl-texture (texture/create-for-file (.getPath (io/resource "pumpkin.png"))
+                                                                           gl)}
+                                     #_{:x 150
                                       :y 10
                                       :width (.getWidth icon)
                                       :height (.getHeight icon)
                                       :image-function (fn [] icon)}
                                      
-                                     {:x 100
+                                     #_{:x 100
                                       :y 200
                                       :width 200
                                       :height 20
@@ -42,7 +49,7 @@
                                       :image-function text/create-buffered-image
                                       :image-function-parameter-keys [:color :font :text]}
 
-                                     {:x 100
+                                     #_{:x 100
                                       :y 240
                                       :width 200
                                       :height 200
