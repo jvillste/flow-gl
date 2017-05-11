@@ -1,4 +1,5 @@
 (ns flow-gl.graphics.buffered-image
+  (:require [clojure.java.io :as io])
   (:import [java.awt.image BufferedImage Raster DataBuffer ComponentColorModel]
            [java.awt.color ColorSpace]
            [java.awt Color]
@@ -47,8 +48,8 @@
     (.setBackground graphics (Color. r g b a))
     (.clearRect graphics 0 0 (.getWidth buffered-image) (.getHeight buffered-image))))
 
-(defn create-from-file [file-name]
-  (let [original-image (ImageIO/read (File. file-name))
+(defn create-from-file [url]
+  (let [original-image (ImageIO/read (io/input-stream url))
         new-image (create (.getWidth original-image)
                           (.getHeight original-image))]
     (.drawImage (get-graphics new-image)
