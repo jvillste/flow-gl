@@ -2,6 +2,7 @@
   (:require [clojure.spec :as spec]
             [fungl.cache :as cache]
             [flow-gl.utils :as utils]
+            (fungl [callable :as callable])
             [taoensso.timbre :as timbre]
             (flow-gl.gui [scene-graph :as scene-graph])
             [clojure.test :as test :refer [deftest is]]))
@@ -9,15 +10,18 @@
 (defn initialize-state []
   {})
 
+(defn call-handler [handler & arguments]
+  (apply callable/call handler arguments))
+
 (defn call-if-set [keyboard-state handler-key & arguments]
   (when-let [handler (handler-key keyboard-state)]
-    (apply handler arguments)))
+    (apply call-handler handler arguments)))
 
 (defn send-focus-move-events [old-event-handler new-event-handler]
   (when old-event-handler
-    (old-event-handler {:type :focus-lost}))
+    (call-handler old-event-handler {:type :focus-lost}))
   
-  (new-event-handler {:type :focus-gained}))
+  (call-handler new-event-handler {:type :focus-gained}))
 
 (defn set-focused-event-handler [keyboard-state event-handler]
   (assert (map? keyboard-state))
