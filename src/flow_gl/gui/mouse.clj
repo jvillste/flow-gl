@@ -3,6 +3,7 @@
             [clojure.spec.test :as spec-test]
             [clojure.set :as set]
             [flow-gl.gui.scene-graph :as scene-graph]
+            [fungl.callable :as callable]
             [clojure.test :as test :refer [deftest is]]))
 
 (spec/def ::mouse-event (spec/keys :req-un [:scene-graph/x :scene-graph/y]))
@@ -73,15 +74,15 @@
                                                      5 10)))))
 
 (defn call-mouse-event-handler-for-node [event node]
-  (let [event-after-call ((:mouse-event-handler node)
-                          node
-                          (if (and (:x event) (:y event))
-                            (assoc event
-                                   :local-x (- (:x event)
-                                               (:x node))
-                                   :local-y (- (:y event)
-                                               (:y node)))
-                            event))]
+  (let [event-after-call (callable/call (:mouse-event-handler node)
+                                        node
+                                        (if (and (:x event) (:y event))
+                                          (assoc event
+                                                 :local-x (- (:x event)
+                                                             (:x node))
+                                                 :local-y (- (:y event)
+                                                             (:y node)))
+                                          event))]
     
     (when (spec/invalid? (spec/conform ::mouse-event event-after-call))
       (throw (ex-info "Handler did not return valid mouse event"
@@ -181,7 +182,7 @@
                                                              current-nodes-under-mouse))]
 
       (doseq [node (vals affected-mouse-event-handler-nodes)]
-        ((:mouse-event-handler node)
+        (callable/call (:mouse-event-handler node)
          node
          {:type :nodes-under-mouse-changed
           :handling-phase :on-target
