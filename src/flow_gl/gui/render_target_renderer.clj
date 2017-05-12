@@ -9,7 +9,7 @@
   {})
 
 (defn quad [scene-graph render-target]
-  (assoc (select-keys scene-graph [:x :y])
+  (assoc (select-keys scene-graph [:x :y :alpha-multiplier])
          :width (:width render-target)
          :height (:height render-target)
          :gl-texture (:texture render-target)

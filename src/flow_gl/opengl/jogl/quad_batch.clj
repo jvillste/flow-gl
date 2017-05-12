@@ -21,7 +21,7 @@
            [java.nio IntBuffer]
            [java.awt Color]))
 
-(def quad-parameters-size 10)
+(def quad-parameters-size 11)
 (def parent-offset 0)
 (def x-offset 1)
 (def y-offset 2)
@@ -75,13 +75,14 @@
   uniform isamplerBuffer quad_index_sampler;
 
   out vec2 texture_coordinate;
-  out float glTexture;
+  flat out int glTexture;
   out vec2 glTexture_coordinates;
 
+  flat out float alpha_multiplier;
   flat out int texture_offset;
   flat out int texture_width;
 
-  const int quad_parameters_size = 10;
+  const int quad_parameters_size = 11;
 
   void main() {
 
@@ -95,12 +96,17 @@
   // 7 quad height
   // 8 upside down
   // 9 gl texture
+  // 10 alpha multiplier
+
+
 
   int quad_index;
   if(use_quad_index_buffer == 1)
   quad_index = texelFetch(quad_index_sampler, gl_InstanceID).x;
   else
   quad_index = gl_InstanceID;
+
+  alpha_multiplier = texelFetch(quad_parameters, quad_index * quad_parameters_size + 10).x / 256.0;
 
   glTexture = texelFetch(quad_parameters, quad_index * quad_parameters_size + 9).x;
 
@@ -160,10 +166,12 @@
   in vec2 texture_coordinate;
 
   in vec2 glTexture_coordinates;
-  in float glTexture;
+  flat in int glTexture;
 
   flat in int texture_offset;
   flat in int texture_width;
+
+  flat in float alpha_multiplier;
 
   out vec4 outColor;
 
@@ -175,26 +183,27 @@
   //vec4 color = texelFetch(texture, int(texture_offset + texture_coordinate.y * texture_width + texture_coordinate.x));
 
   vec4 color;
-  int glTexture_index = int(glTexture);
 
-  if(glTexture_index == -1){
+  if(glTexture == -1){
     color  = texelFetch(texture, int(texture_offset + texture_int_coordinate.y * texture_width + texture_int_coordinate.x));
     outColor = vec4(color.b, color.g, color.r, color.a);
-  }else if(glTexture_index == 0){
+  }else if(glTexture == 0){
      outColor  = texture(glTextures[0], glTexture_coordinates); 
-  }else if(glTexture_index == 1){
+  }else if(glTexture == 1){
      outColor  = texture(glTextures[1], glTexture_coordinates); 
-  }else if(glTexture_index == 2){
+  }else if(glTexture == 2){
      outColor  = texture(glTextures[2], glTexture_coordinates); 
-  }else if(glTexture_index == 3){
+  }else if(glTexture == 3){
      outColor  = texture(glTextures[3], glTexture_coordinates); 
-  }else if(glTexture_index == 4){
+  }else if(glTexture == 4){
      outColor  = texture(glTextures[4], glTexture_coordinates); 
-  }else if(glTexture_index == 5){
+  }else if(glTexture == 5){
      outColor  = texture(glTextures[5], glTexture_coordinates); 
-  }else if(glTexture_index == 6){
+  }else if(glTexture == 6){
      outColor  = texture(glTextures[6], glTexture_coordinates); 
   }
+
+  outColor.a = outColor.a * alpha_multiplier;
 
   }
   ")
@@ -732,7 +741,10 @@
            
            (.put buffer (int (or (get gl-texture-to-texture-unit
                                       (:gl-texture quad))
-                                 -1)))))
+                                 -1)))
+           (.put buffer (int (* (or (:alpha-multiplier quad)
+                                    1.0)
+                                256)))))
 
        (.rewind buffer)
 
