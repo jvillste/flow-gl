@@ -1,13 +1,22 @@
 (ns fungl.layouts
   (:require  [clojure.spec :as spec]
              (fungl [cache :as cache]
-                    [layout :as layout])))
+                    [layout :as layout])
+             [flow-gl.gui.scene-graph :as scene-graph]))
+
+;; common
 
 (defn flatten-contents [values]
   (->> values
        (filter (complement nil?))
        (flatten)
        (filter (complement nil?))))
+
+
+(defn get-first-child-size [node]
+  (layout/size (first (:children node))))
+
+;; vertically
 
 (def vertical-stack
   {:get-size (fn [node]
@@ -146,6 +155,63 @@
      :children [outer inner]}))
 
 
+;; transpose
+
+
+(defn transpose-make-layout [{:keys [dx dy] :as node}]
+  (update-in node
+             [:children]
+             (fn [[child]]
+               [(assoc child
+                       :x (+ (or (:x child)
+                                 0)
+                             dx)
+                       :y (+ (or (:y child)
+                                 0)
+                             dy))])))
+
+(defn transpose [dx dy child]
+  (when child
+    {:make-layout transpose-make-layout
+     :dx dx
+     :dy dy
+     :children [child]}))
+
+;; scale
+
+
+
+(defn scale-node [x-scale y-scale node]
+  (-> node
+      (update-in [:x] (fnil * 0) x-scale)
+      (update-in [:width] * x-scale)
+      (update-in [:y] (fnil * 0) y-scale)
+      (update-in [:height] * y-scale)))
+
+(defn scale-get-size [node]
+  (let [{:keys [x y width height]} (scale-node (:x-scale node)
+                                               (:y-scale node)
+                                               (first (:children node)))]
+    {:width (+ x width)
+     :height (+ y height)}))
+
+(defn scale-make-layout [{:keys [x-scale y-scale] :as node}]
+  (update-in node
+             [:children]
+             (fn [[child]]
+               [(scene-graph/update-depth-first child
+                                                identity
+                                                (partial scale-node x-scale y-scale))])))
+
+
+(defn scale [x-scale y-scale child]
+  (when child
+    {:make-layout scale-make-layout
+     :get-size scale-get-size
+     :x-scale x-scale
+     :y-scale y-scale
+     :children [child]}))
+
 ;; with-minimum-size
 
 (defn get-limited-size [{:keys [width-limit height-limit compare-function children]}]
@@ -166,11 +232,11 @@
              [:children]
              (fn [[child]]
                [(layout/make-layout (assoc child
-                                          :x 0
-                                          :y 0
-                                          :z 0
-                                          :width width
-                                          :height height))])))
+                                           :x 0
+                                           :y 0
+                                           :z 0
+                                           :width width
+                                           :height height))])))
 
 (defn give-limited-space [{:keys [width-limit height-limit compare-function available-width available-height children] :as node}]
   (assoc node :children
@@ -275,8 +341,7 @@
 
 ;; preferred-size
 
-(defn preferred-size-get-size [node]
-  (layout/size (first (:children node))))
+
 
 (defn preferred-size-make-layout [node]
   (let [child (first (:children node))
@@ -287,7 +352,7 @@
 
 (defn with-preferred-size [child]
   {:children [child]
-   :get-size preferred-size-get-size
+   :get-size get-first-child-size
    :make-layout preferred-size-make-layout})
 
 

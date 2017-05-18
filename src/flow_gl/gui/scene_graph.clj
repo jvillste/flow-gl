@@ -219,7 +219,7 @@
         result)
       scene-graph)))
 
-(deftest apply-depth-first-test
+(deftest update-depth-first-test
   (is (= '{:children
            ({:children
              ({:id 1, :apply true, :applied 1}
