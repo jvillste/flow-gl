@@ -25,26 +25,52 @@
    :image-function-parameter-keys [:width :height :color :corner-arc-width :corner-arc-height]
    :hit-test hit-test-rectangle})
 
-(defn text
-  ([color font string]
-   {:type ::text
-    :color color
-    :font font
-    :string string
-    :width (font/width font string)
-    :height (font/height font)
-    :image-function text/create-buffered-image
-    :image-function-parameter-keys [:color :font :string]})
+(defn adapt-text-to-scale [node x-scale y-scale]
+  (let [new-font-size (* (:font-size node)
+                         (max x-scale y-scale))]
+    (assoc node
+           :font-size new-font-size
+           :font (font/create (:font-file-path node)
+                              new-font-size))))
 
-  ([color string]
-   (text color
-         (font/create (.getPath (io/resource "LiberationSans-Regular.ttf"))  18)
-         string))
+(defn text
+  ([string color font-size font-file-path]
+   (assert (string? string))
+   (assert (vector? color))
+   (assert (number? font-size))
+   (assert (string? font-file-path))
+   
+   (let [font (font/create font-file-path
+                           font-size)]
+     {:type ::text
+      :color color
+      :font font
+      :font-size font-size
+      :font-file-path font-file-path
+      :adapt-to-scale adapt-text-to-scale
+      :string string
+      :width (font/width font string)
+      :height (font/height font)
+      :image-function text/create-buffered-image
+      :image-function-parameter-keys [:color :font :string]}))
+
+  ([string color font-size]
+   (text string
+         color
+         font-size
+         (.getPath (io/resource "LiberationSans-Regular.ttf"))))
+  
+  ([string color]
+   (text string
+         color
+         18
+         (.getPath (io/resource "LiberationSans-Regular.ttf"))))
   
   ([string]
-   (text [255 255 255 255]
-         (font/create (.getPath (io/resource "LiberationSans-Regular.ttf")) 18)
-         string)))
+   (text string
+         [255 255 255 255]
+         18
+         (.getPath (io/resource "LiberationSans-Regular.ttf")))))
 
 
 

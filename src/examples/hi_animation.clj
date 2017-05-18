@@ -7,9 +7,9 @@
                          [visuals :as visuals]
                          [animation :as animation])
 
-            (flow-gl.graphics [font :as font])))
+            (flow-gl.graphics [font :as font])
+            [clojure.java.io :as io]))
 
-(def font (font/create "LiberationSans-Regular.ttf" 15))
 
 (def state (atom {}))
 
@@ -19,9 +19,9 @@
          :children [(visuals/rectangle [155 155 255 255]
                                        5
                                        5)
-                    (visuals/text [0 0 0 255]
-                                  font
-                                  text)]))
+                    (visuals/text text
+                                  [0 0 0 255]
+                                  15)]))
 
 
 (defn animating-text-box [text mouse-handler animation]

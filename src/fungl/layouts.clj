@@ -181,17 +181,22 @@
 
 
 
-(defn scale-node [x-scale y-scale node]
+(defn scale-node [node x-scale y-scale]
   (-> node
       (update-in [:x] (fnil * 0) x-scale)
       (update-in [:width] * x-scale)
       (update-in [:y] (fnil * 0) y-scale)
       (update-in [:height] * y-scale)))
 
+(defn adapt-node-to-scale [node x-scale y-scale]
+  (if-let [adapt-to-scale (:adapt-to-scale node)]
+    (adapt-to-scale node x-scale y-scale)
+    node))
+
 (defn scale-get-size [node]
-  (let [{:keys [x y width height]} (scale-node (:x-scale node)
-                                               (:y-scale node)
-                                               (first (:children node)))]
+  (let [{:keys [x y width height]} (scale-node (first (:children node))
+                                               (:x-scale node)
+                                               (:y-scale node))]
     {:width (+ x width)
      :height (+ y height)}))
 
@@ -201,7 +206,10 @@
              (fn [[child]]
                [(scene-graph/update-depth-first child
                                                 identity
-                                                (partial scale-node x-scale y-scale))])))
+                                                (fn [node]
+                                                  (-> node
+                                                      (scale-node x-scale y-scale)
+                                                      (adapt-node-to-scale x-scale y-scale))))])))
 
 
 (defn scale [x-scale y-scale child]
