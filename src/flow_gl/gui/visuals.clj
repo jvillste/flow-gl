@@ -16,14 +16,20 @@
 (defn hit-test-rectangle [{:keys [width height corner-arc-width corner-arc-height]} x y]
   (rectangle/contains width height corner-arc-width corner-arc-height x y))
 
-(defn rectangle [color corner-arc-width corner-arc-height]
-  {:type ::rectangle
-   :corner-arc-width corner-arc-width
-   :corner-arc-height corner-arc-height
-   :color color
-   :image-function draw-rectangle
-   :image-function-parameter-keys [:width :height :color :corner-arc-width :corner-arc-height]
-   :hit-test hit-test-rectangle})
+(defn rectangle
+  ([color corner-arc-width corner-arc-height]
+   {:type ::rectangle
+    :corner-arc-width corner-arc-width
+    :corner-arc-height corner-arc-height
+    :color color
+    :image-function draw-rectangle
+    :image-function-parameter-keys [:width :height :color :corner-arc-width :corner-arc-height]
+    :hit-test hit-test-rectangle})
+  
+  ([color corner-arc-width corner-arc-height width height]
+   (assoc (rectangle color corner-arc-width corner-arc-height)
+          :width width
+          :height height)))
 
 (defn adapt-text-to-scale [node x-scale y-scale]
   (let [new-font-size (* (:font-size node)
@@ -89,17 +95,30 @@
     {:width 0
      :height (font/height font)}))
 
-(defn text-area [color font string]
-  {:type ::text-area
-   :color color
-   :font font
-   :string string
-   :adapt-to-space (create-text-area-adapt-to-space color font string)
-   
-   :get-size (create-text-area-get-size font)
-   
-   :image-function text/create-buffered-image-for-rows
-   :image-function-parameter-keys [:rows]})
+(defn text-area
+  ([string color font]
+   (assert (string? string)
+           "Text area must be given a string")
+   {:type ::text-area
+    :color color
+    :font font
+    :string string
+    :adapt-to-space (create-text-area-adapt-to-space color font string)
+    
+    :get-size (create-text-area-get-size font)
+    
+    :image-function text/create-buffered-image-for-rows
+    :image-function-parameter-keys [:rows]})
+  ([string color]
+   (text-area string
+              color
+              (font/create (.getPath (io/resource "LiberationSans-Regular.ttf"))
+                           18)))
+  ([string]
+   (text-area string
+              [255 255 255 255]
+              (font/create (.getPath (io/resource "LiberationSans-Regular.ttf"))
+                           18))))
 
 (defn buffered-image-coordinate [buffered-image-max image-max image-coordinate]
   (int (* image-coordinate
@@ -126,7 +145,9 @@
                   (/ (- (.getHeight buffered-image)
                         1)
                      width)))]
-    (= 255 (last (buffered-image/get-color buffered-image x y)))))
+    (when (and (< x (.getWidth buffered-image))
+               (< y (.getHeight buffered-image)))
+      (= 255 (last (buffered-image/get-color buffered-image x y))))))
 
 
 
@@ -137,4 +158,5 @@
    :image-function identity
    :image-function-parameter-keys [:buffered-image]
    :hit-test hit-test-image})
+
 

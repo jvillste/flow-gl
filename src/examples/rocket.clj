@@ -1,16 +1,18 @@
 (ns examples.hi-animation
   (:require [clojure.spec.test :as spec-test]
-            [clojure.spec :as spec]
+
             [fungl.application :as application]
-            (flow-gl.gui [layouts :as layouts]
-                         [keyboard :as keyboard]
-                         [visuals :as visuals]
-                         [animation :as animation])
+            [clojure.java.io :as io]
+            (fungl [layouts :as layouts])
+            (flow-gl.gui 
+             [keyboard :as keyboard]
+             [visuals :as visuals]
+             [animation :as animation])
 
             (flow-gl.graphics [font :as font]
                               [buffered-image :as buffered-image])))
 
-(def font (font/create "LiberationSans-Regular.ttf" 15))
+(def font (font/create (.getPath (io/resource "LiberationSans-Regular.ttf")) 15))
 
 (def state (atom {:x 100
                   :y 100}))
@@ -40,28 +42,41 @@
                {:width (:available-width node)
                 :height 50})})
 
-(def rocket (buffered-image/create-from-file "pumpkin.png" #_"rocket.png"))
+(def rocket (buffered-image/create-from-file (.getPath (io/resource "rocket.png" #_"pumpkin.png"))))
+
+(def angry (buffered-image/create-from-file "/Users/jukka/Pictures/angry.jpeg"))
+
+(def angry2 (buffered-image/create-from-file "/Users/jukka/Desktop/Screen Shot 2017-06-19 at 21.47.18.png"))
+(def siemenet (buffered-image/create-from-file "/Users/jukka/Google Drive/jukka/kuvalinnut/siemenet.png"))
+
+(defonce state-atom (atom {:seeds [{:x 100 :y 100}
+                              {:x 200 :y 100}]}))
 
 (defn create-scene-graph [width height]
   (animation/swap-state! animation/start-if-not-running :rocket)
-  (animation/swap-state! animation/set-wake-up 1000)
-  {:children [(-> (visuals/image rocket)
-                  (assoc :x (:x @state)
-                         :y (:y @state)
-                         :width (+ 200
-                                   (animation/linear-mapping (animation/ping-pong 1
-                                                                                  (animation/phase! :rocket
-                                                                                                    1000))
-                                                             0 100))  #_(* (animation/phase! :rocket) 200) 
-                         :height 200
-                         :keyboard-event-handler (fn [event] (prn event))
-                         :id :rocket))]
-   :keyboard-event-handler (fn [event] (prn event))
-   :id :root
-   :x 0
-   :y 0
-   :width width
-   :height height})
+  (let [state @state-atom]
+    #_(animation/swap-state! animation/set-wake-up 1000)
+    (application/do-layout {:children (for [seed (:seeds @state)])
+                            [ (-> (visuals/image siemenet #_angry #_rocket)
+                                  (assoc :x (:x @state)
+                                         :y (:y @state)
+                                         :width 100
+                                         :height 100
+                                         #_:width #_(animation/linear-mapping (animation/ping-pong 5
+                                                                                                   (animation/phase! :rocket
+                                                                                                                     #_5000))
+                                                                              0 width)  #_(* (animation/phase! :rocket) 200) 
+                                         #_:height #_200
+                                         :keyboard-event-handler (fn [event] (prn event))
+                                         :id :rocket))]
+                            :keyboard-event-handler (fn [event] (prn event))
+                            :id :root
+                            :x 0
+                            :y 0
+                            :width width
+                            :height height}
+                           width height))
+  )
 
 (defn handle-event [scene-graph event]
   (when (and (= :key-pressed (:type event))
@@ -76,8 +91,8 @@
       nil)))
 
 (defn start []
-  (spec-test/instrument)
-  (spec/check-asserts true)
+  #_(spec-test/instrument)
+  #_(spec/check-asserts true)
 
   (.start (Thread. (fn []
                      (application/start-window #'create-scene-graph
