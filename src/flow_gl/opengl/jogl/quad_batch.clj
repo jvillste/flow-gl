@@ -16,7 +16,7 @@
                               [native-buffer :as native-buffer]))
   (:use [clojure.test])
 
-  (:import [javax.media.opengl GL2]
+  (:import [com.jogamp.opengl GL2]
            [java.io PrintWriter StringWriter]
            [java.nio IntBuffer]
            [java.awt Color]))
@@ -663,8 +663,8 @@
 
   quad-batch)
 
-#_(clojure.reflect/reflect javax.media.opengl.GL2GL3)
-#_(flowgl.reflect/search-method javax.media.opengl.GL2GL3 "glUni")
+#_(clojure.reflect/reflect com.jogamp.opengl.GL2GL3)
+#_(flowgl.reflect/search-method com.jogamp.opengl.GL2GL3 "glUni")
 
 
 

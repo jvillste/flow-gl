@@ -9,8 +9,8 @@
            [com.jogamp.newt.awt NewtCanvasAWT]
            [java.awt Frame BorderLayout]
            [javax.swing SwingUtilities]
-           [javax.media.opengl GLCapabilities GLProfile GLContext GL GL2 DebugGL2 DebugGL3 DebugGL4 GLEventListener GLAutoDrawable TraceGL2]
-           [javax.media.nativewindow WindowClosingProtocol$WindowClosingMode]))
+           [com.jogamp.opengl GLCapabilities GLProfile GLContext GL GL2 DebugGL2 DebugGL3 DebugGL4 GLEventListener GLAutoDrawable TraceGL2]
+           [com.jogamp.nativewindow WindowClosingProtocol$WindowClosingMode]))
 
 
 (defrecord JoglWindow [gl-window event-channel runner-atom frame]
@@ -21,8 +21,8 @@
   (swap-buffers [this] (.swapBuffers gl-window))
   (event-channel [this] event-channel)
   (visible? [this] (.isVisible gl-window))
-  (width [this] (.getWidth gl-window))
-  (height [this] (.getHeight gl-window))
+  (width [this] (.getSurfaceWidth gl-window))
+  (height [this] (.getSurfaceHeight gl-window))
   (close [this]
     (.destroy gl-window)
     (when frame
@@ -81,7 +81,7 @@
          :key (key-code-to-key (.getButton event) mouse-keys)
          :source :mouse}))
 
-(defn get-gl [profile ^javax.media.opengl.GLAutoDrawable drawable]
+(defn get-gl [profile ^com.jogamp.opengl.GLAutoDrawable drawable]
   (case profile
     :gl2 (DebugGL2. (.getGL2 (.getGL drawable)))
     :gl3 (DebugGL3. (.getGL3 (.getGL drawable)))
@@ -156,7 +156,7 @@
 
      (doto window
        (.addGLEventListener (proxy [GLEventListener] []
-                              (display [^javax.media.opengl.GLAutoDrawable drawable]
+                              (display [^com.jogamp.opengl.GLAutoDrawable drawable]
 
                                 (let [gl (get-gl profile drawable)]
                                   #_(flow-gl.debug/debug-timed "display start" (flow-gl.opengl.jogl.opengl/size gl))
@@ -177,11 +177,11 @@
                                       (flow-gl.debug/debug :all "display called without atom" (.getId (java.lang.Thread/currentThread)) (java.util.Date.)))
                                   #_(reset! runner-atom nil)))
 
-                              (init [^javax.media.opengl.GLAutoDrawable drawable]
+                              (init [^com.jogamp.opengl.GLAutoDrawable drawable]
                                 (let [gl (get-gl profile drawable)]
                                   (init gl)))
 
-                              (reshape [^javax.media.opengl.GLAutoDrawable drawable x y width height]
+                              (reshape [^com.jogamp.opengl.GLAutoDrawable drawable x y width height]
                                 #_(let [gl (get-gl profile drawable)]
                                     #_(when @runner-atom
                                         (do (@runner-atom gl)

@@ -9,7 +9,7 @@
                               [font :as font]
                               [text :as text]))
   (:import [java.awt Color]
-           [javax.media.opengl GL2]
+           [com.jogamp.opengl GL2]
            [java.io PrintWriter StringWriter]))
 
 (defn start []

@@ -10,7 +10,7 @@
                                  [quad-batch :as quad-batch]
                                  [render-target :as render-target]
                                  [texture :as texture])
-            [flow-gl.tools.trace :as trace]
+            #_[flow-gl.tools.trace :as trace]
             [clojure.java.io :as io])
   (:use flow-gl.utils
         clojure.test))
@@ -38,34 +38,35 @@
 
         (quad-batch/draw-quads quad-batch
                                gl
-                               (map (fn [index]
-                                      {:x (* index 50)
-                                       :y 10
-                                       :width (* index 0.2 (.getWidth icon)) 
-                                       :height (.getHeight icon)
-                                       :gl-texture (texture/create-for-file (.getPath (io/resource "pumpkin.png"))
-                                                                            gl)})
-                                    (range 5))
-                               #_[{:x 250
-                                   :y 10
-                                   :width (.getWidth icon)
-                                   :height (.getHeight icon)
-                                   :gl-texture gl-texture}
-                                  #_{:x 150
-                                     :y 10
-                                     :width (.getWidth icon)
-                                     :height (.getHeight icon)
-                                     :texture-id 0}
-                                  #_{:x 100
-                                     :y 200
-                                     :width (.getWidth text)
-                                     :height (.getHeight text)
-                                     :texture-id 1}
-                                  #_{:x 100
-                                     :y 200
-                                     :width (.getWidth text)
-                                     :height 500
-                                     :texture-id 0}]
+                               (concat 
+                                (map (fn [index]
+                                       {:x (* index 50)
+                                        :y 10
+                                        :width (* index 0.2 (.getWidth icon)) 
+                                        :height (.getHeight icon)
+                                        :gl-texture (texture/create-for-file (.getPath (io/resource "pumpkin.png"))
+                                                                             gl)})
+                                     (range 5))
+                                [{:x 250
+                                  :y 10
+                                  :width (.getWidth icon)
+                                  :height (.getHeight icon)
+                                  :gl-texture gl-texture}
+                                 {:x 150
+                                    :y 10
+                                    :width (.getWidth icon)
+                                    :height (.getHeight icon)
+                                    :texture-id 0}
+                                 {:x 100
+                                    :y 200
+                                    :width (.getWidth text)
+                                    :height (.getHeight text)
+                                    :texture-id 1}
+                                 {:x 100
+                                    :y 200
+                                    :width (.getWidth text)
+                                    :height 500
+                                    :texture-id 0}])
                                (:width window-size)
                                (:height window-size))))
     

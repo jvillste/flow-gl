@@ -16,7 +16,7 @@
                            [trace :as trace])
             (flow-gl.graphics [font :as font]
                               [buffered-image :as buffered-image]))
-  (:import [javax.media.opengl GL2])
+  (:import [com.jogamp.opengl GL2])
   (:use flow-gl.utils
         clojure.test))
 

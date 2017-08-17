@@ -3,7 +3,7 @@
                                  [shader :as shader]
                                  [buffer :as buffer])
             [flow-gl.opengl.math :as math])
-  (:import [javax.media.opengl GL2]))
+  (:import [com.jogamp.opengl GL2]))
 
 
 (def vertex-shader-source "

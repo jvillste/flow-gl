@@ -20,7 +20,7 @@
                                  [textured-quad :as textured-quad])
             clojure.data)
   (:import [com.jogamp.opengl.util.texture.awt AWTTextureIO]
-           [javax.media.opengl GLProfile])
+           [com.jogamp.opengl GLProfile])
   (:use flow-gl.utils
         midje.sweet))
 

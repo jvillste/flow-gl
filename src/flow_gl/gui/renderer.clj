@@ -9,7 +9,7 @@
                         [shader :as shader]
                         [multicolor-triangle-list :as multicolor-triangle-list]))
   (:import [flow_gl.gui.drawable Quad]
-           [javax.media.opengl GL2]))
+           [com.jogamp.opengl GL2]))
 
 (defprotocol Renderer
   (can-draw? [this drawable])

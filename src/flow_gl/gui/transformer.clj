@@ -9,7 +9,7 @@
                         [quad :as quad]
                         [shader :as shader]))
   (:import [flow_gl.gui.drawable Quad]
-           [javax.media.opengl GL2])
+           [com.jogamp.opengl GL2])
   (:use clojure.test))
 
 (defprotocol Transformer

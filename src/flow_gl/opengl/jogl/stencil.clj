@@ -4,7 +4,7 @@
                                  [triangle-list :as triangle-list])
             [flow-gl.graphics.native-buffer :as native-buffer])
 
-  (:import [javax.media.opengl GL2]))
+  (:import [com.jogamp.opengl GL2]))
 
 (defn coordinates-buffer [buffer rectangles]
   (native-buffer/ensure-buffer-capacity-with-values buffer

@@ -8,6 +8,7 @@
                  [org.clojure/data.priority-map "0.0.7"]
                  [org.clojure/core.async "0.2.391"]
                  [clj-http "2.2.0"]
-                 [org.clojars.jvillste/jogl-all "2.1.5"]
+                 ;; [org.clojars.jvillste/jogl-all "2.1.5"]
+                 [org.clojars.jvillste/jogl-all "2.4.0-SNAPSHOT"]
                  [com.google.guava/guava "20.0"]
                  [org.clojure/tools.namespace "0.2.11"]])

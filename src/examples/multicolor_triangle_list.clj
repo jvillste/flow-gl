@@ -9,7 +9,7 @@
             [flow-gl.graphics.native-buffer :as native-buffer]
             (flow-gl.gui [window :as window]))
   (:use clojure.test)
-  (:import [javax.media.opengl GL2]))
+  (:import [com.jogamp.opengl GL2]))
 
 (defn quad [{:keys [x y width height]}]
   [x y

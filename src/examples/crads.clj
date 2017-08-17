@@ -14,7 +14,7 @@
             (flow-gl.tools [profiler :as profiler]
                            [trace :as trace])
             (flow-gl.graphics [font :as font]))
-  (:import [javax.media.opengl GL2])
+  (:import [com.jogamp.opengl GL2])
   (:use flow-gl.utils
         clojure.test))
 

@@ -17,7 +17,7 @@
                          [layout-dsl :as l]))
   (:use clojure.test)
   (:import [nanovg NanoVG]
-           [javax.media.opengl GL2]))
+           [com.jogamp.opengl GL2]))
 
 (defn set-size [drawable]
   (let [preferred-size (layoutable/preferred-size drawable 1000 1000)]

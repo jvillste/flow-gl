@@ -2,7 +2,7 @@
   (:require (flow-gl.opengl.jogl [opengl :as opengl]
                                  [window :as window]
                                  [triangle-list :as triangle-list]))
-  (:import [javax.media.opengl GL2]))
+  (:import [com.jogamp.opengl GL2]))
 
 (defn start []
   (let [width 300

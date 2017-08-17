@@ -16,7 +16,7 @@
                            [trace :as trace])
             (flow-gl.graphics [font :as font])
             [clojure.string :as string])
-  (:import [javax.media.opengl GL2]
+  (:import [com.jogamp.opengl GL2]
            [java.text AttributedString]
            [java.awt.font TextAttribute LineBreakMeasurer]
            [java.awt.image BufferedImage])

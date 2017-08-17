@@ -4,7 +4,7 @@
                                  [opengl :as opengl]
                                  [vertex-array-object :as vertex-array-object])
             [flow-gl.opengl.math :as math])
-  (:import [javax.media.opengl GL2]
+  (:import [com.jogamp.opengl GL2]
            [com.jogamp.common.nio Buffers]))
 
 (defrecord TriangleList [mode

@@ -1,6 +1,7 @@
 (ns flow-gl.opengl.jogl.texture
   (:refer-clojure :exclude (load))
-  (:import [javax.media.opengl GL2]
+  (:import #_[com.jogamp.opengl GL2]
+           [com.jogamp.opengl GL2]
            [com.jogamp.opengl.util.texture TextureIO]
            [com.jogamp.opengl.util.texture.awt AWTTextureIO])
   (:require [flow-gl.graphics.buffered-image :as buffered-image]

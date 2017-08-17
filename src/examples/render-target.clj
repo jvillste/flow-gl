@@ -6,7 +6,7 @@
             (flow-gl.gui [window :as window]))
   (:use clojure.test)
   (:import [nanovg NanoVG]
-           [javax.media.opengl GL2]))
+           [com.jogamp.opengl GL2]))
 
 (defn draw-rectangle [nanovg x y width height r g b a]
   (doto nanovg
