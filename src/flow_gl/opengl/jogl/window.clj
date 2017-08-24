@@ -78,6 +78,7 @@
   (conj (create-event event type)
         {:x (.getX event)
          :y (.getY event)
+         :pressure (.getPressure event true)
          :key (key-code-to-key (.getButton event) mouse-keys)
          :source :mouse}))
 

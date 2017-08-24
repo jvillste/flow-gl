@@ -11,6 +11,7 @@
                          [layouts :as layouts]
                          [scene-graph :as scene-graph]
                          [stateful :as stateful])
+            [clojure.java.io :as io]
             (flow-gl.opengl.jogl [opengl :as opengl]
                                  [quad :as quad]
                                  [render-target :as render-target])
@@ -123,8 +124,8 @@
                   :width width
                   :height height})))})
 
-(def font (font/create "LiberationSans-Regular.ttf" 40))
-(def pumpkin (buffered-image/create-from-file "pumpkin.png"))
+(def font (font/create (.getPath (io/resource "LiberationSans-Regular.ttf")) 40))
+(def pumpkin (buffered-image/create-from-file (.getPath (io/resource "pumpkin.png"))))
 
 (def mask (assoc (visuals/image pumpkin)
                  :x 100
