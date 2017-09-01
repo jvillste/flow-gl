@@ -75,7 +75,7 @@
   ([string]
    (text string
          [255 255 255 255]
-         18
+         50
          (.getPath (io/resource "LiberationSans-Regular.ttf")))))
 
 
