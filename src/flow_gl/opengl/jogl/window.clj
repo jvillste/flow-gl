@@ -74,10 +74,10 @@
                                 (.isAutoRepeat event)
                                 (.getKeyCode event)))
 
-(defn create-mouse-event [event type]
+(defn create-mouse-event [event surface-scale type]
   (conj (create-event event type)
-        {:x (.getX event)
-         :y (.getY event)
+        {:x (* (.getX event) (first surface-scale))
+         :y (* (.getY event) (second surface-scale))
          :pressure (.getPressure event true)
          :key (key-code-to-key (.getButton event) mouse-keys)
          :source :mouse}))
@@ -110,7 +110,9 @@
                            (.setDoubleBuffered true)
                            (.setStencilBits 1))
          runner-atom (atom (fn [gl]))
-         window (GLWindow/create gl-capabilities)]
+         window (GLWindow/create gl-capabilities)
+         surface-scale (float-array 2)]
+     
 
      #_(prn (.getMaximumSurfaceScale window (float-array 2)))
 
@@ -124,18 +126,18 @@
 
          (.addMouseListener (proxy [MouseAdapter] []
                               (mouseMoved [event]
-                                (async/put! event-channel (create-mouse-event event :mouse-moved)))
+                                (async/put! event-channel (create-mouse-event event surface-scale :mouse-moved)))
                               (mouseDragged [event]
-                                (async/put! event-channel (create-mouse-event event :mouse-dragged)))
+                                (async/put! event-channel (create-mouse-event event surface-scale :mouse-dragged)))
                               (mousePressed [event]
-                                (async/put! event-channel (create-mouse-event event :mouse-pressed)))
+                                (async/put! event-channel (create-mouse-event event surface-scale :mouse-pressed)))
                               (mouseReleased [event]
-                                (async/put! event-channel (create-mouse-event event :mouse-released)))
+                                (async/put! event-channel (create-mouse-event event surface-scale :mouse-released)))
                               (mouseClicked [event]
-                                (async/put! event-channel (create-mouse-event event :mouse-clicked)))
+                                (async/put! event-channel (create-mouse-event event surface-scale :mouse-clicked)))
                               (mouseWheelMoved [event]
                                 (async/put! event-channel (let [[x-distance y-distance z-distance] (.getRotation event)]
-                                                            (assoc (create-mouse-event event :mouse-wheel-moved)
+                                                            (assoc (create-mouse-event event surface-scale :mouse-wheel-moved)
                                                                    :x-distance x-distance
                                                                    :y-distance y-distance
                                                                    :z-distance z-distance
@@ -227,7 +229,9 @@
                    
                    (do (doto window
                          (.setSize width height)
-                         (.setVisible true))
+                         (.setVisible true)
+                         (.getCurrentSurfaceScale surface-scale)
+                         )
                        nil))]
        
        (when (not close-automatically)
