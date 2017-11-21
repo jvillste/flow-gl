@@ -1,8 +1,8 @@
 (ns examples.trace
-  (:require [clojure.core.async :as async]
+  (:require #_[clojure.core.async :as async]
             [flow-gl.tools.trace :as trace]
-            [flow-gl.debug :as debug]
-            (flow-gl.gui [gui :as gui]
+            #_[flow-gl.debug :as debug]
+            #_(flow-gl.gui [gui :as gui]
                          [controls :as controls]
                          [layout-dsl :as l]
                          [layouts :as layouts])))
@@ -16,6 +16,9 @@
            :b [1 2 3 4]})))
 
 (trace/trace-ns 'examples.trace)
+
+(trace/with-trace-logging
+  (a 1))
 
 #_(trace/with-trace
   (a 1))

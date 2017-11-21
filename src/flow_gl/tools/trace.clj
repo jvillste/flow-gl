@@ -608,8 +608,10 @@
   `(let [channel# (async/chan)]
      (async/go-loop []
        (when-let [entry# (async/<! channel#)]
-         (when (:function-symbol entry#)
-           (println (apply str (concat ["(" (:function-symbol entry#) " " ] (interpose " " (:arguments entry#)) [")"]))))
+         (if (:function-symbol entry#)
+           (println (apply str (concat ["(" (:function-symbol entry#) " " ] (interpose " " (:arguments entry#)) [")"])))
+           (if-let [arguments# (:arguments entry#)]
+             (prn arguments#)))
          (recur)))
      (debug/with-debug-channel channel# ~@body)
      (async/close! channel#)))
@@ -651,6 +653,7 @@
 (defn bar [x] (foo (+ 1 x)))
 
 (defn start []
+  (trace-ns 'flow-gl.tools.trace)
   (trace-var #'foo)
   (trace-var #'bar)
   (with-trace-logging
