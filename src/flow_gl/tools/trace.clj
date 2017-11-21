@@ -604,6 +604,17 @@
                                                      width
                                                      height))))]))
 
+(defmacro with-trace-logging [& body]
+  `(let [channel# (async/chan)]
+     (async/go-loop []
+       (when-let [entry# (async/<! channel#)]
+         (when (:function-symbol entry#)
+           (println (apply str (concat ["(" (:function-symbol entry#) " " ] (interpose " " (:arguments entry#)) [")"]))))
+         (recur)))
+     (debug/with-debug-channel channel# ~@body)
+     (async/close! channel#)))
+
+
 (defmacro with-trace [& body]
   `(let [input-channel# (async/chan 50)
          trace-channel# (async/chan)]
@@ -642,11 +653,9 @@
 (defn start []
   (trace-var #'foo)
   (trace-var #'bar)
-  #_(with-trace
-      (bar 10))
-  (with-trace
-    (log {:foo [:bar :baz]}
-         {:foo [:foobar :foobaz]})))
+  (with-trace-logging
+    (foo 1)
+    (bar 1)))
 
 #_(defn inspect-value [value]
     (async/thread (gui/start-app (gui/control-to-application value-inspector {:value value}))))

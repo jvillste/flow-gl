@@ -95,6 +95,9 @@
     {:width 0
      :height (font/height font)}))
 
+(def default-font (font/create (.getPath (io/resource "LiberationSans-Regular.ttf"))
+                           30))
+
 (defn text-area
   ([string color font]
    (assert (string? string)
@@ -112,13 +115,11 @@
   ([string color]
    (text-area string
               color
-              (font/create (.getPath (io/resource "LiberationSans-Regular.ttf"))
-                           18)))
+              default-font))
   ([string]
    (text-area string
               [255 255 255 255]
-              (font/create (.getPath (io/resource "LiberationSans-Regular.ttf"))
-                           18))))
+              default-font)))
 
 (defn buffered-image-coordinate [buffered-image-max image-max image-coordinate]
   (int (* image-coordinate
