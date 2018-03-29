@@ -27,8 +27,9 @@
         
         (application/do-layout width height))))
 
-(with-bindings (application/create-event-handling-state)
- (create-scene-graph 100 100))
+(comment
+  (with-bindings (application/create-event-handling-state)
+    (create-scene-graph 100 100)))
 
 
 (defn start []
