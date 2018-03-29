@@ -1,6 +1,7 @@
 (ns fungl.value-registry
   (:require [clojure.set :as set])
-  (:refer-clojure :exclude [get]))
+  (:refer-clojure :exclude [get])
+  (:use clojure.test))
 
 (defn initialize-state [& {:keys [delete-after-gets] :or {delete-after-gets nil}}]
   {:delete-after-gets delete-after-gets
@@ -105,5 +106,33 @@
   (swap! state-atom mark-reference id))
 
 
+(defmacro get-fn! [id arguments & body]
+  `(get! ~id {:create (fn []
+                        (fn [~@arguments]
+                          ~@body))}))
 
+(deftest test-create-handler-with-fixed-context
+  (with-bindings (state-bindings)
+    (let [x 1]
+      (is (= (get-fn! :text-area-keyboard-event-handler
+                      [y]
+                      [x y])
+             
+             (get-fn! :text-area-keyboard-event-handler
+                      [y]
+                      [x y])))
 
+      (is (= (System/identityHashCode (get-fn! :text-area-keyboard-event-handler
+                                               [y]
+                                               [x y]))
+             
+             (System/identityHashCode (get-fn! :text-area-keyboard-event-handler
+                                               [y]
+                                               [x y]))))
+
+      (is (= ((get-fn! :text-area-keyboard-event-handler
+                       [y]
+                       [x y])
+              2)
+             
+             [1 2])))))

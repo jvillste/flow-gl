@@ -1,8 +1,12 @@
 (ns fungl.handler
-  (:require  (fungl [cache :as cache])))
+  (:require  (fungl [cache :as cache]
+                    [value-registry :as value-registry]))
+  (:use clojure.test))
 
 (defmacro def-handler-creator
-  "For example calling:
+  "DEPRECATED: use value-registry/getfn! instead
+
+   For example calling:
 
    (def-handler-creator create-number-handler [x] [y]
      (+ x y))
@@ -19,3 +23,27 @@
              ~@body))
          (defn ~name ~fixed-arguments
            (cache/call! ~implementation-name ~@fixed-arguments)))))
+
+
+(defmacro create-handler-with-fixed-context
+  "DEPRECATED: use value-registry/getfn! instead"
+  
+  [id fixed-arguments handler-arguments & body]
+  `(value-registry/get! [~id ~@fixed-arguments] {:create (fn []
+                                                           (fn [~@handler-arguments]
+                                                             ~@body))}))
+
+(deftest test-create-handler-with-fixed-context
+  (with-bindings (value-registry/state-bindings)
+    (let [x 1]
+      (is (= (create-handler-with-fixed-context :text-area-keyboard-event-handler [x] [y] [x y])
+             (create-handler-with-fixed-context :text-area-keyboard-event-handler [x] [y] [x y]))))
+
+    (let [x 1]
+      (let [first-handler (create-handler-with-fixed-context :text-area-keyboard-event-handler [x] [y] [x y])]
+        (let [x 2]
+          (is (not= first-handler
+                    (create-handler-with-fixed-context :text-area-keyboard-event-handler [x] [y] [x y]))))))))
+
+
+
