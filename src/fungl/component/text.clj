@@ -14,6 +14,6 @@
    (text value color default-font))
 
   ([value color font]
-   (visuals/text-area color
-                      font
-                      (str value))))
+   (visuals/text-area (str value)
+                      color
+                      font)))
