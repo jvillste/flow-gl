@@ -1,8 +1,9 @@
 (ns fungl.component.text-area
-  (:require [clojure.spec.test :as spec-test]
-            [clojure.spec :as spec]
+  (:require [clojure.spec.test.alpha :as spec-test]
+            [clojure.spec.alpha :as spec]
             (fungl [application :as application]
                    [atom-registry :as atom-registry]
+                   [value-registry :as value-registry]
                    [layouts :as layouts]
                    [cache :as cache]
                    [handler :as handler])
@@ -10,8 +11,6 @@
                               [text :as text])
             (flow-gl.gui [animation :as animation]
                          [keyboard :as keyboard]
-                         
-                         
                          [visuals :as visuals]))
   (:import [java.awt.font TextHitInfo])
   (:use clojure.test))
@@ -190,17 +189,17 @@
 ;; Commands end
 
 
-(defn handle-command [state rows command & parameters]
+(defn handle-command [state command & parameters]
 
   (let [state (if (#{previous-row next-row} (if (var? command)
                                               @command
                                               command))
                 (assoc state :x-on-first-line-change (or (:x-on-first-line-change state)
-                                                         (:x (character-position rows (:index state)))))
+                                                         (:x (character-position (:rows state) (:index state)))))
                 (dissoc state :x-on-first-line-change))]
     (apply command
            state
-           rows
+           (:rows state)
            parameters)))
 
 (defn keyboard-event-to-command [event]
@@ -238,7 +237,8 @@
 (def default-style {:font font
                     :color [100 100 100 255]})
 
-(handler/def-handler-creator create-text-area-keyboard-event-handler [state-atom on-change rows] [event]
+#_(handler/def-handler-creator create-text-area-keyboard-event-handler [state-atom on-change rows] [event]
+  (prn event)
   (when-let [command-and-paramters (keyboard-event-to-command event)]
     (swap! state-atom
            (fn [state]
@@ -247,6 +247,18 @@
                                state
                                rows
                                command-and-paramters))))))
+
+(defn create-text-area-keyboard-event-handler [state-atom on-change]
+  (value-registry/get-fn! [::text-area-keyboard-event-handler state-atom]  #_[::text-area-keyboard-event-handler state-atom on-change rows]
+                          [event]
+                          (when-let [command-and-paramters (keyboard-event-to-command event)]
+                            (when on-change
+                              (swap! state-atom
+                                     (fn [state]
+                                       (on-change state
+                                                  (apply handle-command
+                                                         state
+                                                         command-and-paramters))))))))
 
 (handler/def-handler-creator create-text-area-mouse-event-handler [state-atom rows] [node event]
   (if (= (:type event)
@@ -263,33 +275,45 @@
 (handler/def-handler-creator create-adapt-to-space [text index style handle-rows] [node]
   (let [style (conj default-style
                     style)
-        rows (cache/call!  text/rows-for-text
-                           (:color style)
-                           (:font style)
-                           text
-                           (:available-width node))]
+        rows (if (= text "")
+               []
+               (cache/call! text/rows-for-text
+                            (:color style)
+                            (:font style)
+                            text
+                            (:available-width node)))]
 
     (when handle-rows
       (handle-rows rows))
 
     (conj node
-          (layouts/superimpose (when index
-                                 (let [caret-position (character-position rows index)]
-                                   (assoc (visuals/rectangle (:color style) 0 0)
-                                          :width 1
-                                          :x (:x caret-position)
-                                          :y (:y caret-position)
-                                          :height (:height caret-position))))
-                               (rows-node rows)))))
+          (layouts/with-minimum-size (font/width (:font style) "W") (font/height (:font style))
+            (layouts/superimpose (when index
+                                   (let [rectangle (visuals/rectangle (:color style) 0 0)]
+                                     (if (empty? rows)
+                                       (assoc rectangle
+                                              :width 1
+                                              :x 0
+                                              :y 0
+                                              :height (font/height (:font style)))
+                                       (let [caret-position (character-position rows index)]
+                                         (assoc rectangle
+                                                :width 1
+                                                :x (:x caret-position)
+                                                :y (:y caret-position)
+                                                :height (:height caret-position))))))
+                                 (rows-node rows))))))
 
 (defn create-scene-graph [text index style handle-rows]
   (assert text)
   
   {:adapt-to-space (create-adapt-to-space text index style handle-rows)})
 
+(defn get-state-atom [id]
+  (atom-registry/get! id atom-specification))
 
 (defn text-area [id style text on-change & options]
-  (let [state-atom (atom-registry/get! id atom-specification)]
+  (let [state-atom (get-state-atom id)]
 
     (swap! state-atom assoc :text text)
     (let [state @state-atom]
@@ -303,9 +327,7 @@
              :mouse-event-handler (create-text-area-mouse-event-handler state-atom
                                                                         (:rows @state-atom))
              :keyboard-event-handler (create-text-area-keyboard-event-handler state-atom
-                                                                              on-change
-                                                                              (:rows @state-atom))))))
-
+                                                                              on-change)))))
 
 
 (defn create-demo-scene-graph [width height]

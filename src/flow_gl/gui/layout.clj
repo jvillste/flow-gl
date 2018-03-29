@@ -1,5 +1,5 @@
 (ns flow-gl.gui.layout
-  (:require  [clojure.spec :as spec]
+  (:require  [clojure.spec.alpha :as spec]
              flow-gl.debug
              (flow-gl.gui [layoutable :as layoutable]
                           [cache :as cache]))

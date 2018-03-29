@@ -1,6 +1,6 @@
 (ns flow-gl.gui.mouse
-  (:require [clojure.spec :as spec]
-            [clojure.spec.test :as spec-test]
+  (:require [clojure.spec.alpha :as spec]
+            [clojure.spec.test.alpha :as spec-test]
             [clojure.set :as set]
             [flow-gl.gui.scene-graph :as scene-graph]
             [fungl.callable :as callable]

@@ -1,5 +1,5 @@
 (ns flow-gl.gui.keyboard
-  (:require [clojure.spec :as spec]
+  (:require [clojure.spec.alpha :as spec]
             [fungl.cache :as cache]
             [flow-gl.utils :as utils]
             (fungl [callable :as callable])
@@ -123,10 +123,13 @@
 (defn state-bindings []
   {#'state-atom (atom (initialize-state))})
 
+
 (defn set-focused-event-handler! [event-handler]
-  (move-focus-and-send-move-events! state-atom
-                                    set-focused-event-handler
-                                    event-handler))
+  (when (not= event-handler
+              (:focused-handler @state-atom))
+    (move-focus-and-send-move-events! state-atom
+                                      set-focused-event-handler
+                                      event-handler)))
 
 
 

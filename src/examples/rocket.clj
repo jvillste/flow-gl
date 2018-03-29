@@ -1,5 +1,5 @@
 (ns examples.hi-animation
-  (:require [clojure.spec.test :as spec-test]
+  (:require [clojure.spec.test.alpha :as spec-test]
 
             [fungl.application :as application]
             [clojure.java.io :as io]

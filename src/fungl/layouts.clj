@@ -1,5 +1,5 @@
 (ns fungl.layouts
-  (:require  [clojure.spec :as spec]
+  (:require  [clojure.spec.alpha :as spec]
              (fungl [cache :as cache]
                     [layout :as layout])
              [flow-gl.gui.scene-graph :as scene-graph]))
