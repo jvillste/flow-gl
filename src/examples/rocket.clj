@@ -46,29 +46,29 @@
 
 (def angry (buffered-image/create-from-file "/Users/jukka/Pictures/angry.jpeg"))
 
-(def angry2 (buffered-image/create-from-file "/Users/jukka/Desktop/Screen Shot 2017-06-19 at 21.47.18.png"))
+#_(def angry2 (buffered-image/create-from-file "/Users/jukka/Desktop/Screen Shot 2017-06-19 at 21.47.18.png"))
 (def siemenet (buffered-image/create-from-file "/Users/jukka/Google Drive/jukka/kuvalinnut/siemenet.png"))
 
 (defonce state-atom (atom {:seeds [{:x 100 :y 100}
-                              {:x 200 :y 100}]}))
+                                   {:x 200 :y 100}]}))
 
 (defn create-scene-graph [width height]
   (animation/swap-state! animation/start-if-not-running :rocket)
-  (let [state @state-atom]
+  (let [state state-atom]
     #_(animation/swap-state! animation/set-wake-up 1000)
-    (application/do-layout {:children (for [seed (:seeds @state)])
-                            [ (-> (visuals/image siemenet #_angry #_rocket)
-                                  (assoc :x (:x @state)
-                                         :y (:y @state)
-                                         :width 100
-                                         :height 100
-                                         #_:width #_(animation/linear-mapping (animation/ping-pong 5
-                                                                                                   (animation/phase! :rocket
-                                                                                                                     #_5000))
-                                                                              0 width)  #_(* (animation/phase! :rocket) 200) 
-                                         #_:height #_200
-                                         :keyboard-event-handler (fn [event] (prn event))
-                                         :id :rocket))]
+    (application/do-layout {:children #_(for [seed (:seeds @state)])
+                            [(-> (visuals/image siemenet #_angry #_rocket)
+                                 (assoc :x (:x @state)
+                                        :y (:y @state)
+                                        :width 100
+                                        :height 100
+                                        #_:width #_(animation/linear-mapping (animation/ping-pong 5
+                                                                                                  (animation/phase! :rocket
+                                                                                                                    #_5000))
+                                                                             0 width)  #_(* (animation/phase! :rocket) 200) 
+                                        #_:height #_200
+                                        :keyboard-event-handler (fn [event] (prn event))
+                                        :id :rocket))]
                             :keyboard-event-handler (fn [event] (prn event))
                             :id :root
                             :x 0
