@@ -11,11 +11,12 @@
                               [text :as text])
             (flow-gl.gui [animation :as animation]
                          [keyboard :as keyboard]
-                         [visuals :as visuals]))
+                         [visuals :as visuals])
+            [clojure.java.io :as io])
   (:import [java.awt.font TextHitInfo])
   (:use clojure.test))
 
-(def font (font/create "LiberationSans-Regular.ttf" 18))
+(def font (font/create (.getPath (io/resource "LiberationSans-Regular.ttf")) 18))
 
 (defn text
   ([value]
