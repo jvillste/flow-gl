@@ -113,6 +113,21 @@
          :margin margin
          :children (flatten-contents children)))
 
+;; center
+
+(defn center [child]
+  {:make-layout (fn [node]
+                  (update node :children
+                          (fn [[child]]
+                            [(assoc child
+                                    :x (/ (- (:width node)
+                                             (:width child))
+                                          2)
+                                    :y (/ (- (:height node)
+                                             (:height child))
+                                          2))])))
+   :children [child]})
+
 ;; box
 
 (spec/def ::margin int?)
