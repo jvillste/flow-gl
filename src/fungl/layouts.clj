@@ -44,7 +44,11 @@
                            (if-let [child (first children)] 
                              (recur (conj layouted-nodes
                                           (assoc child
-                                                 :x 0
+                                                 :x (if (::centered node)
+                                                      (/ (- (:width node)
+                                                            (:width child))
+                                                         2)
+                                                      0)
                                                  :y y))
                                     (+ y (:height child)
                                        (:margin node))
@@ -54,6 +58,14 @@
 (defn vertically [& children]
   (assoc vertical-stack
          :margin 0
+         :children (flatten-contents children)))
+
+(defn vertically-2 [options & children]
+  (assoc vertical-stack
+         :margin (or (:margin options)
+                     0)
+         ::centered (or (:centered options)
+                        false)
          :children (flatten-contents children)))
 
 (defn vertically-with-margin [margin & children]
