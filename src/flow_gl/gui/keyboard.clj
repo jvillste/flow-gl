@@ -38,6 +38,7 @@
 
 (defn set-focused-node
   ([keyboard-state node]
+   (assert (:id node))
    (set-focused-node keyboard-state
                      (:id node)
                      (:keyboard-event-handler node)))
