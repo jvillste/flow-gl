@@ -318,17 +318,18 @@
 
     (swap! state-atom assoc :text text)
     (let [state @state-atom]
-      (assoc (create-scene-graph (:text state)
-                                 (when (:has-focus state)
-                                   (:index state))
-                                 style
-                                 (fn [rows]
-                                   (swap! state-atom assoc :rows rows)))
-             :id id
-             :mouse-event-handler (create-text-area-mouse-event-handler state-atom
-                                                                        (:rows @state-atom))
-             :keyboard-event-handler (create-text-area-keyboard-event-handler state-atom
-                                                                              on-change)))))
+      (-> (create-scene-graph (:text state)
+                              (when (:has-focus state)
+                                (:index state))
+                              style
+                              (fn [rows]
+                                (swap! state-atom assoc :rows rows)))
+          (assoc :id id
+                 :mouse-event-handler (create-text-area-mouse-event-handler state-atom
+                                                                            (:rows @state-atom)))
+          (cond-> on-change
+            (assoc :keyboard-event-handler (create-text-area-keyboard-event-handler state-atom
+                                                                                    on-change)))))))
 
 
 (defn create-demo-scene-graph [width height]
