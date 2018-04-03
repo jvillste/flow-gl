@@ -122,6 +122,8 @@ Render tree transformer node
 TODO
 -----
 
+Make :adapt-to-space -handler callable i.e. a vector of function and arguments. Get rid of all handler creators.
+
 Make layouts implement a protocol for getting the children instead of requiring each record to have a children key.
 
 Make autocompleter send selected text instead of simple :select -command
