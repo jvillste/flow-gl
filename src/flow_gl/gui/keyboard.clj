@@ -217,6 +217,7 @@
                                     scene-graph ordering advance limit))
 
 
+
 (defn handle-keyboard-event! [scene-graph keyboard-event]
   (if (and (= (:key keyboard-event)
               :tab)
@@ -231,3 +232,12 @@
                  cycle-position)
     
     (call-focused-event-handler! keyboard-event)))
+
+
+;; events
+
+(defn key-pressed? [keyboard-event key]
+  (and (= (:key keyboard-event)
+          key)
+       (= (:type keyboard-event)
+          :key-pressed)))
