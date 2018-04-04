@@ -33,7 +33,11 @@
     [(.getRed color) (.getGreen color) (.getBlue color) (.getAlpha color)]))
 
 (defn create [width height]
-  (BufferedImage. width height BufferedImage/TYPE_INT_ARGB)
+  (assert (and (< width 10000)
+               (< height 10000))
+          (str "Tried to create buffered image larger than 10.000 x 10.000. The requested size was " width " x " height))
+  
+  (BufferedImage. (max 1 width) (max 1 height) BufferedImage/TYPE_INT_ARGB)
   #_(create-from-raster (Raster/createInterleavedRaster DataBuffer/TYPE_BYTE
                                                         width
                                                         height

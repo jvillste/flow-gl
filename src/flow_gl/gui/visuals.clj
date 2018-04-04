@@ -31,6 +31,44 @@
           :width width
           :height height)))
 
+(defn- draw-rectangle-2 [width height draw-color fill-color line-width corner-arc-width corner-arc-height]
+  (let [buffered-image (buffered-image/create width height)]
+    (when fill-color
+      (rectangle/fill (buffered-image/get-graphics buffered-image)
+                      fill-color
+                      width
+                      height
+                      corner-arc-width
+                      corner-arc-height))
+
+    (when (> line-width 0)
+      (rectangle/draw (buffered-image/get-graphics buffered-image)
+                      draw-color
+                      line-width
+                      width
+                      height
+                      corner-arc-width
+                      corner-arc-height))
+
+    
+    
+    buffered-image))
+
+(def rectangle-defaults {:draw-color nil
+                         :line-width 0
+                         :fill-color [128 128 128 255]
+                         :corner-arc-width 0
+                         :corner-arc-height 0
+
+                         :type ::rectangle
+                         :image-function draw-rectangle-2
+                         :image-function-parameter-keys [:width :height :draw-color :fill-color :line-width :corner-arc-width :corner-arc-height]
+                         :hit-test hit-test-rectangle})
+
+(defn rectangle-2 [& properties]
+  (merge rectangle-defaults
+         (apply hash-map properties)))
+
 (defn adapt-text-to-scale [node x-scale y-scale]
   (let [new-font-size (* (:font-size node)
                          (max x-scale y-scale))]
