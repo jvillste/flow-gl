@@ -39,7 +39,7 @@
 (defn rows-node [rows]
   {:rows rows
    :get-size get-rows-node-size
-   
+
    :image-function text/create-buffered-image-for-rows
    :image-function-parameter-keys [:rows]})
 
@@ -106,7 +106,7 @@
       (index-at-coordinates rows
                             x
                             (- (:y position)
-                               (text/row-height (nth rows (:row-number position))))) 
+                               (text/row-height (nth rows (:row-number position)))))
       index)))
 
 
@@ -117,7 +117,7 @@
       (index-at-coordinates rows
                             x
                             (+ (:y position)
-                               (text/row-height (nth rows (:row-number position))))) 
+                               (text/row-height (nth rows (:row-number position)))))
       index)))
 
 (defn insert [target index source]
@@ -209,7 +209,7 @@
     (case (:key event)
       :up
       [previous-row]
-      
+
       :down
       [next-row]
 
@@ -307,7 +307,7 @@
 
 (defn create-scene-graph [text index style handle-rows]
   (assert text)
-  
+
   {:adapt-to-space (create-adapt-to-space text index style handle-rows)})
 
 (defn get-state-atom [id]
@@ -331,6 +331,23 @@
             (assoc :keyboard-event-handler (create-text-area-keyboard-event-handler state-atom
                                                                                     on-change)))))))
 
+(def default-options {:style {}
+                      :text ""
+                      :on-change (fn [old-state new-state]
+                                   new-state)})
+
+(defn text-area-2 [id & {:as options}]
+  (let [options (merge default-options
+                       options)]
+    (text-area id
+               (:style options)
+               (:text options)
+               (if-let [on-text-change (:on-text-change options)]
+                 (fn [old-state new-state]
+                   (when (not= (:text new-state) (:text old-state))
+                     (on-text-change (:text new-state)))
+                   new-state)
+                 (:on-change default-options)))))
 
 (defn create-demo-scene-graph [width height]
 
@@ -349,14 +366,14 @@
                         (fn [old-state new-state]
                           (swap! state-atom assoc :text-1 (:text new-state))
                           new-state)))
-           
+
            (text-area :area-2
                       {:color [255 255 255 255]}
                       (:text-2 @state-atom)
                       (fn [old-state new-state]
                         (swap! state-atom assoc :text-2 (:text new-state))
                         new-state))
-           
+
            #_(text (prn-str @state-atom))))
         (application/do-layout width height))))
 
@@ -373,11 +390,11 @@
   #_(0.0 0.0 0.0 -16.589355 0.0 3.5200195)
   #_(10.0 0.0 10.0 -16.589355 10.0 3.5200195)
   #_(20.0 0.0 20.0 -16.589355 20.0 3.5200195)
-  #_(-> 
+  #_(->
      (first)
      #_(.getNextLeftHit 1)
      (.getCaretShapes 1)
      (first)
      #_(.getCharIndex))
-  
+
   (application/start-window #'create-demo-scene-graph))

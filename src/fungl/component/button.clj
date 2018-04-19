@@ -19,5 +19,3 @@
                    (visuals/rectangle [255 255 0 255] 30 30)
                    (text/text message))
       (assoc :mouse-event-handler [button-mouse-event-handler handler])))
-
-

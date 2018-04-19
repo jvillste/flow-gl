@@ -1,7 +1,5 @@
 (ns examples.hi-tiled-rendering
-  (:require [clojure.spec.test :as spec-test]
-            [clojure.spec :as spec]
-            [fungl.application :as application]
+  (:require [fungl.application :as application]
             (fungl [cache :as cache])
             (flow-gl.gui [layout :as layout]
                          [visuals :as visuals]
@@ -124,7 +122,6 @@
                   :width width
                   :height height})))})
 
-(def font (font/create (.getPath (io/resource "LiberationSans-Regular.ttf")) 40))
 (def pumpkin (buffered-image/create-from-file (.getPath (io/resource "pumpkin.png"))))
 
 (def mask (assoc (visuals/image pumpkin)
@@ -135,17 +132,18 @@
   ;; (animation/swap-state! animation/set-wake-up 1000) ;; TODO: remove this
   
   (let [margin 0]
-    {:children (-> [(assoc (visuals/text [255 255 255 255]
-                                   font
-                                   (prn-str @mask-state))
+    {:children (-> [(assoc (visuals/text (prn-str @mask-state)
+                                         [255 255 255 255]
+                                         40)
                            :y 200)]
                    (cond-> (#{0 2} @mask-state)
                      (conj (stateful-rectangle :rectangle-1)))
                    (cond-> (= 1 @mask-state)
-                     (conj (cache/call apply-mask mask
-                                       (assoc (stateful-rectangle :rectangle-1)
-                                              :x 0
-                                              :y 0))))
+                     (conj (cache/call! apply-mask
+                                        mask
+                                        (assoc (stateful-rectangle :rectangle-1)
+                                               :x 0
+                                               :y 0))))
                    (cond-> (= 2 @mask-state)
                      (conj mask)))
      :x margin
@@ -157,11 +155,6 @@
 #_ (create-scene-graph 100 100)
 
 (defn start []
-  (do (spec-test/instrument)
-      (spec/check-asserts true))
-  
-  #_(do (spec-test/unstrument)
-        (spec/check-asserts false))
 
   (.start (Thread. (fn []
                      (application/start-window #'create-scene-graph

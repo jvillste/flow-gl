@@ -11,7 +11,9 @@
                                  [render-target :as render-target]
                                  [quad :as quad]
                                  [texture :as texture]
-                                 [shader :as shader]))
+                                 [shader :as shader])
+            [clojure.java.io :as io])
+  
   (:use flow-gl.utils
         clojure.test))
 
@@ -64,8 +66,8 @@
   sum += texture(texture, vec2(tc.x + 3.0*blur*hstep, tc.y + 3.0*blur*vstep)) * 0.0540540541;
   sum += texture(texture, vec2(tc.x + 4.0*blur*hstep, tc.y + 4.0*blur*vstep)) * 0.0162162162;
 
-  // outColor = vec4(1.0, 0.0, 0.0, 1.0) * 1.5 * vec4(sum.rgb, 1.0);
-  outColor = 1.5 * vec4(sum.rgb, 1.0);
+   outColor = vec4(1.0, 0.0, 0.0, 1.0) * 1.5 * vec4(sum.rgb, 1.0);
+  // outColor = 1.5 * vec4(sum.rgb, 1.0);
   // outColor = sum;
   }")
 
@@ -75,7 +77,7 @@
     (opengl/clear gl 0 0 1 1)
     (quad/draw gl
                ["texture" texture]
-               [;; :1f "blur" 3.0
+               [:1f "blur" 3.0
                 :2f "dir" [3.0 0.0]]
                blur-program
                100 100
@@ -89,7 +91,7 @@
                                    :close-automatically true)]
 
     (let [texture (window/with-gl window gl
-                    (texture/create-for-file "pumpkin.png" gl))]
+                    (texture/create-for-file (io/resource "pumpkin.png") gl))]
         
         (while (window/visible? window)
           (window/with-gl window gl

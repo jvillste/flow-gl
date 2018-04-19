@@ -35,7 +35,7 @@
         (value-registry/state-bindings)))
 
 (defn create-render-state [gl]
-  (conj (stateful/state-bindings :delete-after-calls 500)
+  (conj #_(stateful/state-bindings :delete-after-calls 500)
         (cache/state-bindings)
         (value-registry/state-bindings)))
 

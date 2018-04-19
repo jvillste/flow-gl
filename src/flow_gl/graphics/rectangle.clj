@@ -33,7 +33,7 @@
                                                    width)
                                               (max 1
                                                    height))]
-    
+
     (fill (buffered-image/get-graphics buffered-image)
           color width height corner-arc-width corner-arc-height)
 

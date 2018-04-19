@@ -280,3 +280,31 @@
   (is (= nil
          (intersection {:x 0 :y 0 :width 100}
                        {:x 200 :y 0 :width 10}))))
+
+
+(defn above? [below above]
+  (> (:y below)
+     (:y above)))
+
+(defn horizontal-distance [node-1 node-2]
+  (Math/abs (- (:x node-1)
+               (:x node-2))))
+
+(defn next-above [reference-node nodes]
+  (first (->> nodes
+              (filter (partial above? reference-node))
+              (sort-by (fn [node]
+                         [(- (:y reference-node))
+                          (horizontal-distance reference-node node)]))
+              (reverse))))
+
+(defn below? [above below]
+  (> (:y below)
+     (:y above)))
+
+(defn next-below [reference-node nodes]
+  (first (->> nodes
+              (filter (partial below? reference-node))
+              (sort-by (fn [node]
+                         [(:y reference-node)
+                          (horizontal-distance reference-node node)])))))

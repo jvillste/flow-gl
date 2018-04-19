@@ -1,7 +1,5 @@
 (ns examples.hi-layout
-  (:require [clojure.spec.test :as spec-test]
-            [clojure.spec :as spec]
-            [fungl.application :as application]
+  (:require [fungl.application :as application]
             (flow-gl.gui [layout :as layout]
                          [visuals :as visuals])))
 
@@ -79,8 +77,6 @@
       (application/do-layout width height)))
 
 (defn start []
-  (spec-test/instrument)
-  (spec/check-asserts true)
   (application/start-window create-scene-graph)
   #_(.start (Thread. (fn []
                        (start-window)))))

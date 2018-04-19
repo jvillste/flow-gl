@@ -2,7 +2,7 @@
   (:require (fungl [cache :as cache]
                    [handler :as handler])
             [flow-gl.graphics.text :as text]
-            
+
             [flow-gl.graphics.rectangle :as rectangle]
 
             (flow-gl.graphics [font :as font]
@@ -25,7 +25,7 @@
     :image-function draw-rectangle
     :image-function-parameter-keys [:width :height :color :corner-arc-width :corner-arc-height]
     :hit-test hit-test-rectangle})
-  
+
   ([color corner-arc-width corner-arc-height width height]
    (assoc (rectangle color corner-arc-width corner-arc-height)
           :width width
@@ -50,24 +50,37 @@
                       corner-arc-width
                       corner-arc-height))
 
-    
-    
+
+
     buffered-image))
 
-(def rectangle-defaults {:draw-color nil
-                         :line-width 0
-                         :fill-color [128 128 128 255]
-                         :corner-arc-width 0
-                         :corner-arc-height 0
+(def rectangle-node {:type ::rectangle
+                     :image-function draw-rectangle-2
+                     :image-function-parameter-keys [:width :height :draw-color :fill-color :line-width :corner-arc-width :corner-arc-height]
+                     :hit-test hit-test-rectangle})
 
-                         :type ::rectangle
-                         :image-function draw-rectangle-2
-                         :image-function-parameter-keys [:width :height :draw-color :fill-color :line-width :corner-arc-width :corner-arc-height]
-                         :hit-test hit-test-rectangle})
+(def default-rectangle-properties {:draw-color nil
+                                   :line-width 0
+                                   :fill-color [128 128 128 255]
+                                   :corner-arc-size nil
+                                   :corner-arc-width 0
+                                   :corner-arc-height 0})
 
-(defn rectangle-2 [& properties]
-  (merge rectangle-defaults
-         (apply hash-map properties)))
+(defn rectangle-2 [& {:as properties
+                      :keys [draw-color
+                             line-width
+                             fill-color
+                             corner-arc-radius
+                             corner-arc-width
+                             corner-arc-height]}]
+
+  (merge rectangle-node
+         default-rectangle-properties
+         properties
+         (if corner-arc-radius
+           {:corner-arc-width corner-arc-radius
+            :corner-arc-height corner-arc-radius}
+           {})))
 
 (defn adapt-text-to-scale [node x-scale y-scale]
   (let [new-font-size (* (:font-size node)
@@ -83,7 +96,7 @@
    (assert (vector? color))
    (assert (number? font-size))
    (assert (string? font-file-path))
-   
+
    (let [font (font/create font-file-path
                            font-size)]
      {:type ::text
@@ -103,13 +116,13 @@
          color
          font-size
          (.getPath (io/resource "LiberationSans-Regular.ttf"))))
-  
+
   ([string color]
    (text string
          color
          18
          (.getPath (io/resource "LiberationSans-Regular.ttf"))))
-  
+
   ([string]
    (text string
          [255 255 255 255]
@@ -128,7 +141,7 @@
 
 
 (handler/def-handler-creator create-text-area-get-size [font] [node]
-  (if-let [rows (:rows node)] 
+  (if-let [rows (:rows node)]
     (text/rows-size rows)
     {:width 0
      :height (font/height font)}))
@@ -145,9 +158,9 @@
     :font font
     :string string
     :adapt-to-space (create-text-area-adapt-to-space color font string)
-    
+
     :get-size (create-text-area-get-size font)
-    
+
     :image-function text/create-buffered-image-for-rows
     :image-function-parameter-keys [:rows]})
   ([string color]
@@ -197,5 +210,3 @@
    :image-function identity
    :image-function-parameter-keys [:buffered-image]
    :hit-test hit-test-image})
-
-

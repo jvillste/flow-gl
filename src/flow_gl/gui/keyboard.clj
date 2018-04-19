@@ -7,17 +7,17 @@
             (flow-gl.gui [scene-graph :as scene-graph])
             [clojure.test :as test :refer [deftest is]]))
 
-(defn initialize-state []
+(defn- initialize-state []
   {})
 
-(defn call-handler [handler & arguments]
+(defn- call-handler [handler & arguments]
   (apply callable/call handler arguments))
 
-(defn call-if-set [keyboard-state handler-key & arguments]
+(defn- call-if-set [keyboard-state handler-key & arguments]
   (when-let [handler (handler-key keyboard-state)]
     (apply call-handler handler arguments)))
 
-(defn send-focus-move-events [old-event-handler new-event-handler]
+(defn- send-focus-move-events [old-event-handler new-event-handler]
   (when old-event-handler
     (call-handler old-event-handler {:type :focus-lost}))
   
@@ -30,7 +30,7 @@
          :focused-handler event-handler))
 
 
-(defn call-focused-event-handler [state event]
+(defn- call-focused-event-handler [state event]
   (call-if-set state :focused-handler event))
 
 
@@ -38,7 +38,7 @@
 
 (defn set-focused-node
   ([keyboard-state node]
-   (assert (:id node))
+   (assert (:id node) "Focused scene graph node must have :id")
    (set-focused-node keyboard-state
                      (:id node)
                      (:keyboard-event-handler node)))
@@ -53,37 +53,37 @@
 
 ;; focus cycling
 
-(defn filter-keyboard-event-handler-nodes [nodes]
+(defn- filter-keyboard-event-handler-nodes [nodes]
   (filter :keyboard-event-handler nodes))
 
-(defn order-nodes-down-right [nodes]
+(defn- order-nodes-down-right [nodes]
   (sort-by (fn [node] [(:y node) (:x node)])
            nodes))
 
-(defn node-position [nodes id]
+(defn- node-position [nodes id]
   (-> (utils/positions #(= (:id %) id)
                        nodes)
       (first)))
 
-(defn cycle-position [min max position]
+(defn- cycle-position [min max position]
   (if (> position max)
     min
     (if (< position min)
       max
       position)))
 
-(defn get-with-limit [position value-vector limit]
+(defn- get-with-limit [position value-vector limit]
   (get value-vector
        (limit 0
               (dec (count value-vector))
               position)))
 
-(defn keyboard-event-handler-nodes [scene-graph]
+(defn- keyboard-event-handler-nodes-from-scene-graph [scene-graph]
   (-> scene-graph
       (scene-graph/flatten)
       (filter-keyboard-event-handler-nodes)))
 
-(defn next-node [currently-focused-node-id nodes ordering advance limit]
+(defn- next-node [currently-focused-node-id nodes ordering advance limit]
   (let [nodes-with-handler (-> nodes
                                (ordering)
                                (vec))]
@@ -95,13 +95,14 @@
         (get-with-limit nodes-with-handler
                         limit))))
 
-(defn move-focus [state scene-graph ordering advance limit]
+(defn- move-focus [state scene-graph ordering advance limit]
   (set-focused-node state
                     (next-node (:focused-node-id state)
-                               (keyboard-event-handler-nodes scene-graph)
+                               (keyboard-event-handler-nodes-from-scene-graph scene-graph)
                                ordering
                                advance
                                limit)))
+
 
 
 ;; state
@@ -116,6 +117,18 @@
                     arguments)))
     (send-focus-move-events @old-handler
                             (:focused-handler @state-atom))))
+
+(defn focused-node-id [state]
+  (:focused-node-id state))
+
+(defn keyboard-event-handler-nodes [state]
+  (keyboard-event-handler-nodes-from-scene-graph (:scene-graph state)))
+
+(defn focused-node [state]
+  (first (filter (fn [node]
+                   (= (:id node)
+                      (focused-node-id state)))
+                 (keyboard-event-handler-nodes state))))
 
 ;; dynamic state
 
@@ -199,7 +212,8 @@
 (defn handle-new-scene-graph! [scene-graph]
   (when-let [focused-handler (get (keyboard-event-handlers scene-graph)
                                   (:focused-node-id @state-atom))]
-    (set-focused-event-handler! focused-handler)))
+    (set-focused-event-handler! focused-handler))
+  (swap! state-atom assoc :scene-graph scene-graph))
 
 (defn set-focus-on-mouse-clicked! [node event]
   (when (and (= :mouse-clicked
@@ -217,7 +231,6 @@
                                     scene-graph ordering advance limit))
 
 
-
 (defn handle-keyboard-event! [scene-graph keyboard-event]
   (if (and (= (:key keyboard-event)
               :tab)
@@ -230,8 +243,9 @@
                    dec
                    inc)
                  cycle-position)
-    
     (call-focused-event-handler! keyboard-event)))
+
+
 
 
 ;; events

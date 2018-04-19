@@ -33,13 +33,13 @@
                                       :height (.getHeight icon)
                                       :gl-texture (texture/create-for-file (.getPath (io/resource "pumpkin.png"))
                                                                            gl)}
-                                     #_{:x 150
+                                     {:x 150
                                       :y 10
                                       :width (.getWidth icon)
                                       :height (.getHeight icon)
                                       :image-function (fn [] icon)}
                                      
-                                     #_{:x 100
+                                     {:x 100
                                       :y 200
                                       :width 200
                                       :height 20
@@ -49,7 +49,7 @@
                                       :image-function text/create-buffered-image
                                       :image-function-parameter-keys [:color :font :text]}
 
-                                     #_{:x 100
+                                     {:x 100
                                       :y 240
                                       :width 200
                                       :height 200

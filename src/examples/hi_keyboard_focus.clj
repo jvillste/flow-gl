@@ -1,7 +1,5 @@
 (ns examples.hi-keyboard-focus
-  (:require [clojure.spec.test :as spec-test]
-            [clojure.spec :as spec]
-            [fungl.application :as application]
+  (:require [fungl.application :as application]
             (flow-gl.gui [layouts :as layouts]
                          [keyboard :as keyboard]
                          [visuals :as visuals])
@@ -14,12 +12,12 @@
 
 (defn text-box [color text]
   (layouts/box 5
-                      (visuals/rectangle color
-                                         5
-                                         5)
-                      (visuals/text [0 0 0 255]
-                                    font
-                                    text)))
+               (visuals/rectangle color
+                                  5
+                                  5)
+               (visuals/text text
+                             [0 0 0 255]
+                             35)))
 
 (defn character-editor-keyboard-event-handler [id keyboard-event]
   (case (:type keyboard-event)
@@ -56,8 +54,6 @@
       (application/do-layout width height)))
 
 (defn start []
-  (spec-test/instrument)
-  (spec/check-asserts true)
   (application/start-window create-scene-graph)
   #_(.start (Thread. (fn []
                        (start-window)))))
