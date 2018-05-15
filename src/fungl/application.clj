@@ -98,6 +98,9 @@
                                         ~@body)
      (do ~@body)))
 
+(defmacro thread [name & body]
+  `(.start (Thread. (fn [] ~@body))))
+
 (defn start-window [create-scene-graph & {:keys [window
                                                  target-frame-rate
                                                  handle-event
@@ -119,9 +122,9 @@
   (let [window (or window (create-window))
         event-channel (window/event-channel window)
         renderable-scene-graph-channel (async/chan)]
-    
+
     ;; use async/thread to inherit bindings such as flow-gl.debug/dynamic-debug-channel
-    (async/thread
+    (thread "render"
       (try (with-bindings (window/with-gl window gl
                             (create-render-state gl))
              (loop []
@@ -142,7 +145,7 @@
              (throw e))))
     
 
-    (async/thread
+    (thread "event"
       (try
         (with-bindings (create-event-handling-state)
           (let [initial-scene-graph (create-scene-graph (window/width window)
