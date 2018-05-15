@@ -11,4 +11,5 @@
                  ;; [org.clojars.jvillste/jogl-all "2.1.5"]
                  [org.clojars.jvillste/jogl-all "2.4.0-SNAPSHOT"]
                  [com.google.guava/guava "20.0"]
-                 [org.clojure/tools.namespace "0.2.11"]])
+                 [org.clojure/tools.namespace "0.2.11"]
+                 [logga "0.1.0-SNAPSHOT"]])
