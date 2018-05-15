@@ -1,23 +1,19 @@
 (ns fungl.application
   (:require [clojure.core.async :as async]
-            [taoensso.timbre.profiling :as profiling]
             [flow-gl.csp :as csp]
-            (fungl [renderer :as renderer]
-                   [cache :as cache]
-                   [value-registry :as value-registry]
-                   [atom-registry :as atom-registry]
-                   [layout :as layout])
-            (flow-gl.gui [window :as window]
-                         [quad-renderer :as quad-renderer]
-                         [scene-graph :as scene-graph]
-                         [mouse :as mouse]
-                         [keyboard :as keyboard]
-                         [stateful :as stateful]
-                         [animation :as animation])
-
-            (flow-gl.opengl.jogl [opengl :as opengl]
-                                 [window :as jogl-window])
-            [logga.core :as logga]))
+            [flow-gl.gui.animation :as animation]
+            [flow-gl.gui.keyboard :as keyboard]
+            [flow-gl.gui.mouse :as mouse]
+            [flow-gl.gui.stateful :as stateful]
+            [flow-gl.gui.window :as window]
+            [flow-gl.opengl.jogl.window :as jogl-window]
+            [fungl.cache :as cache]
+            [fungl.layout :as layout]
+            [fungl.renderer :as renderer]
+            [fungl.root-renderer :as root-renderer]
+            [fungl.value-registry :as value-registry]
+            [logga.core :as logga]
+            [taoensso.timbre.profiling :as profiling]))
 
 (defn do-layout [scene-graph window-width window-height]
   (-> scene-graph
@@ -45,10 +41,7 @@
   (renderer/apply-renderers! (assoc scene-graph
                                     :render (if-let [render (:render scene-graph)]
                                               render
-                                              (fn [scene-graph gl]
-                                                (opengl/clear gl 0 0 0 1)
-                                                (let [quad-renderer-atom (atom-registry/get! ::root-renderer (quad-renderer/atom-specification gl))]
-                                                  (quad-renderer/render quad-renderer-atom gl scene-graph)))))
+                                              root-renderer/root-renderer))
                              gl)
   
   #_(let [{:keys [width height]} (opengl/size gl)]
@@ -101,7 +94,7 @@
 
 (defmacro thread [name & body]
   `(.start (Thread. (fn [] ~@body)
-                    name)))
+                    ~name)))
 
 (defn start-window [create-scene-graph & {:keys [window
                                                  target-frame-rate
