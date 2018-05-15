@@ -14,3 +14,4 @@ pom.xml
 config_debug.clj
 debug-log.txt
 .Ds_store
+/checkouts
