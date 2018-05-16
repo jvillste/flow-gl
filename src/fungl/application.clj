@@ -37,7 +37,6 @@
         (value-registry/state-bindings)))
 
 (defn render [gl scene-graph]
-  (logga/write "rendering")
   (renderer/apply-renderers! (assoc scene-graph
                                     :render (if-let [render (:render scene-graph)]
                                               render
@@ -93,13 +92,57 @@
      (do ~@body)))
 
 (defmacro thread [name & body]
+  ;; use async/thread to inherit bindings such as flow-gl.debug/dynamic-debug-channel
   `(.start (Thread. (fn [] ~@body)
                     ~name)))
+
+(defn start-event-thread [create-scene-graph event-channel renderable-scene-graph-channel initial-width initial-height target-frame-rate do-profile]
+  (thread "event"
+          (logga/write "starting event loop")
+          (try
+            (with-bindings (create-event-handling-state)
+              (let [initial-scene-graph (create-scene-graph initial-width initial-height)]
+                (handle-new-scene-graph initial-scene-graph)
+                (loop [scene-graph initial-scene-graph
+                       window-width initial-width
+                       window-height initial-height]
+                  (let [scene-graph (with-profiling do-profile :handle-events
+                                      (loop [events (read-events event-channel target-frame-rate)
+                                             scene-graph scene-graph]
+                                        (if-let [event (first events)]
+                                          (if (= :close-requested (:type event))
+                                            (do (logga/write "close requested")
+                                                nil)
+                                            (do (handle-event scene-graph event)
+                                                (let [scene-graph (create-scene-graph window-width
+                                                                                      window-height)]
+                                                  (handle-new-scene-graph scene-graph)
+                                                  (recur (rest events)
+                                                         scene-graph))))
+                                          scene-graph)))]
+
+                    (when scene-graph
+                      (logga/write "sending schenegraph to render thread")
+
+                      (async/>!! renderable-scene-graph-channel
+                                 scene-graph)
+                      (value-registry/delete-unused-values! 10000)
+                      (recur scene-graph
+                             window-width
+                             window-height))))))
+
+            (logga/write "exiting event handling loop")
+
+            (catch Throwable e
+              (logga/write (prn-str e))
+              (throw e))
+            (finally
+              (async/close! renderable-scene-graph-channel)))))
 
 (defn start-window [create-scene-graph & {:keys [window
                                                  target-frame-rate
                                                  handle-event
-                                                 profiling
+                                                 do-profiling
                                                  ;;                                                  render
                                                  ;;                                                  create-event-handling-state
                                                  ;;                                                  create-render-state
@@ -107,80 +150,45 @@
                                                  ]
                                           :or {target-frame-rate 60
                                                handle-event handle-event
-                                               profiling false
+                                               do-profiling false
                                                ;;                                                read-events read-events
                                                ;;                                                render render
                                                ;;                                                create-event-handling-state create-event-handling-state
                                                ;;                                                create-render-state create-render-state
                                                }}]
-
-  (let [window (or window (create-window))
-        event-channel (window/event-channel window)
-        renderable-scene-graph-channel (async/chan)]
-
-    ;; use async/thread to inherit bindings such as flow-gl.debug/dynamic-debug-channel
+  (let [event-channel-promise (promise)]
     (thread "render"
-            (logga/write "starting render loop")
-            (try (with-bindings (window/with-gl window gl
-                                  (create-render-state gl))
-                   (loop []
-                     (let [scene-graph (async/<!! renderable-scene-graph-channel)]
-                       (when scene-graph
+            (logga/write "creating window")
+            (let [window (create-window)
+                  renderable-scene-graph-channel (async/chan)]
+              (deliver event-channel-promise (window/event-channel window))
+              (start-event-thread create-scene-graph
+                                  (window/event-channel window)
+                                  renderable-scene-graph-channel
+                                  (window/width window)
+                                  (window/height window)
+                                  target-frame-rate
+                                  do-profiling)
+
+              (try (with-bindings (window/with-gl window gl
+                                    (create-render-state gl))
+                     (logga/write "starting render loop")
+                     (loop []
+                       (when-let [scene-graph (async/<!! renderable-scene-graph-channel)]
                          (window/with-gl window gl
-                           (with-profiling profiling :render
+                           (with-profiling do-profiling :render
+                             (logga/write "render start")
                              (render gl scene-graph)
-                             (value-registry/delete-unused-values! 500)))
+                             (logga/write "render over")))
                          (window/swap-buffers window)
-                         (recur)))))
-
-                 (logga/write "exiting render loop")
-           
-                 (catch Throwable e
-                   (.printStackTrace e *out*)
+                         (value-registry/delete-unused-values! 500)
+                         (recur))))
+                   (logga/write "closing window")
                    (window/close window)
-                   (throw e))))
-    
+                   (logga/write "exiting render loop")
 
-    (thread "event"
-            (logga/write "starting event loop")
-            (try
-              (with-bindings (create-event-handling-state)
-                (let [initial-scene-graph (create-scene-graph (window/width window)
-                                                              (window/height window))]
-                  (handle-new-scene-graph initial-scene-graph)
-                  (loop [scene-graph initial-scene-graph]
-                    (when (window/visible? window)
-
-                      (let [window-width (window/width window)
-                            window-height (window/height window)
-                            scene-graph (with-profiling profiling :handle-events
-                                          (loop [events (read-events event-channel target-frame-rate)
-                                                 scene-graph scene-graph]
-                                      
-                                            (if-let [event (first events)]
-                                              (do (handle-event scene-graph event)
-                                                  (let [scene-graph (create-scene-graph window-width
-                                                                                        window-height)]
-                                                    (handle-new-scene-graph scene-graph)
-                                                    (recur (rest events)
-                                                           scene-graph)))
-                                              scene-graph)))]
-
-                        (logga/write "sending schenegraph to render thread")
-
-                        (async/>!! renderable-scene-graph-channel
-                                   scene-graph)
-                  
-                        (value-registry/delete-unused-values! 10000)
-                        (recur scene-graph))))))
-
-              (logga/write "exiting event handling loop")
-
-              (catch Throwable e
-                (.printStackTrace e *out*)
-                (window/close window)
-                (throw e))
-              (finally
-                (async/close! renderable-scene-graph-channel))))
-    event-channel))
-
+                   (catch Throwable e
+                     (logga/write (prn-str e))
+                     (window/close window)
+                     (throw e)))))
+    @event-channel-promise))

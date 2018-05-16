@@ -3,7 +3,8 @@
             [flow-gl.gui.event-queue :as event-queue]
             [flow-gl.gui.events :as events]
             [clojure.core.async :as async]
-            [flow-gl.gui.window :as window])
+            [flow-gl.gui.window :as window]
+            [logga.core :as logga])
   (:import [com.jogamp.newt.event WindowAdapter WindowEvent KeyAdapter KeyEvent MouseAdapter MouseEvent]
            [com.jogamp.newt.opengl GLWindow]
            [com.jogamp.newt.awt NewtCanvasAWT]
@@ -147,6 +148,7 @@
                                (windowDestroyNotify [event]
                                  (async/put! event-channel
                                              (events/create-close-requested-event)))
+
                                (windowResized [event]
                                  #_(flow-gl.debug/debug-timed "window resized"
                                                               (.getWidth window)
@@ -226,45 +228,51 @@
                                                          (.setSize width height)
                                                          (.setVisible true)))))
                      frame)
-                   
+
                    (do (doto window
                          (.setSize width height)
                          (.setVisible true)
                          (.getCurrentSurfaceScale surface-scale)
                          )
                        nil))]
-       
-       (when (not close-automatically)
-         (.setDefaultCloseOperation window WindowClosingProtocol$WindowClosingMode/DO_NOTHING_ON_CLOSE))
-       
+
+       (.setDefaultCloseOperation window WindowClosingProtocol$WindowClosingMode/DO_NOTHING_ON_CLOSE)
+
        (->JoglWindow window
                      event-channel
                      runner-atom
                      frame)))))
 
 
-#_(defn start [app]
-    (let [window (window/create 300
-                                400
-                                :profile :gl3
-                                :init opengl/initialize
-                                :reshape opengl/resize)]
+(comment
+  (.start (Thread. (fn []
+                     (let [event-channel (async/chan 50)
+                           window (create 300
+                                          400
+                                          :event-channel event-channel
+                                          :profile :gl3
+                                          :init opengl/initialize
+                                          :reshape opengl/resize)
+                           close-requested-atom (atom false)]
 
-      (try
-        (loop [state {}]
+                       (async/go-loop [event (async/<! event-channel)]
+                         (when event
+                           (logga/write event)
+                           (when (= :close-requested (:type event))
+                             (reset! close-requested-atom true))
+                           (recur (async/<! event-channel))))
 
-          (if (:close-requested state)
-            (window/close window)
+                       (window/with-gl window gl
+                         (opengl/clear gl 1 1 1 1))
 
-            (recur (app window
-                        state
-                        (drain (window/event-channel window)
-                               (or (:sleep-time state)
-                                   0))))))
+                       (while (not @close-requested-atom)
+                         (Thread/sleep 1000))
 
-        (catch Exception e
-          (window/close window)
-          (throw e)))))
+                       (async/close! event-channel)
+                       (logga/write "closing window")
+                       (window/close window)))))
+  )
+
 
 
 
