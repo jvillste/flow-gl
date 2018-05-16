@@ -31,9 +31,8 @@
         (cache/state-bindings)
         (value-registry/state-bindings)))
 
-(defn create-render-state [gl]
-  (conj #_(stateful/state-bindings :delete-after-calls 500)
-        (cache/state-bindings)
+(defn create-render-state []
+  (conj (cache/state-bindings)
         (value-registry/state-bindings)))
 
 (defn render [gl scene-graph]
@@ -181,7 +180,8 @@
     (thread "render"
             (logga/write "creating window")
             (let [window (create-window)
-                  renderable-scene-graph-channel (async/chan)]
+                  renderable-scene-graph-channel (async/chan)
+                  render-state (create-render-state)]
               (deliver event-channel-promise (window/event-channel window))
               (start-event-thread create-scene-graph
                                   (window/event-channel window)
@@ -191,19 +191,19 @@
                                   target-frame-rate
                                   do-profiling)
 
-              (try (with-bindings (window/with-gl window gl
-                                    (create-render-state gl))
-                     (logga/write "starting render loop")
-                     (loop []
-                       (when-let [scene-graph (async/<!! renderable-scene-graph-channel)]
-                         (window/with-gl window gl
-                           (with-profiling do-profiling :render
-                             (logga/write "render start")
+              (try (logga/write "starting render loop")
+                   (loop []
+                     (when-let [scene-graph (async/<!! renderable-scene-graph-channel)]
+                       (window/with-gl window gl
+                         (with-profiling do-profiling :render
+                           (logga/write "render start")
+                           (with-bindings render-state
                              (render gl scene-graph)
-                             (logga/write "render over")))
-                         (window/swap-buffers window)
-                         (value-registry/delete-unused-values! 500)
-                         (recur))))
+                             (value-registry/delete-unused-values! 500))
+                           (logga/write "render over")))
+                       (window/swap-buffers window)
+                       (recur)))
+
                    (logga/write "closing window")
                    (window/close window)
                    (logga/write "exiting render loop")
