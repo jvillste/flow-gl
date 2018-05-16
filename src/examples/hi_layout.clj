@@ -24,7 +24,7 @@
                                                  :mouse-entered (assoc rectangle-state :mouse-over true)
                                                  :mouse-left (assoc rectangle-state :mouse-over false)
                                                  rectangle-state)))
-                                      
+
                                       event)))))
 
 
@@ -34,7 +34,7 @@
                               (conj (map :width (:children node))
                                     0))
                 :height (reduce + (map :height (:children node)))})
-   
+
    :give-space (fn [node]
                  (update-in node [:children]
                             (fn [children]
@@ -49,7 +49,7 @@
                          (loop [layouted-nodes []
                                 y 0
                                 children (:children node)]
-                           (if-let [child (first children)] 
+                           (if-let [child (first children)]
                              (recur (conj layouted-nodes
                                           (assoc child
                                                  :x 0
@@ -80,6 +80,3 @@
   (application/start-window create-scene-graph)
   #_(.start (Thread. (fn []
                        (start-window)))))
-
-
-
