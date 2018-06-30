@@ -1,8 +1,7 @@
 (ns flow-gl.graphics.rectangle
-  (:require (flow-gl.graphics [font :as font]
-                              [buffered-image :as buffered-image]))
-  (:import [java.awt Color RenderingHints BasicStroke]
-           [java.awt.geom RoundRectangle2D$Double]))
+  (:require [flow-gl.graphics.buffered-image :as buffered-image])
+  (:import (java.awt BasicStroke Color RenderingHints)
+           (java.awt.geom RoundRectangle2D$Double)))
 
 (defn fill [graphics color width height corner-arc-width corner-arc-height]
   (let [[r g b a] (map (fn [color] (float (/ color 255)))

@@ -1,10 +1,9 @@
 (ns flow-gl.gui.layouts
-  (:require  [clojure.spec.alpha :as spec]
-             (flow-gl.gui [layout :as layout]
-                          [layoutable :as layoutable]
-                          [drawable :as drawable]
-                          [cache :as cache]))
-  (:use clojure.test))
+  (:require [clojure.spec.alpha :as spec]
+            [clojure.test :refer :all]
+            [flow-gl.gui.cache :as cache]
+            [flow-gl.gui.layout :as layout]
+            [flow-gl.gui.layoutable :as layoutable]))
 
 
 (layout/deflayout FixedSize [width height children]

@@ -1,6 +1,5 @@
 (ns flow-gl.gui.layout-dsl
-  (:require (flow-gl.gui [layouts :as layouts])
-            ))
+  (:require [flow-gl.gui.layouts :as layouts]))
 
 (defmacro def-dsl [helper-name parameters & body]
   (let [implementation-symbol (symbol (str (name helper-name) "-implementation"))]

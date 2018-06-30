@@ -1,8 +1,5 @@
 (ns flow-gl.gui.render-target-renderer
-  (:require (flow-gl.opengl.jogl [render-target :as render-target])
-            (flow-gl.gui [stateful :as stateful])
-            (fungl [renderer :as renderer])
-            [clojure.data :as data]))
+  (:require [flow-gl.opengl.jogl.render-target :as render-target]))
 
 (defn initialize-state []
   (println "creating render target renderer")

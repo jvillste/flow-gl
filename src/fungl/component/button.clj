@@ -1,7 +1,7 @@
 (ns fungl.component.button
-  (:require (fungl.component [text :as text])
-            (flow-gl.gui [layouts :as layouts]
-                         [visuals :as visuals])))
+  (:require [fungl.layouts :as layouts]
+            [flow-gl.gui.visuals :as visuals]
+            [fungl.component.text :as text]))
 
 (defn button-mouse-event-handler [handler arguments node event]
   (when (= :mouse-clicked

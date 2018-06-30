@@ -1,12 +1,12 @@
 (ns flow-gl.graphics.buffered-image
   (:require [clojure.java.io :as io])
-  (:import [java.awt.image BufferedImage Raster DataBuffer ComponentColorModel]
-           [java.awt.color ColorSpace]
-           [java.awt Color]
-           [java.util Hashtable]
-           [java.nio IntBuffer FloatBuffer ByteBuffer ByteOrder]
-           [javax.imageio ImageIO]
-           [java.io File]))
+  (:import (java.awt Color)
+           (java.awt.color ColorSpace)
+           (java.awt.image BufferedImage ComponentColorModel DataBuffer)
+           (java.io File)
+           (java.nio ByteBuffer ByteOrder)
+           (java.util Hashtable)
+           (javax.imageio ImageIO)))
 
 (defn create-byte-buffer [buffered-image]
   (let [bytes (-> buffered-image (.getRaster) (.getDataBuffer) (.getData))

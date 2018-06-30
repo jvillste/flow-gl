@@ -1,5 +1,5 @@
 (ns flow-gl.access-logged
-  (:import [clojure.lang IDeref]))
+  (:import (clojure.lang IDeref)))
 
 (defprotocol Accessible
   (accessed? [this]))

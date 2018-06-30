@@ -1,14 +1,8 @@
 (ns flow-gl.opengl.jogl.texture
-  (:refer-clojure :exclude (load))
-  (:import #_[com.jogamp.opengl GL2]
-           [com.jogamp.opengl GL2]
-           [com.jogamp.opengl.util.texture TextureIO]
-           [com.jogamp.opengl.util.texture.awt AWTTextureIO])
   (:require [flow-gl.graphics.buffered-image :as buffered-image]
-            [flow-gl.graphics.text :as text]
-            [flow-gl.graphics.font :as font]
-            (flow-gl.graphics [buffered-image :as buffered-image]
-                              [native-buffer :as native-buffer])))
+            [flow-gl.graphics.native-buffer :as native-buffer])
+  (:import (com.jogamp.opengl GL2))
+  (:refer-clojure :exclude [load]))
 
 (defn create-texture-object [gl]
   (let [result (int-array 1)]

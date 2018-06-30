@@ -1,14 +1,11 @@
 (ns flow-gl.gui.visuals
-  (:require (fungl [cache :as cache]
-                   [handler :as handler])
-            [flow-gl.graphics.text :as text]
-
+  (:require [clojure.java.io :as io]
+            [clojure.test :refer :all]
+            [flow-gl.graphics.buffered-image :as buffered-image]
+            [flow-gl.graphics.font :as font]
             [flow-gl.graphics.rectangle :as rectangle]
-
-            (flow-gl.graphics [font :as font]
-                              [buffered-image :as buffered-image])
-            [clojure.java.io :as io])
-  (:use clojure.test))
+            [flow-gl.graphics.text :as text]
+            [fungl.handler :as handler]))
 
 (defn draw-rectangle [width height color corner-arc-width corner-arc-height]
   (rectangle/create-buffered-image color width height corner-arc-width corner-arc-height))

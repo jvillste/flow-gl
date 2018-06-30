@@ -1,6 +1,5 @@
 (ns flow-gl.logged-access
-  (:refer-clojure :exclude [get get-in assoc])
-  (:require clojure.set))
+  (:refer-clojure :exclude [assoc get get-in]))
 
 (def ^:dynamic changes)
 

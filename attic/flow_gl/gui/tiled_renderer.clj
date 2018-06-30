@@ -7,9 +7,6 @@
             [fungl.renderer :as renderer]
             [taoensso.timbre.profiling :as timbre-profiling]))
 
-
-(require 'flow-gl.gui.stateful)
-
 (defn initialize-state [gl]
   {:tiles {}})
 

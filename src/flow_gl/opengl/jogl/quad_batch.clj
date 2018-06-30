@@ -1,25 +1,14 @@
 (ns flow-gl.opengl.jogl.quad-batch
-  (:require [flow-gl.gui.event-queue :as event-queue]
-            [clojure.core.matrix :as matrix]
-            (flow-gl.opengl.jogl [opengl :as opengl]
-                                 [window :as window]
-                                 [triangle-list :as triangle-list]
-                                 [textured-quad :as textured-quad]
-                                 [texture :as texture]
-                                 [shader :as shader]
-                                 [buffer :as buffer]
-                                 [vertex-array-object :as vertex-array-object])
-            [flow-gl.opengl.math :as math]
-            (flow-gl.graphics [buffered-image :as buffered-image]
-                              [font :as font]
-                              [text :as text]
-                              [native-buffer :as native-buffer]))
-  (:use [clojure.test])
-
-  (:import [com.jogamp.opengl GL2]
-           [java.io PrintWriter StringWriter]
-           [java.nio IntBuffer]
-           [java.awt Color]))
+  (:require [clojure.core.matrix :as matrix]
+            [clojure.test :refer :all]
+            [flow-gl.graphics.native-buffer :as native-buffer]
+            [flow-gl.opengl.jogl.buffer :as buffer]
+            [flow-gl.opengl.jogl.shader :as shader]
+            [flow-gl.opengl.jogl.texture :as texture]
+            [flow-gl.opengl.jogl.vertex-array-object :as vertex-array-object]
+            [flow-gl.opengl.math :as math])
+  (:import (com.jogamp.opengl GL2)
+           (java.nio IntBuffer)))
 
 (def quad-parameters-size 11)
 (def parent-offset 0)
@@ -664,9 +653,6 @@
   quad-batch)
 
 #_(clojure.reflect/reflect com.jogamp.opengl.GL2GL3)
-#_(flowgl.reflect/search-method com.jogamp.opengl.GL2GL3 "glUni")
-
-
 
 (defn map-textures-to-texture-units [textures first-texture-unit]
   (apply hash-map

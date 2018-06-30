@@ -1,20 +1,18 @@
 (ns fungl.component.text-area
-  (:require [clojure.spec.test.alpha :as spec-test]
-            [clojure.spec.alpha :as spec]
-            (fungl [application :as application]
-                   [atom-registry :as atom-registry]
-                   [value-registry :as value-registry]
-                   [layouts :as layouts]
-                   [cache :as cache]
-                   [handler :as handler])
-            (flow-gl.graphics [font :as font]
-                              [text :as text])
-            (flow-gl.gui [animation :as animation]
-                         [keyboard :as keyboard]
-                         [visuals :as visuals])
-            [clojure.java.io :as io])
-  (:import [java.awt.font TextHitInfo])
-  (:use clojure.test))
+  (:require [clojure.java.io :as io]
+            [clojure.test :refer :all]
+            [flow-gl.graphics.font :as font]
+            [flow-gl.graphics.text :as text]
+            [flow-gl.gui.animation :as animation]
+            [flow-gl.gui.keyboard :as keyboard]
+            [flow-gl.gui.visuals :as visuals]
+            [fungl.application :as application]
+            [fungl.atom-registry :as atom-registry]
+            [fungl.cache :as cache]
+            [fungl.handler :as handler]
+            [fungl.layouts :as layouts]
+            [fungl.value-registry :as value-registry])
+  (:import (java.awt.font TextHitInfo)))
 
 (def font (font/create (.getPath (io/resource "LiberationSans-Regular.ttf")) 18))
 

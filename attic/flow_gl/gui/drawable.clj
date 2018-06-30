@@ -1,13 +1,8 @@
 (ns flow-gl.gui.drawable
-  (:require  (flow-gl.graphics [font :as font]
-                               [text :as graphics-text]
-                               [buffered-image :as buffered-image])
-             (flow-gl.gui [layoutable :as layoutable])
-             (flow-gl.opengl.jogl [quad :as quad]
-                                  [opengl :as opengl])
-             [flow-gl.opengl.math :as math])
-  (:import [java.awt.geom Rectangle2D$Float RoundRectangle2D$Float GeneralPath]
-           [java.awt Color RenderingHints BasicStroke]))
+  (:require [flow-gl.graphics.font :as font]
+            [flow-gl.graphics.text :as graphics-text]
+            [flow-gl.gui.layoutable :as layoutable]
+            [flow-gl.opengl.math :as math]))
 
 (defprotocol Java2DDrawable
   (draw [this graphics]))

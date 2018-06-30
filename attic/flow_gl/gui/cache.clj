@@ -1,7 +1,5 @@
 (ns flow-gl.gui.cache
-  (:require [flow-gl.thread-inheritable :as thread-inheritable]
-            [flow-gl.debug :as debug])
-  (:use clojure.test))
+  (:require [flow-gl.thread-inheritable :as thread-inheritable]))
 
 (def cache-enabled? (thread-inheritable/thread-inheritable true))
 

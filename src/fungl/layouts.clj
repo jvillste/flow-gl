@@ -1,8 +1,7 @@
 (ns fungl.layouts
-  (:require  [clojure.spec.alpha :as spec]
-             (fungl [cache :as cache]
-                    [layout :as layout])
-             [flow-gl.gui.scene-graph :as scene-graph]))
+  (:require [clojure.spec.alpha :as spec]
+            [flow-gl.gui.scene-graph :as scene-graph]
+            [fungl.layout :as layout]))
 
 ;; common
 

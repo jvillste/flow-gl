@@ -1,6 +1,6 @@
 (ns fungl.layout
-  (:require  [clojure.spec.alpha :as spec]
-             [fungl.cache :as cache]))
+  (:require [clojure.spec.alpha :as spec]
+            [fungl.cache :as cache]))
 
 (spec/def ::available-width int?)
 (spec/def ::available-height int?)

@@ -1,28 +1,8 @@
 (ns flow-gl.gui.quad-view
-  (:require (flow-gl.gui [event-queue :as event-queue]
-                         [layout :as layout]
-                         [drawable :as drawable]
-                         [layoutable :as layoutable])
-            (flow-gl.opengl.jogl [opengl :as opengl]
-                                 [window :as window]
-                                 [triangle-list :as triangle-list]
-                                 [textured-quad :as textured-quad]
-                                 [texture :as texture]
-                                 [shader :as shader]
-                                 [buffer :as buffer]
-                                 [quad-batch :as quad-batch])
-            [flow-gl.opengl.math :as math]
-            [clojure.data.priority-map :as priority-map]
-            (flow-gl.graphics [buffered-image :as buffered-image]
-                              [font :as font]
-                              [text :as text]
-                              [native-buffer :as native-buffer]))
-  (:import [com.jogamp.opengl GL2]
-           [java.io PrintWriter StringWriter]
-           [java.nio IntBuffer]
-           [java.awt Color])
-
-  (:use clojure.test))
+  (:require [clojure.data.priority-map :as priority-map]
+            [flow-gl.graphics.buffered-image :as buffered-image]
+            [flow-gl.gui.drawable :as drawable]
+            [flow-gl.opengl.jogl.quad-batch :as quad-batch]))
 
 #_(defn quads-for-layout
     ([layout]

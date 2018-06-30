@@ -1,7 +1,7 @@
 (ns fungl.value-registry
-  (:require [clojure.set :as set])
-  (:refer-clojure :exclude [get])
-  (:use clojure.test))
+  (:require [clojure.set :as set]
+            [clojure.test :refer :all])
+  (:refer-clojure :exclude [get]))
 
 (defn initialize-state [& {:keys [delete-after-gets] :or {delete-after-gets nil}}]
   {:delete-after-gets delete-after-gets

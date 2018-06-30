@@ -1,26 +1,12 @@
 (ns flow-gl.opengl.jogl.render-target
-  (:require [flow-gl.gui.event-queue :as event-queue]
-            (flow-gl.opengl.jogl [frame-buffer :as frame-buffer]
-                                 [opengl :as opengl]
-                                 [window :as window]
-                                 [triangle-list :as triangle-list]
-                                 [textured-quad :as textured-quad]
-                                 [texture :as texture]
-                                 [shader :as shader]
-                                 [buffer :as buffer]
-                                 [quad-batch :as quad-batch]
-                                 [vertex-array-object :as vertex-array-object]
-                                 [render-buffer :as render-buffer])
-            [flow-gl.opengl.math :as math]
-            (flow-gl.graphics [buffered-image :as buffered-image]
-                              [font :as font]
-                              [text :as text]
-                              [native-buffer :as native-buffer]))
-
-  (:import [com.jogamp.opengl GL2]
-           [java.io PrintWriter StringWriter]
-           [java.nio IntBuffer]
-           [java.awt Color]))
+  (:require [flow-gl.opengl.jogl.frame-buffer :as frame-buffer]
+            [flow-gl.opengl.jogl.opengl :as opengl]
+            [flow-gl.opengl.jogl.render-buffer :as render-buffer]
+            [flow-gl.opengl.jogl.shader :as shader]
+            [flow-gl.opengl.jogl.texture :as texture]
+            [flow-gl.opengl.jogl.vertex-array-object :as vertex-array-object]
+            [flow-gl.opengl.math :as math])
+  (:import (com.jogamp.opengl GL2)))
 
 
 (def vertex-shader-source "

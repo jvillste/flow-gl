@@ -1,6 +1,6 @@
 (ns fungl.root-renderer
-  (:require [flow-gl.opengl.jogl.opengl :as opengl]
-            [flow-gl.gui.quad-renderer :as quad-renderer]
+  (:require [flow-gl.gui.quad-renderer :as quad-renderer]
+            [flow-gl.opengl.jogl.opengl :as opengl]
             [fungl.atom-registry :as atom-registry]))
 
 

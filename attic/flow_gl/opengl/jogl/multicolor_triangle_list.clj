@@ -1,12 +1,10 @@
 (ns flow-gl.opengl.jogl.multicolor-triangle-list
-  (:require (flow-gl.opengl.jogl [shader :as shader]
-                                 [buffer :as buffer]
-                                 [opengl :as opengl]
-                                 [vertex-array-object :as vertex-array-object])
-            [flow-gl.opengl.math :as math]
-            [flow-gl.graphics.native-buffer :as native-buffer])
-  (:import [com.jogamp.opengl GL2]
-           [com.jogamp.common.nio Buffers]))
+  (:require [flow-gl.graphics.native-buffer :as native-buffer]
+            [flow-gl.opengl.jogl.buffer :as buffer]
+            [flow-gl.opengl.jogl.shader :as shader]
+            [flow-gl.opengl.jogl.vertex-array-object :as vertex-array-object]
+            [flow-gl.opengl.math :as math])
+  (:import (com.jogamp.opengl GL2)))
 
 (defrecord TriangleList [mode
                          number-of-triangles

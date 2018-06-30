@@ -1,9 +1,8 @@
 (ns flow-gl.debug
-  (:require [clojure.java.io :as io]
-            [clojure.core.async :as async]
+  (:require [clojure.core.async :as async]
             [clojure.pprint :as pprint]
             [flow-gl.thread-inheritable :as thread-inheritable])
-  (:import [java.io StringWriter]))
+  (:import (java.io StringWriter)))
 
 
 

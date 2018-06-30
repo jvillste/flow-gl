@@ -1,10 +1,10 @@
 (ns flow-gl.gui.mouse
-  (:require [clojure.spec.alpha :as spec]
+  (:require [clojure.set :as set]
+            [clojure.spec.alpha :as spec]
             [clojure.spec.test.alpha :as spec-test]
-            [clojure.set :as set]
+            [clojure.test :refer [deftest is]]
             [flow-gl.gui.scene-graph :as scene-graph]
-            [fungl.callable :as callable]
-            [clojure.test :as test :refer [deftest is]]))
+            [fungl.callable :as callable]))
 
 (spec/def ::mouse-event (spec/keys :req-un [:scene-graph/x :scene-graph/y]))
 

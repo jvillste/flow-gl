@@ -1,5 +1,5 @@
 (ns flow-gl.gui.animation
-  (:use clojure.test))
+  (:require [clojure.test :refer :all]))
 
 (defn initialize-state []
   {})

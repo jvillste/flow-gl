@@ -1,8 +1,8 @@
 (ns flow-gl.graphics.font
-  (:import [java.io File]
-           [java.awt.image BufferedImage]
-           [java.awt Color Font FontMetrics RenderingHints]
-           [java.awt.font TextLayout]))
+  (:import (java.awt Font)
+           (java.awt.font TextLayout)
+           (java.awt.image BufferedImage)
+           (java.io File)))
 
 (def loaded-fonts (atom {}))
 

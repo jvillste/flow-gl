@@ -1,9 +1,9 @@
 (ns flow-gl.opengl.jogl.textured-quad
-  (:require (flow-gl.opengl.jogl [texture :as texture]
-                                 [shader :as shader]
-                                 [buffer :as buffer])
+  (:require [flow-gl.opengl.jogl.buffer :as buffer]
+            [flow-gl.opengl.jogl.shader :as shader]
+            [flow-gl.opengl.jogl.texture :as texture]
             [flow-gl.opengl.math :as math])
-  (:import [com.jogamp.opengl GL2]))
+  (:import (com.jogamp.opengl GL2)))
 
 
 (def vertex-shader-source "

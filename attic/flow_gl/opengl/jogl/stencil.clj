@@ -1,10 +1,9 @@
 (ns flow-gl.opengl.jogl.stencil
-  (:refer-clojure :exclude [set])
-  (:require (flow-gl.opengl.jogl [opengl :as opengl]
-                                 [triangle-list :as triangle-list])
-            [flow-gl.graphics.native-buffer :as native-buffer])
-
-  (:import [com.jogamp.opengl GL2]))
+  (:require [flow-gl.graphics.native-buffer :as native-buffer]
+            [flow-gl.opengl.jogl.opengl :as opengl]
+            [flow-gl.opengl.jogl.triangle-list :as triangle-list])
+  (:import (com.jogamp.opengl GL2))
+  (:refer-clojure :exclude [set]))
 
 (defn coordinates-buffer [buffer rectangles]
   (native-buffer/ensure-buffer-capacity-with-values buffer

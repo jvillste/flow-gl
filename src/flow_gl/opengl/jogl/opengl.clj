@@ -1,6 +1,5 @@
 (ns flow-gl.opengl.jogl.opengl
-  (:require (flow-gl.opengl.jogl [textured-quad :as textured-quad]))
-  (:import [com.jogamp.opengl GL2]))
+  (:import (com.jogamp.opengl GL2)))
 
 
 

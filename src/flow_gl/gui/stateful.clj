@@ -1,7 +1,7 @@
 (ns flow-gl.gui.stateful
   (:require [clojure.set :as set]
-            [fungl.depend :as depend])
-  (:use [clojure.test]))
+            [clojure.test :refer :all]
+            [fungl.depend :as depend]))
 
 (defn initialize-state [& {:keys [delete-after-calls] :or {delete-after-calls nil}}]
   {:delete-after-calls delete-after-calls})

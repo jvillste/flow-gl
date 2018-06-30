@@ -14,4 +14,5 @@
                  [org.clojure/tools.namespace "0.2.11"]
                  [logga "0.1.0-SNAPSHOT"]
                  [slamhound "1.5.5"]]
-  :aliases {"slamhound" ["run" "-m" "slam.hound"]})
+  :aliases {"slamhound" ["run" "-m" "slam.hound"]}
+  :test-paths ["src" "test"])

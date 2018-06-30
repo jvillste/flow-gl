@@ -1,9 +1,7 @@
 (ns fungl.cache
-  (:require [fungl.depend :as depend]
-            #_[flow-gl.tools.trace :as trace])
-  (:import [com.google.common.cache CacheBuilder CacheLoader RemovalListener]
-           [java.util.concurrent TimeUnit])
-  (:use clojure.test))
+  (:require [clojure.test :refer :all]
+            [fungl.depend :as depend])
+  (:import (com.google.common.cache CacheBuilder CacheLoader)))
 
 (def ^:dynamic state)
 

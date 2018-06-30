@@ -1,6 +1,4 @@
-(ns flow-gl.gui.layoutable
-  (:require clojure.reflect
-            clojure.string))
+(ns flow-gl.gui.layoutable)
 
 (defprotocol Layoutable
   (preferred-size [this available-width available-height]))

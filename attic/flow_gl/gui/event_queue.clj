@@ -1,5 +1,4 @@
-(ns flow-gl.gui.event-queue
-  (:require [flow-gl.debug :as debug]))
+(ns flow-gl.gui.event-queue)
 
 (defn create [] (java.util.concurrent.LinkedBlockingQueue.))
 

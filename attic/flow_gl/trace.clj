@@ -1,5 +1,5 @@
 (ns flow-gl.trace
-  (:require [clojure.tools.trace :as trace]))
+  (:require [flow-gl.tools.trace :as trace]))
 
 (def traced-namespaces ['flow-gl.gui.view
                         'flow-gl.gui.application

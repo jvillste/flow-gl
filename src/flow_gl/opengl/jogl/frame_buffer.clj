@@ -1,6 +1,6 @@
 (ns flow-gl.opengl.jogl.frame-buffer
-  (:require (flow-gl.opengl.jogl [get :as get]))
-  (:import [com.jogamp.opengl GL2]))
+  (:require [flow-gl.opengl.jogl.get :as get])
+  (:import (com.jogamp.opengl GL2)))
 
 (defn create [gl]
   (let [result-buffer (int-array 1)]

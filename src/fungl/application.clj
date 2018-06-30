@@ -12,8 +12,9 @@
             [fungl.renderer :as renderer]
             [fungl.root-renderer :as root-renderer]
             [fungl.value-registry :as value-registry]
-            [logga.core :as logga]
-            [taoensso.timbre.profiling :as profiling]))
+            [logga.core :as logga]))
+
+(require 'taoensso.timbre.profiling)
 
 (defn do-layout [scene-graph window-width window-height]
   (-> scene-graph
@@ -179,7 +180,8 @@
   (let [event-channel-promise (promise)]
     (thread "render"
             (logga/write "creating window")
-            (let [window (create-window)
+            (let [window (or window
+                             (create-window))
                   renderable-scene-graph-channel (async/chan)
                   render-state (create-render-state)]
               (deliver event-channel-promise (window/event-channel window))

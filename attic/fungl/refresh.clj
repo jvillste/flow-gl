@@ -1,6 +1,5 @@
 (ns fungl.refresh
-  (:require [clojure.tools.namespace.repl :as repl]
-            [clojure.java.io :as io]))
+  (:require [clojure.tools.namespace.repl :as repl]))
 
 (defn refresh []
   (repl/set-refresh-dirs "src/fungl"

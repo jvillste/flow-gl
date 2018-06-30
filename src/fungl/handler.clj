@@ -1,7 +1,7 @@
 (ns fungl.handler
-  (:require  (fungl [cache :as cache]
-                    [value-registry :as value-registry]))
-  (:use clojure.test))
+  (:require [clojure.test :refer :all]
+            [fungl.value-registry :as value-registry]
+            [fungl.cache :as cache]))
 
 (defmacro def-handler-creator
   "DEPRECATED: use value-registry/getfn! instead

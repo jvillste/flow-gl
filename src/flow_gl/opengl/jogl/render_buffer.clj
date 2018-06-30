@@ -1,6 +1,6 @@
 (ns flow-gl.opengl.jogl.render-buffer
-  (:refer-clojure :exclude (load))
-  (:import [com.jogamp.opengl GL2]))
+  (:import (com.jogamp.opengl GL2))
+  (:refer-clojure :exclude [load]))
 
 (defn create [gl]
   (let [result (int-array 1)]

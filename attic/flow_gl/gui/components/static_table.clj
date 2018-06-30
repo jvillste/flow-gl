@@ -1,6 +1,5 @@
 (ns flow-gl.gui.components.static-table
-  (:require (flow-gl.gui [layout :as layout]
-                         [layouts :as layouts])))
+  (:require [flow-gl.gui.layouts :as layouts]))
 
 (defn static-table-view [view-context state]
   (layouts/->StaticTable (:rows state)

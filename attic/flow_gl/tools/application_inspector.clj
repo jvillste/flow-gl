@@ -1,26 +1,11 @@
 (ns flow-gl.tools.application-inspector
-  (:require [clojure.core.async :as async]
-            [flow-gl.opengl.jogl.window :as jogl-window]
-            (flow-gl.gui [drawable :as drawable]
-                         [window :as window]
-                         [layout :as layout]
-                         [layouts :as layouts]
-                         [gui :as gui]
-                         [events :as events]
-                         [layoutable :as layoutable]
-                         [controls :as controls]
-                         [layout-dsl :as l])
-            [flow-gl.csp :as csp]
-            [clojure.string :as string]
-            (flow-gl.graphics [font :as font]
-                              [buffered-image :as buffered-image])
-            [flow-gl.debug :as debug])
-  (:import [java.io File]
-           [java.util.concurrent Executors]
-           [java.lang Runnable]
-           [java.nio ByteBuffer])
-  (:use flow-gl.utils
-        clojure.test))
+  (:require [flow-gl.graphics.font :as font]
+            [flow-gl.gui.drawable :as drawable]
+            [flow-gl.gui.layout-dsl :as l]
+            [flow-gl.gui.layoutable :as layoutable]
+            [flow-gl.gui.visuals :as controls]
+            [flow-gl.tools.trace :as gui]
+            [flow-gl.utils :refer :all]))
 
 (defn text
   ([value]

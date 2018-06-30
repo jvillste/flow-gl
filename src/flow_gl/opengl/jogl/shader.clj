@@ -1,6 +1,6 @@
 (ns flow-gl.opengl.jogl.shader
   (:require [flow-gl.graphics.native-buffer :as native-buffer])
-  (:import [com.jogamp.opengl GL2]))
+  (:import (com.jogamp.opengl GL2)))
 
 ;; gl.glGetProgramiv(shaderprogram, GL.GL_LINK_STATUS,intBuffer);
 ;;       if (intBuffer.get(0)!=1){

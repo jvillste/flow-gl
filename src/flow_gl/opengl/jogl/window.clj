@@ -1,17 +1,17 @@
 (ns flow-gl.opengl.jogl.window
-  (:require [flow-gl.opengl.jogl.opengl :as opengl]
-            [flow-gl.gui.event-queue :as event-queue]
+  (:require [clojure.core.async :as async]
             [flow-gl.gui.events :as events]
-            [clojure.core.async :as async]
             [flow-gl.gui.window :as window]
-            [logga.core :as logga])
-  (:import [com.jogamp.newt.event WindowAdapter WindowEvent KeyAdapter KeyEvent MouseAdapter MouseEvent]
-           [com.jogamp.newt.opengl GLWindow]
-           [com.jogamp.newt.awt NewtCanvasAWT]
-           [java.awt Frame BorderLayout]
-           [javax.swing SwingUtilities]
-           [com.jogamp.opengl GLCapabilities GLProfile GLContext GL GL2 DebugGL2 DebugGL3 DebugGL4 GLEventListener GLAutoDrawable TraceGL2]
-           [com.jogamp.nativewindow WindowClosingProtocol$WindowClosingMode]))
+            [flow-gl.opengl.jogl.opengl :as opengl])
+  (:import (com.jogamp.nativewindow WindowClosingProtocol$WindowClosingMode)
+           (com.jogamp.newt.awt NewtCanvasAWT)
+           (com.jogamp.newt.event KeyAdapter KeyEvent MouseAdapter
+                                  MouseEvent WindowAdapter)
+           (com.jogamp.newt.opengl GLWindow)
+           (com.jogamp.opengl DebugGL2 DebugGL3 DebugGL4 GLCapabilities
+                              GLEventListener GLProfile)
+           (java.awt BorderLayout)
+           (javax.swing SwingUtilities)))
 
 
 (defrecord JoglWindow [gl-window event-channel runner-atom frame]

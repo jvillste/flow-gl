@@ -1,9 +1,7 @@
 (ns flow-gl.gui.layout
-  (:require  [clojure.spec.alpha :as spec]
-             flow-gl.debug
-             (flow-gl.gui [layoutable :as layoutable]
-                          [cache :as cache]))
-  (:use clojure.test))
+  (:require [clojure.spec.alpha :as spec]
+            [clojure.test :refer :all]
+            [flow-gl.gui.cache :as cache]))
 
 (defprotocol Layout
   (layout [layout state requested-width requested-height])

@@ -1,5 +1,5 @@
 (ns fungl.depend
-  (:use clojure.test))
+  (:require [clojure.test :refer :all]))
 
 (defmulti dependency-added :type)
 (defmulti current-value :type)

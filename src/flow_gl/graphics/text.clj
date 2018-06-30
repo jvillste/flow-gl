@@ -1,10 +1,10 @@
 (ns flow-gl.graphics.text
-  (:require (flow-gl.graphics [font :as font]
-                              [buffered-image :as buffered-image]))
-  (:import [java.awt Color RenderingHints]
-           [java.awt.font LineBreakMeasurer TextAttribute]
-           [java.text AttributedString]
-           [java.awt.image BufferedImage]))
+  (:require [flow-gl.graphics.buffered-image :as buffered-image]
+            [flow-gl.graphics.font :as font])
+  (:import (java.awt Color RenderingHints)
+           (java.awt.font LineBreakMeasurer TextAttribute)
+           (java.awt.image BufferedImage)
+           (java.text AttributedString)))
 
 (defn draw [graphics color font text]
   (let [[r g b a] (map (fn [color] (float (/ color 255))) color)]

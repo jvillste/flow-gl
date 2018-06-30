@@ -1,7 +1,6 @@
 (ns fungl.renderer
-  (:require (fungl [callable :as callable])
-            (flow-gl.gui [scene-graph :as scene-graph]
-                         [stateful :as stateful])))
+  (:require [flow-gl.gui.scene-graph :as scene-graph]
+            [fungl.callable :as callable]))
 
 (defn apply-renderers! [scene-graph gl]
   (scene-graph/update-depth-first scene-graph :render

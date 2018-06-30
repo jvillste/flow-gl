@@ -1,7 +1,7 @@
 (ns flow-gl.gui.scene-graph
-  (:require [fungl.cache :as cache]
-            [clojure.spec.alpha :as spec]
-            [clojure.test :as test :refer [deftest is]]))
+  (:require [clojure.spec.alpha :as spec]
+            [clojure.test :as test :refer [deftest is]]
+            [fungl.cache :as cache]))
 
 #_(defprotocol Node
     (children [this]))

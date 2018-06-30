@@ -1,6 +1,6 @@
 (ns flow-gl.graphics.native-buffer
-  (:import [com.jogamp.common.nio Buffers]
-           [java.nio FloatBuffer IntBuffer]))
+  (:import (com.jogamp.common.nio Buffers)
+           (java.nio FloatBuffer IntBuffer)))
 
 #_(def native-buffers (atom {}))
 

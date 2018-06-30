@@ -1,6 +1,5 @@
 (ns flow-gl.opengl.math
-  (:require [clojure.core.matrix :as matrix]
-            [clojure.core.matrix.operators :as matrix-operators]))
+  (:require [clojure.core.matrix :as matrix]))
 
 (defn core-matrix-to-opengl-matrix [core-matrix]
   (apply concat (matrix/columns core-matrix)))

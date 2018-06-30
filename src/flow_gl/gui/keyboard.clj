@@ -1,11 +1,9 @@
 (ns flow-gl.gui.keyboard
-  (:require [clojure.spec.alpha :as spec]
-            [fungl.cache :as cache]
+  (:require [clojure.test :refer [deftest is]]
+            [flow-gl.gui.scene-graph :as scene-graph]
             [flow-gl.utils :as utils]
-            (fungl [callable :as callable])
-            [taoensso.timbre :as timbre]
-            (flow-gl.gui [scene-graph :as scene-graph])
-            [clojure.test :as test :refer [deftest is]]))
+            [fungl.cache :as cache]
+            [fungl.callable :as callable]))
 
 (defn- initialize-state []
   {})

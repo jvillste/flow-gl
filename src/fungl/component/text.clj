@@ -1,8 +1,7 @@
 (ns fungl.component.text
-  (:require (flow-gl.graphics [font :as font]
-                              [text :as text])
-            (flow-gl.gui [visuals :as visuals])
-            [clojure.java.io :as io]))
+  (:require [clojure.java.io :as io]
+            [flow-gl.graphics.font :as font]
+            [flow-gl.gui.visuals :as visuals]))
 
 (def default-font (font/create (.getPath (io/resource "LiberationSans-Regular.ttf")) 18))
 (def default-color [255 255 255 255])

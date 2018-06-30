@@ -1,12 +1,4 @@
-(ns flow-gl.gui.components.button
-  (:require [flow-gl.utils :as utils]
-            (flow-gl.gui [drawable :as drawable]
-                         [layout :as layout]
-                         [events :as events])
-
-            (flow-gl.graphics [font :as font]))
-  
-  (:use midje.sweet))
+(ns flow-gl.gui.components.button)
 
 #_(def initial-button-state
   {:text ""

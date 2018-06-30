@@ -1,7 +1,7 @@
 (ns flow-gl.data.zipper-list
-  (:refer-clojure :exclude (count remove find))
-  (:require [clojure.zip :as zip])
-  (:use clojure.test))
+  (:require [clojure.test :refer :all]
+            [clojure.zip :as zip])
+  (:refer-clojure :exclude [count find remove]))
 
 (defn create [] (zip/vector-zip [nil]))
 

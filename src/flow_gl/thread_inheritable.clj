@@ -1,5 +1,5 @@
 (ns flow-gl.thread-inheritable
-  (:import [clojure.lang IDeref]))
+  (:import (clojure.lang IDeref)))
 
 ;; From http://aphyr.com/posts/240-configuration-and-scope
 
