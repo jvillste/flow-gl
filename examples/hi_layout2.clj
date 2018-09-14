@@ -23,7 +23,7 @@
                                                   (visuals/rectangle [255 255 0 255]
                                                                      80 80 200 200))
                             (visuals/text (str (float x)))
-                            (visuals/text (str "clicks2:" @clicks)))
+                            (visuals/text (str "clicks:" @clicks)))
         (application/do-layout width height))))
 
 (comment
