@@ -1,8 +1,8 @@
 (ns examples.hi-layout2
   (:require [fungl.application :as application]
-            (flow-gl.gui [layout :as layout]
-                         [layouts :as layouts]
-                         [visuals :as visuals]
+            (fungl [layout :as layout]
+                   [layouts :as layouts])
+            (flow-gl.gui [visuals :as visuals]
                          [animation :as animation])))
 (def clicks (atom 0))
 
@@ -23,8 +23,7 @@
                                                   (visuals/rectangle [255 255 0 255]
                                                                      80 80 200 200))
                             (visuals/text (str (float x)))
-                            (visuals/text (str "clicks:" @clicks)))
-        
+                            (visuals/text (str "clicks2:" @clicks)))
         (application/do-layout width height))))
 
 (comment
@@ -34,6 +33,3 @@
 
 (defn start []
   (application/start-window #'create-scene-graph))
-
-
-

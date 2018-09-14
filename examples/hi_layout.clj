@@ -1,7 +1,7 @@
 (ns examples.hi-layout
   (:require [fungl.application :as application]
-            (flow-gl.gui [layout :as layout]
-                         [visuals :as visuals])))
+            (fungl [layout :as layout])
+            (flow-gl.gui [visuals :as visuals])))
 
 
 (def state (atom {}))

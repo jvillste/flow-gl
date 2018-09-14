@@ -1,4 +1,7 @@
 (ns dev)
 
-(defn start [])
-(defn stop [])
+(defn start []
+  (println "fungl starting"))
+
+(defn stop []
+  (println "fungl stopping"))

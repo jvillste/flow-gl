@@ -128,7 +128,8 @@
       (println (str "No need to move " source-file-name)))))
 
 (comment
-  (namespaces-in-directory "src")
+  (namespaces-in-directory #_"src"
+                           "/Users/jukka/nitor-src/cor")
 
   (transitive-namespaces "src"
                          all-kept-namespaces)
