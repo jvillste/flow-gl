@@ -143,6 +143,9 @@
                            :result nil)
     (last arguments)))
 
+(defn log-and-return [value]
+  (log value)
+  value)
 
 
 (defn untrace-var
@@ -236,9 +239,10 @@
    (text value color (font/create (.getPath (io/resource "LiberationSans-Regular.ttf")) 15)))
 
   ([value color font]
-   (visuals/text color
-                 font
-                 (str value))))
+   (visuals/text (str value)
+                 color
+                 35 #_font
+                )))
 
 (defn text-cell
   ([value]
@@ -382,7 +386,7 @@
           (if (or root-value
                   (open-values value))
             (cond (map? value)
-                  (layouts/vertically (-> (text-cell (str (map-type-name value) "{"))
+                  (layouts/vertically (-> (text-cell (str (map-type-name value) " {"))
                                           (close-value-on-mouse-click reduce! value))
                                       (layouts/with-margins 0 0 0 20 (layouts/vertically (for [key (keys value)]
                                                                                            (layouts/horizontally (layouts/with-margins 0 5 0 0  (value-view state reduce! key false))
@@ -500,7 +504,7 @@
   (let [last-call-started (:call-started (last (:root-calls (:trace state))))]
     (-> (layouts/vertically (for [root-call (:root-calls (:trace state))]
                               (do #_(prn root-call)
-                                  (layouts/box 2 (visuals/rectangle [0 150 0 (max 0
+                                  (layouts/box 2 (visuals/rectangle [0 50 0 (max 0
                                                                                   (- 255
                                                                                      (* 255
                                                                                         (/ (- last-call-started
@@ -634,16 +638,35 @@
                                                     true)
                                         (do-layout width height)))))))
 
+(defn show-value [value]
+  (let [value-atom (atom :a)]
+      (application/start-window (fn [width height]
+                                  (let [[state reduce!] (stateful/state-and-reducer! :value-view value-view-stateful)]
+                                    (-> (value-view state
+                                                    reduce!
+                                                    value
+                                                    true)
+                                        (do-layout width height)))))))
+
 (defn foo [x] {:x x})
 (defn bar [x] (foo (+ 1 x)))
 
+(comment
+  (show-value {:foo {:bar 1}})
+  
+  (do
+    (trace-var #'foo)
+    (trace-var #'bar)
+    (with-trace
+      (bar 1))))
+
 (defn start []
-  (trace-ns 'flow-gl.tools.trace)
-  (trace-var #'foo)
-  (trace-var #'bar)
-  (with-trace-logging
-    (foo 1)
-    (bar 1)))
+  (do (trace-ns 'flow-gl.tools.trace)
+      (trace-var #'foo)
+      (trace-var #'bar)
+      (with-trace-logging
+        (foo 1)
+        (bar 1))))
 
 #_(defn inspect-value [value]
     (async/thread (gui/start-app (gui/control-to-application value-inspector {:value value}))))
