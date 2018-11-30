@@ -16,12 +16,12 @@
                     (let [font (-> (Font/createFont Font/TRUETYPE_FONT (File. ttf-file-name))
                                    (.deriveFont (float size)))
                           graphics (.getGraphics (BufferedImage. 1 1 BufferedImage/TYPE_INT_ARGB))]
-                      
+
                       (.setFont graphics font)
-                      
+
                       {:font font
                        :font-metrics (.getFontMetrics graphics)})))))
-  
+
   (@loaded-fonts [ttf-file-name size]))
 
 (defn width [font text] (.stringWidth (:font-metrics font) text))

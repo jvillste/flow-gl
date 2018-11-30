@@ -646,7 +646,8 @@
                                                     reduce!
                                                     value
                                                     true)
-                                        (do-layout width height)))))))
+                                        (do-layout width height))))))
+  nil)
 
 (defn foo [x] {:x x})
 (defn bar [x] (foo (+ 1 x)))

@@ -118,7 +118,7 @@
                                                                           window-width window-width
                                                                           window-height window-height]
                                                                      (if-let [event (first events)]
-                                                                       (do (logga/write "handling" event)
+                                                                       (do #_(logga/write "handling" event)
                                                                            (handle-event! scene-graph event)
                                                                            (cond (= :close-requested (:type event))
                                                                                  nil
@@ -143,7 +143,6 @@
                                                                         window-height])))]
 
                     (when scene-graph
-                      (logga/write "sending schenegraph to render thread")
 
                       (async/>!! renderable-scene-graph-channel
                                  scene-graph)
@@ -198,11 +197,9 @@
                      (when-let [scene-graph (async/<!! renderable-scene-graph-channel)]
                        (window/with-gl window gl
                          (with-profiling do-profiling :render
-                           (logga/write "render start")
                            (with-bindings render-state
                              (render gl scene-graph)
-                             (value-registry/delete-unused-values! 500))
-                           (logga/write "render over")))
+                             (value-registry/delete-unused-values! 500))))
                        (window/swap-buffers window)
                        (recur)))
 

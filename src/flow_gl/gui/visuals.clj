@@ -5,7 +5,8 @@
             [flow-gl.graphics.font :as font]
             [flow-gl.graphics.rectangle :as rectangle]
             [flow-gl.graphics.text :as text]
-            [fungl.handler :as handler]))
+            [fungl.handler :as handler]
+            [fungl.util :as util]))
 
 (defn draw-rectangle [width height color corner-arc-width corner-arc-height]
   (rectangle/create-buffered-image color width height corner-arc-width corner-arc-height))
@@ -87,44 +88,32 @@
            :font (font/create (:font-file-path node)
                               new-font-size))))
 
-(defn text
-  ([string color font-size font-file-path]
-   (assert (string? string))
-   (assert (vector? color))
-   (assert (number? font-size))
-   (assert (string? font-file-path))
+(def liberation-sans-regular-path  (.getPath (io/resource "LiberationSans-Regular.ttf")))
 
-   (let [font (font/create font-file-path
-                           font-size)]
-     {:type ::text
-      :color color
-      :font font
-      :font-size font-size
-      :font-file-path font-file-path
-      :adapt-to-scale adapt-text-to-scale
-      :string string
-      :width (font/width font string)
-      :height (font/height font)
-      :image-function text/create-buffered-image
-      :image-function-parameter-keys [:color :font :string]}))
+(util/defno text [string] {color [255 255 255 255]
+                           font-size 50
+                           font-file-path liberation-sans-regular-path
+                           font nil}
 
-  ([string color font-size]
-   (text string
-         color
-         font-size
-         (.getPath (io/resource "LiberationSans-Regular.ttf"))))
+  (assert (string? string))
+  (assert (vector? color))
+  (assert (number? font-size))
+  (assert (string? font-file-path))
 
-  ([string color]
-   (text string
-         color
-         18
-         (.getPath (io/resource "LiberationSans-Regular.ttf"))))
-
-  ([string]
-   (text string
-         [255 255 255 255]
-         50
-         (.getPath (io/resource "LiberationSans-Regular.ttf")))))
+  (let [font (or font
+                 (font/create font-file-path
+                              font-size))]
+    {:type ::text
+     :color color
+     :font font
+;;     :font-size font-size
+;;      :font-file-path font-file-path
+     :adapt-to-scale adapt-text-to-scale
+     :string string
+     :width (font/width font string)
+     :height (font/height font)
+     :image-function text/create-buffered-image
+     :image-function-parameter-keys [:color :font :string]}))
 
 
 
