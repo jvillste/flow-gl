@@ -106,8 +106,6 @@
     {:type ::text
      :color color
      :font font
-;;     :font-size font-size
-;;      :font-file-path font-file-path
      :adapt-to-scale adapt-text-to-scale
      :string string
      :width (font/width font string)
