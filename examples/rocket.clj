@@ -55,17 +55,17 @@
 (defn create-scene-graph [width height]
   (animation/swap-state! animation/start-if-not-running :rocket)
   (let [state state-atom]
-    #_(animation/swap-state! animation/set-wake-up 1000)
+    (animation/swap-state! animation/set-wake-up 1000)
     (application/do-layout {:children #_(for [seed (:seeds @state)])
                             [(-> (visuals/image siemenet #_angry #_rocket)
                                  (assoc :x (:x @state)
                                         :y (:y @state)
-                                        :width 100
+                                        #_:width 100
                                         :height 100
-                                        #_:width #_(animation/linear-mapping (animation/ping-pong 5
-                                                                                                  (animation/phase! :rocket
-                                                                                                                    #_5000))
-                                                                             0 width)  #_(* (animation/phase! :rocket) 200) 
+                                        :width (animation/linear-mapping (animation/ping-pong 5
+                                                                                              (animation/phase! :rocket
+                                                                                                                #_5000))
+                                                                         0 width)  #_(* (animation/phase! :rocket) 200) 
                                         #_:height #_200
                                         :keyboard-event-handler (fn [event] (prn event))
                                         :id :rocket))]

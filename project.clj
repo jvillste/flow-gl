@@ -4,7 +4,7 @@
   :resource-paths ["resources"]
   :dependencies [[org.clojure/clojure "1.9.0"]
                  [net.mikera/core.matrix "0.33.2"]
-                 [com.taoensso/timbre "3.3.1"]
+                 [com.taoensso/timbre "4.7.3"]
                  [org.clojure/data.priority-map "0.0.7"]
                  [org.clojure/core.async "0.4.474"]
                  [clj-http "2.2.0"]

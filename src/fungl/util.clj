@@ -112,7 +112,7 @@
 
 ;;;; Test
 
-(defno ^:private foo
+(defno foo
   "hello"
   {:private true}
   [x y]
@@ -124,3 +124,14 @@
   (is (= "hello" (:doc (meta #'foo))))
   (is (= 3 (foo 1 2)))
   (is (= 4 (foo 1 2 {:z 1}))))
+
+
+(comment
+
+  (defno bar [a] [d 0
+                  :as options FooOptions]
+    (+ d (foo a options)))
+
+
+  (defno baz [a e] [:as options BarOptions]
+    (+ e (bar a options))))

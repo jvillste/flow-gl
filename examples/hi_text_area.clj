@@ -1,7 +1,5 @@
 (ns examples.hi-text-area
-  (:require [clojure.spec.test :as spec-test]
-            [clojure.spec :as spec]
-            (fungl [application :as application]
+  (:require (fungl [application :as application]
                    [atom-registry :as atom-registry]
                    [layouts :as layouts])
             (flow-gl.graphics [font :as font]

@@ -1,7 +1,5 @@
 (ns examples.pressure
-  (:require [clojure.spec.test :as spec-test]
-            [clojure.spec :as spec]
-            [fungl.application :as application]
+  (:require [fungl.application :as application]
             (flow-gl.gui [visuals :as visuals]
                          [animation :as animation])
             (fungl [layout :as layout]

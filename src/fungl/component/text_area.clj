@@ -21,9 +21,12 @@
    (text value [255 255 255 255]))
 
   ([value color]
-   (visuals/text-area color
-                      (font/create "LiberationSans-Regular.ttf" 15)
-                      (str value))))
+   (text value color font))
+
+  ([value color font]
+   (visuals/text-area (str value)
+                      color
+                      font)))
 
 #_(defn rows [color font string width]
     (text/rows-for-text color
@@ -248,7 +251,7 @@
                                command-and-paramters))))))
 
 (defn create-text-area-keyboard-event-handler [state-atom on-change]
-  (value-registry/get-fn! [::text-area-keyboard-event-handler state-atom]  #_[::text-area-keyboard-event-handler state-atom on-change rows]
+  (fn  #_value-registry/get-fn! #_[::text-area-keyboard-event-handler state-atom]  #_[::text-area-keyboard-event-handler state-atom on-change rows]
                           [event]
                           (when-let [command-and-paramters (keyboard-event-to-command event)]
                             (when on-change
