@@ -7,9 +7,9 @@
 
 (defn flatten-contents [values]
   (->> values
-       (filter (complement nil?))
+       (remove nil?)
        (flatten)
-       (filter (complement nil?))))
+       (remove nil?)))
 
 
 (defn get-first-child-size [node]
