@@ -37,7 +37,7 @@
       (assoc state
              :sleep-time sleep-time
              :previous-sleep-time sleep-time
-             :previous-frame-started current-time-in-milliseconds))  
+             :previous-frame-started current-time-in-milliseconds))
     state))
 
 (deftest adjust-sleep-time-according-to-target-frames-per-second-test
@@ -106,7 +106,7 @@
     (let [{:keys [phase sleep-time]} (apply phaser
                                             phaser-arguments)]
       (swap-state! set-wake-up sleep-time)
-      
+
       phase))
 
 
@@ -300,9 +300,9 @@
 
 #_(defn infinite-ping-pong! [key phase]
     (when (:start-time (animation-state @state-atom key))
-      
+
       (swap-state! set-wake-up 0))
-    
+
     (ping-pong phase))
 
 #_(defn phase! [key phaser limiter wake-up]
@@ -360,7 +360,7 @@
 (defn phase!
   ([key]
    (phase! key nil))
-  
+
   ([key duration]
    (/ (runtime! key duration)
       (or duration 1000))))
@@ -450,7 +450,7 @@
                          [phase value])
                  key-frames)
                (rest multi-channel-key-frames))
-        
+
         key-frames))))
 
 (deftest key-frames-for-key-test
