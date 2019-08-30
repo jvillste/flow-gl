@@ -18,8 +18,8 @@
                                   5
                                   5)
                (visuals/text text
-                             [0 0 0 255]
-                             35)))
+                             {:color [0 0 0 255]
+                              :font-size 35})))
 
 
 (defn animating-text-box [text mouse-handler animation]
