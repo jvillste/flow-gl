@@ -6,7 +6,9 @@
            (java.io File)
            (java.nio ByteBuffer ByteOrder)
            (java.util Hashtable)
-           (javax.imageio ImageIO)))
+           (javax.imageio ImageIO)
+           [com.sun.imageio.plugins.gif GIFImageReader GIFImageReaderSpi]
+           [javax.imageio ImageIO]))
 
 (defn create-byte-buffer [buffered-image]
   (let [bytes (-> buffered-image (.getRaster) (.getDataBuffer) (.getData))
@@ -51,6 +53,22 @@
   (let [graphics (get-graphics buffered-image)]
     (.setBackground graphics (Color. r g b a))
     (.clearRect graphics 0 0 (.getWidth buffered-image) (.getHeight buffered-image))))
+
+(defn copy [input-buffered-image]
+  (let [width (.getWidth input-buffered-image)
+        height (.getHeight input-buffered-image)
+        new-buffered-image (create width height)]
+    (.drawImage (get-graphics new-buffered-image)
+                input-buffered-image
+                0 0
+                nil)
+    new-buffered-image))
+
+(defn gif-frames [file]
+  (vec (let [image-reader (GIFImageReader. (GIFImageReaderSpi.))]
+         (.setInput image-reader (ImageIO/createImageInputStream (io/file file)))
+         (for [index (range (.getNumImages image-reader true))]
+           (copy (.read image-reader index))))))
 
 (defn create-from-file [url]
   (let [original-image (ImageIO/read (io/input-stream url))
