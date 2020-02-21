@@ -5,7 +5,6 @@
 
 (def ^:dynamic state)
 
-
 (defn create-state [& args]
   {:cache (-> (CacheBuilder/newBuilder)
               #_(.expireAfterAccess 30 TimeUnit/SECONDS)
@@ -35,7 +34,7 @@
                    dissoc [function arguments])
             (.invalidate (:cache state) [function arguments]))
         (recur (rest dependencies)))
-      
+
       (doseq [[dependency value] (get @(:dependencies state)
                                       [function arguments])]
         #_(println "adding dependency to " (:id dependency)
@@ -51,7 +50,7 @@
   #_(when (.containsKey (.asMap (:cache state))
                         [function arguments])
       #_(trace/log "cache hit" function arguments))
-  
+
   (.get (:cache state) [function arguments]))
 
 
@@ -60,7 +59,7 @@
 (defn call-with-cache-and-key [state cache-key function & arguments]
 
   (handle-dependencies function arguments)
-  
+
   (.get (:cache state) [function cache-key]
         (fn [] (apply function arguments))))
 
@@ -78,7 +77,7 @@
 
 (defn call-with-key! [function cache-key & arguments]
   (if (bound? #'state)
-    (apply call-with-cache-and-key 
+    (apply call-with-cache-and-key
            state
            cache-key
            function
@@ -87,7 +86,7 @@
            arguments)))
 
 (defmacro defn-memoized [name arguments & body]
-  
+
   (let [implementation-name (symbol (namespace name)
                                     (str name "-implementation"))]
     `(do (declare ~name)
@@ -109,19 +108,19 @@
             (swap! call-count inc)
             {:call-count @call-count
              :result x})]
-    
+
     (with-bindings (state-bindings)
 
       (is (= 1
              (.get (:cache state) :x
                    (fn [] 1))))
-      
+
       (is (= {:call-count 1, :result 1}
              (call! f 1)))
 
       (is (= {:call-count 1, :result 1}
              (call! f 1)))
-      
+
       (is (= {:call-count 2, :result 2}
              (call! f 2)))
 
@@ -133,4 +132,3 @@
 
       (is (= {:call-count 4, :result 3}
              (call-with-key! f :y 3))))))
-

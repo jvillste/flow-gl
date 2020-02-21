@@ -7,8 +7,8 @@
  (deftest cache-test
    (with-bindings (value-registry/state-bindings)
      (is (= 1 @(atom-registry/get! :baz {:create (fn [] 1)}))))
-   
-   
+
+
    (let [call-counts (atom {:foo 0
                             :bar 0
                             :baz 0})
@@ -16,7 +16,7 @@
          value-specification (fn [id]
                                {:create (fn [] 1)
                                 :delete (fn [value-atom]
-                                          (swap! deleted-values assoc id @value-atom))}) 
+                                          (swap! deleted-values assoc id @value-atom))})
          baz (fn [bar-atom]
                (swap! call-counts update :baz inc)
                {:bar-atom-in-baz (atom-registry/deref! bar-atom)})
@@ -34,7 +34,7 @@
                        (cache/call! bar x))))]
 
      (println "--------------------")
-     
+
      (with-bindings (conj (value-registry/state-bindings)
                           (cache/state-bindings))
        (testing "first call should result to evaluating all functions"
@@ -46,7 +46,7 @@
                 (cache/call! foo 10)))
          (is (= {:foo 1, :bar 1, :baz 1}
                 @call-counts)))
-       
+
        (testing "second call with the same argument should return result from the cache"
          (is (= {:foo-atom-in-foo 1,
                  :argument-for-foo 10,
@@ -56,7 +56,7 @@
                 (cache/call! foo 10)))
          (is (= {:foo 1, :bar 1, :baz 1}
                 @call-counts)))
-       
+
        (testing "call with different argument should result to evaluating affected functions"
          (is (= {:foo-atom-in-foo 1,
                  :argument-for-foo 5,
@@ -90,7 +90,7 @@
                 (cache/call! foo 5)))
          (is (= {:foo 4, :bar 3, :baz 2}
                 @call-counts)))
-       
+
        (testing "deleting unused values should not delete values that were referenced after the last deletion"
          (value-registry/delete-unused-values! -1)
          (is (= {:foo-atom-in-foo 20,
@@ -110,9 +110,9 @@
                 (cache/call! bar 5)))
          (is (= {:foo 4, :bar 3, :baz 2}
                 @call-counts))
-         
+
          (value-registry/delete-unused-values! -1)
-         
+
          (is (= {:foo-atom-in-foo 1,
                  :argument-for-foo 5,
                  :bar-atom-in-bar 20,
@@ -137,6 +137,3 @@
                 (cache/call! foo 5)))
          (is (= {:foo 6, :bar 4, :baz 3}
                 @call-counts))))))
-
-
-

@@ -41,4 +41,3 @@
 
 (defmethod depend/dependency-added ::atom-registry [dependency]
   (value-registry/mark-reference! (:id dependency)))
-

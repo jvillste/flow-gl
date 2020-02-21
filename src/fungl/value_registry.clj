@@ -95,7 +95,7 @@
 (defn get!
   ([id specification]
    (get state-atom id specification))
-  
+
   ([id]
    (get state-atom id nil)))
 
@@ -117,7 +117,7 @@
       (is (= (get-fn! :text-area-keyboard-event-handler
                       [y]
                       [x y])
-             
+
              (get-fn! :text-area-keyboard-event-handler
                       [y]
                       [x y])))
@@ -125,7 +125,7 @@
       (is (= (System/identityHashCode (get-fn! :text-area-keyboard-event-handler
                                                [y]
                                                [x y]))
-             
+
              (System/identityHashCode (get-fn! :text-area-keyboard-event-handler
                                                [y]
                                                [x y]))))
@@ -134,5 +134,5 @@
                        [y]
                        [x y])
               2)
-             
+
              [1 2])))))

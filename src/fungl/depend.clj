@@ -35,7 +35,7 @@
       (add-dependency :bar 2)
       (is (= {:bar 2}
              (current-dependencies))))
-    
+
     (is (= {:bar 2
             :foo 1}
            (current-dependencies))))
