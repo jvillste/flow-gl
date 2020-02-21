@@ -77,8 +77,8 @@
 
 (defn create-mouse-event [event surface-scale type]
   (conj (create-event event type)
-        {:x (* (.getX event) (first surface-scale))
-         :y (* (.getY event) (second surface-scale))
+        {:x (* (.getX event) 1 #_(first surface-scale))
+         :y (* (.getY event) 1 #_(second surface-scale))
          :pressure (.getPressure event true)
          :key (key-code-to-key (.getButton event) mouse-keys)
          :source :mouse}))
@@ -113,7 +113,7 @@
          runner-atom (atom (fn [gl]))
          window (GLWindow/create gl-capabilities)
          surface-scale (float-array 2)]
-     
+
 
      #_(prn (.getMaximumSurfaceScale window (float-array 2)))
 
@@ -202,8 +202,10 @@
 
                                 #_(flow-gl.debug/debug-timed "reshape" width height)
 
-                                (async/go (async/>! event-channel
-                                                    (events/create-resize-requested-event width height)))
+                                #_(async/go (async/>!! event-channel
+                                                     (events/create-resize-requested-event width height)))
+                                (async/>!! event-channel
+                                           (events/create-resize-requested-event width height))
 
                                 #_(let [gl (get-gl profile drawable)]
                                     (reshape gl width height)))
@@ -235,6 +237,9 @@
                          (.getCurrentSurfaceScale surface-scale)
                          )
                        nil))]
+
+       (prn 'surface-scale (seq surface-scale)) ;; TODO: remove-me
+
 
        (.setDefaultCloseOperation window WindowClosingProtocol$WindowClosingMode/DO_NOTHING_ON_CLOSE)
 

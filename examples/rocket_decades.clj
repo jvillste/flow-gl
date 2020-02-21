@@ -22,7 +22,7 @@
                                                   (assoc (visuals/image rocket)
                                                          :width (* scale 150)
                                                          :height (* scale 150 0.6))
-                                                  (visuals/text (str (+ first-index index))
+                                                  #_(visuals/text (str (+ first-index index))
                                                                 {:color [255 255 255 255]
                                                                  :font-size (int (* scale 43))})))))
 

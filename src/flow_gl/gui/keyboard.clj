@@ -18,12 +18,12 @@
 (defn- send-focus-move-events [old-event-handler new-event-handler]
   (when old-event-handler
     (call-handler old-event-handler {:type :focus-lost}))
-  
+
   (call-handler new-event-handler {:type :focus-gained}))
 
 (defn set-focused-event-handler [keyboard-state event-handler]
   (assert (map? keyboard-state))
-  
+
   (assoc keyboard-state
          :focused-handler event-handler))
 
@@ -40,7 +40,7 @@
    (set-focused-node keyboard-state
                      (:id node)
                      (:keyboard-event-handler node)))
-  
+
   ([keyboard-state node-id event-handler]
    (-> keyboard-state
        (assoc :focused-node-id node-id)
@@ -169,7 +169,7 @@
   ([scene-graph]
    (cache/call! keyboard-event-handlers scene-graph {}))
   ([scene-graph handlers]
-   (let [handlers (if-let [keyboard-event-handler (:keyboard-event-handler scene-graph)] 
+   (let [handlers (if-let [keyboard-event-handler (:keyboard-event-handler scene-graph)]
                     (conj {(:id scene-graph)
                            keyboard-event-handler}
                           handlers)

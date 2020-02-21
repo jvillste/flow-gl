@@ -10,7 +10,7 @@
 
 #_(defn mouse-event-handler-nodes-in-coordinates [graph x y]
     (->> (scene-graph/flatten graph)
-         
+
          (filter (fn [node]
                    (and (:width node)
                         (:height node)
@@ -83,12 +83,12 @@
                                                  :local-y (- (:y event)
                                                              (:y node)))
                                           event))]
-    
+
     (when (spec/invalid? (spec/conform ::mouse-event event-after-call))
       (throw (ex-info "Handler did not return valid mouse event"
                       {:returned-event event-after-call
                        :node node})))
-    
+
     event-after-call))
 
 
@@ -158,14 +158,14 @@
                              id
                              {:type :mouse-entered
                               :handling-phase :on-target}))
-    
+
     (doseq [id (set/difference previous-id-set
                                current-id-set)]
       (call-handler-for-node previous-mouse-event-handler-nodes-by-id
                              id
                              {:type :mouse-left
                               :handling-phase :on-target}))
-    
+
     current-mouse-event-handler-nodes-by-id))
 
 (defn send-nodes-under-mouse-changed-events [previous-nodes-under-mouse current-nodes-under-mouse]
@@ -214,7 +214,7 @@
 
 (deftest send-mouse-over-events-test
   (spec-test/instrument `send-mouse-over-events)
-  
+
   (is (= {}
          (send-mouse-over-events {1 {:mouse-event-handler (fn [node event])
                                      :x 0
@@ -257,7 +257,7 @@
                                                  :mouse-x (:x event)
                                                  :mouse-y (:y event)))
                 state)
-        #_nodes-under-mouse #_(nodes-in-coordinates (:scene-graph state)
+         #_nodes-under-mouse #_(nodes-in-coordinates (:scene-graph state)
                                                     (:x event)
                                                     (:y event))
         #_uncovered-node-under-mouse #_(last (:nodes-under-mouse state))
@@ -270,7 +270,7 @@
 
     (call-mouse-event-handlers-2 (:nodes-under-mouse state)
                                  event)
-    
+
     (send-mouse-over-events-and-update-state state)))
 
 (defn handle-new-scene-graph [state scene-graph]

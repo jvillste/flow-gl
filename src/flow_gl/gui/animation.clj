@@ -365,6 +365,10 @@
    (/ (runtime! key duration)
       (or duration 1000))))
 
+(defn one-to-zero [phase]
+  (if (= 1 phase)
+    0
+    phase))
 
 (defn interpolate [from to phase]
   (+ (* from (- 1 phase))

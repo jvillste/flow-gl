@@ -1,16 +1,49 @@
 (ns fungl.layouts
   (:require [clojure.spec.alpha :as spec]
             [flow-gl.gui.scene-graph :as scene-graph]
-            [fungl.layout :as layout]))
+            [fungl.layout :as layout]
+            [clojure.test :refer :all]))
 
 ;; common
 
-(defn flatten-contents [values]
-  (->> values
-       (remove nil?)
-       (flatten)
-       (remove nil?)))
+(defn- sequential-but-not-vector? [value]
+  (and (not (vector? value))
+       (sequential? value)))
 
+(defn flatten-except-vectors [value]
+  (filter (complement sequential-but-not-vector?)
+          (rest (tree-seq sequential-but-not-vector?
+                          seq value))))
+
+(deftest test-faltten-except-vectors
+  (is (= '(1 2 3 [1 2 3])
+         (flatten-except-vectors '((1 2 3)
+                                   [1 2 3]))))
+
+  (is (= '(1 2 3 4 5 [1 2 3])
+         (flatten-except-vectors '((1 2 (3 4 5))
+                                   [1 2 3])))))
+
+(defn flatten-contents [values]
+  (if (vector? values)
+    values
+    (->> values
+         (remove nil?)
+         (flatten-except-vectors)
+         (remove nil?))))
+
+(deftest test-faltten-except-vectors
+  (is (= '(1 2 3 [1 2 3])
+         (flatten-contents '((1 2 3)
+                             [1 2 3]))))
+
+  (is (= '(1 2 3 [1 2 nil 3])
+         (flatten-contents '((1 2 nil 3)
+                             nil
+                             [1 2 nil 3]
+                             nil))))
+
+  (is (vector? (flatten-contents [1 2 3]))))
 
 (defn get-first-child-size [node]
   (layout/size (first (:children node))))
@@ -22,10 +55,12 @@
                {:width (apply max
                               (conj (map :width (:children node))
                                     0))
-                :height (+ (* (dec (count (:children node)))
-                              (:margin node))
-                           (reduce + (map :height (:children node))))})
-   
+                :height (if (empty? (:children node))
+                          0
+                          (+ (* (dec (count (:children node)))
+                                (:margin node))
+                             (reduce + (map :height (:children node)))))})
+
    :give-space (fn [node]
                  (update-in node [:children]
                             (fn [children]
@@ -40,7 +75,7 @@
                          (loop [layouted-nodes []
                                 y 0
                                 children (:children node)]
-                           (if-let [child (first children)] 
+                           (if-let [child (first children)]
                              (recur (conj layouted-nodes
                                           (assoc child
                                                  :x (if (::centered node)
@@ -74,13 +109,15 @@
 
 (def horizontal-stack
   {:get-size (fn [node]
-               {:width (+ (* (dec (count (:children node)))
-                             (:margin node))
-                          (reduce + (map :width (:children node))))
+               {:width (if (empty? (:children node))
+                         0
+                         (+ (* (dec (count (:children node)))
+                               (:margin node))
+                            (reduce + (map :width (:children node)))))
                 :height (apply max
                                (conj (map :height (:children node))
                                      0))})
-   
+
    :give-space (fn [node]
                  (update-in node [:children]
                             (fn [children]
@@ -94,7 +131,7 @@
                          (loop [layouted-nodes []
                                 x 0
                                 children (:children node)]
-                           (if-let [child (first children)] 
+                           (if-let [child (first children)]
                              (recur (conj layouted-nodes
                                           (assoc child
                                                  :x x
@@ -115,7 +152,8 @@
 
 (defn horizontally-2 [options & children]
   (assoc horizontal-stack
-         :margin (:margin options)
+         :margin (or (:margin options)
+                     0)
          ::centered (:centered options)
          :children (flatten-contents children)))
 
@@ -263,7 +301,7 @@
             (compare-function width-limit
                               (:width (first children)))
             (:width (first children)))
-   
+
    :height (if height-limit
              (compare-function height-limit
                                (:height (first children)))
@@ -288,7 +326,7 @@
                  :available-width (if width-limit
                                     (compare-function width-limit
                                                       available-width)
-                                    available-width) 
+                                    available-width)
                  :available-height (if height-limit
                                      (compare-function height-limit
                                                        available-height)
@@ -300,10 +338,10 @@
      :give-space give-limited-space
      :make-layout make-limited-layout
      :compare-function max
-     
+
      :width-limit minimum-width
      :height-limit minimum-height
-     
+
      :children [child]}))
 
 
@@ -318,7 +356,7 @@
      :width-limit maximum-width
      :height-limit maximum-height
      :compare-function min
-     
+
      :children [child]}))
 
 

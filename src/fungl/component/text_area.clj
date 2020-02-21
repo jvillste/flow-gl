@@ -361,12 +361,14 @@
     (-> (layouts/with-margins 10 10 10 10
           (layouts/vertically
            (layouts/with-margins 0 0 10 0
-             (text-area :area-1
-                        {:color [255 255 255 255]}
-                        (:text-1 @state-atom)
-                        (fn [old-state new-state]
-                          (swap! state-atom assoc :text-1 (:text new-state))
-                          new-state)))
+             (text-area-2 :area-1
+                          :style
+                          {:color [255 255 255 255]}
+                          :text
+                          (:text-1 @state-atom)
+                          :on-text-change
+                          (fn [new-text]
+                            (swap! state-atom assoc :text-1 new-text))))
 
            (text-area :area-2
                       {:color [255 255 255 255]}
