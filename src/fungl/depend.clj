@@ -18,7 +18,6 @@
   `(with-dependencies-impl (fn [] ~@body)))
 
 (defn add-dependency [dependency value]
-
   (when-let [current-dependencies (last dependencies)]
     (do (dependency-added dependency)
         (swap! current-dependencies
@@ -26,7 +25,6 @@
 
 (defn current-dependencies []
   @(last dependencies))
-
 
 (deftest dependency-test
   (with-dependencies
@@ -41,10 +39,6 @@
            (current-dependencies))))
 
   (add-dependency :baz 1))
-
-
-
-
 
 
 #_(defn deref-depended-atom [depended-atom]

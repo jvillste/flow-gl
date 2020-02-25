@@ -53,6 +53,30 @@
 
   (.get (:cache state) [function arguments]))
 
+(defn in-use? []
+  (bound? #'state))
+
+(defn cached? [key]
+  (and (in-use?)
+       (boolean (.getIfPresent (:cache state) key))))
+
+(defn get [key]
+  (when (in-use?)
+    (.getIfPresent (:cache state) key)))
+
+(defn function-call-key [function arguments]
+  [function arguments])
+
+(defn put! [key result]
+  (when (in-use?)
+    (.put (:cache state)
+          key
+          result)))
+
+(defn invalidate! [key]
+  (when (in-use?)
+    (.invalidate (:cache state)
+                 key)))
 
 ;; TODO: Anonymous funciton can not be a cache key because it is a different function on every call
 ;; Can guava cache hold value for wich the key does not contain all the information that is needed to compute the value?
@@ -66,8 +90,11 @@
 (defn state-bindings []
   {#'state (create-state)})
 
+(defn cached []
+  (.keySet (.asMap (:cache state))))
+
 (defn call! [function & arguments]
-  (if (bound? #'state)
+  (if (in-use?)
     (apply call-with-cache
            state
            function
@@ -76,7 +103,7 @@
            arguments)))
 
 (defn call-with-key! [function cache-key & arguments]
-  (if (bound? #'state)
+  (if (in-use?)
     (apply call-with-cache-and-key
            state
            cache-key
