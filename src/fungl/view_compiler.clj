@@ -7,9 +7,8 @@
 
 (def ^:dynamic state)
 
-
 (def ^:dynamic id)
-(def ^:dynamic used-constructors)
+(def ^:dynamic used-constructor-ids)
 
 (defn- view-call? [value]
   (and (vector? value)
@@ -24,19 +23,21 @@
           scene-graph-or-view-call (cond (cache/cached? (cache/function-call-key view-function-or-constructor arguments))
                                          (apply cache/call! view-function-or-constructor arguments)
 
-                                         (with-bindings (:constructor-cache-state-bindings state)
-                                           (cache/cached? the-id))
-                                         (let [view-function (with-bindings (:constructor-cache-state-bindings state)
-                                                               (cache/get the-id))]
-                                           (swap! used-constructors conj the-id)
+                                         (contains? @(:constructor-cache state)
+                                                    the-id)
+                                         (let [view-function (get @(:constructor-cache state)
+                                                                  the-id)]
+                                           (swap! used-constructor-ids conj the-id)
                                            (apply cache/call! view-function arguments))
 
                                          :default
                                          (let [view-function-or-scene-graph (apply view-function-or-constructor arguments)]
                                            (if (fn? view-function-or-scene-graph)
-                                             (do (with-bindings (:constructor-cache-state-bindings state)
-                                                   (cache/put! the-id view-function-or-scene-graph))
-                                                 (swap! used-constructors conj the-id)
+                                             (do (swap! (:constructor-cache state)
+                                                        assoc
+                                                        the-id
+                                                        view-function-or-scene-graph)
+                                                 (swap! used-constructor-ids conj the-id)
 
                                                  (apply cache/call! view-function-or-scene-graph arguments))
                                              (do (cache/put! (cache/function-call-key view-function-or-constructor arguments)
@@ -51,23 +52,6 @@
 
             :default
             (throw (Exception. (str "View function did not return a hash map: " view-function-or-constructor)))))))
-
-#_(defn apply-view-call [the-id view-call]
-  (binding [id the-id]
-    (let [[view-function-or-constructor & arguments] view-call
-          view-function (if (:constructor (meta view-function-or-constructor))
-                          (apply cache/call-with-key! view-function-or-constructor the-id arguments)
-                          view-function-or-constructor)
-          scene-graph-or-view-call (apply cache/call! view-function arguments)]
-      (cond (view-call? scene-graph-or-view-call)
-            scene-graph-or-view-call
-
-            (scene-graph? scene-graph-or-view-call)
-            (-> scene-graph-or-view-call
-                (assoc :id the-id))
-
-            :default
-            (throw (Exception. (str "Following view function did not return a hash map. Maybe it is a constructor and you need to add metadata ^:constructor to it?  " view-function)))))))
 
 (defn- compile* [parent-id value]
   (cond (view-call? value)
@@ -89,18 +73,19 @@
         value))
 
 (defn compile [view-call-or-scene-graph]
-  (binding [used-constructors (atom #{})]
+  (binding [used-constructor-ids (atom #{})]
     (let [scene-graph  (compile* [] view-call-or-scene-graph)]
 
-      (with-bindings (:constructor-cache-state-bindings state)
-        (doseq [id (set/difference (set (cache/cached))
-                                   @used-constructors)]
+      (doseq [id (set/difference (set (keys @(:constructor-cache state)))
+                                 @used-constructor-ids)]
+        (swap! (:constructor-cache state)
+               dissoc
+               id))
 
-          (cache/invalidate! id)))
       scene-graph)))
 
 (defn state-bindings []
-  {#'state {:constructor-cache-state-bindings (cache/state-bindings)
+  {#'state {:constructor-cache (atom {})
             :used-constructors (atom #{})}})
 
 (deftest test-compile
@@ -171,8 +156,7 @@
                                   ^{:id child-id} [view-2])})]
 
         (let [scene-graph (compile [view-1 :a :b])]
-          (with-bindings (:constructor-cache-state-bindings state)
-            (is (= 2 (count (cache/cached)))))
+          (is (= 2 (count (keys @(:constructor-cache state)))))
 
           (is (= [0 0]
                  (->> scene-graph
@@ -212,15 +196,11 @@
 
           (compile [view-1 :c])
 
-          (with-bindings (:constructor-cache-state-bindings state)
-            (is (= 1 (count (cache/cached)))))
+          (is (= 1 (count (keys @(:constructor-cache state)))))
 
           (is (= 4 @view-2-call-count-atom))
           (is (= 3 @view-2-constructor-call-count-atom))
 
           (compile [view-1])
 
-          (with-bindings (:constructor-cache-state-bindings state)
-            (is (= 0 (count (cache/cached))))))))))
-
-;; TODO: use separate manually clearable cache for constructors
+          (is (= 0 (count (keys @(:constructor-cache state))))))))))
