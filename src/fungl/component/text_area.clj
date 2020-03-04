@@ -42,6 +42,7 @@
    :get-size get-rows-node-size
 
    :image-function text/create-buffered-image-for-rows
+   :draw-function text/draw-rows
    :image-function-parameter-keys [:rows]})
 
 (defn trailing-x [row index]

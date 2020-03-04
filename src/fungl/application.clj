@@ -12,7 +12,8 @@
             [fungl.renderer :as renderer]
             [fungl.root-renderer :as root-renderer]
             [fungl.value-registry :as value-registry]
-            [logga.core :as logga]))
+            [logga.core :as logga]
+            [fungl.view-compiler :as view-compiler]))
 
 (require 'taoensso.timbre.profiling)
 
@@ -30,7 +31,8 @@
         (keyboard/state-bindings)
         (animation/state-bindings)
         (cache/state-bindings)
-        (value-registry/state-bindings)))
+        (value-registry/state-bindings)
+        (view-compiler/state-bindings)))
 
 (defn create-render-state []
   (conj (cache/state-bindings)
@@ -96,9 +98,9 @@
   `(.start (Thread. (fn [] ~@body)
                     ~name)))
 
-(defn run-create-schene-graph [create-scene-graph window-width window-height]
-  (let [scene-graph (create-scene-graph window-width
-                                        window-height)]
+(defn run-create-scene-graph [create-scene-graph window-width window-height]
+  (let [scene-graph (view-compiler/compile (create-scene-graph window-width
+                                                                          window-height))]
     (handle-new-scene-graph! scene-graph)
     scene-graph))
 
@@ -125,7 +127,7 @@
 
                                                                                  (= :resize-requested (:type event))
                                                                                  (recur (rest events)
-                                                                                        (run-create-schene-graph create-scene-graph
+                                                                                        (run-create-scene-graph create-scene-graph
                                                                                                                  (:width event)
                                                                                                                  (:height event))
                                                                                         (:width event)
@@ -133,7 +135,7 @@
 
                                                                                  :default
                                                                                  (recur (rest events)
-                                                                                        (run-create-schene-graph create-scene-graph
+                                                                                        (run-create-scene-graph create-scene-graph
                                                                                                                  window-width
                                                                                                                  window-height)
                                                                                         window-width

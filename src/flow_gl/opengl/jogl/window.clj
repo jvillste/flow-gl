@@ -238,9 +238,6 @@
                          )
                        nil))]
 
-       (prn 'surface-scale (seq surface-scale)) ;; TODO: remove-me
-
-
        (.setDefaultCloseOperation window WindowClosingProtocol$WindowClosingMode/DO_NOTHING_ON_CLOSE)
 
        (->JoglWindow window

@@ -73,6 +73,9 @@
         value))
 
 (defn compile [view-call-or-scene-graph]
+  (assert (bound? #'state)
+          "Bindings returned by (state-bindings) should be bound.")
+
   (binding [used-constructor-ids (atom #{})]
     (let [scene-graph  (compile* [] view-call-or-scene-graph)]
 

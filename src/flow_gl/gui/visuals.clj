@@ -29,31 +29,33 @@
           :width width
           :height height)))
 
+(defn- draw-rectangle-on-graphics [graphics width height draw-color fill-color line-width corner-arc-width corner-arc-height]
+  (when fill-color
+    (rectangle/fill graphics
+                    fill-color
+                    width
+                    height
+                    corner-arc-width
+                    corner-arc-height))
+
+  (when (> line-width 0)
+    (rectangle/draw graphics
+                    draw-color
+                    line-width
+                    width
+                    height
+                    corner-arc-width
+                    corner-arc-height)))
+
 (defn- draw-rectangle-2 [width height draw-color fill-color line-width corner-arc-width corner-arc-height]
   (let [buffered-image (buffered-image/create width height)]
-    (when fill-color
-      (rectangle/fill (buffered-image/get-graphics buffered-image)
-                      fill-color
-                      width
-                      height
-                      corner-arc-width
-                      corner-arc-height))
-
-    (when (> line-width 0)
-      (rectangle/draw (buffered-image/get-graphics buffered-image)
-                      draw-color
-                      line-width
-                      width
-                      height
-                      corner-arc-width
-                      corner-arc-height))
-
-
-
+    (draw-rectangle-on-graphics (buffered-image/get-graphics buffered-image)
+                                width height draw-color fill-color line-width corner-arc-width corner-arc-height)
     buffered-image))
 
 (def rectangle-node {:type ::rectangle
                      :image-function draw-rectangle-2
+                     :draw-function draw-rectangle-on-graphics
                      :image-function-parameter-keys [:width :height :draw-color :fill-color :line-width :corner-arc-width :corner-arc-height]
                      :hit-test hit-test-rectangle})
 
@@ -111,6 +113,7 @@
      :width (font/width font string)
      :height (font/height font)
      :image-function text/create-buffered-image
+     :draw-function text/draw
      :image-function-parameter-keys [:color :font :string]}))
 
 

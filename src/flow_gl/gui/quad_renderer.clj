@@ -2,30 +2,14 @@
   (:require [flow-gl.gui.scene-graph :as scene-graph]
             [flow-gl.opengl.jogl.opengl :as opengl]
             [flow-gl.opengl.jogl.quad-batch :as quad-batch]
+            [fungl.render :as render]
             [fungl.cache :as cache]))
-
-(defn keys-to-seq [source-map keys]
-  (reduce (fn [result key]
-            (conj result (key source-map)))
-          []
-          keys))
-
-(defn image-function-parameters [quad]
-  (-> []
-      (cond-> (:width-dependent quad)
-        (conj (:width quad)))
-      (cond-> (:height-dependent quad)
-        (conj (:height quad)))
-      (concat (if-let [image-function-parameters (:image-function-parameter-keys quad)]
-                (keys-to-seq quad
-                             image-function-parameters)
-                []))))
 
 (defn texture-key [quad]
   (or (:texture-hash quad)
       (:texture-id quad)
       (hash (concat [(:image-function quad)]
-                    (image-function-parameters quad)))))
+                    (render/image-function-parameters quad)))))
 
 (defn unused-drawable-textures [drawable-textures quads]
   (reduce dissoc drawable-textures (map texture-key quads)))
@@ -79,7 +63,7 @@
                                           (select-keys quad [:texture-id :width :height]))
                    (:image-function quad) (do (assert-size-is-not-infinite quad)
                                               {:image (apply (:image-function quad)
-                                                             (image-function-parameters quad))}) 
+                                                             (render/image-function-parameters quad))}) 
                    :default nil)
              (assoc :texture-key (:texture-key quad))))
        quads))
