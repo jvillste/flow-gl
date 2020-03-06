@@ -6,24 +6,16 @@
             [flow-gl.gui.mouse :as mouse]
             [flow-gl.gui.stateful :as stateful]
             [flow-gl.gui.window :as window]
-            [flow-gl.opengl.jogl.window :as jogl-window]
+            [flow-gl.swing.window :as swing-window]
             [fungl.cache :as cache]
             [fungl.layout :as layout]
             [fungl.renderer :as renderer]
-            [fungl.root-renderer :as root-renderer]
+            [fungl.swing.root-renderer :as swing-root-renderer]
             [fungl.value-registry :as value-registry]
-            [logga.core :as logga]
-            [fungl.view-compiler :as view-compiler]))
+            [fungl.view-compiler :as view-compiler]
+            [logga.core :as logga]))
 
 (require 'taoensso.timbre.profiling)
-
-(defn do-layout [scene-graph window-width window-height]
-  (-> scene-graph
-      (assoc :x 0
-             :y 0
-             :available-width window-width
-             :available-height window-height)
-      (layout/do-layout)))
 
 (defn create-event-handling-state []
   (conj (stateful/state-bindings :delete-after-calls 50)
@@ -42,13 +34,9 @@
   (renderer/apply-renderers! (assoc scene-graph
                                     :render (if-let [render (:render scene-graph)]
                                               render
-                                              root-renderer/root-renderer))
-                             gl)
-  
-  #_(let [{:keys [width height]} (opengl/size gl)]
-      (quad-renderer/draw! (scene-graph/leave-nodes scene-graph)
-                           width height
-                           gl)))
+                                              swing-root-renderer/root-renderer
+                                              #_root-renderer/root-renderer))
+                             gl))
 
 (defn handle-event! [scene-graph event]
   (do ;;taoensso.timbre.profiling/profile :info :handle-event
@@ -65,17 +53,15 @@
   (mouse/handle-new-scene-graph! scene-graph))
 
 (defn create-window []
-  (jogl-window/create 400 400
-                      :close-automatically true))
+  #_(jogl-window/create 400 400
+                      :close-automatically true)
+  (swing-window/create 400 400))
 
 (defn read-events [event-channel target-frame-rate]
   (animation/swap-state! animation/adjust-sleep-time-according-to-target-frames-per-second
                          target-frame-rate
                          (System/currentTimeMillis))
 
-
-
-  
   (let [events (csp/drain event-channel
                           (:sleep-time @animation/state-atom))
         events (if (empty? events)
@@ -99,85 +85,84 @@
                     ~name)))
 
 (defn run-create-scene-graph [create-scene-graph window-width window-height]
-  (let [scene-graph (view-compiler/compile (create-scene-graph window-width
-                                                                          window-height))]
+  (let [scene-graph (create-scene-graph window-width
+                                        window-height)]
     (handle-new-scene-graph! scene-graph)
     scene-graph))
 
 (defn start-event-thread [create-scene-graph event-channel renderable-scene-graph-channel initial-width initial-height target-frame-rate do-profile]
-  (thread "event"
-          (logga/write "starting event loop")
-          (try
-            (with-bindings (create-event-handling-state)
-              (let [initial-scene-graph (create-scene-graph initial-width initial-height)]
-                (handle-new-scene-graph! initial-scene-graph)
-                (loop [scene-graph initial-scene-graph
-                       window-width initial-width
-                       window-height initial-height]
-                  (let [[scene-graph window-width window-height] (with-profiling do-profile :handle-events
-                                                                   (loop [events (read-events event-channel target-frame-rate)
-                                                                          scene-graph scene-graph
-                                                                          window-width window-width
-                                                                          window-height window-height]
-                                                                     (if-let [event (first events)]
-                                                                       (do #_(logga/write "handling" event)
-                                                                           (handle-event! scene-graph event)
-                                                                           (cond (= :close-requested (:type event))
-                                                                                 nil
+    (thread "event"
+            (logga/write "starting event loop")
+            (try
+              (with-bindings (create-event-handling-state)
+                (let [initial-scene-graph (create-scene-graph initial-width initial-height)]
+                  (handle-new-scene-graph! initial-scene-graph)
+                  (loop [scene-graph initial-scene-graph
+                         window-width initial-width
+                         window-height initial-height]
+                    (let [[scene-graph window-width window-height] (with-profiling do-profile :handle-events
+                                                                     (loop [events (read-events event-channel target-frame-rate)
+                                                                            scene-graph scene-graph
+                                                                            window-width window-width
+                                                                            window-height window-height]
+                                                                       (if-let [event (first events)]
+                                                                         (do #_(logga/write "handling" event)
+                                                                             (handle-event! scene-graph event)
+                                                                             (cond (= :close-requested (:type event))
+                                                                                   nil
 
-                                                                                 (= :resize-requested (:type event))
-                                                                                 (recur (rest events)
-                                                                                        (run-create-scene-graph create-scene-graph
-                                                                                                                 (:width event)
-                                                                                                                 (:height event))
-                                                                                        (:width event)
-                                                                                        (:height event))
+                                                                                   (= :resize-requested (:type event))
+                                                                                   (recur (rest events)
+                                                                                          (run-create-scene-graph create-scene-graph
+                                                                                                                  (:width event)
+                                                                                                                  (:height event))
+                                                                                          (:width event)
+                                                                                          (:height event))
 
-                                                                                 :default
-                                                                                 (recur (rest events)
-                                                                                        (run-create-scene-graph create-scene-graph
-                                                                                                                 window-width
-                                                                                                                 window-height)
-                                                                                        window-width
-                                                                                        window-height)))
-                                                                       [scene-graph
-                                                                        window-width
-                                                                        window-height])))]
+                                                                                   :default
+                                                                                   (recur (rest events)
+                                                                                          (run-create-scene-graph create-scene-graph
+                                                                                                                  window-width
+                                                                                                                  window-height)
+                                                                                          window-width
+                                                                                          window-height)))
+                                                                         [scene-graph
+                                                                          window-width
+                                                                          window-height])))]
 
-                    (when scene-graph
+                      (when scene-graph
 
-                      (async/>!! renderable-scene-graph-channel
-                                 scene-graph)
-                      (value-registry/delete-unused-values! 10000)
-                      (recur scene-graph
-                             window-width
-                             window-height))))))
+                        (async/>!! renderable-scene-graph-channel
+                                   scene-graph)
+                        (value-registry/delete-unused-values! 10000)
+                        (recur scene-graph
+                               window-width
+                               window-height))))))
 
-            (logga/write "exiting event handling loop")
+              (logga/write "exiting event handling loop")
 
-            (catch Throwable e
-              (logga/write (prn-str e))
-              (throw e))
-            (finally
-              (async/close! renderable-scene-graph-channel)))))
+              (catch Throwable e
+                (logga/write "Exception in event loop" (prn-str e)))
+              (finally
+                (async/close! renderable-scene-graph-channel)))))
 
-(defn start-window [create-scene-graph & {:keys [window
-                                                 target-frame-rate
-                                                 handle-event!
-                                                 do-profiling
-                                                 ;;                                                  render
-                                                 ;;                                                  create-event-handling-state
-                                                 ;;                                                  create-render-state
-                                                 ;;                                                  read-events
-                                                 ]
-                                          :or {target-frame-rate 60
-                                               handle-event! handle-event!
-                                               do-profiling false
-                                               ;;                                                read-events read-events
-                                               ;;                                                render render
-                                               ;;                                                create-event-handling-state create-event-handling-state
-                                               ;;                                                create-render-state create-render-state
-                                               }}]
+(defn start-window [root-view-or-var & {:keys [window
+                                               target-frame-rate
+                                               handle-event!
+                                               do-profiling
+                                               ;;                                                  render
+                                               ;;                                                  create-event-handling-state
+                                               ;;                                                  create-render-state
+                                               ;;                                                  read-events
+                                               ]
+                                        :or {target-frame-rate 60
+                                             handle-event! handle-event!
+                                             do-profiling false
+                                             ;;                                                read-events read-events
+                                             ;;                                                render render
+                                             ;;                                                create-event-handling-state create-event-handling-state
+                                             ;;                                                create-render-state create-render-state
+                                             }}]
   (let [event-channel-promise (promise)]
     (thread "render"
             (logga/write "creating window")
@@ -186,7 +171,11 @@
                   renderable-scene-graph-channel (async/chan)
                   render-state (create-render-state)]
               (deliver event-channel-promise (window/event-channel window))
-              (start-event-thread create-scene-graph
+              (start-event-thread (fn [width height]
+                                    (-> (view-compiler/compile [(if (var? root-view-or-var)
+                                                                  @root-view-or-var
+                                                                  root-view-or-var)])
+                                        (layout/do-layout-for-size width height)))
                                   (window/event-channel window)
                                   renderable-scene-graph-channel
                                   (window/width window)
@@ -204,13 +193,15 @@
                              (value-registry/delete-unused-values! 500))))
                        (window/swap-buffers window)
                        (recur)))
-
-                   (logga/write "closing window")
-                   (window/close window)
                    (logga/write "exiting render loop")
 
-                   (catch Throwable e
-                     (logga/write (prn-str e))
+                   (catch Exception e
+                     (logga/write "Exception in render loop:" (prn-str e))
+                     (throw e))
+                   (finally
+                     (logga/write "closing window")
                      (window/close window)
-                     (throw e)))))
+                     ;; events must be read from the channel so that the swing event loop can handle the close event
+                     (csp/drain @event-channel-promise 0)
+                     ))))
     @event-channel-promise))

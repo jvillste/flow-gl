@@ -8,9 +8,6 @@
             [fungl.handler :as handler]
             [fungl.util :as util]))
 
-(defn draw-rectangle [width height color corner-arc-width corner-arc-height]
-  (rectangle/create-buffered-image color width height corner-arc-width corner-arc-height))
-
 (defn hit-test-rectangle [{:keys [width height corner-arc-width corner-arc-height]} x y]
   (rectangle/contains width height corner-arc-width corner-arc-height x y))
 
@@ -20,8 +17,9 @@
     :corner-arc-width corner-arc-width
     :corner-arc-height corner-arc-height
     :color color
-    :image-function draw-rectangle
-    :image-function-parameter-keys [:width :height :color :corner-arc-width :corner-arc-height]
+    :image-function rectangle/create-buffered-image
+    :draw-function rectangle/fill
+    :image-function-parameter-keys [:color :width :height :corner-arc-width :corner-arc-height]
     :hit-test hit-test-rectangle})
 
   ([color corner-arc-width corner-arc-height width height]
@@ -93,7 +91,7 @@
 (def liberation-sans-regular-path  (.getPath (io/resource "LiberationSans-Regular.ttf")))
 
 (util/defno text [string] {color [255 255 255 255]
-                           font-size 50
+                           font-size 20
                            font-file-path liberation-sans-regular-path
                            font nil}
 

@@ -31,7 +31,7 @@
                                    :available-width (:available-width node)
                                    :available-height (:available-height node)))
                           children)))))
-    
+
     node))
 
 (cache/defn-memoized size [node]
@@ -74,3 +74,16 @@
                      nil)))
       (add-size)
       (make-layout)))
+
+(defn do-layout-for-size [scene-graph window-width window-height]
+  (-> scene-graph
+      (assoc :x 0
+             :y 0
+             :available-width window-width
+             :available-height window-height)
+      (do-layout)))
+
+(defn layouted [create-scene-graph]
+  (fn [width height]
+    (-> (create-scene-graph)
+        (do-layout-for-size width height))))

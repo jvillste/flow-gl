@@ -43,14 +43,14 @@
   (events/create-keyboard-event type
                                 (or (keyboard-keys (.getKeyCode event))
                                     :unknown)
-                                (if (.isPrintableKey event)
+                                (if true #_(.isPrintableKey event)
                                   (.getKeyChar event)
                                   nil)
                                 (.getWhen event)
                                 (.isShiftDown event)
                                 (.isControlDown event)
                                 (.isAltDown event)
-                                (.isAutoRepeat event)
+                                false #_(.isAutoRepeat event)
                                 (.getKeyCode event)))
 
 (defn create-mouse-event [event type]
@@ -76,20 +76,21 @@
                      (proxy-super paintComponent graphics)
                      (@paint-function-atom graphics)))]
 
-     (doto j-panel
-       (.addComponentListener (proxy [ComponentAdapter] []
-                                (componentResized [component-event]
-                                  (async/>!! event-channel
-                                             (events/create-resize-requested-event (.getWidth (.getSize j-panel))
-                                                                                   (.getHeight (.getSize j-panel)))))))
-
+     (doto j-frame
        (.addKeyListener (proxy [KeyAdapter] []
                           (keyPressed [event]
                             (async/put! event-channel (create-keyboard-event event :key-pressed)))
                           (keyReleased [event]
                             (async/put! event-channel (create-keyboard-event event :key-released)))
                           (keyTyped [event]
-                            (async/put! event-channel (create-keyboard-event event :key-released)))))
+                            (async/put! event-channel (create-keyboard-event event :key-released))))))
+
+     (doto j-panel
+       (.addComponentListener (proxy [ComponentAdapter] []
+                                (componentResized [component-event]
+                                  (async/put! event-channel
+                                              (events/create-resize-requested-event (.getWidth (.getSize j-panel))
+                                                                                    (.getHeight (.getSize j-panel)))))))
 
        (.addMouseListener (proxy [MouseAdapter] []
                             (mouseMoved [event]

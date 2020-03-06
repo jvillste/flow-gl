@@ -8,13 +8,9 @@
     (apply handler arguments))
   event)
 
-
-(defn button [node handler arguments]
-  (-> node
-      (assoc :mouse-event-handler [button-mouse-event-handler handler arguments])))
-
-(defn default-button [message handler]
+(defn button [message handler]
   (-> (layouts/box 10
-                   (visuals/rectangle [255 255 0 255] 30 30)
+                   (visuals/rectangle-2 :color [255 255 0 255]
+                                        :corner-arc-radius 30)
                    (visuals/text message))
-      (assoc :mouse-event-handler [button-mouse-event-handler handler])))
+      (assoc :mouse-event-handler [button-mouse-event-handler handler []])))

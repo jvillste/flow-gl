@@ -11,7 +11,8 @@
             [fungl.cache :as cache]
             [fungl.handler :as handler]
             [fungl.layouts :as layouts]
-            [fungl.value-registry :as value-registry])
+            [fungl.value-registry :as value-registry]
+            [fungl.layout :as layout])
   (:import (java.awt.font TextHitInfo)))
 
 (def font (font/create (.getPath (io/resource "LiberationSans-Regular.ttf")) 18))
@@ -240,30 +241,28 @@
 (def default-style {:font font
                     :color [100 100 100 255]})
 
-#_(handler/def-handler-creator create-text-area-keyboard-event-handler [state-atom on-change rows] [event]
-  (prn event)
+#_(handler/def-handler-creator text-area-keyboard-event-handler [state-atom on-change rows] [event]
+    (prn event)
+    (when-let [command-and-paramters (keyboard-event-to-command event)]
+      (swap! state-atom
+             (fn [state]
+               (on-change state
+                          (apply handle-command
+                                 state
+                                 rows
+                                 command-and-paramters))))))
+
+(defn text-area-keyboard-event-handler [state-atom on-change event]
   (when-let [command-and-paramters (keyboard-event-to-command event)]
-    (swap! state-atom
-           (fn [state]
-             (on-change state
-                        (apply handle-command
-                               state
-                               rows
-                               command-and-paramters))))))
+    (when on-change
+      (swap! state-atom
+             (fn [state]
+               (on-change state
+                          (apply handle-command
+                                 state
+                                 command-and-paramters)))))))
 
-(defn create-text-area-keyboard-event-handler [state-atom on-change]
-  (fn  #_value-registry/get-fn! #_[::text-area-keyboard-event-handler state-atom]  #_[::text-area-keyboard-event-handler state-atom on-change rows]
-                          [event]
-                          (when-let [command-and-paramters (keyboard-event-to-command event)]
-                            (when on-change
-                              (swap! state-atom
-                                     (fn [state]
-                                       (on-change state
-                                                  (apply handle-command
-                                                         state
-                                                         command-and-paramters))))))))
-
-(handler/def-handler-creator create-text-area-mouse-event-handler [state-atom rows] [node event]
+(defn text-area-mouse-event-handler [state-atom rows node event]
   (if (= (:type event)
          :mouse-clicked)
     (do (keyboard/set-focused-node! node)
@@ -327,11 +326,9 @@
                               (fn [rows]
                                 (swap! state-atom assoc :rows rows)))
           (assoc :id id
-                 :mouse-event-handler (create-text-area-mouse-event-handler state-atom
-                                                                            (:rows @state-atom)))
+                 :mouse-event-handler [text-area-mouse-event-handler state-atom (:rows @state-atom)])
           (cond-> on-change
-            (assoc :keyboard-event-handler (create-text-area-keyboard-event-handler state-atom
-                                                                                    on-change)))))))
+            (assoc :keyboard-event-handler [text-area-keyboard-event-handler state-atom on-change]))))))
 
 (def default-options {:style {}
                       :text ""
@@ -351,54 +348,35 @@
                    new-state)
                  (:on-change default-options)))))
 
-(defn create-demo-scene-graph [width height]
+(defn demo-view []
+  (let [state-atom (fungl.dependable-atom/atom {:text-1 (apply str
+                                                               (repeat 10 "foo bar "))
+                                                :text-2 "text 2"})]
+    (fn []
+      @animation/state-atom
+      (animation/swap-state! animation/set-wake-up 1000)
 
-  (animation/swap-state! animation/set-wake-up 1000)
+      (layouts/superimpose (visuals/rectangle-2 :color [0 0 0 255])
+                           (layouts/with-margins 10 10 10 10
+                             (layouts/vertically
+                              (layouts/with-margins 0 0 10 0
+                                (text-area-2 :area-1
+                                             :style
+                                             {:color [255 255 255 255]}
+                                             :text
+                                             (:text-1 @state-atom)
+                                             :on-text-change
+                                             (fn [new-text]
+                                               (swap! state-atom assoc :text-1 new-text))))
 
-  (let [state-atom (atom-registry/get! :root {:create (fn []
-                                                        {:text-1 (apply str
-                                                                        (repeat 10 "foo bar "))
-                                                         :text-2 "text 2"})})]
-    (-> (layouts/with-margins 10 10 10 10
-          (layouts/vertically
-           (layouts/with-margins 0 0 10 0
-             (text-area-2 :area-1
-                          :style
-                          {:color [255 255 255 255]}
-                          :text
-                          (:text-1 @state-atom)
-                          :on-text-change
-                          (fn [new-text]
-                            (swap! state-atom assoc :text-1 new-text))))
+                              (text-area :area-2
+                                         {:color [255 255 255 255]}
+                                         (:text-2 @state-atom)
+                                         (fn [old-state new-state]
+                                           (swap! state-atom assoc :text-2 (:text new-state))
+                                           new-state))
 
-           (text-area :area-2
-                      {:color [255 255 255 255]}
-                      (:text-2 @state-atom)
-                      (fn [old-state new-state]
-                        (swap! state-atom assoc :text-2 (:text new-state))
-                        new-state))
-
-           #_(text (prn-str @state-atom))))
-        (application/do-layout width height))))
+                              #_(text (prn-str @state-atom))))))))
 
 (defn start []
-  #_(let [layout (first (rows [255 255 255 255]
-                              font
-                              "Wicd"
-                              140))
-          text-hit-info (.getNextLeftHit layout
-                                         3)]
-      (seq (.getCaretInfo layout
-                          text-hit-info)))
-
-  #_(0.0 0.0 0.0 -16.589355 0.0 3.5200195)
-  #_(10.0 0.0 10.0 -16.589355 10.0 3.5200195)
-  #_(20.0 0.0 20.0 -16.589355 20.0 3.5200195)
-  #_(->
-     (first)
-     #_(.getNextLeftHit 1)
-     (.getCaretShapes 1)
-     (first)
-     #_(.getCharIndex))
-
-  (application/start-window #'create-demo-scene-graph))
+  (application/start-window #'demo-view))

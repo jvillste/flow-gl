@@ -65,6 +65,7 @@
                   (doall (map-indexed (fn [index child]
                                         (compile* (conj parent-id
                                                         (or (:id (meta child))
+                                                            (:id child)
                                                             index))
                                                   child))
                                       children))))
@@ -140,6 +141,44 @@
                             :id [view-1 :a view-2]}
                            {:type :view-2,
                             :id [view-1 :b view-2]}]}
+               (compile [view-1])))))
+
+    (testing "local ids can be given as a metadata to layout node"
+      (let [view-2 (fn [] {:type :view-2})
+            view-1 (fn [] {:type :layout
+                           :children [^{:id :a} {:type :layout
+                                                 :children [[view-2]]}
+                                      ^{:id :b} {:type :layout
+                                                 :children [[view-2]]}]})]
+        (is (= {:type :layout,
+                :id [view-1]
+                :children [{:type :layout,
+                            :children [{:type :view-2,
+                                        :id [view-1 :a 0 view-2]}]}
+                           {:type :layout,
+                            :children [{:type :view-2,
+                                        :id [view-1 :b 0 view-2]}]}]}
+               (compile [view-1])))))
+
+    (testing "local ids can be given with :id key"
+      (let [view-2 (fn [] {:type :view-2})
+            view-1 (fn [] {:type :layout
+                           :children [{:id :a
+                                       :type :layout
+                                       :children [[view-2]]}
+                                      {:id :b
+                                       :type :layout
+                                       :children [[view-2]]} ]})]
+        (is (= {:type :layout,
+                :id [view-1]
+                :children [{:id :a
+                            :type :layout,
+                            :children [{:type :view-2,
+                                        :id [view-1 :a 0 view-2]}]}
+                           {:id :b
+                            :type :layout,
+                            :children [{:type :view-2,
+                                        :id [view-1 :b 0 view-2]}]}]}
                (compile [view-1])))))
 
     (testing "local state"

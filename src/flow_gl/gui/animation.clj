@@ -1,5 +1,6 @@
 (ns flow-gl.gui.animation
-  (:require [clojure.test :refer :all]))
+  (:require [clojure.test :refer :all]
+            [fungl.dependable-atom :as dependable-atom]))
 
 (defn initialize-state []
   {})
@@ -239,7 +240,7 @@
   @state-atom)
 
 (defn state-bindings []
-  {#'state-atom (atom (initialize-state))})
+  {#'state-atom (dependable-atom/atom (initialize-state))})
 
 (defn swap-state! [function & arguments]
   (apply swap! state-atom function arguments))

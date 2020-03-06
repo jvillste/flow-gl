@@ -2,8 +2,7 @@
   (:require [flow-gl.gui.scene-graph :as scene-graph]
             [fungl.cache :as cache]
             [fungl.render :as render])
-  (:import java.awt.Color
-           [java.awt.geom AffineTransform RoundRectangle2D$Double]))
+  (:import java.awt.geom.AffineTransform))
 
 (defn nodes-in-view [scene-graph width height]
   (filter (fn [node]
@@ -13,9 +12,12 @@
 
 (defn root-renderer [scene-graph graphics]
   (let [transform (AffineTransform.)]
-    (doseq [node (filter :draw-function (nodes-in-view scene-graph (:width scene-graph) (:height scene-graph)))]
-      (.setToTranslation transform (:x node) (:y node))
-      (.setTransform graphics transform)
-      (apply (:draw-function node)
-             graphics
-             (render/image-function-parameters node)))))
+    (try
+      (doseq [node (filter :draw-function (nodes-in-view scene-graph (:width scene-graph) (:height scene-graph)))]
+        (.setToTranslation transform (:x node) (:y node))
+        (.setTransform graphics transform)
+        (apply (:draw-function node)
+               graphics
+               (render/image-function-parameters node)))
+      (catch Exception e
+        (prn e)))))
