@@ -64,11 +64,32 @@
                 nil)
     new-buffered-image))
 
+(defn clip [input-buffered-image x y width height]
+  (let [new-buffered-image (create width height)]
+    (.drawImage (get-graphics new-buffered-image)
+                input-buffered-image
+                0 0
+                width height
+                x y
+                (+ x width)
+                (+ y width)
+                nil)
+    new-buffered-image))
+
 (defn gif-frames [file]
   (vec (let [image-reader (GIFImageReader. (GIFImageReaderSpi.))]
          (.setInput image-reader (ImageIO/createImageInputStream (io/file file)))
          (for [index (range (.getNumImages image-reader true))]
            (copy (.read image-reader index))))))
+
+(defn draw-image [graphics image width height]
+  (.drawImage graphics
+              image
+              0
+              0
+              (or width 100)
+              (or height 100)
+              nil))
 
 (defn create-from-file [url]
   (let [original-image (ImageIO/read (io/input-stream url))

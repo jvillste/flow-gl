@@ -148,21 +148,9 @@
 
 (defn start-window [root-view-or-var & {:keys [window
                                                target-frame-rate
-                                               handle-event!
-                                               do-profiling
-                                               ;;                                                  render
-                                               ;;                                                  create-event-handling-state
-                                               ;;                                                  create-render-state
-                                               ;;                                                  read-events
-                                               ]
+                                               do-profiling]
                                         :or {target-frame-rate 60
-                                             handle-event! handle-event!
-                                             do-profiling false
-                                             ;;                                                read-events read-events
-                                             ;;                                                render render
-                                             ;;                                                create-event-handling-state create-event-handling-state
-                                             ;;                                                create-render-state create-render-state
-                                             }}]
+                                             do-profiling false}}]
   (let [event-channel-promise (promise)]
     (thread "render"
             (logga/write "creating window")

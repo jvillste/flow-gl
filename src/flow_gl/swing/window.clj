@@ -2,10 +2,8 @@
   (:require [clojure.core.async :as async]
             [flow-gl.gui.events :as events]
             [flow-gl.gui.window :as window])
-  (:import (java.awt BorderLayout Panel Frame BasicStroke Color RenderingHints)
-           (java.awt.event WindowAdapter ComponentAdapter KeyEvent KeyAdapter MouseEvent MouseAdapter)
-           (java.awt.geom RoundRectangle2D$Double)
-           (javax.swing JFrame JPanel WindowConstants)))
+  (:import [java.awt.event ComponentAdapter KeyAdapter KeyEvent MouseAdapter MouseEvent MouseMotionAdapter MouseWheelListener WindowAdapter]
+           [javax.swing JFrame JPanel]))
 
 (defrecord SwingWindow [j-frame j-panel event-channel paint-function-atom]
   window/Window
@@ -44,8 +42,8 @@
                                 (or (keyboard-keys (.getKeyCode event))
                                     :unknown)
                                 (if true #_(.isPrintableKey event)
-                                  (.getKeyChar event)
-                                  nil)
+                                    (.getKeyChar event)
+                                    nil)
                                 (.getWhen event)
                                 (.isShiftDown event)
                                 (.isControlDown event)
@@ -61,7 +59,7 @@
          :alt (.isAltDown event)
          :x (* (.getX event) 1 #_(first surface-scale))
          :y (* (.getY event) 1 #_(second surface-scale))
-        ;; :pressure (.getPressure event true)
+         ;; :pressure (.getPressure event true)
          :key (or (keyboard-keys (.getButton event))
                   :unknown)
          :source :mouse}))
@@ -83,45 +81,74 @@
                           (keyReleased [event]
                             (async/put! event-channel (create-keyboard-event event :key-released)))
                           (keyTyped [event]
-                            (async/put! event-channel (create-keyboard-event event :key-released))))))
+                            (async/put! event-channel (create-keyboard-event event :key-released)))))
+
+       (.addWindowListener (proxy [WindowAdapter] []
+                               (windowClosing [event]
+                                              (async/put! event-channel (events/create-close-requested-event)))))
+       #_(.addMouseMotionListener (proxy [MouseMotionAdapter] []
+                                  (mouseMoved [event]
+                                    (async/put! event-channel (create-mouse-event event :mouse-moved)))
+                                  (mouseDragged [event]
+                                    (async/put! event-channel (create-mouse-event event :mouse-dragged))))))
 
      (doto j-panel
+       (.addMouseMotionListener (proxy [MouseMotionAdapter] []
+                                  (mouseMoved [event]
+                                    (async/put! event-channel (create-mouse-event event :mouse-moved)))
+                                  (mouseDragged [event]
+                                    (async/put! event-channel (create-mouse-event event :mouse-moved)))))
+
+       #_(.setOpaque true)
        (.addComponentListener (proxy [ComponentAdapter] []
                                 (componentResized [component-event]
                                   (async/put! event-channel
                                               (events/create-resize-requested-event (.getWidth (.getSize j-panel))
                                                                                     (.getHeight (.getSize j-panel)))))))
 
+      #_(.addMouseMotionListener (proxy [MouseMotionAdapter] []
+                                  (mouseMoved [event]
+                                    (prn 'mouseMoved)
+                                    (async/put! event-channel (create-mouse-event event :mouse-moved)))
+                                  (mouseDragged [event]
+                                    (prn 'mouseDragged) ;; TODO: remove-me
+                                    #_(async/put! event-channel (create-mouse-event event :mouse-dragged)))))
+
        (.addMouseListener (proxy [MouseAdapter] []
-                            (mouseMoved [event]
-                              (async/put! event-channel (create-mouse-event event :mouse-moved)))
-                            (mouseDragged [event]
-                              (async/put! event-channel (create-mouse-event event :mouse-dragged)))
                             (mousePressed [event]
                               (async/put! event-channel (create-mouse-event event :mouse-pressed)))
                             (mouseReleased [event]
                               (async/put! event-channel (create-mouse-event event :mouse-released)))
                             (mouseClicked [event]
-                              (async/put! event-channel (create-mouse-event event :mouse-clicked)))
-                            (mouseWheelMoved [event]
-                              (async/put! event-channel (let [[x-distance y-distance z-distance] (.getRotation event)]
-                                                          (assoc (create-mouse-event event :mouse-wheel-moved)
-                                                                 :x-distance x-distance
-                                                                 :y-distance y-distance
-                                                                 :z-distance z-distance
-                                                                 :rotation-scale (.getRotationScale event))))))))
+                              (async/put! event-channel (create-mouse-event event :mouse-clicked)))))
 
-     (when (not close-automatically?)
-       (.setDefaultCloseOperation WindowConstants/DO_NOTHING_ON_CLOSE))
+       (.addMouseWheelListener (proxy [MouseWheelListener] []
+                                 (mouseWheelMoved [event]
+                                   (prn 'mouseWheelMoved
+                                        (.getWheelRotation event)
+                                        (.getScrollType event)
+                                        (.getPreciseWheelRotation event)
+                                        (.getScrollAmount event)) ;; TODO: remove-me
+                                   #_(async/put! event-channel (let [[x-distance y-distance z-distance] (.getRotation event)]
+                                                                 (assoc (create-mouse-event event :mouse-wheel-moved)
+                                                                        :x-distance x-distance
+                                                                        :y-distance y-distance
+                                                                        :z-distance z-distance
+                                                                        :rotation-scale (.getRotationScale event)))))))
+       )
+
+     ;; (when (not close-automatically?)
+     ;;   (.setDefaultCloseOperation WindowConstants/DO_NOTHING_ON_CLOSE))
 
      (doto j-frame
+       #_(.pack)
        (.setContentPane j-panel)
        (.setSize width height)
-       (.addWindowListener (proxy [WindowAdapter] []
-                             (windowClosing [window-event]
-                               (async/put! event-channel
-                                           (events/create-close-requested-event))
-                               #_(.dispose j-frame))))
+       #_(.addWindowListener (proxy [WindowAdapter] []
+                               (windowClosing [window-event]
+                                 (async/put! event-channel
+                                             (events/create-close-requested-event))
+                                 #_(.dispose j-frame))))
        (.setVisible true))
 
 
@@ -129,3 +156,28 @@
                     j-panel
                     event-channel
                     paint-function-atom))))
+
+
+(comment
+  (let [j-frame (JFrame.)
+        j-panel (proxy [JPanel] []
+                  (paintComponent [graphics]
+                    (proxy-super paintComponent graphics)
+                    (prn 'paint) ;; TODO: remove-me
+
+                    #_(@paint-function-atom graphics)))]
+
+    (doto j-panel
+      (.addMouseMotionListener (proxy [MouseMotionAdapter] []
+                                 (mouseMoved [event]
+                                   (prn 'mouseMoved))
+                                 (mouseDragged [event]
+                                   (prn 'mouseDragged))))
+      #_(.setOpaque true))
+
+    (doto j-frame
+      (.setContentPane j-panel)
+      #_(.pack)
+      (.setSize 200 200)
+      (.setVisible true)))
+  ) ;; TODO: remove-me

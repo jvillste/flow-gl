@@ -407,13 +407,19 @@
 ;; superimpose
 
 (defn superimpose-get-size [node]
-  (let [child-sizes (map layout/size
+  (let [child-sizes (map (fn [child]
+                           (merge (select-keys child [:x :y])
+                                  (layout/size child)))
                          (:children node))]
     {:width (apply max
-                   (map :width
+                   (map (fn [child-size]
+                          (+ (:x child-size)
+                             (:width child-size)))
                         child-sizes))
      :height (apply max
-                    (map :height
+                    (map (fn [child-size]
+                           (+ (:y child-size)
+                              (:height child-size)))
                          child-sizes))}))
 
 (defn superimpose [& children]
@@ -422,7 +428,6 @@
      :get-size superimpose-get-size}))
 
 ;; preferred-size
-
 
 
 (defn preferred-size-make-layout [node]

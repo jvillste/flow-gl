@@ -192,6 +192,7 @@
   {:buffered-image buffered-image
    :width (.getWidth buffered-image)
    :height (.getHeight buffered-image)
+   :draw-function buffered-image/draw-image
    :image-function identity
-   :image-function-parameter-keys [:buffered-image]
+   :image-function-parameter-keys [:buffered-image :width :height]
    :hit-test hit-test-image})

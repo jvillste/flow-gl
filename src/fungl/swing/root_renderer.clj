@@ -12,12 +12,9 @@
 
 (defn root-renderer [scene-graph graphics]
   (let [transform (AffineTransform.)]
-    (try
-      (doseq [node (filter :draw-function (nodes-in-view scene-graph (:width scene-graph) (:height scene-graph)))]
-        (.setToTranslation transform (:x node) (:y node))
-        (.setTransform graphics transform)
-        (apply (:draw-function node)
-               graphics
-               (render/image-function-parameters node)))
-      (catch Exception e
-        (prn e)))))
+    (doseq [node (filter :draw-function (nodes-in-view scene-graph (:width scene-graph) (:height scene-graph)))]
+      (.setToTranslation transform (:x node) (:y node))
+      (.setTransform graphics transform)
+      (apply (:draw-function node)
+             graphics
+             (render/image-function-parameters node)))))
