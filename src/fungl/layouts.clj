@@ -413,17 +413,18 @@
                          (:children node))]
     {:width (apply max
                    (map (fn [child-size]
-                          (+ (:x child-size)
+                          (+ (or (:x child-size) 0)
                              (:width child-size)))
                         child-sizes))
      :height (apply max
                     (map (fn [child-size]
-                           (+ (:y child-size)
+                           (+ (or (:y child-size) 0)
                               (:height child-size)))
                          child-sizes))}))
 
 (defn superimpose [& children]
   (let [children (flatten-contents children)]
+    (assert (not (empty? children)))
     {:children children
      :get-size superimpose-get-size}))
 

@@ -102,6 +102,13 @@
                 0)
     new-image))
 
+
+(defn create-from-resource [file-name]
+  (if-let [resource (io/resource file-name)]
+    (create-from-file (.getPath resource))
+    (throw (ex-info (str "File " file-name " not found.")
+                    {}))))
+
 (defn resize [original-image width height]
   (let [new-image (create width height)]
     (.drawImage (get-graphics new-image)

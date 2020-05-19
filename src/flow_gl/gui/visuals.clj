@@ -8,6 +8,8 @@
             [fungl.handler :as handler]
             [fungl.util :as util]))
 
+
+
 (defn hit-test-rectangle [{:keys [width height corner-arc-width corner-arc-height]} x y]
   (rectangle/contains width height corner-arc-width corner-arc-height x y))
 
@@ -147,6 +149,7 @@
     :get-size (create-text-area-get-size font)
 
     :image-function text/create-buffered-image-for-rows
+    :draw-function text/draw-rows
     :image-function-parameter-keys [:rows]})
   ([string color]
    (text-area string
