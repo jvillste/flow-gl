@@ -52,10 +52,13 @@
   (keyboard/handle-new-scene-graph! scene-graph)
   (mouse/handle-new-scene-graph! scene-graph))
 
-(defn create-window []
-  #_(jogl-window/create 400 400
-                      :close-automatically true)
-  (swing-window/create 400 400))
+(defn create-window
+  ([]
+   (create-window 400 400))
+  ([width height]
+   #_(jogl-window/create 400 400
+                         :close-automatically true)
+   (swing-window/create width height)))
 
 (defn read-events [event-channel target-frame-rate]
   (animation/swap-state! animation/adjust-sleep-time-according-to-target-frames-per-second

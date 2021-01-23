@@ -1,8 +1,8 @@
 (ns flow-gl.graphics.font
   (:import (java.awt Font)
            (java.awt.font TextLayout)
-           (java.awt.image BufferedImage)
-           (java.io File)))
+           (java.awt.image BufferedImage))
+  (:require [clojure.java.io :as io]))
 
 (def loaded-fonts (atom {}))
 
@@ -13,7 +13,7 @@
              loaded-fonts
              (assoc loaded-fonts
                     [ttf-file-name size]
-                    (let [font (-> (Font/createFont Font/TRUETYPE_FONT (File. ttf-file-name))
+                    (let [font (-> (Font/createFont Font/TRUETYPE_FONT (io/input-stream ttf-file-name))
                                    (.deriveFont (float size)))
                           graphics (.getGraphics (BufferedImage. 1 1 BufferedImage/TYPE_INT_ARGB))]
 

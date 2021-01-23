@@ -15,14 +15,15 @@
             [fungl.layout :as layout])
   (:import (java.awt.font TextHitInfo)))
 
-(def font (font/create (.getPath (io/resource "LiberationSans-Regular.ttf")) 18))
+(defn default-font []
+  (font/create (.getPath (io/resource "LiberationSans-Regular.ttf")) 18))
 
 (defn text
   ([value]
    (text value [255 255 255 255]))
 
   ([value color]
-   (text value color font))
+   (text value color (default-font)))
 
   ([value color font]
    (visuals/text-area (str value)
@@ -238,8 +239,9 @@
 (def atom-specification
   {:create initialize-state})
 
-(def default-style {:font font
-                    :color [100 100 100 255]})
+(defn default-style []
+  {:font (default-font)
+   :color [100 100 100 255]})
 
 #_(handler/def-handler-creator text-area-keyboard-event-handler [state-atom on-change rows] [event]
     (prn event)
@@ -275,7 +277,7 @@
   event)
 
 (handler/def-handler-creator create-adapt-to-space [text index style handle-rows] [node]
-  (let [style (conj default-style
+  (let [style (conj (default-style)
                     style)
         rows (if (= text "")
                []

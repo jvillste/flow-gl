@@ -41,9 +41,7 @@
   (events/create-keyboard-event type
                                 (or (keyboard-keys (.getKeyCode event))
                                     :unknown)
-                                (if true #_(.isPrintableKey event)
-                                    (.getKeyChar event)
-                                    nil)
+                                (.getKeyChar event)
                                 (.getWhen event)
                                 (.isShiftDown event)
                                 (.isControlDown event)
@@ -64,98 +62,97 @@
                   :unknown)
          :source :mouse}))
 
-(defn create
-  ([width height & {:keys [event-channel width height close-automatically?] :or {event-channel (async/chan) width 300 height 300
-                                                                                 close-automatically? true}}]
-   (let [paint-function-atom (atom (fn [graphics]))
-         j-frame (JFrame.)
-         j-panel (proxy [JPanel] []
-                   (paintComponent [graphics]
-                     (proxy-super paintComponent graphics)
-                     (@paint-function-atom graphics)))]
+(defn create ([width height & {:keys [event-channel close-automatically?] :or {event-channel (async/chan)
+                                                                               close-automatically? true}}]
+              (let [paint-function-atom (atom (fn [graphics]))
+                    j-frame (JFrame.)
+                    j-panel (proxy [JPanel] []
+                              (paintComponent [graphics]
+                                (proxy-super paintComponent graphics)
+                                (@paint-function-atom graphics)))]
 
-     (doto j-frame
-       (.addKeyListener (proxy [KeyAdapter] []
-                          (keyPressed [event]
-                            (async/put! event-channel (create-keyboard-event event :key-pressed)))
-                          (keyReleased [event]
-                            (async/put! event-channel (create-keyboard-event event :key-released)))
-                          (keyTyped [event]
-                            (async/put! event-channel (create-keyboard-event event :key-released)))))
+                (doto j-frame
+                  (.addKeyListener (proxy [KeyAdapter] []
+                                     (keyPressed [event]
+                                       (async/put! event-channel (create-keyboard-event event :key-pressed)))
+                                     (keyReleased [event]
+                                       (async/put! event-channel (create-keyboard-event event :key-released)))
+                                     (keyTyped [event]
+                                       (async/put! event-channel (create-keyboard-event event :key-typed)))))
 
-       (.addWindowListener (proxy [WindowAdapter] []
-                               (windowClosing [event]
-                                              (async/put! event-channel (events/create-close-requested-event)))))
-       #_(.addMouseMotionListener (proxy [MouseMotionAdapter] []
-                                  (mouseMoved [event]
-                                    (async/put! event-channel (create-mouse-event event :mouse-moved)))
-                                  (mouseDragged [event]
-                                    (async/put! event-channel (create-mouse-event event :mouse-dragged))))))
+                  (.addWindowListener (proxy [WindowAdapter] []
+                                        (windowClosing [event]
+                                          (async/put! event-channel (events/create-close-requested-event)))))
+                  #_(.addMouseMotionListener (proxy [MouseMotionAdapter] []
+                                               (mouseMoved [event]
+                                                 (async/put! event-channel (create-mouse-event event :mouse-moved)))
+                                               (mouseDragged [event]
+                                                 (async/put! event-channel (create-mouse-event event :mouse-dragged))))))
 
-     (doto j-panel
-       (.addMouseMotionListener (proxy [MouseMotionAdapter] []
-                                  (mouseMoved [event]
-                                    (async/put! event-channel (create-mouse-event event :mouse-moved)))
-                                  (mouseDragged [event]
-                                    (async/put! event-channel (create-mouse-event event :mouse-moved)))))
+                (doto j-panel
+                  (.addMouseMotionListener (proxy [MouseMotionAdapter] []
+                                             (mouseMoved [event]
+                                               (async/put! event-channel (create-mouse-event event :mouse-moved)))
+                                             (mouseDragged [event]
+                                               (async/put! event-channel (create-mouse-event event :mouse-moved)))))
 
-       #_(.setOpaque true)
-       (.addComponentListener (proxy [ComponentAdapter] []
-                                (componentResized [component-event]
-                                  (async/put! event-channel
-                                              (events/create-resize-requested-event (.getWidth (.getSize j-panel))
-                                                                                    (.getHeight (.getSize j-panel)))))))
+                  #_(.setOpaque true)
+                  (.addComponentListener (proxy [ComponentAdapter] []
+                                           (componentResized [component-event]
+                                             (async/put! event-channel
+                                                         (events/create-resize-requested-event (.getWidth (.getSize j-panel))
+                                                                                               (.getHeight (.getSize j-panel)))))))
 
-      #_(.addMouseMotionListener (proxy [MouseMotionAdapter] []
-                                  (mouseMoved [event]
-                                    (prn 'mouseMoved)
-                                    (async/put! event-channel (create-mouse-event event :mouse-moved)))
-                                  (mouseDragged [event]
-                                    (prn 'mouseDragged) ;; TODO: remove-me
-                                    #_(async/put! event-channel (create-mouse-event event :mouse-dragged)))))
+                  #_(.addMouseMotionListener (proxy [MouseMotionAdapter] []
+                                               (mouseMoved [event]
+                                                 (prn 'mouseMoved)
+                                                 (async/put! event-channel (create-mouse-event event :mouse-moved)))
+                                               (mouseDragged [event]
+                                                 (prn 'mouseDragged) ;; TODO: remove-me
+                                                 #_(async/put! event-channel (create-mouse-event event :mouse-dragged)))))
 
-       (.addMouseListener (proxy [MouseAdapter] []
-                            (mousePressed [event]
-                              (async/put! event-channel (create-mouse-event event :mouse-pressed)))
-                            (mouseReleased [event]
-                              (async/put! event-channel (create-mouse-event event :mouse-released)))
-                            (mouseClicked [event]
-                              (async/put! event-channel (create-mouse-event event :mouse-clicked)))))
+                  (.addMouseListener (proxy [MouseAdapter] []
+                                       (mousePressed [event]
+                                         (async/put! event-channel (create-mouse-event event :mouse-pressed)))
+                                       (mouseReleased [event]
+                                         (async/put! event-channel (create-mouse-event event :mouse-released)))
+                                       (mouseClicked [event]
+                                         (async/put! event-channel (create-mouse-event event :mouse-clicked)))))
 
-       (.addMouseWheelListener (proxy [MouseWheelListener] []
-                                 (mouseWheelMoved [event]
-                                   (prn 'mouseWheelMoved
-                                        (.getWheelRotation event)
-                                        (.getScrollType event)
-                                        (.getPreciseWheelRotation event)
-                                        (.getScrollAmount event)) ;; TODO: remove-me
-                                   #_(async/put! event-channel (let [[x-distance y-distance z-distance] (.getRotation event)]
-                                                                 (assoc (create-mouse-event event :mouse-wheel-moved)
-                                                                        :x-distance x-distance
-                                                                        :y-distance y-distance
-                                                                        :z-distance z-distance
-                                                                        :rotation-scale (.getRotationScale event)))))))
-       )
+                  (.addMouseWheelListener (proxy [MouseWheelListener] []
+                                            (mouseWheelMoved [event]
+                                              (prn 'mouseWheelMoved
+                                                   (.getWheelRotation event)
+                                                   (.getScrollType event)
+                                                   (.getPreciseWheelRotation event)
+                                                   (.getScrollAmount event)) ;; TODO: remove-me
+                                              #_(async/put! event-channel (let [[x-distance y-distance z-distance] (.getRotation event)]
+                                                                            (assoc (create-mouse-event event :mouse-wheel-moved)
+                                                                                   :x-distance x-distance
+                                                                                   :y-distance y-distance
+                                                                                   :z-distance z-distance
+                                                                                   :rotation-scale (.getRotationScale event)))))))
+                  )
 
-     ;; (when (not close-automatically?)
-     ;;   (.setDefaultCloseOperation WindowConstants/DO_NOTHING_ON_CLOSE))
+                ;; (when (not close-automatically?)
+                ;;   (.setDefaultCloseOperation WindowConstants/DO_NOTHING_ON_CLOSE))
 
-     (doto j-frame
-       #_(.pack)
-       (.setContentPane j-panel)
-       (.setSize width height)
-       #_(.addWindowListener (proxy [WindowAdapter] []
-                               (windowClosing [window-event]
-                                 (async/put! event-channel
-                                             (events/create-close-requested-event))
-                                 #_(.dispose j-frame))))
-       (.setVisible true))
+                (doto j-frame
+                  #_(.pack)
+                  (.setContentPane j-panel)
+                  (.setSize width height)
+                  #_(.addWindowListener (proxy [WindowAdapter] []
+                                          (windowClosing [window-event]
+                                            (async/put! event-channel
+                                                        (events/create-close-requested-event))
+                                            #_(.dispose j-frame))))
+                  (.setVisible true))
 
 
-     (->SwingWindow j-frame
-                    j-panel
-                    event-channel
-                    paint-function-atom))))
+                (->SwingWindow j-frame
+                               j-panel
+                               event-channel
+                               paint-function-atom))))
 
 
 (comment
