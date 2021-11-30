@@ -3,7 +3,9 @@
             [flow-gl.gui.events :as events]
             [flow-gl.gui.window :as window])
   (:import [java.awt.event ComponentAdapter KeyAdapter KeyEvent MouseAdapter MouseEvent MouseMotionAdapter MouseWheelListener WindowAdapter]
-           [javax.swing JFrame JPanel]))
+           [javax.swing JFrame JPanel]
+           [java.awt Cursor Toolkit Point]
+           java.awt.image.BufferedImage))
 
 (defrecord SwingWindow [j-frame j-panel event-channel paint-function-atom]
   window/Window
@@ -17,7 +19,9 @@
   (height [this] (.getHeight (.getSize j-panel)))
   (close [this] (.dispose j-frame)))
 
-(def keyboard-keys {KeyEvent/VK_ENTER :enter
+(def keyboard-keys {KeyEvent/VK_1 :1
+                    KeyEvent/VK_2 :2
+                    KeyEvent/VK_ENTER :enter
                     KeyEvent/VK_ESCAPE :esc
                     KeyEvent/VK_LEFT :left
                     KeyEvent/VK_RIGHT :right
@@ -154,8 +158,17 @@
                                event-channel
                                paint-function-atom))))
 
+(defn create-cursor [buffered-image]
+  (.createCustomCursor (Toolkit/getDefaultToolkit)
+                       buffered-image
+                       (Point. 0 0)
+                       "cursor"))
 
-(comment
+(defn set-cursor [window cursor]
+  (.setCursor (.getContentPane (:j-frame window))
+              cursor))
+
+  (comment
   (let [j-frame (JFrame.)
         j-panel (proxy [JPanel] []
                   (paintComponent [graphics]
@@ -164,6 +177,8 @@
 
                     #_(@paint-function-atom graphics)))]
 
+    (.setCursor j-frame
+                (create-cursor (BufferedImage. 16 16 BufferedImage/TYPE_INT_ARGB)))
     (doto j-panel
       (.addMouseMotionListener (proxy [MouseMotionAdapter] []
                                  (mouseMoved [event]
