@@ -3,22 +3,33 @@
             [flow-gl.gui.events :as events]
             [flow-gl.gui.window :as window]
             [clojure.reflect :as reflect]
-            [clojure.string :as string])
+            [clojure.string :as string]
+            [flow-gl.graphics.font :as font]
+            [clojure.java.io :as io]
+            [flow-gl.graphics.text :as text]
+            [flow-gl.graphics.rectangle :as rectangle])
   (:import [java.awt.event ComponentAdapter KeyAdapter KeyEvent MouseAdapter MouseEvent MouseMotionAdapter MouseWheelListener WindowAdapter]
            [javax.swing JFrame JPanel]
-           [java.awt Cursor Toolkit Point]
-           java.awt.image.BufferedImage))
+           [java.awt Cursor Toolkit Point Canvas]
+           java.awt.image.BufferedImage
+           java.awt.RenderingHints
+           java.awt.Font))
 
-(defrecord SwingWindow [j-frame j-panel event-channel paint-function-atom]
+(defrecord SwingWindow [j-frame canvas event-channel]
   window/Window
   (run-with-gl [this runner]
-    (reset! paint-function-atom runner)
-    (.repaint j-panel))
+    (let [buffer-strategy (.getBufferStrategy canvas)
+          graphics (.getDrawGraphics buffer-strategy)]
+      (try
+        (runner graphics)
+        (finally
+          (.dispose graphics)
+          (.show buffer-strategy)))))
   (swap-buffers [this])
   (event-channel [this] event-channel)
   (visible? [this] (.isVisible j-frame))
-  (width [this] (.getWidth (.getSize j-panel)))
-  (height [this] (.getHeight (.getSize j-panel)))
+  (width [this] (.getWidth (.getSize canvas)))
+  (height [this] (.getHeight (.getSize canvas)))
   (close [this] (.dispose j-frame)))
 
 (def keyboard-keys {KeyEvent/VK_0 :0
@@ -190,7 +201,7 @@
                     KeyEvent/VK_S :s
                     KeyEvent/VK_SCROLL_LOCK :scroll_lock
                     KeyEvent/VK_SEMICOLON :semicolon
-;;                    KeyEvent/VK_SEPARATER :separater
+                    ;;                    KeyEvent/VK_SEPARATER :separater
                     KeyEvent/VK_SEPARATOR :separator
                     KeyEvent/VK_SHIFT :shift
                     KeyEvent/VK_SLASH :slash
@@ -236,7 +247,7 @@
                                 (.isShiftDown event)
                                 (.isControlDown event)
                                 (.isAltDown event)
-                                false #_(.isAutoRepeat event)
+                                nil #_(.isAutoRepeat event)
                                 (.getKeyCode event)))
 
 (defn create-mouse-event [event type]
@@ -254,21 +265,29 @@
 
 (defn create ([width height & {:keys [event-channel close-automatically?] :or {event-channel (async/chan)
                                                                                close-automatically? true}}]
-              (let [paint-function-atom (atom (fn [graphics]))
-                    j-frame (JFrame.)
-                    j-panel (proxy [JPanel] []
-                              (paintComponent [graphics]
-                                (proxy-super paintComponent graphics)
-                                (@paint-function-atom graphics)))]
+
+              (let [j-frame (JFrame.)
+                    canvas (Canvas.)]
+
+                (.add (.getContentPane j-frame)
+                      canvas)
 
                 (doto j-frame
-                  (.addKeyListener (proxy [KeyAdapter] []
-                                     (keyPressed [event]
-                                       (async/put! event-channel (create-keyboard-event event :key-pressed)))
-                                     (keyReleased [event]
-                                       (async/put! event-channel (create-keyboard-event event :key-released)))
-                                     (keyTyped [event]
-                                       (async/put! event-channel (create-keyboard-event event :key-typed)))))
+                  (.pack)
+                  (.setSize width height)
+                  (.setVisible true))
+
+                (.setIgnoreRepaint canvas true)
+                (.createBufferStrategy canvas 2)
+
+                (doto j-frame
+                  #_(.addKeyListener (proxy [KeyAdapter] []
+                                       (keyPressed [event]
+                                         (async/put! event-channel (create-keyboard-event event :key-pressed)))
+                                       (keyReleased [event]
+                                         (async/put! event-channel (create-keyboard-event event :key-released)))
+                                       (keyTyped [event]
+                                         (async/put! event-channel (create-keyboard-event event :key-typed)))))
 
                   (.addWindowListener (proxy [WindowAdapter] []
                                         (windowClosing [event]
@@ -279,7 +298,14 @@
                                                (mouseDragged [event]
                                                  (async/put! event-channel (create-mouse-event event :mouse-dragged))))))
 
-                (doto j-panel
+                (doto canvas
+                  (.addKeyListener (proxy [KeyAdapter] []
+                                     (keyPressed [event]
+                                       (async/put! event-channel (create-keyboard-event event :key-pressed)))
+                                     (keyReleased [event]
+                                       (async/put! event-channel (create-keyboard-event event :key-released)))
+                                     (keyTyped [event]
+                                       (async/put! event-channel (create-keyboard-event event :key-typed)))))
                   (.addMouseMotionListener (proxy [MouseMotionAdapter] []
                                              (mouseMoved [event]
                                                (async/put! event-channel (create-mouse-event event :mouse-moved)))
@@ -290,8 +316,8 @@
                   (.addComponentListener (proxy [ComponentAdapter] []
                                            (componentResized [component-event]
                                              (async/put! event-channel
-                                                         (events/create-resize-requested-event (.getWidth (.getSize j-panel))
-                                                                                               (.getHeight (.getSize j-panel)))))))
+                                                         (events/create-resize-requested-event (* 2 (.getWidth (.getSize canvas)))
+                                                                                               (* 2 (.getHeight (.getSize canvas))))))))
 
                   #_(.addMouseMotionListener (proxy [MouseMotionAdapter] []
                                                (mouseMoved [event]
@@ -321,28 +347,11 @@
                                                                                    :x-distance x-distance
                                                                                    :y-distance y-distance
                                                                                    :z-distance z-distance
-                                                                                   :rotation-scale (.getRotationScale event)))))))
-                  )
-
-                ;; (when (not close-automatically?)
-                ;;   (.setDefaultCloseOperation WindowConstants/DO_NOTHING_ON_CLOSE))
-
-                (doto j-frame
-                  #_(.pack)
-                  (.setContentPane j-panel)
-                  (.setSize width height)
-                  #_(.addWindowListener (proxy [WindowAdapter] []
-                                          (windowClosing [window-event]
-                                            (async/put! event-channel
-                                                        (events/create-close-requested-event))
-                                            #_(.dispose j-frame))))
-                  (.setVisible true))
-
+                                                                                   :rotation-scale (.getRotationScale event))))))))
 
                 (->SwingWindow j-frame
-                               j-panel
-                               event-channel
-                               paint-function-atom))))
+                               canvas
+                               event-channel))))
 
 (defn create-cursor [buffered-image]
   (.createCustomCursor (Toolkit/getDefaultToolkit)
@@ -353,29 +362,3 @@
 (defn set-cursor [window cursor]
   (.setCursor (.getContentPane (:j-frame window))
               cursor))
-
-  (comment
-  (let [j-frame (JFrame.)
-        j-panel (proxy [JPanel] []
-                  (paintComponent [graphics]
-                    (proxy-super paintComponent graphics)
-                    (prn 'paint) ;; TODO: remove-me
-
-                    #_(@paint-function-atom graphics)))]
-
-    (.setCursor j-frame
-                (create-cursor (BufferedImage. 16 16 BufferedImage/TYPE_INT_ARGB)))
-    (doto j-panel
-      (.addMouseMotionListener (proxy [MouseMotionAdapter] []
-                                 (mouseMoved [event]
-                                   (prn 'mouseMoved))
-                                 (mouseDragged [event]
-                                   (prn 'mouseDragged))))
-      #_(.setOpaque true))
-
-    (doto j-frame
-      (.setContentPane j-panel)
-      #_(.pack)
-      (.setSize 200 200)
-      (.setVisible true)))
-  ) ;; TODO: remove-me
