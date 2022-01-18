@@ -1,8 +1,33 @@
 (ns flow-gl.graphics.font
   (:import (java.awt Font)
            (java.awt.font TextLayout)
-           (java.awt.image BufferedImage))
-  (:require [clojure.java.io :as io]))
+           (java.awt.image BufferedImage)
+           java.awt.GraphicsEnvironment)
+  (:require [clojure.java.io :as io]
+            [medley.core :as medley]))
+
+(comment
+  (.deriveFont (medley/find-first #(= "ArialMT" (.getName %))
+                                  (.getAllFonts (GraphicsEnvironment/getLocalGraphicsEnvironment)))
+               (float 20))
+  )
+
+(defn available-names []
+  (map #(.getName %)
+       (.getAllFonts (GraphicsEnvironment/getLocalGraphicsEnvironment))))
+
+(defn font-with-metrics [font]
+  (let [graphics (.getGraphics (BufferedImage. 1 1 BufferedImage/TYPE_INT_ARGB))]
+
+    (.setFont graphics font)
+
+    {:font font
+     :font-metrics (.getFontMetrics graphics)}))
+
+(defn create-by-name [name size]
+  (font-with-metrics (.deriveFont (medley/find-first #(= name (.getName %))
+                                                     (.getAllFonts (GraphicsEnvironment/getLocalGraphicsEnvironment)))
+                                  (float size))))
 
 (def loaded-fonts (atom {}))
 
@@ -13,14 +38,8 @@
              loaded-fonts
              (assoc loaded-fonts
                     [ttf-file-name size]
-                    (let [font (-> (Font/createFont Font/TRUETYPE_FONT (io/input-stream ttf-file-name))
-                                   (.deriveFont (float size)))
-                          graphics (.getGraphics (BufferedImage. 1 1 BufferedImage/TYPE_INT_ARGB))]
-
-                      (.setFont graphics font)
-
-                      {:font font
-                       :font-metrics (.getFontMetrics graphics)})))))
+                    (font-with-metrics (-> (Font/createFont Font/TRUETYPE_FONT (io/input-stream ttf-file-name))
+                                           (.deriveFont (float size))))))))
 
   (@loaded-fonts [ttf-file-name size]))
 
