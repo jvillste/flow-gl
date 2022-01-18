@@ -177,6 +177,20 @@
                                           2))])))
    :children [child]})
 
+(defn center-horizontally [child]
+  {:make-layout (fn [node]
+                  (update node :children
+                          (fn [[child]]
+                            [(assoc child
+                                    :x (/ (- (:width node)
+                                             (:width child))
+                                          2)
+                                    :y 0)])))
+   :children [child]
+   :get-size (fn [node]
+               {:width (:available-width node)
+                :height (:height (first (:children node)))})})
+
 ;; box
 
 (spec/def ::margin int?)
