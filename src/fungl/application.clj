@@ -151,7 +151,8 @@
 
 (defn start-window [root-view-or-var & {:keys [window
                                                target-frame-rate
-                                               do-profiling]
+                                               do-profiling
+                                               on-exit]
                                         :or {target-frame-rate 60
                                              do-profiling false}}]
   (let [event-channel-promise (promise)]
@@ -186,6 +187,8 @@
                        (recur)))
                    (logga/write "exiting render loop")
 
+                   (when on-exit
+                     (on-exit))
                    (catch Exception e
                      (logga/write "Exception in render loop:" (prn-str e))
                      (throw e))
