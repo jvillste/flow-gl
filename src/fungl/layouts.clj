@@ -243,6 +243,35 @@
      :children [outer inner]}))
 
 
+;; hover
+
+(defn hover
+  ([child]
+   (hover {:z 1} child))
+
+  ([options child]
+   {:children [child]
+    :get-size (fn [_node]
+                {:width 0
+                 :height 0})
+
+    :give-space (fn [node]
+                  (update node
+                          :children
+                          (fn [[child]]
+                            [(assoc child
+                                    :available-width java.lang.Integer/MAX_VALUE
+                                    :available-height java.lang.Integer/MAX_VALUE)])))
+
+    :make-layout (fn [node]
+                   (update node
+                           :children
+                           (fn [[child]]
+                             [(assoc child
+                                     :x 0
+                                     :y 0
+                                     :z (:z options))])))}))
+
 ;; transpose
 
 
