@@ -3,7 +3,8 @@
             [clojure.test :refer :all]
             [fungl.callable :as callable]
             [fungl.dependable-atom :as dependable-atom]
-            [clojure.set :as set]))
+            [clojure.set :as set]
+            [medley.core :as medley]))
 
 (def ^:dynamic state)
 
@@ -53,11 +54,26 @@
             :default
             (throw (Exception. (str "View function did not return a hash map: " view-function-or-constructor)))))))
 
+(defn apply-metadata [metadata compiled-node]
+  (if metadata
+    (let [metadata (dissoc metadata
+                           :id)]
+      (reduce (fn [node key]
+                (if-let [metadata-value (get metadata key)]
+                  (assoc node key (if (fn? metadata-value)
+                                    (metadata-value (get node key))
+                                    metadata-value))
+                  node))
+              compiled-node
+              (keys metadata)))
+    compiled-node))
+
 (defn- compile* [parent-id value]
   (cond (view-call? value)
         (let [id (conj parent-id (first value))]
-          (compile* id
-                    (apply-view-call id value)))
+          (apply-metadata (meta value)
+                          (compile* id
+                                    (apply-view-call id value))))
 
         (:children value)
         (update value :children
@@ -141,6 +157,33 @@
                             :id [view-1 :a view-2]}
                            {:type :view-2,
                             :id [view-1 :b view-2]}]}
+               (compile [view-1])))))
+
+    (testing "properties can be given as a metadata to the view call"
+      (let [view-2 (fn [] {:type :view-2})
+            view-1 (fn [] {:type :view-1
+                           :children [^{:z 1} [view-2]
+                                      ^{:z 2} [view-2]]})]
+        (is (= {:type :view-1,
+                :id [view-1]
+                :children [{:type :view-2,
+                            :id [view-1 0 view-2]
+                            :z 1}
+                           {:type :view-2,
+                            :id [view-1 1 view-2]
+                            :z 2}]}
+               (compile [view-1])))))
+
+    (testing "functions in metadata are applied to properties after viewcall is applied"
+      (let [view-2 (fn [] {:type :view-2
+                           :z 1})
+            view-1 (fn [] {:type :view-1
+                           :children [^{:z inc} [view-2]]})]
+        (is (= {:type :view-1,
+                :id [view-1]
+                :children [{:type :view-2,
+                            :id [view-1 0 view-2]
+                            :z 2}]}
                (compile [view-1])))))
 
     (testing "local ids can be given as a metadata to layout node"
