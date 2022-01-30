@@ -56,16 +56,14 @@
 
 (defn apply-metadata [metadata compiled-node]
   (if metadata
-    (let [metadata (dissoc metadata
-                           :id)]
-      (reduce (fn [node key]
-                (if-let [metadata-value (get metadata key)]
-                  (assoc node key (if (fn? metadata-value)
-                                    (metadata-value (get node key))
-                                    metadata-value))
-                  node))
-              compiled-node
-              (keys metadata)))
+    (reduce (fn [node key]
+              (if-let [metadata-value (get metadata key)]
+                (assoc node key (if (fn? metadata-value)
+                                  (metadata-value (get node key))
+                                  metadata-value))
+                node))
+            compiled-node
+            (keys metadata))
     compiled-node))
 
 (defn- compile* [id value]
@@ -79,8 +77,8 @@
                 (fn [children]
                   (doall (map-indexed (fn [index child]
                                         (compile* (conj id
-                                                        (or (:id (meta child))
-                                                            (:id child)
+                                                        (or (:local-id (meta child))
+                                                            (:local-id child)
                                                             index))
                                                   child))
                                       children))))
@@ -145,17 +143,57 @@
               :id []}
              (compile [view-1]))))
 
+    (testing "local ids can be given with :id key"
+      (let [view-2 (fn [] {:type :view-2})
+            view-1 (fn [] {:type :layout
+                           :children [{:local-id :a
+                                       :type :layout
+                                       :children [[view-2]]}
+                                      {:local-id :b
+                                       :type :layout
+                                       :children [[view-2]]} ]})]
+        (is (= {:type :layout,
+                :id []
+                :children [{:local-id :a
+                            :type :layout,
+                            :children [{:type :view-2,
+                                        :id [:a 0]}]}
+                           {:local-id :b
+                            :type :layout,
+                            :children [{:type :view-2,
+                                        :id [:b 0]}]}]}
+               (compile [view-1])))))
+
     (testing "local ids can be given as a metadata to the view call"
       (let [view-2 (fn [] {:type :view-2})
             view-1 (fn [] {:type :view-1
-                           :children [^{:id :a} [view-2]
-                                      ^{:id :b} [view-2]]})]
+                           :children [^{:local-id :a} [view-2]
+                                      ^{:local-id :b} [view-2]]})]
         (is (= {:type :view-1,
                 :id []
                 :children [{:type :view-2,
+                            :local-id :a
                             :id [:a]}
                            {:type :view-2,
+                            :local-id :b
                             :id [:b]}]}
+               (compile [view-1])))))
+
+    (testing "local ids can be given as a metadata to scene graph node"
+      (let [view-2 (fn [] {:type :view-2})
+            view-1 (fn [] {:type :layout
+                           :children [^{:local-id :a} {:type :layout
+                                                       :children [[view-2]]}
+                                      ^{:local-id :b} {:type :layout
+                                                       :children [[view-2]]}]})]
+        (is (= {:type :layout,
+                :id []
+                :children [{:type :layout,
+                            :children [{:type :view-2,
+                                        :id [:a 0]}]}
+                           {:type :layout,
+                            :children [{:type :view-2,
+                                        :id [:b 0]}]}]}
                (compile [view-1])))))
 
     (testing "properties can be given as a metadata to the view call"
@@ -185,44 +223,6 @@
                             :z 2}]}
                (compile [view-1])))))
 
-    (testing "local ids can be given as a metadata to layout node"
-      (let [view-2 (fn [] {:type :view-2})
-            view-1 (fn [] {:type :layout
-                           :children [^{:id :a} {:type :layout
-                                                 :children [[view-2]]}
-                                      ^{:id :b} {:type :layout
-                                                 :children [[view-2]]}]})]
-        (is (= {:type :layout,
-                :id []
-                :children [{:type :layout,
-                            :children [{:type :view-2,
-                                        :id [:a 0]}]}
-                           {:type :layout,
-                            :children [{:type :view-2,
-                                        :id [:b 0]}]}]}
-               (compile [view-1])))))
-
-    (testing "local ids can be given with :id key"
-      (let [view-2 (fn [] {:type :view-2})
-            view-1 (fn [] {:type :layout
-                           :children [{:id :a
-                                       :type :layout
-                                       :children [[view-2]]}
-                                      {:id :b
-                                       :type :layout
-                                       :children [[view-2]]} ]})]
-        (is (= {:type :layout,
-                :id []
-                :children [{:id :a
-                            :type :layout,
-                            :children [{:type :view-2,
-                                        :id [:a 0]}]}
-                           {:id :b
-                            :type :layout,
-                            :children [{:type :view-2,
-                                        :id [:b 0]}]}]}
-               (compile [view-1])))))
-
     (testing "local state"
       (let [handle-mouse-click (fn [count-atom]
                                  (swap! count-atom inc))
@@ -237,7 +237,7 @@
                           :on-mouse-click [handle-mouse-click count-atom]})))
             view-1 (fn [& child-ids]
                      {:children (for [child-id child-ids]
-                                  ^{:id child-id} [view-2])})]
+                                  ^{:local-id child-id} [view-2])})]
 
         (let [scene-graph (compile [view-1 :a :b])]
           (is (= 2 (count (keys @(:constructor-cache state)))))
@@ -287,4 +287,4 @@
 
           (compile [view-1])
 
-          (is (= 0 (count (keys @(:constructor-cache state)))))))))))
+          (is (= 0 (count (keys @(:constructor-cache state))))))))))
