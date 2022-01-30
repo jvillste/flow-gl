@@ -68,18 +68,17 @@
               (keys metadata)))
     compiled-node))
 
-(defn- compile* [parent-id value]
+(defn- compile* [id value]
   (cond (view-call? value)
-        (let [id (conj parent-id (first value))]
-          (apply-metadata (meta value)
-                          (compile* id
-                                    (apply-view-call id value))))
+        (apply-metadata (meta value)
+                        (compile* id
+                                  (apply-view-call id value)))
 
         (:children value)
         (update value :children
                 (fn [children]
                   (doall (map-indexed (fn [index child]
-                                        (compile* (conj parent-id
+                                        (compile* (conj id
                                                         (or (:id (meta child))
                                                             (:id child)
                                                             index))
@@ -117,34 +116,34 @@
     (let [view (fn []
                  {:type :view})]
       (is (= {:type :view
-              :id [view]}
+              :id []}
              (compile [view]))))
 
     (let [view-2 (fn [] {:type :view-2})
           view-1 (fn [] [view-2])]
       (is (= {:type :view-2
-              :id [view-1 view-2]}
+              :id []}
              (compile [view-1]))))
 
-    (testing "children get sequential ids"
+    ;; (testing "children get sequential ids"
 
-      (let [view-2 (fn [] {:type :view-2})
-            view-1 (fn [] {:type :view-1
-                           :children [{:children [[view-2]
-                                                  [view-2]]}
-                                      {:children [[view-2]
-                                                  [view-2]]}]})]
-        (is (= {:type :view-1,
-                :children [{:children [{:type :view-2,
-                                        :id [view-1 0 0 view-2]}
-                                       {:type :view-2,
-                                        :id [view-1 0 1 view-2]}]}
-                           {:children [{:type :view-2,
-                                        :id [view-1 1 0 view-2]}
-                                       {:type :view-2,
-                                        :id [view-1 1 1 view-2]}]}]
-                :id [view-1]}
-               (compile [view-1])))))
+    (let [view-2 (fn [] {:type :view-2})
+          view-1 (fn [] {:type :view-1
+                         :children [{:children [[view-2]
+                                                [view-2]]}
+                                    {:children [[view-2]
+                                                [view-2]]}]})]
+      (is (= {:type :view-1,
+              :children [{:children [{:type :view-2,
+                                      :id [0 0]}
+                                     {:type :view-2,
+                                      :id [0 1]}]}
+                         {:children [{:type :view-2,
+                                      :id [1 0]}
+                                     {:type :view-2,
+                                      :id [1 1]}]}]
+              :id []}
+             (compile [view-1]))))
 
     (testing "local ids can be given as a metadata to the view call"
       (let [view-2 (fn [] {:type :view-2})
@@ -152,11 +151,11 @@
                            :children [^{:id :a} [view-2]
                                       ^{:id :b} [view-2]]})]
         (is (= {:type :view-1,
-                :id [view-1]
+                :id []
                 :children [{:type :view-2,
-                            :id [view-1 :a view-2]}
+                            :id [:a]}
                            {:type :view-2,
-                            :id [view-1 :b view-2]}]}
+                            :id [:b]}]}
                (compile [view-1])))))
 
     (testing "properties can be given as a metadata to the view call"
@@ -165,12 +164,12 @@
                            :children [^{:z 1} [view-2]
                                       ^{:z 2} [view-2]]})]
         (is (= {:type :view-1,
-                :id [view-1]
+                :id []
                 :children [{:type :view-2,
-                            :id [view-1 0 view-2]
+                            :id [0]
                             :z 1}
                            {:type :view-2,
-                            :id [view-1 1 view-2]
+                            :id [1]
                             :z 2}]}
                (compile [view-1])))))
 
@@ -180,9 +179,9 @@
             view-1 (fn [] {:type :view-1
                            :children [^{:z inc} [view-2]]})]
         (is (= {:type :view-1,
-                :id [view-1]
+                :id []
                 :children [{:type :view-2,
-                            :id [view-1 0 view-2]
+                            :id [0]
                             :z 2}]}
                (compile [view-1])))))
 
@@ -194,13 +193,13 @@
                                       ^{:id :b} {:type :layout
                                                  :children [[view-2]]}]})]
         (is (= {:type :layout,
-                :id [view-1]
+                :id []
                 :children [{:type :layout,
                             :children [{:type :view-2,
-                                        :id [view-1 :a 0 view-2]}]}
+                                        :id [:a 0]}]}
                            {:type :layout,
                             :children [{:type :view-2,
-                                        :id [view-1 :b 0 view-2]}]}]}
+                                        :id [:b 0]}]}]}
                (compile [view-1])))))
 
     (testing "local ids can be given with :id key"
@@ -213,15 +212,15 @@
                                        :type :layout
                                        :children [[view-2]]} ]})]
         (is (= {:type :layout,
-                :id [view-1]
+                :id []
                 :children [{:id :a
                             :type :layout,
                             :children [{:type :view-2,
-                                        :id [view-1 :a 0 view-2]}]}
+                                        :id [:a 0]}]}
                            {:id :b
                             :type :layout,
                             :children [{:type :view-2,
-                                        :id [view-1 :b 0 view-2]}]}]}
+                                        :id [:b 0]}]}]}
                (compile [view-1])))))
 
     (testing "local state"
@@ -248,8 +247,8 @@
                       :children
                       (map :count))))
 
-          (is (= [[view-1 :a view-2]
-                  [view-1 :b view-2]]
+          (is (= [[:a]
+                  [:b]]
                  (->> scene-graph
                       :children
                       (map :id))))
@@ -288,4 +287,4 @@
 
           (compile [view-1])
 
-          (is (= 0 (count (keys @(:constructor-cache state))))))))))
+          (is (= 0 (count (keys @(:constructor-cache state)))))))))))
