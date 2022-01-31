@@ -15,12 +15,6 @@
   (when-let [handler (handler-key keyboard-state)]
     (apply call-handler handler arguments)))
 
-(defn- send-focus-move-events [old-event-handler new-event-handler]
-  (when old-event-handler
-    (call-handler old-event-handler {:type :focus-lost}))
-
-  (call-handler new-event-handler {:type :focus-gained}))
-
 (defn set-focused-event-handler [keyboard-state event-handler]
   (assert (map? keyboard-state))
 
@@ -76,7 +70,7 @@
               (dec (count value-vector))
               position)))
 
-(defn- keyboard-event-handler-nodes-from-scene-graph [scene-graph]
+(defn keyboard-event-handler-nodes-from-scene-graph [scene-graph]
   (-> scene-graph
       (scene-graph/flatten)
       (filter-keyboard-event-handler-nodes)))
@@ -106,15 +100,30 @@
 ;; state
 
 (defn move-focus-and-send-move-events! [state-atom move-focus & arguments]
-  (let [old-handler (atom nil)]
+  (let [old-handler-atom (atom nil)
+        old-node-id-atom (atom nil)]
     (swap! state-atom
            (fn [keyboard-state]
-             (reset! old-handler (:focused-handler keyboard-state))
+             (reset! old-handler-atom (:focused-handler keyboard-state))
+             (reset! old-node-id-atom (:focused-node-id keyboard-state))
              (apply move-focus
                     keyboard-state
                     arguments)))
-    (send-focus-move-events @old-handler
-                            (:focused-handler @state-atom))))
+    (let [state @state-atom]
+      (when @old-handler-atom
+        (call-handler @old-handler-atom
+                      (if @old-node-id-atom
+                        (scene-graph/find-first #(= @old-node-id-atom (:id %))
+                                                (:scene-graph state))
+                        (:scene-graph state))
+                      {:type :focus-lost}))
+
+      (call-handler (:focused-handler state)
+                    (if (:focused-node-id state)
+                      (scene-graph/find-first #(= (:focused-node-id state) (:id %))
+                                              (:scene-graph state))
+                      (:scene-graph state))
+                    {:type :focus-gained}))))
 
 (defn focused-node-id [state]
   (:focused-node-id state))
@@ -143,12 +152,17 @@
                                       set-focused-event-handler
                                       event-handler)))
 
-
-
-(defn call-focused-event-handler! [event]
-  (call-if-set @state-atom :focused-handler event))
-
-
+(defn call-focused-event-handler! [scene-graph event]
+  (let [state @state-atom]
+    (when-let [focused-handler (:focused-handler state)]
+      (if-let [focused-node-id (:focused-node-id state)]
+        (call-handler focused-handler
+                      (scene-graph/find-first #(= focused-node-id (:id %))
+                                              scene-graph)
+                      event)
+        (call-handler focused-handler
+                      scene-graph
+                      event)))))
 
 (defn set-focused-node! [node]
   (move-focus-and-send-move-events! state-atom
@@ -241,9 +255,7 @@
                    dec
                    inc)
                  cycle-position)
-    (call-focused-event-handler! keyboard-event)))
-
-
+    (call-focused-event-handler! scene-graph keyboard-event)))
 
 
 ;; events
