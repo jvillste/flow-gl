@@ -300,6 +300,7 @@
                                                  (async/put! event-channel (create-mouse-event event :mouse-dragged))))))
 
                 (doto canvas
+                  (.setFocusTraversalKeysEnabled false)
                   (.addKeyListener (proxy [KeyAdapter] []
                                      (keyPressed [event]
                                        (async/put! event-channel (create-keyboard-event event :key-pressed)))
