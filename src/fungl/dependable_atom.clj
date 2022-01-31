@@ -1,6 +1,7 @@
 (ns fungl.dependable-atom
   (:require [fungl.depend :as depend])
-  (:refer-clojure :exclude [atom]))
+  (:refer-clojure :exclude [atom])
+  (:import java.io.Writer))
 
 (defrecord Atom [atom]
   clojure.lang.IDeref
@@ -28,6 +29,9 @@
 
   (reset [this new-value]
     (reset! atom new-value)))
+
+(defmethod print-method Atom [dependable-atom, ^java.io.Writer writer]
+  (print-method @dependable-atom writer))
 
 (defn atom [value]
   (->Atom (clojure.core/atom value)))
