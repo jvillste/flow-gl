@@ -30,7 +30,8 @@
 
 
 (defn create-close-requested-event []
-  {:type :close-requested})
+  {:type :close-requested
+   :source :window})
 
 (defn create-resize-requested-event [width height]
   {:type :resize-requested
