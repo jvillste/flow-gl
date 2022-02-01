@@ -227,9 +227,10 @@
       :back-space
       [delete-backward]
 
-      (if-let [character (:character event)]
-        [insert-string character]
-        nil))
+      (when-let [character (:character event)]
+        (when (and (not (:control? event))
+                   (not (:alt? event)))
+          [insert-string character])))
     (case (:type event)
       :focus-gained [gain-focus]
       :focus-lost [loose-focus]
@@ -255,7 +256,7 @@
                                  rows
                                  command-and-paramters))))))
 
-(defn text-area-keyboard-event-handler [state-atom text on-change event]
+(defn text-area-keyboard-event-handler [state-atom text on-change _node event]
   (when-let [command-and-paramters (keyboard-event-to-command event)]
     (when on-change
       (swap! state-atom
@@ -328,7 +329,8 @@
                               (swap! state-atom assoc :rows rows)))
         (assoc :mouse-event-handler [text-area-mouse-event-handler state-atom (:rows @state-atom)])
         (cond-> on-change
-          (assoc :keyboard-event-handler [text-area-keyboard-event-handler state-atom text on-change])))))
+          (assoc :keyboard-event-handler [text-area-keyboard-event-handler state-atom text on-change]
+                 :can-gain-focus? true)))))
 
 (defn text-area [id style text on-change & options]
   (-> (text-area-for-state-atom (get-state-atom id)

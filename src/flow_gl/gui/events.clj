@@ -43,9 +43,9 @@
    :key key
    :character character
    :time time
-   :shift shift
-   :control control
-   :alt alt
+   :shift? shift
+   :control? control
+   :alt? alt
    :is-auto-repeat is-auto-repeat
    :source :keyboard
    :key-code key-code})

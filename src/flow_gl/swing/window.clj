@@ -242,6 +242,8 @@
 (defn create-keyboard-event [event type]
   (events/create-keyboard-event type
                                 (or (keyboard-keys (.getKeyCode event))
+                                    (when-let [character (.getKeyChar event)]
+                                      (keyword character))
                                     :unknown)
                                 (.getKeyChar event)
                                 (.getWhen event)

@@ -118,7 +118,7 @@
                                               {:x 5 :y 5 :expected-position 3}]}))))
 
 
-(defn conditionaly-flatten 
+(defn conditionaly-flatten
   ([node descent-predicate include-predicate]
    (conditionaly-flatten node 0 0 0 [] descent-predicate include-predicate))
 
@@ -179,7 +179,7 @@
            (< (+ (:x node-2)
                  (:width node-2))
               (:x node-1))
-           
+
            (< (+ (:y node-1)
                  (:height node-1))
               (:y node-2))
@@ -196,7 +196,7 @@
 
   (is (intersects? {:x 0 :y 0 :width 100 :height 100}
                    {:x -10 :y 10 :width 200 :height 100}))
-  
+
   (is (not (intersects? {:x 0 :y 0 :width 100 :height 100}
                         {:x -100 :y 10 :width 10 :height 10}))))
 
@@ -242,13 +242,71 @@
                                          {:id 4}]
                               :apply true
                               :id 6}
-                             
+
                              :apply
-                             
+
                              (let [count (atom 0)]
                                (fn [node]
                                  (swap! count inc)
                                  (assoc node :applied @count)))))))
+
+(defn find-first [predicate scene-graph]
+  (if (predicate scene-graph)
+    scene-graph
+    (loop [children (:children scene-graph)]
+      (when-let [child (first children)]
+        (or (find-first predicate child)
+            (recur (rest children)))))))
+
+(deftest test-find-first
+  (is (= {:id 1}
+         (find-first #(= 1 (:id %))
+                     {:children [{:children [{:id 1}
+                                             {:id 2}]
+                                  :id 5}
+                                 {:id 3}
+                                 {:id 4}]
+                      :id 6})))
+
+  (is (= {:children [{:children [{:id 1}
+                                 {:id 2}]
+                      :id 5}
+                     {:id 3}
+                     {:id 4}]
+          :id 6}
+         (find-first #(= 6 (:id %))
+                     {:children [{:children [{:id 1}
+                                             {:id 2}]
+                                  :id 5}
+                                 {:id 3}
+                                 {:id 4}]
+                      :id 6}))))
+
+(defn find-path-to-first
+  ([predicate scene-graph]
+   (find-path-to-first [] predicate scene-graph))
+
+  ([path predicate scene-graph]
+   (if (predicate scene-graph)
+     (conj path scene-graph)
+     (loop [children (:children scene-graph)]
+       (when-let [child (first children)]
+         (or (find-path-to-first (conj path scene-graph) predicate child)
+             (recur (rest children))))))))
+
+(deftest test-find-path-to-first
+  (is (= [{:children [{:children [{:id 1} {:id 2}], :id 5} {:id 3} {:id 4}],
+           :id 6}
+          {:children [{:id 1} {:id 2}], :id 5}
+          {:id 2}]
+         (find-path-to-first (comp #{2} :id)
+                             {:children [{:children [{:id 1}
+                                                     {:id 2}]
+                                          :id 5}
+                                         {:id 3}
+                                         {:id 4}]
+                              :id 6}))))
+
 
 (defn bounding-box [nodes]
   {:x1 (apply min (map :x nodes))
