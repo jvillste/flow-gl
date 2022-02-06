@@ -161,7 +161,7 @@
 (comment
   
   (with-bindings (application/create-event-handling-state)
-    (do ;;taoensso.timbre.profiling/profile :info :create-scene-graph
+    (do ;;taoensso.tufte/profile :info :create-scene-graph
       (let [state-atom (atom {})
             scene-graph (time (cache/call! editor-table :editor))]
         
@@ -216,7 +216,7 @@
                (atom-registry/get! id {:create (fn [] {[0 0] "foo"})})))
 
 (defn create-scene-graph [width height]
-  (do ;;taoensso.timbre.profiling/profile :info :create-scene-graph
+  (do ;;taoensso.tufte/profile :info :create-scene-graph
     #_(trace/log "create-scene-graph")
     #_(animation/swap-state! animation/set-wake-up 1000) ;; TODO: remove this
     (assoc (do #_time (application/do-layout ( #_cache/call! editor-table :editor)

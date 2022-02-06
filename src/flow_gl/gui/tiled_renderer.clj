@@ -5,7 +5,7 @@
             [flow-gl.gui.render-target-renderer :as render-target-renderer]
             [flow-gl.gui.visuals :as visuals]
             [fungl.renderer :as renderer]
-            [taoensso.timbre.profiling :as timbre-profiling]))
+            [taoensso.tufte :as timbre-profiling]))
 
 
 (require 'flow-gl.gui.stateful)

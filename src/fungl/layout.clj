@@ -61,7 +61,7 @@
                    nil)))))
 
 (cache/defn-memoized do-layout [node]
-  #_(taoensso.timbre.profiling/p :do-layout-called)
+  #_(taoensso.tufte/p :do-layout-called)
   #_(println "do-layout")
   (-> node
       (adapt-to-space)

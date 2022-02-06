@@ -3,7 +3,7 @@
             [flow-gl.utils :as utils]
             [flow-gl.debug :as debug]
             [flow-gl.csp :as csp]
-            [taoensso.timbre.profiling :as timbre-profiling]
+            [taoensso.tufte :as timbre-profiling]
             [flow-gl.profiling :as profiling]
             (flow-gl.gui [drawable :as drawable]
                          [layout :as layout]
@@ -32,7 +32,7 @@
                                               quads
                                               (:width size)
                                               (:height size))))]
-    (taoensso.timbre.profiling/p :swap (window/swap-buffers window))
+    (taoensso.tufte/p :swap (window/swap-buffers window))
     quad-batch))
 
 

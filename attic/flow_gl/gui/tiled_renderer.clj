@@ -5,7 +5,7 @@
             [flow-gl.gui.render-target-renderer :as render-target-renderer]
             [flow-gl.gui.visuals :as visuals]
             [fungl.renderer :as renderer]
-            [taoensso.timbre.profiling :as timbre-profiling]))
+            [taoensso.tufte :as timbre-profiling]))
 
 (defn initialize-state [gl]
   {:tiles {}})
@@ -109,7 +109,7 @@
     (assoc (select-keys scene-graph [:x :y :width :height])
            :children (map :result-scene-graph
                           (vals (select-keys tiles tile-coordinates)))))
-  #_(timbre-profiling/profile :info :render-tiled
+  #_(taoensso.tufte/profile :info :render-tiled
                               ))
 
 (def stateful {:initialize-state initialize-state})

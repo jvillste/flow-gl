@@ -18,8 +18,7 @@
             [clojure.string :as string]
             (flow-gl.graphics [font :as font]
                               [buffered-image :as buffered-image])
-            [flow-gl.debug :as debug]
-            [taoensso.timbre.profiling :as timbre-profiling])
+            [flow-gl.debug :as debug])
   (:import [java.io File]
            [java.util.concurrent Executors]
            [java.lang Runnable]
@@ -467,7 +466,7 @@
       (end-frame)))
 
 (defn render [gpu-state layout]
-  #_(timbre-profiling/profile :info :render
+  #_(taoensso.tufte/profile :info :render
                               (-> (assoc gpu-state :layout layout)
                                   (render-frame)
                                   (swap-buffers)))
@@ -1117,7 +1116,7 @@
                                           [{:type :wake-up}]
                                           events)]
 
-                             (recur #_(timbre-profiling/profile :info :handle-events
+                             (recur #_(taoensso.tufte/profile :info :handle-events
                                                                 (handle-events state events app))
                                     (handle-events state events app)))))
                        (catch Throwable e

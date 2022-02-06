@@ -1,5 +1,4 @@
-(ns flow-gl.profiling
-  (:require [taoensso.timbre.profiling :as profiling]))
+(ns flow-gl.profiling  (:require [taoensso.tufte :as profiling]))
 
 (defmacro p [& args]
   `(profiling/p ~@args))

@@ -169,7 +169,7 @@
     
     (-> quad-renderer
         (update-in [:draws-after-garbage-collection] (fnil inc 0))))
-  #_(taoensso.timbre.profiling/p :draw
+  #_(taoensso.tufte/p :draw
                                  ))
 
 

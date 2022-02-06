@@ -328,7 +328,6 @@
                                                  (prn 'mouseMoved)
                                                  (async/put! event-channel (create-mouse-event event :mouse-moved)))
                                                (mouseDragged [event]
-                                                 (prn 'mouseDragged) ;; TODO: remove-me
                                                  #_(async/put! event-channel (create-mouse-event event :mouse-dragged)))))
 
                   (.addMouseListener (proxy [MouseAdapter] []
@@ -341,11 +340,6 @@
 
                   (.addMouseWheelListener (proxy [MouseWheelListener] []
                                             (mouseWheelMoved [event]
-                                              (prn 'mouseWheelMoved
-                                                   (.getWheelRotation event)
-                                                   (.getScrollType event)
-                                                   (.getPreciseWheelRotation event)
-                                                   (.getScrollAmount event)) ;; TODO: remove-me
                                               #_(async/put! event-channel (let [[x-distance y-distance z-distance] (.getRotation event)]
                                                                             (assoc (create-mouse-event event :mouse-wheel-moved)
                                                                                    :x-distance x-distance
