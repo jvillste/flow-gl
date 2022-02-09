@@ -191,6 +191,21 @@
                {:width (:available-width node)
                 :height (:height (first (:children node)))})})
 
+
+(defn center-vertically [child]
+  {:make-layout (fn [node]
+                  (update node :children
+                          (fn [[child]]
+                            [(assoc child
+                                    :x 0
+                                    :y (/ (- (:height node)
+                                             (:height child))
+                                          2))])))
+   :children [child]
+   :get-size (fn [node]
+               {:width (:width (first (:children node)))
+                :height (:available-height node)})})
+
 ;; box
 
 (spec/def ::margin int?)

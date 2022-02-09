@@ -247,24 +247,24 @@
 
 #_(handler/def-handler-creator text-area-keyboard-event-handler [state-atom on-change rows] [event]
     (prn event)
-    (when-let [command-and-paramters (keyboard-event-to-command event)]
+    (when-let [command-and-parameters (keyboard-event-to-command event)]
       (swap! state-atom
              (fn [state]
                (on-change state
                           (apply handle-command
                                  state
                                  rows
-                                 command-and-paramters))))))
+                                 command-and-parameters))))))
 
 (defn text-area-keyboard-event-handler [state-atom text on-change _node event]
-  (when-let [command-and-paramters (keyboard-event-to-command event)]
+  (when-let [command-and-parameters (keyboard-event-to-command event)]
     (when on-change
       (swap! state-atom
              (fn [state]
                (on-change state
                           (apply handle-command
                                  state
-                                 command-and-paramters)))))))
+                                 command-and-parameters)))))))
 
 (defn text-area-mouse-event-handler [state-atom rows node event]
   (if (= (:type event)
@@ -361,15 +361,30 @@
 (defn text-area-3 [options]
   (let [state-atom (dependable-atom/atom (initialize-state))]
     (fn [options]
+
+      (when (not (= (:text options)
+                    (:text @state-atom)))
+        (swap! state-atom
+               (fn [state]
+                 (assoc state
+                        :text (:text options)
+                        :index (min (count (:text options))
+                                    (:index state))))))
+
       (text-area-for-state-atom state-atom
                                 (assoc (merge default-options
                                               options)
-                                       :on-change (if-let [on-text-change (:on-text-change options)]
-                                                    (fn [old-state new-state]
-                                                      (when (not= (:text new-state) (:text old-state))
-                                                        (on-text-change (:text new-state)))
-                                                      new-state)
-                                                    (:on-change default-options)))))))
+                                       :on-change (cond (:on-text-change options)
+                                                        (fn [old-state new-state]
+                                                          (when (not= (:text new-state) (:text old-state))
+                                                            ((:on-text-change options) (:text new-state)))
+                                                          new-state)
+
+                                                        (:on-change options)
+                                                        (:on-change options)
+
+                                                        :else
+                                                        (:on-change default-options)))))))
 
 (defn demo-view []
   (let [state-atom (dependable-atom/atom {:text-1 (apply str
