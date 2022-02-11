@@ -6,11 +6,8 @@
             [flow-gl.debug :as debug]
             [flow-gl.graphics.font :as font]
             [flow-gl.gui.animation :as animation]
-            [flow-gl.gui.quad-renderer :as quad-renderer]
-            [flow-gl.gui.render-target-renderer :as render-target-renderer]
             [flow-gl.gui.stateful :as stateful]
             [flow-gl.gui.visuals :as visuals]
-            [flow-gl.opengl.jogl.opengl :as opengl]
             [fungl.application :as application]
             [fungl.atom-registry :as atom-registry]
             [fungl.cache :as cache]
@@ -486,33 +483,20 @@
                                                         (call-view state reduce! child))))))))
 
 
-(defn render-to-texture-render [id scene-graph gl]
-  (stateful/with-state-atoms! [quad-renderer-atom [id :render-to-texture-quad-renderer]  (quad-renderer/stateful gl)
-                               render-target-renderer-atom [id :render-to-texture-render-target] (render-target-renderer/stateful gl)]
-    #_(println "previous " id @quad-renderer-atom #_@render-target-renderer-atom #_(:previous-scene-graph @render-target-renderer-atom))
-    (render-target-renderer/render render-target-renderer-atom gl scene-graph
-                                   (fn []
-                                     (opengl/clear gl 0 0 0 0)
-                                     (quad-renderer/render quad-renderer-atom gl (assoc scene-graph
-                                                                                        :x 0 :y 0))))))
-(defn render-to-texture [node id]
-  (assoc node
-         :render [render-to-texture-render id]))
 
 
 (defn trace-view [state reduce!]
   (let [last-call-started (:call-started (last (:root-calls (:trace state))))]
-    (-> (layouts/vertically (for [root-call (:root-calls (:trace state))]
-                              (do #_(prn root-call)
-                                  (layouts/box 2 (visuals/rectangle [0 50 0 (max 0
-                                                                                  (- 255
-                                                                                     (* 255
-                                                                                        (/ (- last-call-started
-                                                                                              (:call-started root-call))
-                                                                                           5000))))]
-                                                                    0 0)
-                                               (cache/call! call-view state reduce! root-call)))))
-        #_(render-to-texture :trace-view))))
+    (layouts/vertically (for [root-call (:root-calls (:trace state))]
+                          (do #_(prn root-call)
+                              (layouts/box 2 (visuals/rectangle [0 50 0 (max 0
+                                                                             (- 255
+                                                                                (* 255
+                                                                                   (/ (- last-call-started
+                                                                                         (:call-started root-call))
+                                                                                      5000))))]
+                                                                0 0)
+                                           (cache/call! call-view state reduce! root-call)))))))
 
 
 (defn do-layout [scene-graph width height]
