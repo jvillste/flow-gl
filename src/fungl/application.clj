@@ -112,6 +112,15 @@
                                                                          (cond (= :close-requested (:type event))
                                                                                nil
 
+                                                                               (= :redraw (:type event))
+                                                                               (do (cache/invalidate-all!)
+                                                                                   (recur (rest events)
+                                                                                          (run-create-scene-graph create-scene-graph
+                                                                                                                  window-width
+                                                                                                                  window-height)
+                                                                                          window-width
+                                                                                          window-height))
+
                                                                                (= :resize-requested (:type event))
                                                                                (recur (rest events)
                                                                                       (run-create-scene-graph create-scene-graph

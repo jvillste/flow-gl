@@ -78,6 +78,10 @@
     (.invalidate (:cache state)
                  key)))
 
+(defn invalidate-all! []
+  (when (in-use?)
+    (.invalidateAll (:cache state))))
+
 ;; TODO: Anonymous funciton can not be a cache key because it is a different function on every call
 ;; Can guava cache hold value for wich the key does not contain all the information that is needed to compute the value?
 (defn call-with-cache-and-key [state cache-key function & arguments]
