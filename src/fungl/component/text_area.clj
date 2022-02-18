@@ -264,7 +264,8 @@
                (on-change state
                           (apply handle-command
                                  state
-                                 command-and-parameters)))))))
+                                 command-and-parameters))))))
+  event)
 
 (defn text-area-mouse-event-handler [state-atom rows node event]
   (if (= (:type event)
