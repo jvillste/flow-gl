@@ -286,8 +286,8 @@
 (defn handle-keyboard-event! [_scene-graph event]
   (let [state @state-atom]
     (if-let [focused-node-id (:focused-node-id state)]
-      (propagate-event! (scene-graph/path-to-first (:scene-graph state)
-                                                   focused-node-id)
+      (propagate-event! (scene-graph/path-to-first #(= focused-node-id (:id %))
+                                                   (:scene-graph state))
                         event)
       (call-focused-event-handler! event))))
 
