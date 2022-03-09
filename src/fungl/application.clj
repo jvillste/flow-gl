@@ -92,12 +92,14 @@
     (handle-new-scene-graph! scene-graph)
     scene-graph))
 
-(defn start-event-thread [create-scene-graph event-channel renderable-scene-graph-channel initial-width initial-height target-frame-rate do-profile]
+(defn start-event-thread [create-scene-graph event-channel renderable-scene-graph-channel initial-width initial-height target-frame-rate do-profile handle-initial-scene-graph]
   (thread "event"
           (logga/write "starting event loop")
           (try
             (with-bindings (create-event-handling-state)
               (let [initial-scene-graph (create-scene-graph initial-width initial-height)]
+                (when handle-initial-scene-graph
+                  (handle-initial-scene-graph initial-scene-graph))
                 (handle-new-scene-graph! initial-scene-graph)
                 (loop [scene-graph initial-scene-graph
                        window-width initial-width
@@ -159,7 +161,8 @@
 (defn start-window [root-view-or-var & {:keys [window
                                                target-frame-rate
                                                do-profiling
-                                               on-exit]
+                                               on-exit
+                                               handle-initial-scene-graph]
                                         :or {target-frame-rate 60
                                              do-profiling false}}]
   (let [event-channel-promise (promise)]
@@ -180,7 +183,8 @@
                                   (window/width window)
                                   (window/height window)
                                   target-frame-rate
-                                  do-profiling)
+                                  do-profiling
+                                  handle-initial-scene-graph)
 
               (try (logga/write "starting render loop")
                    (loop []
