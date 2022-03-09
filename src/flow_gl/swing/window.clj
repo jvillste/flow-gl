@@ -345,7 +345,8 @@
                                                                                    :x-distance x-distance
                                                                                    :y-distance y-distance
                                                                                    :z-distance z-distance
-                                                                                   :rotation-scale (.getRotationScale event))))))))
+                                                                                   :rotation-scale (.getRotationScale event)))))))
+                  (.requestFocus))
 
                 (->SwingWindow j-frame
                                canvas
