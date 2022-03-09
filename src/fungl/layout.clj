@@ -91,7 +91,7 @@
         (do-layout-for-size width height))))
 
 
-(def layout-keys [:type :local-id :x :y :width :height :available-width :available-height])
+(def layout-keys [:type :local-id :id :x :y :width :height :available-width :available-height])
 
 (defn select-layout-keys [scene-graph]
   (let [result (select-keys scene-graph layout-keys)]
