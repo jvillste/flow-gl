@@ -229,7 +229,8 @@
 
       (when-let [character (:character event)]
         (when (and (not (:control? event))
-                   (not (:alt? event)))
+                   (not (:alt? event))
+                   (not (= 0 (:key-code event))))
           [insert-string character])))
     (case (:type event)
       :focus-gained [gain-focus]
@@ -279,10 +280,10 @@
                                      :index index))))))
   event)
 
-(defn create-adapt-to-space [text index style handle-rows node]
+(defn adapt-to-space [text index style handle-rows node]
   (let [style (conj (default-style)
                     style)
-        rows (if (= text "")
+        rows (if (empty? text)
                []
                (cache/call! text/rows-for-text
                             (:color style)
@@ -314,7 +315,7 @@
 (defn create-scene-graph [text index style handle-rows]
   (assert text)
 
-  {:adapt-to-space [create-adapt-to-space text index style handle-rows]})
+  {:adapt-to-space [adapt-to-space text index style handle-rows]})
 
 (defn get-state-atom [id]
   (atom-registry/get! id atom-specification))
