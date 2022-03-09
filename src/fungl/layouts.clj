@@ -51,7 +51,8 @@
 ;; vertically
 
 (def vertical-stack
-  {:get-size (fn [node]
+  {:type ::vertical-stack
+   :get-size (fn [node]
                {:width (apply max
                               (conj (map :width (:children node))
                                     0))
@@ -108,7 +109,8 @@
          :children (flatten-contents children)))
 
 (def horizontal-stack
-  {:get-size (fn [node]
+  {:type ::horizontal-stack
+   :get-size (fn [node]
                {:width (if (empty? (:children node))
                          0
                          (+ (* (dec (count (:children node)))
@@ -251,7 +253,8 @@
 
 (defn box [margin outer inner]
   (when (and outer inner)
-    {:get-size box-get-size
+    {:type ::box
+     :get-size box-get-size
      :give-space box-give-space
      :make-layout box-make-layout
      :margin margin
@@ -392,7 +395,8 @@
 
 (defn with-minimum-size [minimum-width minimum-height child]
   (when child
-    {:get-size get-limited-size
+    {:type ::with-minimum-size
+     :get-size get-limited-size
      :give-space give-limited-space
      :make-layout make-limited-layout
      :compare-function max
@@ -450,7 +454,8 @@
 
 (defn with-margins [top-margin right-margin bottom-margin left-margin child]
   (when child
-    {:get-size with-margins-get-size
+    {:type ::with-margins
+     :get-size with-margins-get-size
      :give-space with-margins-give-space
      :make-layout with-margins-make-layout
 
@@ -483,7 +488,8 @@
 (defn superimpose [& children]
   (let [children (flatten-contents children)]
     (assert (not (empty? children)))
-    {:children children
+    {:type ::superimpose
+     :children children
      :get-size superimpose-get-size}))
 
 ;; preferred-size
