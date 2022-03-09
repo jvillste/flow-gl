@@ -56,7 +56,7 @@
                                             :profile :gl3
                                             :init opengl/initialize
                                             :reshape opengl/resize)))
-  
+
   ([state awt-init]
    (assoc state :window (jogl-window/create 1200
                                             700
@@ -316,7 +316,7 @@
                               (render-target/delete render-target gl)
                               (render-target/create width height gl))
                             (render-target/create width height gl))
-                        (:render-target gpu-state)) 
+                        (:render-target gpu-state))
         gpu-state (render-target/render-to render-target gl
                                            (when (not= render-target (:render-target gpu-state))
                                              (opengl/clear gl 0 0 0 255))
@@ -428,10 +428,10 @@
                                                                                                                (if-let [child-id (:child-id child-layout)] ;; size dependents don't have child ids
                                                                                                                  (conj path child-id)
                                                                                                                  path))]
-                                 (recur  
+                                 (recur
                                   (if (empty? view-call-path)
                                     transformed-layout
-                                    (assoc-in layout view-call-path transformed-layout)) 
+                                    (assoc-in layout view-call-path transformed-layout))
                                   gpu-state
                                   (rest view-call-paths)))
                                [layout gpu-state]))]
@@ -575,7 +575,7 @@
            [[1]
             [1 2]
             [1 2 3]])))
-  
+
   (testing "an empty sequence should return an empty vector"
     (is (= (prefixes [])
            []))))
@@ -868,7 +868,7 @@
     (if (empty? state-paths-that-can-gain-focus)
       state
       (set-focus state (last state-paths-that-can-gain-focus))
-      
+
       #_(get-in state (concat (last state-paths-under-mouse)
                               [:can-gain-focus]))
       #_(set-focus state state-paths-under-mouse)
@@ -1153,7 +1153,7 @@
 (defn children-to-vectors
   ([layoutable]
    (children-to-vectors layoutable nil))
-  
+
   ([layoutable cache]
    (if-let [children (:children layoutable)]
      (loop [children children
@@ -1174,7 +1174,7 @@
 (defn start-app
   ([app]
    (start-app app nil))
-  
+
   ([app awt-init]
    (-> {}
        (add-window awt-init)
@@ -1334,7 +1334,7 @@
 
         _ (assert (function-reference? (:view view-state))
                   "The view must be a function or a var pointing to a function.")
-        
+
         layoutable (cache/call-with-cache-atom cache
                                                run-view
                                                cache
@@ -1360,7 +1360,7 @@
         child-children (if (empty? (:size-dependent-paths layoutable))
                          (assoc child-children :view-calls-resolved? true)
                          child-children)
-        
+
         view-state (assoc view-state :children child-children)
 
         children (assoc-in children [:child-states child-id] view-state)
@@ -1409,7 +1409,7 @@
                      (assoc-in view-call-path child-layoutable)
                      (assoc :sleep-time (choose-sleep-time (:sleep-time layoutable)
                                                            (:sleep-time child-layoutable)))))))
-      
+
       [children
        layoutable])))
 
@@ -1444,7 +1444,7 @@
 (defn start-control
   ([control]
    (start-control control nil))
-  
+
   ([control awt-init]
    (start-app (control-to-application control)
               awt-init)))

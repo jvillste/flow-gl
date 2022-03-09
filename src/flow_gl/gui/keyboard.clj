@@ -153,16 +153,16 @@
                                       set-focused-event-handler
                                       event-handler)))
 
-(defn call-focused-event-handler! [scene-graph event]
+(defn call-focused-event-handler! [event]
   (let [state @state-atom]
     (when-let [focused-handler (:focused-handler state)]
       (if-let [focused-node-id (:focused-node-id state)]
         (call-handler focused-handler
                       (scene-graph/find-first #(= focused-node-id (:id %))
-                                              scene-graph)
+                                              (:scene-graph state))
                       event)
         (call-handler focused-handler
-                      scene-graph
+                      (:scene-graph state)
                       event)))))
 
 (defn set-focused-node! [node]
@@ -283,13 +283,13 @@
               (recur returned-event
                      (rest path)))))))))
 
-(defn handle-keyboard-event! [scene-graph event]
-  (if-let [focused-node-id (:focused-node-id @state-atom)]
-    (propagate-event! (scene-graph/find-path-to-first (comp #{focused-node-id}
-                                                            :id)
-                                                      scene-graph)
-                      event)
-    (call-focused-event-handler! scene-graph event)))
+(defn handle-keyboard-event! [_scene-graph event]
+  (let [state @state-atom]
+    (if-let [focused-node-id (:focused-node-id state)]
+      (propagate-event! (scene-graph/path-to-first (:scene-graph state)
+                                                   focused-node-id)
+                        event)
+      (call-focused-event-handler! event))))
 
 
 ;; events

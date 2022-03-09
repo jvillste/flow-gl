@@ -282,24 +282,24 @@
                                  {:id 4}]
                       :id 6}))))
 
-(defn find-path-to-first
-  ([predicate scene-graph]
-   (find-path-to-first [] predicate scene-graph))
 
-  ([path predicate scene-graph]
-   (if (predicate scene-graph)
-     (conj path scene-graph)
-     (loop [children (:children scene-graph)]
-       (when-let [child (first children)]
-         (or (find-path-to-first (conj path scene-graph) predicate child)
-             (recur (rest children))))))))
+(defn- path-to-first* [path predicate scene-graph]
+  (if (predicate scene-graph)
+    (conj path scene-graph)
+    (loop [children (:children scene-graph)]
+      (when-let [child (first children)]
+        (or (path-to-first* (conj path scene-graph) predicate child)
+            (recur (rest children)))))))
 
-(deftest test-find-path-to-first
+(defn path-to-first [predicate scene-graph]
+  (path-to-first* [] predicate scene-graph))
+
+(deftest test-path-to-first
   (is (= [{:children [{:children [{:id 1} {:id 2}], :id 5} {:id 3} {:id 4}],
            :id 6}
           {:children [{:id 1} {:id 2}], :id 5}
           {:id 2}]
-         (find-path-to-first (comp #{2} :id)
+         (path-to-first (comp #{2} :id)
                              {:children [{:children [{:id 1}
                                                      {:id 2}]
                                           :id 5}
@@ -307,6 +307,10 @@
                                          {:id 4}]
                               :id 6}))))
 
+(defn path-to [scene-graph node-id]
+  (path-to-first (comp #{node-id}
+                       :id)
+                 scene-graph))
 
 (defn bounding-box [nodes]
   {:x1 (apply min (map :x nodes))
