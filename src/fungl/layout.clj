@@ -1,14 +1,16 @@
 (ns fungl.layout
   (:require [clojure.spec.alpha :as spec]
-            [fungl.cache :as cache]))
+            [fungl.cache :as cache]
+
+            [fungl.callable :as callable]))
 
 (spec/def ::available-width int?)
 (spec/def ::available-height int?)
 (spec/def ::node-with-space (spec/keys :req-un [::available-width ::available-height]))
 
 (cache/defn-memoized adapt-to-space [node]
-  (if-let [adapt-function (:adapt-to-space node)]
-    (adapt-function node)
+  (if-let [callable (:adapt-to-space node)]
+    (callable/call callable node)
     node))
 
 (cache/defn-memoized ensure-available-space [node]
@@ -87,3 +89,13 @@
   (fn [width height]
     (-> (create-scene-graph)
         (do-layout-for-size width height))))
+
+
+(def layout-keys [:type :local-id :x :y :width :height :available-width :available-height])
+
+(defn select-layout-keys [scene-graph]
+  (let [result (select-keys scene-graph layout-keys)]
+    (if-let [children (:children scene-graph)]
+      (assoc result
+             :children (map select-layout-keys children))
+      result)))

@@ -279,7 +279,7 @@
                                      :index index))))))
   event)
 
-(handler/def-handler-creator create-adapt-to-space [text index style handle-rows] [node]
+(defn create-adapt-to-space [text index style handle-rows node]
   (let [style (conj (default-style)
                     style)
         rows (if (= text "")
@@ -314,7 +314,7 @@
 (defn create-scene-graph [text index style handle-rows]
   (assert text)
 
-  {:adapt-to-space (create-adapt-to-space text index style handle-rows)})
+  {:adapt-to-space [create-adapt-to-space text index style handle-rows]})
 
 (defn get-state-atom [id]
   (atom-registry/get! id atom-specification))
