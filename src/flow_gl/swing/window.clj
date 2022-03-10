@@ -250,6 +250,7 @@
                                 (.isShiftDown event)
                                 (.isControlDown event)
                                 (.isAltDown event)
+                                (.isMetaDown event)
                                 nil #_(.isAutoRepeat event)
                                 (.getKeyCode event)))
 
