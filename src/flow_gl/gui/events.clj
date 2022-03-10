@@ -38,7 +38,7 @@
    :width width
    :height height})
 
-(defn create-keyboard-event [type key character time shift control alt is-auto-repeat key-code]
+(defn create-keyboard-event [type key character time shift control alt meta is-auto-repeat key-code]
   {:type type
    :key key
    :character character
@@ -46,6 +46,7 @@
    :shift? shift
    :control? control
    :alt? alt
+   :meta? meta
    :is-auto-repeat is-auto-repeat
    :source :keyboard
    :key-code key-code})
