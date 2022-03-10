@@ -48,7 +48,7 @@
 (defn- filter-keyboard-event-handler-nodes [nodes]
   (filter :keyboard-event-handler nodes))
 
-(defn- order-nodes-down-right [nodes]
+(defn order-nodes-down-right [nodes]
   (sort-by (fn [node] [(:y node) (:x node)])
            nodes))
 
@@ -57,7 +57,7 @@
                        nodes)
       (first)))
 
-(defn- cycle-position [min max position]
+(defn cycle-position [min max position]
   (if (> position max)
     min
     (if (< position min)
