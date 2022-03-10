@@ -93,9 +93,13 @@
 
 (def layout-keys [:type :local-id :id :x :y :width :height :available-width :available-height])
 
-(defn select-layout-keys [scene-graph]
-  (let [result (select-keys scene-graph layout-keys)]
+(defn map-nodes [function scene-graph]
+  (let [result (function scene-graph)]
     (if-let [children (:children scene-graph)]
       (assoc result
-             :children (map select-layout-keys children))
+             :children (map (partial map-nodes function) children))
       result)))
+
+(defn select-layout-keys [scene-graph]
+  (map-nodes #(select-keys % layout-keys)
+             scene-graph))
