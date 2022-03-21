@@ -16,6 +16,8 @@
             [logga.core :as logga]
             [taoensso.tufte :as tufte]))
 
+(tufte/add-basic-println-handler! {})
+
 (defn create-event-handling-state []
   (conj (stateful/state-bindings :delete-after-calls 50)
         (mouse/state-bindings)
@@ -87,69 +89,71 @@
                     ~name)))
 
 (defn run-create-scene-graph [create-scene-graph window-width window-height]
-  (let [scene-graph (create-scene-graph window-width
-                                        window-height)]
+  (let [scene-graph (taoensso.tufte/p :create-scene-graph
+                                      (create-scene-graph window-width
+                                                          window-height))]
     (handle-new-scene-graph! scene-graph)
     scene-graph))
 
-(defn start-event-thread [create-scene-graph event-channel renderable-scene-graph-channel initial-width initial-height target-frame-rate do-profile handle-initial-scene-graph]
+(defn start-event-thread [create-scene-graph event-channel renderable-scene-graph-channel initial-width initial-height target-frame-rate do-profile handle-initial-scene-graph!]
   (thread "event"
           (logga/write "starting event loop")
           (try
-            (with-bindings (create-event-handling-state)
-              (let [initial-scene-graph (create-scene-graph initial-width initial-height)]
-                (when handle-initial-scene-graph
-                  (handle-initial-scene-graph initial-scene-graph))
-                (handle-new-scene-graph! initial-scene-graph)
-                (loop [scene-graph initial-scene-graph
-                       window-width initial-width
-                       window-height initial-height]
-                  (let [[scene-graph window-width window-height] (loop [events (read-events event-channel target-frame-rate)
-                                                                        scene-graph scene-graph
-                                                                        window-width window-width
-                                                                        window-height window-height]
-                                                                   (if-let [event (first events)]
-                                                                     (do #_(logga/write "handling" event)
-                                                                         (handle-event! scene-graph event)
-                                                                         (cond (= :close-requested (:type event))
-                                                                               nil
+            (with-profiling do-profile :event-thread
+              (with-bindings (create-event-handling-state)
+                (let [initial-scene-graph (create-scene-graph initial-width initial-height)]
+                  (when handle-initial-scene-graph!
+                    (handle-initial-scene-graph! initial-scene-graph))
+                  (handle-new-scene-graph! initial-scene-graph)
+                  (loop [scene-graph initial-scene-graph
+                         window-width initial-width
+                         window-height initial-height]
+                    (let [[scene-graph window-width window-height] (loop [events (read-events event-channel target-frame-rate)
+                                                                          scene-graph scene-graph
+                                                                          window-width window-width
+                                                                          window-height window-height]
+                                                                     (if-let [event (first events)]
+                                                                       (do #_(logga/write "handling" event)
+                                                                           (handle-event! scene-graph event)
+                                                                           (cond (= :close-requested (:type event))
+                                                                                 nil
 
-                                                                               (= :redraw (:type event))
-                                                                               (do (cache/invalidate-all!)
-                                                                                   (recur (rest events)
-                                                                                          (run-create-scene-graph create-scene-graph
-                                                                                                                  window-width
-                                                                                                                  window-height)
-                                                                                          window-width
-                                                                                          window-height))
+                                                                                 (= :redraw (:type event))
+                                                                                 (do (cache/invalidate-all!)
+                                                                                     (recur (rest events)
+                                                                                            (run-create-scene-graph create-scene-graph
+                                                                                                                    window-width
+                                                                                                                    window-height)
+                                                                                            window-width
+                                                                                            window-height))
 
-                                                                               (= :resize-requested (:type event))
-                                                                               (recur (rest events)
-                                                                                      (run-create-scene-graph create-scene-graph
-                                                                                                              (:width event)
-                                                                                                              (:height event))
-                                                                                      (:width event)
-                                                                                      (:height event))
+                                                                                 (= :resize-requested (:type event))
+                                                                                 (recur (rest events)
+                                                                                        (run-create-scene-graph create-scene-graph
+                                                                                                                (:width event)
+                                                                                                                (:height event))
+                                                                                        (:width event)
+                                                                                        (:height event))
 
-                                                                               :default
-                                                                               (recur (rest events)
-                                                                                      (run-create-scene-graph create-scene-graph
-                                                                                                              window-width
-                                                                                                              window-height)
-                                                                                      window-width
-                                                                                      window-height)))
-                                                                     [scene-graph
-                                                                      window-width
-                                                                      window-height]))]
+                                                                                 :default
+                                                                                 (recur (rest events)
+                                                                                        (run-create-scene-graph create-scene-graph
+                                                                                                                window-width
+                                                                                                                window-height)
+                                                                                        window-width
+                                                                                        window-height)))
+                                                                       [scene-graph
+                                                                        window-width
+                                                                        window-height]))]
 
-                    (when scene-graph
+                      (when scene-graph
 
-                      (async/>!! renderable-scene-graph-channel
-                                 scene-graph)
-                      (value-registry/delete-unused-values! 10000)
-                      (recur scene-graph
-                             window-width
-                             window-height))))))
+                        (async/>!! renderable-scene-graph-channel
+                                   scene-graph)
+                        (value-registry/delete-unused-values! 10000)
+                        (recur scene-graph
+                               window-width
+                               window-height)))))))
 
             (logga/write "exiting event handling loop")
 
@@ -162,7 +166,7 @@
                                                target-frame-rate
                                                do-profiling
                                                on-exit
-                                               handle-initial-scene-graph]
+                                               handle-initial-scene-graph!]
                                         :or {target-frame-rate 60
                                              do-profiling false}}]
   (let [event-channel-promise (promise)]
@@ -184,18 +188,19 @@
                                   (window/height window)
                                   target-frame-rate
                                   do-profiling
-                                  handle-initial-scene-graph)
+                                  handle-initial-scene-graph!)
 
               (try (logga/write "starting render loop")
-                   (loop []
-                     (when-let [scene-graph (async/<!! renderable-scene-graph-channel)]
-                       (window/with-gl window gl
-                         (with-profiling do-profiling :render
+                   (with-profiling do-profiling :render
+                     (loop []
+                       (when-let [scene-graph (async/<!! renderable-scene-graph-channel)]
+                         (window/with-gl window gl
                            (with-bindings render-state
-                             (render gl scene-graph)
-                             (value-registry/delete-unused-values! 500))))
-                       (window/swap-buffers window)
-                       (recur)))
+                             (tufte/p :render
+                                      (render gl scene-graph))
+                             (value-registry/delete-unused-values! 500)))
+                         (window/swap-buffers window)
+                         (recur))))
                    (logga/write "exiting render loop")
 
                    (when on-exit
