@@ -13,7 +13,8 @@
             [fungl.layouts :as layouts]
             [fungl.value-registry :as value-registry]
             [fungl.layout :as layout]
-            [fungl.dependable-atom :as dependable-atom])
+            [fungl.dependable-atom :as dependable-atom]
+            [clojure.string :as string])
   (:import (java.awt.font TextHitInfo)))
 
 (defn default-font []
@@ -230,7 +231,9 @@
       (when-let [character (:character event)]
         (when (and (not (:control? event))
                    (not (:alt? event))
-                   (not (= 0 (:key-code event))))
+                   (not (empty? (string/replace (str character)
+                                                #"\p{C}" ;; from https://stackoverflow.com/a/62915361
+                                                ""))))
           [insert-string character])))
     (case (:type event)
       :focus-gained [gain-focus]
