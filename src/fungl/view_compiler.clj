@@ -13,7 +13,8 @@
 
 (defn- view-call? [value]
   (and (vector? value)
-       (fn? (first value))))
+       (or (fn? (first value))
+           (var? (first value)))))
 
 (defn- scene-graph? [value]
   (map? value))
@@ -69,7 +70,9 @@
 (defn- compile* [id value]
   (cond (view-call? value)
         (apply-metadata (meta value)
-                        (compile* id
+                        (compile* (conj id
+                                        (or (:local-id (meta value))
+                                            :call))
                                   (apply-view-call id value)))
 
         (:children value)
