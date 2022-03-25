@@ -67,19 +67,24 @@
             (keys metadata))
     compiled-node))
 
-(defn- compile* [id value]
+(defn- compile* [parent-is-view? id value]
   (cond (view-call? value)
         (apply-metadata (meta value)
-                        (compile* (conj id
-                                        (or (:local-id (meta value))
-                                            :call))
-                                  (apply-view-call id value)))
+                        (let [id (if parent-is-view?
+                                   (conj id
+                                         (or (:local-id (meta value))
+                                             :call))
+                                   id)]
+                          (compile* true
+                                    id
+                                    (apply-view-call id value))))
 
         (:children value)
         (update value :children
                 (fn [children]
                   (doall (map-indexed (fn [index child]
-                                        (compile* (conj id
+                                        (compile* false
+                                                  (conj id
                                                         (or (:local-id (meta child))
                                                             (:local-id child)
                                                             index))
@@ -94,7 +99,9 @@
           "Bindings returned by (state-bindings) should be bound.")
 
   (binding [used-constructor-ids (atom #{})]
-    (let [scene-graph  (compile* [] view-call-or-scene-graph)]
+    (let [scene-graph  (compile* false
+                                 []
+                                 view-call-or-scene-graph)]
 
       (doseq [id (set/difference (set (keys @(:constructor-cache state)))
                                  @used-constructor-ids)]
@@ -120,10 +127,31 @@
               :id []}
              (compile [view]))))
 
+    (testing "if a view only calls another view, they must have different ids to differentiate their state. This is why there is a :call -keyword inserted into the id"
+      (let [view-2 (fn [] {:type :view-2})
+            view-1 (fn [] [view-2])]
+        (is (= {:type :view-2
+                :id [:call]}
+               (compile [view-1])))))
+
+
     (let [view-2 (fn [] {:type :view-2})
-          view-1 (fn [] [view-2])]
-      (is (= {:type :view-2
-              :id []}
+          view-1 (fn [] {:type :view-1
+                         :children [[view-2]]})]
+      (is (= '{:type :view-1
+               :id []
+               :children ({:type :view-2
+                           :id [0]})}
+             (compile [view-1]))))
+
+    (let [view-3 (fn [] {:type :view-3})
+          view-2 (fn [] [view-3])
+          view-1 (fn [] {:type :view-1
+                         :children [[view-2]]})]
+      (is (= '{:type :view-1
+               :id []
+               :children ({:type :view-3
+                           :id [0 :call]})}
              (compile [view-1]))))
 
     ;; (testing "children get sequential ids"
