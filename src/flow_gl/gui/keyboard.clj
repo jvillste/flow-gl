@@ -3,7 +3,9 @@
             [flow-gl.gui.scene-graph :as scene-graph]
             [flow-gl.utils :as utils]
             [fungl.cache :as cache]
-            [fungl.callable :as callable]))
+            [fungl.callable :as callable]
+            [medley.core :as medley]
+            [fungl.layout :as layout]))
 
 (defn- initialize-state []
   {})
@@ -16,7 +18,8 @@
     (apply call-handler handler arguments)))
 
 (defn set-focused-event-handler [keyboard-state event-handler]
-  (assert (map? keyboard-state))
+  (assert (or (nil? event-handler)
+              (map? keyboard-state)))
 
   (assoc keyboard-state
          :focused-handler event-handler))
@@ -30,17 +33,18 @@
 
 (defn set-focused-node
   ([keyboard-state node]
-   (assert (:id node) "Focused scene graph node must have :id")
-   (set-focused-node keyboard-state
-                     (:id node)
-                     (:keyboard-event-handler node)))
 
-  ([keyboard-state node-id event-handler]
+   (assert (or (nil? node)
+               (:id node))
+           "Focused node must have :id")
+
+   (assert (or (nil? node)
+               (:keyboard-event-handler node))
+           "Focused node must have :keyboard-event-handler")
+
    (-> keyboard-state
-       (assoc :focused-node-id node-id)
-       (set-focused-event-handler event-handler))))
-
-
+       (assoc :focused-node-id (:id node))
+       (set-focused-event-handler (:keyboard-event-handler node)))))
 
 
 ;; focus cycling
@@ -111,20 +115,22 @@
                     keyboard-state
                     arguments)))
     (let [state @state-atom]
-      (when @old-handler-atom
-        (call-handler @old-handler-atom
-                      (if @old-node-id-atom
-                        (scene-graph/find-first #(= @old-node-id-atom (:id %))
+      (when (not (= (:focused-handler state)
+                    @old-handler-atom))
+        (when @old-handler-atom
+          (call-handler @old-handler-atom
+                        (if @old-node-id-atom
+                          (scene-graph/find-first #(= @old-node-id-atom (:id %))
+                                                  (:scene-graph state))
+                          (:scene-graph state))
+                        {:type :focus-lost}))
+
+        (call-handler (:focused-handler state)
+                      (if (:focused-node-id state)
+                        (scene-graph/find-first #(= (:focused-node-id state) (:id %))
                                                 (:scene-graph state))
                         (:scene-graph state))
-                      {:type :focus-lost}))
-
-      (call-handler (:focused-handler state)
-                    (if (:focused-node-id state)
-                      (scene-graph/find-first #(= (:focused-node-id state) (:id %))
-                                              (:scene-graph state))
-                      (:scene-graph state))
-                    {:type :focus-gained}))))
+                      {:type :focus-gained})))))
 
 (defn focused-node-id [state]
   (:focused-node-id state))
@@ -223,9 +229,14 @@
                                                              :keyboard-event-handler :handler-5}]}]})))))
 
 (defn handle-new-scene-graph! [scene-graph]
-  (when-let [focused-handler (get (keyboard-event-handlers scene-graph)
-                                  (:focused-node-id @state-atom))]
-    (set-focused-event-handler! focused-handler))
+
+  (set-focused-node! (or (scene-graph/find-first (fn [node]
+                                                   (= (:focused-node-id @state-atom)
+                                                      (:id node)))
+                                                 scene-graph)
+                         (scene-graph/find-first :can-gain-focus?
+                                                 scene-graph)))
+
   (swap! state-atom assoc :scene-graph scene-graph))
 
 (defn set-focus-on-mouse-clicked! [node event]
@@ -233,7 +244,6 @@
                 (:type event))
              (not= (:id node)
                    (:focused-node-id @state-atom)))
-    #_(swap! state-atom set-focused-node (:id node) (:keyboard-event-handler node))
     (set-focused-node! node))
   event)
 
