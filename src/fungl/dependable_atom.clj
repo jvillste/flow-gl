@@ -31,7 +31,12 @@
     (reset! atom new-value)))
 
 (defmethod print-method Atom [dependable-atom, ^java.io.Writer writer]
-  (print-method @dependable-atom writer))
+  (.write writer "#dependable-atom[")
+  (print-method @dependable-atom writer)
+  (.write writer (str " "
+                      (format "0x%x"
+                              (System/identityHashCode dependable-atom))
+                      "]")))
 
 (defn atom [value]
   (->Atom (clojure.core/atom value)))
