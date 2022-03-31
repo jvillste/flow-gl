@@ -1,7 +1,8 @@
 (ns flow-gl.gui.scene-graph
   (:require [clojure.spec.alpha :as spec]
             [clojure.test :as test :refer [deftest is]]
-            [fungl.cache :as cache]))
+            [fungl.cache :as cache]
+            [medley.core :as medley]))
 
 #_(defprotocol Node
     (children [this]))
@@ -268,6 +269,15 @@
                                  {:id 4}]
                       :id 6})))
 
+  (is (= nil
+         (find-first (constantly false)
+                     {:children [{:children [{:id 1}
+                                             {:id 2}]
+                                  :id 5}
+                                 {:id 3}
+                                 {:id 4}]
+                      :id 6})))
+
   (is (= {:children [{:children [{:id 1}
                                  {:id 2}]
                       :id 5}
@@ -300,17 +310,104 @@
           {:children [{:id 1} {:id 2}], :id 5}
           {:id 2}]
          (path-to-first (comp #{2} :id)
-                             {:children [{:children [{:id 1}
-                                                     {:id 2}]
-                                          :id 5}
-                                         {:id 3}
-                                         {:id 4}]
-                              :id 6}))))
+                        {:children [{:children [{:id 1}
+                                                {:id 2}]
+                                     :id 5}
+                                    {:id 3}
+                                    {:id 4}]
+                         :id 6}))))
 
 (defn path-to [scene-graph node-id]
   (path-to-first (comp #{node-id}
                        :id)
                  scene-graph))
+
+(defn id-to-path [id]
+  (vec (remove #{:call} id)))
+
+(deftest test-id-to-path
+  (is (= [0 1]
+         (id-to-path [0 :call 1])))
+
+  (is (= []
+         (id-to-path nil))))
+
+
+(defonce root-atom (atom nil))
+(comment
+  ([1 2] 1)
+  (map :local-id
+       (-> @root-atom
+           :children
+           (nth 1)
+           :children
+           (nth 0)
+           (flatten)))
+  ) ;; TODO: remove-me
+
+
+(defn nodes-on-path [root-node path]
+  (reset! root-atom root-node)
+  (println 'nodes-on-path)
+  (prn (map :foo (flatten root-node))) ;; TODO: remove-me
+
+  (loop [nodes [root-node]
+         local-ids path]
+    (if-let [local-id (first local-ids)]
+      (do (prn 'local-id local-id) ;; TODO: remove-me
+          (let [parent (last nodes)]
+            (prn '(:foo parent) (:foo parent)) ;; TODO: remove-me
+            (prn 'command-set (-> parent :command-set :name)) ;; TODO: remove-me
+
+
+            (prn 'child-types (map :type (:children parent))) ;; TODO: remove-me
+
+            (if-let [child (if (number? local-id)
+                             (nth (:children parent)
+                                  local-id)
+                             (medley/find-first #(= local-id (:local-id %))
+                                                (:children parent)))]
+              (recur (conj nodes child)
+                     (rest local-ids))
+              nodes)))
+      nodes)))
+
+(deftest test-nodes-on-path
+  (is (= [{:id []}]
+         (nodes-on-path {:id []}
+                        [])))
+
+  (is (= [{:id []}]
+         (nodes-on-path {:id []}
+                        [0])))
+
+  (is (= [{:id []
+           :children [{:type :child}]}
+          {:type :child}]
+         (nodes-on-path {:id []
+                         :children [{:type :child}]}
+                        [0])))
+
+  (is (= [{:id []
+           :children [{:type :child}]}]
+         (nodes-on-path {:id []
+                         :children [{:type :child}]}
+                        [10])))
+
+  (is (= [{:id [],
+           :children
+           [{:local-id :a
+             :children [{:id [:a 0]}]}
+            {:local-id :b
+             :children [{:id [:b 0]}]}]}
+          {:local-id :b, :children [{:id [:b 0]}]}
+          {:id [:b 0]}]
+         (nodes-on-path {:id []
+                         :children [{:local-id :a
+                                     :children [{:id [:a 0]}]}
+                                    {:local-id :b
+                                     :children [{:id [:b 0]}]}]}
+                        [:b 0]))))
 
 (defn bounding-box [nodes]
   {:x1 (apply min (map :x nodes))
@@ -370,3 +467,10 @@
               (sort-by (fn [node]
                          [(:y reference-node)
                           (horizontal-distance reference-node node)])))))
+
+(defn map-nodes [function scene-graph]
+  (let [result (function scene-graph)]
+    (if-let [children (:children scene-graph)]
+      (assoc result
+             :children (map (partial map-nodes function) children))
+      result)))

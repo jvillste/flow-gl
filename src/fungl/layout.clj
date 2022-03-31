@@ -2,7 +2,9 @@
   (:require [clojure.spec.alpha :as spec]
             [fungl.cache :as cache]
 
-            [fungl.callable :as callable]))
+            [fungl.callable :as callable]
+            [flow-gl.gui.scene-graph :as scene-graph]
+            [fungl.view-compiler :as view-compiler]))
 
 (spec/def ::available-width int?)
 (spec/def ::available-height int?)
@@ -10,7 +12,8 @@
 
 (cache/defn-memoized adapt-to-space [node]
   (if-let [callable (:adapt-to-space node)]
-    (callable/call callable node)
+    (->> (callable/call callable node)
+         (view-compiler/compile false (:id node)))
     node))
 
 (cache/defn-memoized ensure-available-space [node]
@@ -93,13 +96,6 @@
 
 (def layout-keys [:type :local-id :id :x :y :width :height :available-width :available-height])
 
-(defn map-nodes [function scene-graph]
-  (let [result (function scene-graph)]
-    (if-let [children (:children scene-graph)]
-      (assoc result
-             :children (map (partial map-nodes function) children))
-      result)))
-
 (defn select-layout-keys [scene-graph]
-  (map-nodes #(select-keys % layout-keys)
-             scene-graph))
+  (scene-graph/map-nodes #(select-keys % layout-keys)
+                         scene-graph))

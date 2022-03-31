@@ -19,7 +19,25 @@
 (defn- scene-graph? [value]
   (map? value))
 
+(defn with-constructor-cache-cleanup* [function]
+  (binding [used-constructor-ids (atom #{})]
+    (let [result (function)]
+
+      (doseq [id (set/difference (set (keys @(:constructor-cache state)))
+                                 @used-constructor-ids)]
+        (swap! (:constructor-cache state)
+               dissoc
+               id))
+
+      result)))
+
+(defmacro with-constructor-cache-cleanup [& body]
+  `(with-constructor-cache-cleanup* (fn [] ~@body)))
+
 (defn apply-view-call [the-id view-call]
+  (assert (bound? #'used-constructor-ids)
+          "apply-view-call must be called inside with-constructor-cache-cleanup")
+
   (binding [id the-id]
     (let [[view-function-or-constructor & arguments] view-call
           scene-graph-or-view-call (cond (cache/cached? (cache/function-call-key view-function-or-constructor arguments))
@@ -67,49 +85,46 @@
             (keys metadata))
     compiled-node))
 
-(defn- compile* [parent-is-view? id value]
-  (cond (view-call? value)
-        (apply-metadata (meta value)
-                        (let [id (if parent-is-view?
-                                   (conj id
-                                         (or (:local-id (meta value))
-                                             :call))
-                                   id)]
-                          (compile* true
-                                    id
-                                    (apply-view-call id value))))
-
-        (:children value)
-        (update value :children
-                (fn [children]
-                  (doall (map-indexed (fn [index child]
-                                        (compile* false
-                                                  (conj id
-                                                        (or (:local-id (meta child))
-                                                            (:local-id child)
-                                                            index))
-                                                  child))
-                                      children))))
-
-        :default
-        value))
-
-(defn compile [view-call-or-scene-graph]
+(defn compile [parent-is-view? id value]
   (assert (bound? #'state)
           "Bindings returned by (state-bindings) should be bound.")
 
-  (binding [used-constructor-ids (atom #{})]
-    (let [scene-graph  (compile* false
-                                 []
-                                 view-call-or-scene-graph)]
+  (cond (view-call? value)
+        (apply-metadata (meta value)
+                        (let [id (if parent-is-view?
+                                   (vec (conj id
+                                              (or (:local-id (meta value))
+                                                  :call)))
+                                   id)]
+                          (compile true
+                                   id
+                                   (apply-view-call id value))))
 
-      (doseq [id (set/difference (set (keys @(:constructor-cache state)))
-                                 @used-constructor-ids)]
-        (swap! (:constructor-cache state)
-               dissoc
-               id))
+        (:children value)
+        (-> value
+            (update :children
+                    (fn [children]
+                      (vec (map-indexed (fn [index child]
+                                          (compile false
+                                                   (vec (conj id
+                                                              (or (:local-id (meta child))
+                                                                  (:local-id child)
+                                                                  index)))
+                                                   child))
+                                        children))))
+            (assoc :id id))
 
-      scene-graph)))
+        :default
+        (assoc value :id id)))
+
+
+
+(defn- run-compile [view-call-or-scene-graph]
+
+
+  (with-constructor-cache-cleanup (compile false
+                                           []
+                                           view-call-or-scene-graph)))
 
 (defn state-bindings []
   {#'state {:constructor-cache (atom {})
@@ -119,20 +134,22 @@
   (with-bindings (merge (state-bindings)
                         (cache/state-bindings))
 
-    (is (= {} (compile {})))
+    (is (= {:type :root
+            :id []}
+           (run-compile {:type :root})))
 
     (let [view (fn []
                  {:type :view})]
       (is (= {:type :view
               :id []}
-             (compile [view]))))
+             (run-compile [view]))))
 
     (testing "if a view only calls another view, they must have different ids to differentiate their state. This is why there is a :call -keyword inserted into the id"
       (let [view-2 (fn [] {:type :view-2})
             view-1 (fn [] [view-2])]
         (is (= {:type :view-2
                 :id [:call]}
-               (compile [view-1])))))
+               (run-compile [view-1])))))
 
 
     (let [view-2 (fn [] {:type :view-2})
@@ -142,7 +159,7 @@
                :id []
                :children ({:type :view-2
                            :id [0]})}
-             (compile [view-1]))))
+             (run-compile [view-1]))))
 
     (let [view-3 (fn [] {:type :view-3})
           view-2 (fn [] [view-3])
@@ -152,7 +169,7 @@
                :id []
                :children ({:type :view-3
                            :id [0 :call]})}
-             (compile [view-1]))))
+             (run-compile [view-1]))))
 
     ;; (testing "children get sequential ids"
 
@@ -166,13 +183,15 @@
               :children [{:children [{:type :view-2,
                                       :id [0 0]}
                                      {:type :view-2,
-                                      :id [0 1]}]}
+                                      :id [0 1]}]
+                          :id [0]}
                          {:children [{:type :view-2,
                                       :id [1 0]}
                                      {:type :view-2,
-                                      :id [1 1]}]}]
+                                      :id [1 1]}]
+                          :id [1]}]
               :id []}
-             (compile [view-1]))))
+             (run-compile [view-1]))))
 
     (testing "local ids can be given with :id key"
       (let [view-2 (fn [] {:type :view-2})
@@ -186,14 +205,16 @@
         (is (= {:type :layout,
                 :id []
                 :children [{:local-id :a
+                            :id [:a]
                             :type :layout,
                             :children [{:type :view-2,
                                         :id [:a 0]}]}
                            {:local-id :b
+                            :id [:b]
                             :type :layout,
                             :children [{:type :view-2,
                                         :id [:b 0]}]}]}
-               (compile [view-1])))))
+               (run-compile [view-1])))))
 
     (testing "local ids can be given as a metadata to the view call"
       (let [view-2 (fn [] {:type :view-2})
@@ -208,7 +229,7 @@
                            {:type :view-2,
                             :local-id :b
                             :id [:b]}]}
-               (compile [view-1])))))
+               (run-compile [view-1])))))
 
     (testing "local ids can be given as a metadata to scene graph node"
       (let [view-2 (fn [] {:type :view-2})
@@ -220,12 +241,14 @@
         (is (= {:type :layout,
                 :id []
                 :children [{:type :layout,
+                            :id [:a]
                             :children [{:type :view-2,
                                         :id [:a 0]}]}
                            {:type :layout,
+                            :id [:b]
                             :children [{:type :view-2,
                                         :id [:b 0]}]}]}
-               (compile [view-1])))))
+               (run-compile [view-1])))))
 
     (testing "properties can be given as a metadata to the view call"
       (let [view-2 (fn [] {:type :view-2})
@@ -240,7 +263,7 @@
                            {:type :view-2,
                             :id [1]
                             :z 2}]}
-               (compile [view-1])))))
+               (run-compile [view-1])))))
 
     (testing "functions in metadata are applied to properties after viewcall is applied"
       (let [view-2 (fn [] {:type :view-2
@@ -252,7 +275,7 @@
                 :children [{:type :view-2,
                             :id [0]
                             :z 2}]}
-               (compile [view-1])))))
+               (run-compile [view-1])))))
 
     (testing "local state"
       (let [handle-mouse-click (fn [count-atom]
@@ -270,7 +293,7 @@
                      {:children (for [child-id child-ids]
                                   ^{:local-id child-id} [view-2])})]
 
-        (let [scene-graph (compile [view-1 :a :b])]
+        (let [scene-graph (run-compile [view-1 :a :b])]
           (is (= 2 (count (keys @(:constructor-cache state)))))
 
           (is (= [0 0]
@@ -294,7 +317,7 @@
           (is (= 2 @view-2-constructor-call-count-atom))
 
           (is (= [0 1]
-                 (->> (compile [view-1 :a :b])
+                 (->> (run-compile [view-1 :a :b])
                       :children
                       (map :count))))
 
@@ -302,20 +325,20 @@
           (is (= 2 @view-2-constructor-call-count-atom))
 
           (is (= [1]
-                 (->> (compile [view-1 :b])
+                 (->> (run-compile [view-1 :b])
                       :children
                       (map :count))))
 
           (is (= 3 @view-2-call-count-atom))
           (is (= 2 @view-2-constructor-call-count-atom))
 
-          (compile [view-1 :c])
+          (run-compile [view-1 :c])
 
           (is (= 1 (count (keys @(:constructor-cache state)))))
 
           (is (= 4 @view-2-call-count-atom))
           (is (= 3 @view-2-constructor-call-count-atom))
 
-          (compile [view-1])
+          (run-compile [view-1])
 
           (is (= 0 (count (keys @(:constructor-cache state))))))))))

@@ -14,7 +14,8 @@
             [fungl.value-registry :as value-registry]
             [fungl.view-compiler :as view-compiler]
             [logga.core :as logga]
-            [taoensso.tufte :as tufte]))
+            [taoensso.tufte :as tufte]
+            [flow-gl.gui.scene-graph :as scene-graph]))
 
 (tufte/add-basic-println-handler! {})
 
@@ -178,10 +179,13 @@
                   render-state (create-render-state)]
               (deliver event-channel-promise (window/event-channel window))
               (start-event-thread (fn [width height]
-                                    (-> (view-compiler/compile [(if (var? root-view-or-var)
-                                                                  @root-view-or-var
-                                                                  root-view-or-var)])
-                                        (layout/do-layout-for-size width height)))
+                                    (view-compiler/with-constructor-cache-cleanup
+                                      (-> (view-compiler/compile false
+                                                                 []
+                                                                 [(if (var? root-view-or-var)
+                                                                    @root-view-or-var
+                                                                    root-view-or-var)])
+                                          (layout/do-layout-for-size width height))))
                                   (window/event-channel window)
                                   renderable-scene-graph-channel
                                   (window/width window)
