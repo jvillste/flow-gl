@@ -104,33 +104,64 @@
 
 ;; state
 
-(defn move-focus-and-send-move-events! [state-atom move-focus & arguments]
-  (let [old-handler-atom (atom nil)
-        old-node-id-atom (atom nil)]
-    (swap! state-atom
-           (fn [keyboard-state]
-             (reset! old-handler-atom (:focused-handler keyboard-state))
-             (reset! old-node-id-atom (:focused-node-id keyboard-state))
-             (apply move-focus
-                    keyboard-state
-                    arguments)))
-    (let [state @state-atom]
-      (when (not (= (:focused-handler state)
-                    @old-handler-atom))
-        (when @old-handler-atom
-          (call-handler @old-handler-atom
-                        (if @old-node-id-atom
-                          (scene-graph/find-first #(= @old-node-id-atom (:id %))
-                                                  (:scene-graph state))
-                          (:scene-graph state))
-                        {:type :focus-lost}))
+(defn propagate-event! [path event]
+  (let [descended-event (loop [event event
+                               path path]
+                          (if-let [node (first path)]
+                            (let [returned-event (if (:keyboard-event-handler node)
+                                                   (call-handler (:keyboard-event-handler node)
+                                                                 node
+                                                                 (assoc event
+                                                                        :phase (if (empty? (rest path))
 
-        (call-handler (:focused-handler state)
-                      (if (:focused-node-id state)
-                        (scene-graph/find-first #(= (:focused-node-id state) (:id %))
-                                                (:scene-graph state))
-                        (:scene-graph state))
-                      {:type :focus-gained})))))
+                                                                                 :on-target
+                                                                                 :descent)))
+                                                   event)]
+                              (when returned-event
+                                (recur returned-event
+                                       (rest path))))
+
+                            event))]
+    (when descended-event
+      (loop [event (assoc descended-event :phase :ascent)
+             path (rest (reverse path))]
+        (when-let [node (first path)]
+          (let [returned-event (if (:keyboard-event-handler node)
+                                 (call-handler (:keyboard-event-handler node)
+                                               node
+                                               event)
+                                 event)]
+            (when returned-event
+              (recur returned-event
+                     (rest path)))))))))
+
+(defn move-focus-and-send-move-events! [state-atom move-focus & arguments]
+  (let [[old-state new-state] (swap-vals! state-atom
+                                          (fn [keyboard-state]
+                                            (apply move-focus
+                                                   keyboard-state
+                                                   arguments)))]
+    (when (not (= (:focused-handler new-state)
+                  (:focused-handler old-state)))
+
+
+      (if (:focused-node-id old-state)
+        (propagate-event! (scene-graph/path-to-first #(= (:focused-node-id old-state) (:id %))
+                                                     (:scene-graph new-state))
+                          {:type :focus-lost})
+        (when (:focused-handler old-state)
+          (call-handler (:focused-handler old-state)
+                        (:scene-graph new-state)
+                        {:type :focus-lost})))
+
+      (if (:focused-node-id new-state)
+        (propagate-event! (scene-graph/path-to-first #(= (:focused-node-id new-state) (:id %))
+                                                     (:scene-graph new-state))
+                          {:type :focus-gained})
+        (when (:focused-handler new-state)
+          (call-handler (:focused-handler new-state)
+                        (:scene-graph new-state)
+                        {:type :focus-gained}))))))
 
 (defn focused-node-id [state]
   (:focused-node-id state))
@@ -150,7 +181,6 @@
 
 (defn state-bindings []
   {#'state-atom (atom (initialize-state))})
-
 
 (defn set-focused-event-handler! [event-handler]
   (when (not= event-handler
@@ -229,15 +259,14 @@
                                                              :keyboard-event-handler :handler-5}]}]})))))
 
 (defn handle-new-scene-graph! [scene-graph]
+  (swap! state-atom assoc :scene-graph scene-graph)
 
   (set-focused-node! (or (scene-graph/find-first (fn [node]
                                                    (= (:focused-node-id @state-atom)
                                                       (:id node)))
                                                  scene-graph)
                          (scene-graph/find-first :can-gain-focus?
-                                                 scene-graph)))
-
-  (swap! state-atom assoc :scene-graph scene-graph))
+                                                 scene-graph))))
 
 (defn set-focus-on-mouse-clicked! [node event]
   (when (and (= :mouse-clicked
@@ -261,37 +290,6 @@
                  dec
                  inc)
                cycle-position))
-
-(defn propagate-event! [path event]
-  (let [descended-event (loop [event event
-                               path path]
-                          (if-let [node (first path)]
-                            (let [returned-event (if (:keyboard-event-handler node)
-                                                   (call-handler (:keyboard-event-handler node)
-                                                                 node
-                                                                 (assoc event
-                                                                        :phase (if (empty? (rest path))
-
-                                                                                 :on-target
-                                                                                 :descent)))
-                                                   event)]
-                              (when returned-event
-                                (recur returned-event
-                                       (rest path))))
-
-                            event))]
-    (when descended-event
-      (loop [event (assoc descended-event :phase :ascent)
-             path (rest (reverse path))]
-        (when-let [node (first path)]
-          (let [returned-event (if (:keyboard-event-handler node)
-                                 (call-handler (:keyboard-event-handler node)
-                                               node
-                                               event)
-                                 event)]
-            (when returned-event
-              (recur returned-event
-                     (rest path)))))))))
 
 (defn handle-keyboard-event! [_scene-graph event]
   (let [state @state-atom]

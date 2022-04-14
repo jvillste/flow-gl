@@ -103,9 +103,9 @@
             (with-profiling do-profile :event-thread
               (with-bindings (create-event-handling-state)
                 (let [initial-scene-graph (create-scene-graph initial-width initial-height)]
+                  (handle-new-scene-graph! initial-scene-graph)
                   (when handle-initial-scene-graph!
                     (handle-initial-scene-graph! initial-scene-graph))
-                  (handle-new-scene-graph! initial-scene-graph)
                   (loop [scene-graph initial-scene-graph
                          window-width initial-width
                          window-height initial-height]
