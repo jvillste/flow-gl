@@ -57,12 +57,12 @@
                     :z z))))))
 
 (spec/fdef leaf-nodes
-           :args (spec/or :one (spec/cat :node ::node)
-                          :two (spec/cat :node ::node
-                                         :parent-x ::coordinate
-                                         :parent-y ::coordinate
-                                         :parent-z ::coordinate
-                                         :leaves (spec/coll-of ::node))))
+  :args (spec/or :one (spec/cat :node ::node)
+                 :two (spec/cat :node ::node
+                                :parent-x ::coordinate
+                                :parent-y ::coordinate
+                                :parent-z ::coordinate
+                                :leaves (spec/coll-of ::node))))
 
 (test/deftest leaf-nodes-test
   (is (= '({:x 10, :y 15, :expected-position 1, :z 0}
@@ -161,9 +161,9 @@
            (+ (:y node) (:height node)))))
 
 (spec/fdef in-coordinates?
-           :args (spec/cat :node ::layouted-node
-                           :x ::coordinate
-                           :y ::coordinate))
+  :args (spec/cat :node ::layouted-node
+                  :x ::coordinate
+                  :y ::coordinate))
 
 (defn hits? [node x y]
   (and (in-coordinates? node x y)
@@ -293,6 +293,18 @@
                       :id 6}))))
 
 
+(defn find-first-child [predicate scene-graph]
+  (loop [children (:children scene-graph)]
+    (when-let [child (first children)]
+      (or (find-first predicate child)
+          (recur (rest children))))))
+
+(deftest test-find-first-child
+  (is (= {:id 1}
+         (find-first-child #(= 1 (:id %))
+                           {:children [{:id 1}]
+                            :id 1}))))
+
 (defn- path-to-first* [path predicate scene-graph]
   (if (predicate scene-graph)
     (conj path scene-graph)
@@ -322,77 +334,55 @@
                        :id)
                  scene-graph))
 
-(defn id-to-path [id]
+(defn id-to-local-id-path [id]
   (vec (remove #{:call} id)))
 
-(deftest test-id-to-path
+(deftest test-id-to-local-id-path
   (is (= [0 1]
-         (id-to-path [0 :call 1])))
+         (id-to-local-id-path [0 :call 1])))
 
   (is (= []
-         (id-to-path nil))))
+         (id-to-local-id-path nil))))
 
-
-(defonce root-atom (atom nil))
-(comment
-  ([1 2] 1)
-  (map :local-id
-       (-> @root-atom
-           :children
-           (nth 1)
-           :children
-           (nth 0)
-           (flatten)))
-  ) ;; TODO: remove-me
-
-
-(defn nodes-on-path [root-node path]
-  (reset! root-atom root-node)
-  (println 'nodes-on-path)
-  (prn (map :foo (flatten root-node))) ;; TODO: remove-me
-
+(defn nodes-on-local-id-path [root-node local-id-path]
   (loop [nodes [root-node]
-         local-ids path]
+         local-ids local-id-path]
     (if-let [local-id (first local-ids)]
-      (do (prn 'local-id local-id) ;; TODO: remove-me
-          (let [parent (last nodes)]
-            (prn '(:foo parent) (:foo parent)) ;; TODO: remove-me
-            (prn 'command-set (-> parent :command-set :name)) ;; TODO: remove-me
-
-
-            (prn 'child-types (map :type (:children parent))) ;; TODO: remove-me
-
-            (if-let [child (if (number? local-id)
-                             (nth (:children parent)
-                                  local-id)
-                             (medley/find-first #(= local-id (:local-id %))
-                                                (:children parent)))]
-              (recur (conj nodes child)
-                     (rest local-ids))
-              nodes)))
+      (let [parent (last nodes)]
+        (if-let [child (if (number? local-id)
+                         (when (and (>= local-id 0)
+                                    (< local-id
+                                       (count (:children parent))))
+                           (nth (:children parent)
+                                local-id))
+                         (medley/find-first #(= local-id (:local-id %))
+                                            (:children parent)))]
+          (recur (conj nodes child)
+                 (rest local-ids))
+          nodes))
       nodes)))
 
-(deftest test-nodes-on-path
+(deftest test-nodes-on-local-id-path
   (is (= [{:id []}]
-         (nodes-on-path {:id []}
-                        [])))
+         (nodes-on-local-id-path {:id []}
+                           [])))
 
   (is (= [{:id []}]
-         (nodes-on-path {:id []}
-                        [0])))
+         (nodes-on-local-id-path {:id []}
+                           [0])))
 
   (is (= [{:id []
            :children [{:type :child}]}
           {:type :child}]
-         (nodes-on-path {:id []
-                         :children [{:type :child}]}
-                        [0])))
+         (nodes-on-local-id-path {:id []
+                            :children [{:type :child}]}
+                           [0])))
 
   (is (= [{:id []
            :children [{:type :child}]}]
-         (nodes-on-path {:id []
-                         :children [{:type :child}]}
-                        [10])))
+         (nodes-on-local-id-path {:id []
+                            :children [{:type :child}]}
+                           [10])))
 
   (is (= [{:id [],
            :children
@@ -402,12 +392,12 @@
              :children [{:id [:b 0]}]}]}
           {:local-id :b, :children [{:id [:b 0]}]}
           {:id [:b 0]}]
-         (nodes-on-path {:id []
-                         :children [{:local-id :a
-                                     :children [{:id [:a 0]}]}
-                                    {:local-id :b
-                                     :children [{:id [:b 0]}]}]}
-                        [:b 0]))))
+         (nodes-on-local-id-path {:id []
+                            :children [{:local-id :a
+                                        :children [{:id [:a 0]}]}
+                                       {:local-id :b
+                                        :children [{:id [:b 0]}]}]}
+                           [:b 0]))))
 
 (defn bounding-box [nodes]
   {:x1 (apply min (map :x nodes))

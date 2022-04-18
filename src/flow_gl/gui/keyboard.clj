@@ -31,7 +31,7 @@
 
 ;; focused nodes
 
-(defn set-focused-node
+(defn- set-focused-node
   ([keyboard-state node]
 
    (assert (or (nil? node)
@@ -258,15 +258,28 @@
                                                  :children [{:id 5
                                                              :keyboard-event-handler :handler-5}]}]})))))
 
+(def next-scene-graph-handlers (atom []))
+
+(defn handle-next-scene-graph! [handler]
+  (swap! next-scene-graph-handlers conj handler))
+
 (defn handle-new-scene-graph! [scene-graph]
   (swap! state-atom assoc :scene-graph scene-graph)
 
-  (set-focused-node! (or (scene-graph/find-first (fn [node]
-                                                   (= (:focused-node-id @state-atom)
-                                                      (:id node)))
-                                                 scene-graph)
-                         (scene-graph/find-first :can-gain-focus?
-                                                 scene-graph))))
+  (doseq [handler @next-scene-graph-handlers]
+    (handler scene-graph))
+
+  (reset! next-scene-graph-handlers [])
+
+  (when-let [focused-node-id (:focused-node-id @state-atom)]
+    (let [focused-path (->> (scene-graph/id-to-local-id-path focused-node-id)
+                            (scene-graph/nodes-on-local-id-path scene-graph)
+                            (reverse))]
+      (when (not (= focused-node-id
+                    (:id (first focused-path))))
+        (when-let [first-focusable-node (medley/find-first :can-gain-focus?
+                                                           focused-path)]
+          (set-focused-node! first-focusable-node))))))
 
 (defn set-focus-on-mouse-clicked! [node event]
   (when (and (= :mouse-clicked
