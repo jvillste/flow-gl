@@ -5,43 +5,60 @@
 
 (defrecord Atom [atom]
   clojure.lang.IDeref
-  (deref [this]
+  (deref [_this]
     (depend/add-dependency {:type ::type
                             :atom atom}
                            @atom)
     (deref atom))
 
   clojure.lang.IAtom
-  (swap [this fn]
+  (swap [_this fn]
     (swap! atom fn))
 
-  (swap [this fn arg]
+  (swap [_this fn arg]
     (swap! atom fn arg))
 
-  (swap [this fn arg1 arg2]
+  (swap [_this fn arg1 arg2]
     (swap! atom fn arg1 arg2))
 
-  (swap [this fn arg1 arg2 args]
+  (swap [_this fn arg1 arg2 args]
     (apply swap! atom fn arg1 arg2 args))
 
-  (compareAndSet [this old-value new-value]
+  (compareAndSet [_this old-value new-value]
     (compare-and-set! atom old-value new-value))
 
-  (reset [this new-value]
-    (reset! atom new-value)))
+  (reset [_this new-value]
+    (reset! atom new-value))
 
-(defmethod print-method Atom [dependable-atom, ^java.io.Writer writer]
-  (.write writer "#dependable-atom[")
-  (print-method @dependable-atom writer)
-  (.write writer (str " "
-                      (format "0x%x"
-                              (System/identityHashCode dependable-atom))
-                      "]")))
+  clojure.lang.IAtom2
 
-(defn atom [value]
-  (->Atom (clojure.core/atom value)))
+  (swapVals [_this f]
+    (swap-vals! atom f))
 
-(defmethod depend/current-value ::type [dependency]
-  @(:atom dependency))
+  (swapVals [_this f arg]
+    (swap-vals! atom f arg))
 
-(defmethod depend/dependency-added ::type [dependency])
+  (swapVals [_this f arg1 arg2]
+    (swap-vals! atom f arg1 arg2))
+
+  (swapVals [_this f arg1 arg2 args]
+    (swap-vals! atom f arg1 arg2 args))
+
+  (resetVals [_this value]
+    (reset-vals! atom value)))
+
+  (defmethod print-method Atom [dependable-atom, ^java.io.Writer writer]
+    (.write writer "#dependable-atom[")
+    (print-method @dependable-atom writer)
+    (.write writer (str " "
+                        (format "0x%x"
+                                (System/identityHashCode dependable-atom))
+                        "]")))
+
+  (defn atom [value]
+    (->Atom (clojure.core/atom value)))
+
+  (defmethod depend/current-value ::type [dependency]
+    @(:atom dependency))
+
+  (defmethod depend/dependency-added ::type [dependency])
