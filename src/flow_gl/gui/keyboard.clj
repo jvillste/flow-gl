@@ -5,7 +5,8 @@
             [fungl.cache :as cache]
             [fungl.callable :as callable]
             [medley.core :as medley]
-            [fungl.layout :as layout]))
+            [fungl.layout :as layout]
+            [fungl.dependable-atom :as dependable-atom]))
 
 (defn- initialize-state []
   {})
@@ -180,7 +181,7 @@
 (def ^:dynamic state-atom)
 
 (defn state-bindings []
-  {#'state-atom (atom (initialize-state))})
+  {#'state-atom (dependable-atom/atom (initialize-state))})
 
 (defn set-focused-event-handler! [event-handler]
   (when (not= event-handler
