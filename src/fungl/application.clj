@@ -96,12 +96,15 @@
     (handle-new-scene-graph! scene-graph)
     scene-graph))
 
-(defn start-event-thread [create-scene-graph event-channel renderable-scene-graph-channel initial-width initial-height target-frame-rate do-profile handle-initial-scene-graph!]
+(def ^:dynamic event-channel)
+
+(defn start-event-thread [create-scene-graph given-event-channel renderable-scene-graph-channel initial-width initial-height target-frame-rate do-profile handle-initial-scene-graph!]
   (thread "event"
           (logga/write "starting event loop")
           (try
             (with-profiling do-profile :event-thread
-              (with-bindings (create-event-handling-state)
+              (with-bindings (merge (create-event-handling-state)
+                                    {#'event-channel given-event-channel})
                 (let [initial-scene-graph (create-scene-graph initial-width initial-height)]
                   (handle-new-scene-graph! initial-scene-graph)
                   (when handle-initial-scene-graph!
@@ -109,7 +112,7 @@
                   (loop [scene-graph initial-scene-graph
                          window-width initial-width
                          window-height initial-height]
-                    (let [[scene-graph window-width window-height] (loop [events (read-events event-channel target-frame-rate)
+                    (let [[scene-graph window-width window-height] (loop [events (read-events given-event-channel target-frame-rate)
                                                                           scene-graph scene-graph
                                                                           window-width window-width
                                                                           window-height window-height]

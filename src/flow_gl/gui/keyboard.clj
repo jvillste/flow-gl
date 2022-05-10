@@ -39,10 +39,6 @@
                (:id node))
            "Focused node must have :id")
 
-   (assert (or (nil? node)
-               (:keyboard-event-handler node))
-           "Focused node must have :keyboard-event-handler")
-
    (-> keyboard-state
        (assoc :focused-node-id (:id node))
        (set-focused-event-handler (:keyboard-event-handler node)))))
@@ -96,7 +92,7 @@
   (set-focused-node state
                     (next-node (:focused-node-id state)
                                (filter :can-gain-focus?
-                                       (keyboard-event-handler-nodes-from-scene-graph scene-graph))
+                                       (scene-graph/flatten scene-graph))
                                ordering
                                advance
                                limit)))

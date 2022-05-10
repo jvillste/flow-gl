@@ -150,7 +150,7 @@
            nodes))
        nodes))))
 
-(defn in-coordinates? [node x y]
+(in-coordinates? defn [node x y]
   (and (>= x
            (:x node))
        (<= x
