@@ -464,3 +464,70 @@
       (assoc result
              :children (map (partial map-nodes function) children))
       result)))
+
+
+(def left-edge :x)
+
+(def top-edge :y)
+
+(defn right-edge [node]
+  (+ (:x node)
+     (:width node)))
+
+(defn bottom-edge [node]
+  (+ (:y node)
+     (:height node)))
+
+(defn horizontal-center [node]
+  (+ (:x node)
+     (/ (:width node)
+        2)))
+
+(defn vertical-center [node]
+  (+ (:y node)
+     (/ (:height node)
+        2)))
+
+(defn select-closest-on-one-half-dimension [group-function measure reference-node nodes]
+  (->> nodes
+       (group-by group-function)
+       (medley/map-vals (fn [nodes]
+                          (first (sort-by (fn [node]
+                                            (Math/abs (- (measure node)
+                                                         (measure reference-node))))
+                                          nodes))))
+       (vals)
+       (sort-by group-function)))
+
+(defn closest-nodes-on-one-dimension [reference-node-id minimum maximum orthogonal-center nodes]
+  (let [reference-node (medley/find-first #(= reference-node-id (:id %))
+                                          nodes)]
+    (concat (select-closest-on-one-half-dimension maximum
+                                                  orthogonal-center
+                                                  reference-node
+                                                  (filter (fn [node]
+                                                            (<= (maximum node)
+                                                                (minimum reference-node)))
+                                                          nodes))
+            [reference-node]
+            (select-closest-on-one-half-dimension minimum
+                                                  orthogonal-center
+                                                  reference-node
+                                                  (filter (fn [node]
+                                                            (>= (minimum node)
+                                                                (maximum reference-node)))
+                                                          nodes)))))
+
+(defn closest-horizontal-nodes [node-id nodes]
+  (closest-nodes-on-one-dimension node-id
+                                  left-edge
+                                  right-edge
+                                  vertical-center
+                                  nodes))
+
+(defn closest-vertical-nodes [node-id nodes]
+  (closest-nodes-on-one-dimension node-id
+                                  top-edge
+                                  bottom-edge
+                                  horizontal-center
+                                  nodes))
