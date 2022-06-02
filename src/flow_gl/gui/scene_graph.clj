@@ -518,15 +518,15 @@
                                                                 (maximum reference-node)))
                                                           nodes)))))
 
-(defn closest-horizontal-nodes [node-id nodes]
-  (closest-nodes-on-one-dimension node-id
+(defn closest-horizontal-nodes [reference-node-id nodes]
+  (closest-nodes-on-one-dimension reference-node-id
                                   left-edge
                                   right-edge
                                   vertical-center
                                   nodes))
 
-(defn closest-vertical-nodes [node-id nodes]
-  (closest-nodes-on-one-dimension node-id
+(defn closest-vertical-nodes [reference-node-id nodes]
+  (closest-nodes-on-one-dimension reference-node-id
                                   top-edge
                                   bottom-edge
                                   horizontal-center
