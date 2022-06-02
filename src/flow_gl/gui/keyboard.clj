@@ -277,7 +277,9 @@
         (when-let [first-focusable-node (or (scene-graph/find-first-child :can-gain-focus?
                                                                           (first focused-path))
                                             (medley/find-first :can-gain-focus?
-                                                               focused-path))]
+                                                               focused-path)
+
+                                            (scene-graph/find-first :can-gain-focus? scene-graph))]
           (set-focused-node! first-focusable-node))))))
 
 (defn set-focus-on-mouse-clicked! [node event]
