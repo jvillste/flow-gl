@@ -124,6 +124,8 @@
 
                                                                                  (= :redraw (:type event))
                                                                                  (do (cache/invalidate-all!)
+                                                                                     (reset! (:constructor-cache view-compiler/state)
+                                                                                             {})
                                                                                      (recur (rest events)
                                                                                             (run-create-scene-graph create-scene-graph
                                                                                                                     window-width
