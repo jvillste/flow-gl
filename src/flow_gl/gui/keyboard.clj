@@ -268,7 +268,7 @@
 
   (reset! next-scene-graph-handlers [])
 
-  (when-let [focused-node-id (:focused-node-id @state-atom)]
+  (if-let [focused-node-id (:focused-node-id @state-atom)]
     (let [focused-path (->> (scene-graph/id-to-local-id-path focused-node-id)
                             (scene-graph/nodes-on-local-id-path scene-graph)
                             (reverse))]
@@ -280,7 +280,8 @@
                                                                focused-path)
 
                                             (scene-graph/find-first :can-gain-focus? scene-graph))]
-          (set-focused-node! first-focusable-node))))))
+          (set-focused-node! first-focusable-node))))
+    (set-focused-node! (scene-graph/find-first :can-gain-focus? scene-graph))))
 
 (defn set-focus-on-mouse-clicked! [node event]
   (when (and (= :mouse-clicked
