@@ -40,7 +40,8 @@
            "Focused node must have :id")
 
    (-> keyboard-state
-       (assoc :focused-node-id (:id node))
+       (assoc :focused-node-id (:id node)
+              :focused-node node)
        (set-focused-event-handler (:keyboard-event-handler node)))))
 
 
