@@ -139,9 +139,8 @@
                                             (apply move-focus
                                                    keyboard-state
                                                    arguments)))]
-    (when (not (= (:focused-handler new-state)
-                  (:focused-handler old-state)))
-
+    (when (not (= (-> new-state :focused-node :id)
+                  (-> old-state :focused-node :id)))
 
       (if (:focused-node-id old-state)
         (propagate-event! (scene-graph/path-to-first #(= (:focused-node-id old-state) (:id %))
