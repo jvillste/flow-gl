@@ -231,6 +231,7 @@
       (when-let [character (:character event)]
         (when (and (not (:control? event))
                    (not (:alt? event))
+                   (not (:meta? event))
                    (not (empty? (string/replace (str character)
                                                 #"\p{C}" ;; from https://stackoverflow.com/a/62915361
                                                 ""))))
