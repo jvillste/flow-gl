@@ -212,30 +212,38 @@
 (defn keyboard-event-to-command [event]
   (if (= :key-pressed
          (:type event))
-    (case (:key event)
-      :up
-      [previous-row]
+    (cond (or (= :up (:key event))
+              (and (= :p (:key event))
+                   (:control? event)))
+          [previous-row]
 
-      :down
-      [next-row]
+          (or (= :down (:key event))
+              (and (= :n (:key event))
+                   (:control? event)))
+          [next-row]
 
-      :left
-      [backward]
+          (or (= :left (:key event))
+              (and (= :b (:key event))
+                   (:control? event)))
+          [backward]
 
-      :right
-      [forward]
+          (or (= :right (:key event))
+              (and (= :f (:key event))
+                   (:control? event)))
+          [forward]
 
-      :back-space
-      [delete-backward]
+          (= :back-space (:key event))
+          [delete-backward]
 
-      (when-let [character (:character event)]
-        (when (and (not (:control? event))
-                   (not (:alt? event))
-                   (not (:meta? event))
-                   (not (empty? (string/replace (str character)
-                                                #"\p{C}" ;; from https://stackoverflow.com/a/62915361
-                                                ""))))
-          [insert-string character])))
+          :else
+          (when-let [character (:character event)]
+            (when (and (not (:control? event))
+                       (not (:alt? event))
+                       (not (:meta? event))
+                       (not (empty? (string/replace (str character)
+                                                    #"\p{C}" ;; from https://stackoverflow.com/a/62915361
+                                                    ""))))
+              [insert-string character])))
     (case (:type event)
       :focus-gained [gain-focus]
       :focus-lost [loose-focus]
