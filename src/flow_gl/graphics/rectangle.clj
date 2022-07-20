@@ -1,25 +1,47 @@
 (ns flow-gl.graphics.rectangle
   (:require [flow-gl.graphics.buffered-image :as buffered-image])
   (:import (java.awt BasicStroke Color RenderingHints)
-           (java.awt.geom RoundRectangle2D$Double)))
+           (java.awt.geom RoundRectangle2D$Double Rectangle2D$Double)))
 
 (defn fill [graphics color width height corner-arc-width corner-arc-height]
   (let [[r g b a] (map (fn [color] (float (/ color 255)))
                        color)]
     (doto graphics
-      (.setRenderingHint RenderingHints/KEY_ANTIALIASING RenderingHints/VALUE_ANTIALIAS_ON)
+      #_(.setRenderingHint RenderingHints/KEY_ANTIALIASING RenderingHints/VALUE_ANTIALIAS_ON)
       (.setColor (Color. r g b a))
-      (.fill (RoundRectangle2D$Double. (double 0) (double 0) (double width) (double height) (double corner-arc-width) (double corner-arc-height))))))
+      (.fill (if (and (= 0 corner-arc-width)
+                      (= 0 corner-arc-height))
+               (Rectangle2D$Double. (double 0)
+                                    (double 0)
+                                    (double width)
+                                    (double height))
+               (RoundRectangle2D$Double. (double 0)
+                                         (double 0)
+                                         (double width)
+                                         (double height)
+                                         (double corner-arc-width)
+                                         (double corner-arc-height)))))))
 
 (defn draw [graphics color line-width width height corner-arc-width corner-arc-height]
   (let [[r g b a] (map (fn [color] (float (/ color 255)))
                        color)
         half-line-width (/ line-width 2)]
     (doto graphics
-      (.setRenderingHint RenderingHints/KEY_ANTIALIASING RenderingHints/VALUE_ANTIALIAS_ON)
+      #_(.setRenderingHint RenderingHints/KEY_ANTIALIASING RenderingHints/VALUE_ANTIALIAS_ON)
       (.setColor (Color. r g b a))
       (.setStroke (BasicStroke. line-width))
-      (.draw (RoundRectangle2D$Double. (double half-line-width) (double half-line-width) (double (- width line-width)) (double (- height line-width)) (double corner-arc-width) (double corner-arc-height))))))
+      (.draw (if (and (= 0 corner-arc-width)
+                      (= 0 corner-arc-height))
+               (Rectangle2D$Double. (double half-line-width)
+                                    (double half-line-width)
+                                    (double (- width line-width))
+                                    (double (- height line-width)))
+               (RoundRectangle2D$Double. (double half-line-width)
+                                         (double half-line-width)
+                                         (double (- width line-width))
+                                         (double (- height line-width))
+                                         (double corner-arc-width)
+                                         (double corner-arc-height)))))))
 
 (defn create-buffered-image
   "Deprecated, use buffered-image/create instead."
