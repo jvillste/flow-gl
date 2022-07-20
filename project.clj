@@ -5,7 +5,7 @@
   :dependencies [[org.clojure/clojure "1.10.3"]
                  [medley "1.3.0"]
                  [net.mikera/core.matrix "0.33.2"]
-                 [com.taoensso/tufte "2.2.0"]
+                 [com.taoensso/tufte "2.3.0-RC1"]
                  [org.clojure/data.priority-map "1.1.0"]
                  [org.clojure/core.async "1.5.648"]
                  [clj-http "3.7.0"]
