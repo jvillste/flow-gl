@@ -118,7 +118,7 @@
 
 
 
-(handler/def-handler-creator create-text-area-adapt-to-space [color font string] [node]
+(defn text-area-adapt-to-space [color font string node]
   (assoc node :rows (if (and string (not= string ""))
                       (text/rows-for-text color
                                           font
@@ -126,8 +126,7 @@
                                           (:available-width node))
                       nil)))
 
-
-(handler/def-handler-creator create-text-area-get-size [font] [node]
+(defn text-area-get-size [font node]
   (if-let [rows (:rows node)]
     (text/rows-size rows)
     {:width 0
@@ -150,9 +149,9 @@
     :color color
     :font font
     :string string
-    :adapt-to-space (create-text-area-adapt-to-space color font string)
+    :adapt-to-space [text-area-adapt-to-space color font string]
 
-    :get-size (create-text-area-get-size font)
+    :get-size [text-area-get-size font]
 
     :image-function text/create-buffered-image-for-rows
     :draw-function text/draw-rows
