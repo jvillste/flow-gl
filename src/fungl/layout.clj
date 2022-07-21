@@ -41,7 +41,7 @@
 
 (cache/defn-memoized size [node]
   (if-let [get-size (:get-size node)]
-    (get-size node)
+    (callable/call get-size node)
     {:width (or (:width node)
                 (:available-width node))
      :height (or (:height node)
