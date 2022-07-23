@@ -51,8 +51,8 @@
   (conj node (size node)))
 
 (cache/defn-memoized make-layout [node]
-  (if-let [layout-function (:make-layout node)]
-    (layout-function node)
+  (if-let [make-layout-callable (:make-layout node)]
+    (callable/call make-layout-callable node)
     (update-in node [:children]
                (fn [children]
                  (if children
