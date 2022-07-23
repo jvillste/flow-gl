@@ -1,5 +1,7 @@
 (ns fungl.dependable-atom
-  (:require [fungl.depend :as depend])
+  (:require [fungl.depend :as depend]
+            [clojure.pprint :as pprint]
+            [clojure.string :as string])
   (:refer-clojure :exclude [atom])
   (:import java.io.Writer))
 
@@ -47,18 +49,26 @@
   (resetVals [_this value]
     (reset-vals! atom value)))
 
-  (defmethod print-method Atom [dependable-atom, ^java.io.Writer writer]
-    (.write writer "#dependable-atom[")
-    (print-method @dependable-atom writer)
-    (.write writer (str " "
-                        (format "0x%x"
-                                (System/identityHashCode dependable-atom))
-                        "]")))
+(defmethod print-method Atom [dependable-atom, ^java.io.Writer writer]
+  (.write writer "#dependable-atom[")
+  (print-method @dependable-atom writer)
+  (.write writer (str " "
+                      (format "0x%x"
+                              (System/identityHashCode dependable-atom))
+                      "]")))
 
-  (defn atom [value]
-    (->Atom (clojure.core/atom value)))
+(defmethod pprint/simple-dispatch Atom [dependable-atom]
+  (print "#dependable-atom[")
+  (print (string/trim (with-out-str (pprint/pprint @dependable-atom))))
+  (print (str " "
+              (format "0x%x"
+                      (System/identityHashCode dependable-atom))
+              "]")))
 
-  (defmethod depend/current-value ::type [dependency]
-    @(:atom dependency))
+(defn atom [value]
+  (->Atom (clojure.core/atom value)))
 
-  (defmethod depend/dependency-added ::type [dependency])
+(defmethod depend/current-value ::type [dependency]
+  @(:atom dependency))
+
+(defmethod depend/dependency-added ::type [dependency])
