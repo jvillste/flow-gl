@@ -217,7 +217,7 @@
                                          (:x scene-graph))
                                    :y (- (:y bounding-box)
                                          (:y scene-graph)))))
-                        (group-by :z (scene-graph/leaf-nodes scene-graph)))))
+                        (group-by :z (filter :draw-function (scene-graph/leaf-nodes scene-graph))))))
 
 (defn render-to-images-render-function [_graphics scene-graph]
   (render-to-images scene-graph))
