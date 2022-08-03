@@ -39,7 +39,7 @@
                              gl))
 
 (defn handle-event! [scene-graph event]
-  (do ;;taoensso.tufte/profile :info :handle-event
+  (taoensso.tufte/p :handle-event
     (when (= :mouse
              (:source event))
       (mouse/handle-mouse-event! event))
@@ -198,14 +198,14 @@
                                   handle-initial-scene-graph!)
 
               (try (logga/write "starting render loop")
-                   (with-profiling do-profiling :render
+                   (with-profiling do-profiling :render-loop
                      (loop []
                        (when-let [scene-graph (async/<!! renderable-scene-graph-channel)]
-                         (window/with-gl window gl
-                           (with-bindings render-state
-                             (tufte/p :render
-                                      (render gl scene-graph))
-                             (value-registry/delete-unused-values! 500)))
+                         (tufte/p :render
+                                  (window/with-gl window gl
+                                    (with-bindings render-state
+                                      (render gl scene-graph)
+                                      (value-registry/delete-unused-values! 500))))
                          (window/swap-buffers window)
                          (recur))))
                    (logga/write "exiting render loop")
