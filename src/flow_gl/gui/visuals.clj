@@ -6,7 +6,10 @@
             [flow-gl.graphics.rectangle :as rectangle]
             [flow-gl.graphics.text :as text]
             [fungl.handler :as handler]
-            [fungl.util :as util]))
+            [fungl.util :as util]
+            [fungl.swing.root-renderer :as root-renderer]
+            [fungl.cache :as cache]
+            [flow-gl.gui.scene-graph :as scene-graph]))
 
 
 
@@ -194,8 +197,6 @@
                (< y (.getHeight buffered-image)))
       (= 255 (last (buffered-image/get-color buffered-image x y))))))
 
-
-
 (defn image [buffered-image]
   {:buffered-image buffered-image
    :width (.getWidth buffered-image)
@@ -204,3 +205,23 @@
    :image-function identity
    :image-function-parameter-keys [:buffered-image :width :height]
    :hit-test hit-test-image})
+
+(cache/defn-memoized render-to-images [scene-graph]
+  (assoc (select-keys scene-graph [:x :y :z])
+         :children (map (fn [[z leaf-nodes]]
+                          (let [bounding-box (scene-graph/bounding-box leaf-nodes)]
+                            (assoc (image (root-renderer/render-to-buffered-image bounding-box
+                                                                                  leaf-nodes))
+                                   :z z
+                                   :x (- (:x bounding-box)
+                                         (:x scene-graph))
+                                   :y (- (:y bounding-box)
+                                         (:y scene-graph)))))
+                        (group-by :z (scene-graph/leaf-nodes scene-graph)))))
+
+(defn render-to-images-render-function [_graphics scene-graph]
+  (render-to-images scene-graph))
+
+(defn render-cache [child]
+  {:children [child]
+   :render render-to-images-render-function})

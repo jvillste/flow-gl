@@ -6,5 +6,5 @@
   (scene-graph/update-depth-first scene-graph :render
                                   (fn [scene-graph]
                                     (callable/call (:render scene-graph)
-                                                   scene-graph
-                                                   gl))))
+                                                   gl
+                                                   scene-graph))))

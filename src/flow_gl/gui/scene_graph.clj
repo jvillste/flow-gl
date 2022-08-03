@@ -399,12 +399,6 @@
                                         :children [{:id [:b 0]}]}]}
                            [:b 0]))))
 
-(defn bounding-box [nodes]
-  {:x1 (apply min (map :x nodes))
-   :y1 (apply min (map :y nodes))
-   :x2 (apply max (map :x nodes))
-   :y2 (apply max (map :y nodes))})
-
 (defn intersection [rectangle-1 rectangle-2]
   (if (or
        ;; 2 is left of 1
@@ -531,3 +525,18 @@
                                   bottom-edge
                                   horizontal-center
                                   nodes))
+
+(defn bounding-box [nodes]
+  (let [min-x (apply min (map :x nodes))
+        min-y (apply min (map :y nodes))]
+    {:x min-x
+     :y min-y
+     :width (- (apply max (map #(+ (:x %)
+                                   (:width %))
+                               nodes))
+               min-x)
+     :height (- (apply max (map #(+ (:y %)
+                                    (:height %))
+                                nodes))
+                min-y)}))
+

@@ -4,7 +4,10 @@
             [fungl.callable :as callable]
             [fungl.dependable-atom :as dependable-atom]
             [clojure.set :as set]
-            [medley.core :as medley]))
+            [medley.core :as medley]
+            [logga.core :as logga]
+            [flow-gl.gui.visuals :as visuals]
+            [fungl.swing.root-renderer :as root-renderer]))
 
 (def ^:dynamic state)
 
@@ -95,10 +98,16 @@
                                    (vec (conj id
                                               (or (:local-id (meta value))
                                                   :call)))
-                                   id)]
-                          (compile true
-                                   id
-                                   (apply-view-call id value))))
+                                   id)
+                              value (compile true
+                                             id
+                                             (apply-view-call id value))]
+                          (if (view-call? value)
+                            value
+                            (assoc value
+                                   :render
+                                   (or (:render value)
+                                       visuals/render-to-images-render-function)))))
 
         (:children value)
         (-> value
@@ -115,7 +124,8 @@
             (assoc :id id))
 
         :default
-        (assoc value :id id)))
+        (assoc value
+               :id id)))
 
 
 

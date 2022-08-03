@@ -34,10 +34,8 @@
 
 (defn render [gl scene-graph]
   (renderer/apply-renderers! (assoc scene-graph
-                                    :render (if-let [render (:render scene-graph)]
-                                              render
-                                              swing-root-renderer/root-renderer
-                                              #_root-renderer/root-renderer))
+                                    :render
+                                    swing-root-renderer/render-scene-graph)
                              gl))
 
 (defn handle-event! [scene-graph event]

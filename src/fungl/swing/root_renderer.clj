@@ -1,10 +1,11 @@
 (ns fungl.swing.root-renderer
-  (:require [flow-gl.gui.scene-graph :as scene-graph]
-            [fungl.cache :as cache]
-            [fungl.render :as render]
-            [flow-gl.graphics.path :as path])
-  (:import java.awt.geom.AffineTransform
-           [java.awt RenderingHints]))
+  (:require
+   [flow-gl.graphics.buffered-image :as buffered-image]
+   [flow-gl.gui.scene-graph :as scene-graph]
+   [fungl.cache :as cache]
+   [fungl.render :as render])
+  (:import
+   (java.awt.geom AffineTransform)))
 
 (defn nodes-in-view [scene-graph width height]
   (filter (fn [node]
@@ -12,12 +13,30 @@
                                      node))
           (cache/call! scene-graph/leaf-nodes scene-graph)))
 
-(defn root-renderer [scene-graph graphics]
-  ;; (.setRenderingHint RenderingHints/KEY_ANTIALIASING RenderingHints/VALUE_ANTIALIAS_ON)
+(defn render-nodes [graphics nodes]
   (let [transform (AffineTransform.)]
-    (doseq [node (filter :draw-function (nodes-in-view scene-graph (:width scene-graph) (:height scene-graph)))]
+    (doseq [node nodes]
       (.setToTranslation transform (:x node) (:y node))
       (.setTransform graphics transform)
       (apply (:draw-function node)
              graphics
              (render/image-function-parameters node)))))
+
+(defn render-scene-graph [graphics scene-graph]
+  (render-nodes graphics
+                (filter :draw-function (nodes-in-view scene-graph (:width scene-graph) (:height scene-graph)))))
+
+(defn render-to-buffered-image [bounding-box leaf-nodes]
+  (let [buffered-image (buffered-image/create (min (:width bounding-box)
+                                                   5000)
+                                              (min (:height bounding-box)
+                                                   5000))]
+
+    (render-nodes (buffered-image/get-graphics buffered-image)
+                  (map (fn [node]
+                         (-> node
+                             (update :x #(- % (:x bounding-box)))
+                             (update :y #(- % (:y bounding-box)))))
+                       leaf-nodes))
+
+    buffered-image))

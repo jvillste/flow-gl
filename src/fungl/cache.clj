@@ -116,6 +116,10 @@
     (apply function
            arguments)))
 
+(defn memoized [function]
+  (fn [& arguments]
+    (apply call! function arguments)))
+
 (defmacro defn-memoized [name arguments & body]
 
   (let [implementation-name (symbol (namespace name)
