@@ -1,21 +1,22 @@
 (ns fungl.application
-  (:require [clojure.core.async :as async]
-            [flow-gl.csp :as csp]
-            [flow-gl.gui.animation :as animation]
-            [flow-gl.gui.keyboard :as keyboard]
-            [flow-gl.gui.mouse :as mouse]
-            [flow-gl.gui.stateful :as stateful]
-            [flow-gl.gui.window :as window]
-            [flow-gl.swing.window :as swing-window]
-            [fungl.cache :as cache]
-            [fungl.layout :as layout]
-            [fungl.renderer :as renderer]
-            [fungl.swing.root-renderer :as swing-root-renderer]
-            [fungl.value-registry :as value-registry]
-            [fungl.view-compiler :as view-compiler]
-            [logga.core :as logga]
-            [taoensso.tufte :as tufte]
-            [flow-gl.gui.scene-graph :as scene-graph]))
+  (:require
+   [clojure.core.async :as async]
+   [flow-gl.csp :as csp]
+   [flow-gl.gui.animation :as animation]
+   [flow-gl.gui.keyboard :as keyboard]
+   [flow-gl.gui.mouse :as mouse]
+   [flow-gl.gui.stateful :as stateful]
+   [flow-gl.gui.visuals :as visuals]
+   [flow-gl.gui.window :as window]
+   [flow-gl.swing.window :as swing-window]
+   [fungl.cache :as cache]
+   [fungl.layout :as layout]
+   [fungl.renderer :as renderer]
+   [fungl.swing.root-renderer :as swing-root-renderer]
+   [fungl.value-registry :as value-registry]
+   [fungl.view-compiler :as view-compiler]
+   [logga.core :as logga]
+   [taoensso.tufte :as tufte]))
 
 (tufte/add-basic-println-handler! {})
 
@@ -30,7 +31,8 @@
 
 (defn create-render-state []
   (conj (cache/state-bindings)
-        (value-registry/state-bindings)))
+        (value-registry/state-bindings)
+        (visuals/state-bindings)))
 
 (defn render [gl scene-graph]
   (renderer/apply-renderers! (assoc scene-graph

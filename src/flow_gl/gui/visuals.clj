@@ -206,7 +206,12 @@
    :image-function-parameter-keys [:buffered-image :width :height]
    :hit-test hit-test-image})
 
-(cache/defn-memoized render-to-images [scene-graph]
+(def ^:dynamic image-cache)
+
+(defn state-bindings []
+  {#'image-cache (cache/create-state 30)})
+
+(defn render-to-images [scene-graph]
   (assoc (select-keys scene-graph [:x :y :z])
          :children (map (fn [[z leaf-nodes]]
                           (let [bounding-box (scene-graph/bounding-box leaf-nodes)]
@@ -220,7 +225,10 @@
                         (group-by :z (filter :draw-function (scene-graph/leaf-nodes scene-graph))))))
 
 (defn render-to-images-render-function [_graphics scene-graph]
-  (render-to-images scene-graph))
+  (cache/call-with-cache image-cache
+                         render-to-images
+                         scene-graph)
+  #_(render-to-images scene-graph))
 
 (defn render-cache [child]
   {:children [child]

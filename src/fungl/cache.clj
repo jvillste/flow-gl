@@ -5,21 +5,38 @@
 
 (def ^:dynamic state)
 
-(defn create-state [& args]
-  {:cache (-> (CacheBuilder/newBuilder)
-              #_(.expireAfterAccess 30 TimeUnit/SECONDS)
-              (.maximumSize 100000)
-              (.build (proxy [CacheLoader] []
-                        (load [[function arguments]]
-                          #_(trace/log "loading to cache" function arguments)
-                          (depend/with-dependencies
-                            (let [result (apply function arguments)]
-                              (swap! (:dependencies state)
-                                     assoc
-                                     [function arguments]
-                                     (depend/current-dependencies))
-                              result))))))
-   :dependencies (atom {})})
+(defn stats [state]
+  (let [stats (.stats (:cache state))]
+    {:size (.size (:cache state))
+     :hit-count (.hitCount stats)
+     :request-count (.requestCount stats)
+     :load-success-count (.loadSuccessCount stats)}))
+
+(defn create-state [maximum-size]
+  (let [dependencies-atom (atom {})]
+    {:cache (-> (CacheBuilder/newBuilder)
+                #_(.expireAfterAccess 30 TimeUnit/SECONDS)
+                (.maximumSize maximum-size)
+                (.build (proxy [CacheLoader] []
+                          (load [[function arguments]]
+                            (depend/with-dependencies
+                              (let [result (apply function arguments)]
+                                (swap! dependencies-atom
+                                       assoc
+                                       [function arguments]
+                                       (depend/current-dependencies))
+                                result))))))
+     :dependencies dependencies-atom}))
+
+(comment
+  (let [state (create-state 10)]
+    (prn (stats state))
+    (prn (.get (:cache state) [+ [1 2]]))
+    (prn (stats state))
+    (prn (.get (:cache state) [+ [1 2]]))
+    (prn (stats state)))
+
+  ) ;; TODO: remove-me
 
 (defn handle-dependencies [function arguments]
   (loop [dependencies (get @(:dependencies state)
@@ -92,7 +109,7 @@
         (fn [] (apply function arguments))))
 
 (defn state-bindings []
-  {#'state (create-state)})
+  {#'state (create-state 1000)})
 
 (defn cached []
   (.keySet (.asMap (:cache state))))
