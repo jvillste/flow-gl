@@ -179,6 +179,16 @@
         (update :index dec))
     state))
 
+(defn delete-forward [state rows]
+  (if (< (:index state)
+         (count (:text state)))
+    (-> state
+        (update :text
+                delete
+                (:index state)
+                (inc (:index state))))
+    state))
+
 (defn gain-focus [state rows]
   (assoc state :has-focus true))
 
@@ -234,6 +244,10 @@
 
           (= :back-space (:key event))
           [delete-backward]
+
+          (and (= :d (:key event))
+               (:control? event))
+          [delete-forward]
 
           :else
           (when-let [character (:character event)]
