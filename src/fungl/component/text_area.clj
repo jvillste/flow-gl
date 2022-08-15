@@ -115,6 +115,14 @@
                                (text/row-height (nth rows (:row-number position)))))
       index)))
 
+(defn index-at-the-end-of-the-row [rows index]
+  (let [position (character-position rows index)]
+    (dec (:to (nth rows (:row-number position))))))
+
+(defn index-at-the-beginning-of-the-row [rows index]
+  (let [position (character-position rows index)]
+    (:from (nth rows (:row-number position)))))
+
 
 (defn index-at-next-row [rows x index]
   (let [position (character-position rows index)]
@@ -159,6 +167,12 @@
   (assoc state :index (index-at-next-row rows
                                          (:x-on-first-line-change state)
                                          (:index state))))
+
+(defn move-to-the-end-of-the-row [state rows]
+  (assoc state :index (index-at-the-end-of-the-row rows (:index state))))
+
+(defn move-to-the-beginning-of-the-row [state rows]
+  (assoc state :index (index-at-the-beginning-of-the-row rows (:index state))))
 
 (defn backward [state rows]
   (update state :index (fn [index]
@@ -248,6 +262,14 @@
           (and (= :d (:key event))
                (:control? event))
           [delete-forward]
+
+          (and (= :e (:key event))
+               (:control? event))
+          [move-to-the-end-of-the-row]
+
+          (and (= :a (:key event))
+               (:control? event))
+          [move-to-the-beginning-of-the-row]
 
           :else
           (when-let [character (:character event)]
