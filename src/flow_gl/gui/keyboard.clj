@@ -6,7 +6,8 @@
             [fungl.callable :as callable]
             [medley.core :as medley]
             [fungl.layout :as layout]
-            [fungl.dependable-atom :as dependable-atom]))
+            [fungl.dependable-atom :as dependable-atom]
+            [fungl.view-compiler :as view-compiler]))
 
 (defn- initialize-state []
   {})
@@ -314,6 +315,14 @@
                         event)
       (call-focused-event-handler! event))))
 
+(defn sub-component-is-focused? []
+  (= view-compiler/id
+     (take (count view-compiler/id)
+           (:focused-node-id @state-atom))))
+
+(defn component-is-focused? []
+  (= view-compiler/id
+     (:focused-node-id @state-atom)))
 
 ;; events
 

@@ -107,13 +107,14 @@
       nil)))
 
 (defn index-at-previous-row [rows x index]
-  (let [position (character-position rows index)]
+  (if-let [position (character-position rows index)]
     (if (< 0 (:row-number position))
       (index-at-coordinates rows
                             x
                             (- (:y position)
                                (text/row-height (nth rows (:row-number position)))))
-      index)))
+      index)
+    index))
 
 (defn index-at-the-end-of-the-row [rows index]
   (let [position (character-position rows index)]
@@ -125,14 +126,15 @@
 
 
 (defn index-at-next-row [rows x index]
-  (let [position (character-position rows index)]
+  (if-let [position (character-position rows index)]
     (if (> (dec (count rows))
            (:row-number position))
       (index-at-coordinates rows
                             x
                             (+ (:y position)
                                (text/row-height (nth rows (:row-number position)))))
-      index)))
+      index)
+    index))
 
 (defn insert [target index source]
   (-> (StringBuilder. target)
@@ -203,12 +205,6 @@
                 (inc (:index state))))
     state))
 
-(defn gain-focus [state rows]
-  (assoc state :has-focus true))
-
-(defn loose-focus [state rows]
-  (assoc state :has-focus false))
-
 (defn insert-string [state rows character]
   (-> state
       (update :text
@@ -234,8 +230,8 @@
            parameters)))
 
 (defn keyboard-event-to-command [event]
-  (if (= :key-pressed
-         (:type event))
+  (when (= :key-pressed
+           (:type event))
     (cond (or (= :up (:key event))
               (and (= :p (:key event))
                    (:control? event)))
@@ -279,11 +275,7 @@
                        (not (empty? (string/replace (str character)
                                                     #"\p{C}" ;; from https://stackoverflow.com/a/62915361
                                                     ""))))
-              [insert-string character])))
-    (case (:type event)
-      :focus-gained [gain-focus]
-      :focus-lost [loose-focus]
-      nil)))
+              [insert-string character])))))
 
 (defn initialize-state [] {:index 0})
 
@@ -372,7 +364,7 @@
   (swap! state-atom assoc :text text)
   (let [state @state-atom]
     (-> (create-scene-graph text
-                            (when (:has-focus state)
+                            (when (keyboard/component-is-focused?)
                               (:index state))
                             style
                             (fn [rows]
