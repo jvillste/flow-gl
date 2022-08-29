@@ -5,7 +5,8 @@
    [fungl.cache :as cache]
    [fungl.render :as render])
   (:import
-   (java.awt.geom AffineTransform)))
+   (java.awt.geom AffineTransform)
+   (java.awt Color)))
 
 (defn nodes-in-view [scene-graph width height]
   (filter (fn [node]
@@ -14,6 +15,7 @@
           (cache/call! scene-graph/leaf-nodes scene-graph)))
 
 (defn render-nodes [graphics nodes]
+
   (let [transform (AffineTransform.)]
     (doseq [node nodes]
       (.setToTranslation transform (:x node) (:y node))
@@ -23,6 +25,10 @@
              (render/image-function-parameters node)))))
 
 (defn render-scene-graph [graphics scene-graph]
+  (doto graphics
+    (.setColor (Color. 255 255 255 255))
+    (.fillRect 0 0 5000 5000))
+
   (render-nodes graphics
                 (filter :draw-function (nodes-in-view scene-graph (:width scene-graph) (:height scene-graph)))))
 
