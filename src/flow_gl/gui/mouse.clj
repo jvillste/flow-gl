@@ -286,6 +286,7 @@
 
 ;; dynamic state
 
+
 (def ^:dynamic state-atom)
 
 (defn state-bindings []

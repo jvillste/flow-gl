@@ -1,7 +1,7 @@
 (ns fungl.layouts
   (:require [clojure.spec.alpha :as spec]
             [flow-gl.gui.scene-graph :as scene-graph]
-            [fungl.layout :as layout]
+            [fungl.layout.measuring :as measuring]
             [clojure.test :refer :all]))
 
 ;; common
@@ -46,7 +46,7 @@
   (is (vector? (flatten-contents [1 2 3]))))
 
 (defn get-first-child-size [node]
-  (layout/size (first (:children node))))
+  (measuring/size (first (:children node))))
 
 ;; vertically
 
@@ -120,6 +120,7 @@
                                (conj (map :height (:children node))
                                      0))})
 
+   ;; TODO: how to give each child only remaining space? is their size known here?
    :give-space (fn [node]
                  (update-in node [:children]
                             (fn [children]
@@ -374,7 +375,7 @@
   (update-in node
              [:children]
              (fn [[child]]
-               [(layout/make-layout (assoc child
+               [(measuring/make-layout (assoc child
                                            :x 0
                                            :y 0
                                            :z 0
@@ -472,7 +473,7 @@
 (defn superimpose-get-size [node]
   (let [child-sizes (map (fn [child]
                            (merge (select-keys child [:x :y])
-                                  (layout/size child)))
+                                  (measuring/size child)))
                          (:children node))]
     {:width (apply max
                    (map (fn [child-size]
@@ -492,12 +493,37 @@
      :children children
      :get-size superimpose-get-size}))
 
+(defn overlay-get-size [node]
+  (measuring/size (first (:children node))))
+
+(defn overlay-make-layout [node]
+  (update node
+          :children
+          (fn [[under over]]
+            [(assoc under
+                    :x 0
+                    :y 0)
+             (assoc over
+                    :x 0
+                    :y 0
+                    :z (inc (or (:z under)
+                                0))
+                    :width (:width under)
+                    :height (:height under))])))
+
+(defn overlay [under over]
+  {:type ::overlay
+   :children [under over]
+   :get-size overlay-get-size
+   :make-layout overlay-make-layout})
+
+
 ;; preferred-size
 
 
 (defn preferred-size-make-layout [node]
   (let [child (first (:children node))
-        {:keys [width height]} (layout/size node)]
+        {:keys [width height]} (measuring/size node)]
     (assoc node :children [(assoc child
                                   :width width
                                   :height height)])))
@@ -517,7 +543,7 @@
          row-nodes []
          remaining-nodes nodes]
     (if-let [node (first remaining-nodes)]
-      (let [node-size (layout/size node)]
+      (let [node-size (measuring/size node)]
         (if (and (> (+ row-width
                        (:width node-size))
                     maximum-width)
@@ -539,7 +565,7 @@
          nodes nodes
          layouted-nodes []]
     (if-let [node (first nodes)]
-      (let [preferred-size (layout/size node)]
+      (let [preferred-size (measuring/size node)]
         (recur (+ x
                   (:width preferred-size))
                (rest nodes)

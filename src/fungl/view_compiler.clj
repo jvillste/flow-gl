@@ -7,7 +7,8 @@
             [medley.core :as medley]
             [logga.core :as logga]
             [flow-gl.gui.visuals :as visuals]
-            [fungl.swing.root-renderer :as root-renderer]))
+            [fungl.swing.root-renderer :as root-renderer]
+            [fungl.component :as component]))
 
 (def ^:dynamic state)
 
@@ -43,7 +44,16 @@
 
   (binding [id the-id]
     (let [[view-function-or-constructor & arguments] view-call
-          scene-graph-or-view-call (cond (cache/cached? (cache/function-call-key view-function-or-constructor arguments))
+          cached-view-call? (or (apply cache/cached?
+                                       view-function-or-constructor
+                                       arguments)
+                                (apply cache/cached?
+                                       (get @(:constructor-cache state)
+                                            the-id)
+                                       arguments))
+          scene-graph-or-view-call (cond (apply cache/cached?
+                                                view-function-or-constructor
+                                                arguments)
                                          (apply cache/call! view-function-or-constructor arguments)
 
                                          (contains? @(:constructor-cache state)
@@ -51,9 +61,8 @@
                                          (let [view-function (get @(:constructor-cache state)
                                                                   the-id)]
                                            (swap! used-constructor-ids conj the-id)
-                                           (apply cache/call! view-function arguments))
-
-                                         :default
+                                           (apply cache/call! view-function arguments)
+                                         :else
                                          (let [view-function-or-scene-graph (apply view-function-or-constructor arguments)]
                                            (if (fn? view-function-or-scene-graph)
                                              (do (swap! (:constructor-cache state)
@@ -71,9 +80,10 @@
 
             (scene-graph? scene-graph-or-view-call)
             (-> scene-graph-or-view-call
-                (assoc :id the-id))
+                (assoc :id the-id)
+                (assoc :cached-view-call? cached-view-call?))
 
-            :default
+            :else
             (throw (Exception. (str "View function did not return a hash map: " view-function-or-constructor)))))))
 
 (defn apply-metadata [metadata compiled-node]

@@ -12,7 +12,8 @@
             [fungl.atom-registry :as atom-registry]
             [fungl.cache :as cache]
             [fungl.layout :as layout]
-            [fungl.layouts :as layouts]))
+            [fungl.layouts :as layouts]
+            [fungl.layout.measuring :as measuring]))
 
 (defn create-state []
   {:root-calls []
@@ -438,7 +439,7 @@
 
 
 (defn call-view [state reduce! call]
-  (let [character-width (:width (layout/size (layout/do-layout (text "0"))))]
+  (let [character-width (:width (measuring/size (layout/do-layout (text "0"))))]
     (layouts/vertically (layouts/horizontally (layouts/with-minimum-size (* 4 character-width) 0
                                                 (if (> (count (:child-calls call)) 0)
                                                   (open-button state reduce! (:call-id call) (count (:child-calls call)))

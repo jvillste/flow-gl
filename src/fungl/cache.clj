@@ -67,22 +67,23 @@
   #_(when (.containsKey (.asMap (:cache state))
                         [function arguments])
       #_(trace/log "cache hit" function arguments))
-
   (.get (:cache state) [function arguments]))
 
 (defn in-use? []
   (bound? #'state))
 
-(defn cached? [key]
+(defn function-call-key [function arguments]
+  [function arguments])
+
+(defn cached? [function & arguments]
   (and (in-use?)
-       (boolean (.getIfPresent (:cache state) key))))
+       (boolean (.getIfPresent (:cache state) (function-call-key function arguments)))))
 
 (defn get [key]
   (when (in-use?)
     (.getIfPresent (:cache state) key)))
 
-(defn function-call-key [function arguments]
-  [function arguments])
+
 
 (defn put! [key result]
   (when (in-use?)
@@ -109,7 +110,7 @@
         (fn [] (apply function arguments))))
 
 (defn state-bindings []
-  {#'state (create-state 1000)})
+  {#'state (create-state 100)})
 
 (defn cached []
   (.keySet (.asMap (:cache state))))
