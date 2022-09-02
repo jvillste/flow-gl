@@ -50,45 +50,53 @@
 
 ;; vertically
 
+(defn- vertical-stack-get-size
+  [node]
+  {:width (apply max
+                 (conj (map :width (:children node))
+                       0))
+   :height (if (empty? (:children node))
+             0
+             (+ (* (dec (count (:children node)))
+                   (:margin node))
+                (reduce + (map :height (:children node)))))})
+
+(defn- vertical-stack-give-space
+  [node]
+  (update-in node [:children]
+             (fn [children]
+
+               (map (fn [child]
+                      (assoc child
+                             :available-width (:available-width node)
+                             :available-height java.lang.Integer/MAX_VALUE))
+                    children))))
+
+(defn- vertical-stack-make-layout
+  [node]
+  (assoc node :children
+         (loop [layouted-nodes []
+                y 0
+                children (:children node)]
+           (if-let [child (first children)]
+             (recur (conj layouted-nodes
+                          (assoc child
+                                 :x (if (::centered node)
+                                      (/ (- (:width node)
+                                            (:width child))
+                                         2)
+                                      0)
+                                 :y y))
+                    (+ y (:height child)
+                       (:margin node))
+                    (rest children))
+             layouted-nodes))))
+
 (def vertical-stack
   {:type ::vertical-stack
-   :get-size (fn [node]
-               {:width (apply max
-                              (conj (map :width (:children node))
-                                    0))
-                :height (if (empty? (:children node))
-                          0
-                          (+ (* (dec (count (:children node)))
-                                (:margin node))
-                             (reduce + (map :height (:children node)))))})
-
-   :give-space (fn [node]
-                 (update-in node [:children]
-                            (fn [children]
-
-                              (map (fn [child]
-                                     (assoc child
-                                            :available-width (:available-width node)
-                                            :available-height java.lang.Integer/MAX_VALUE))
-                                   children))))
-   :make-layout (fn [node]
-                  (assoc node :children
-                         (loop [layouted-nodes []
-                                y 0
-                                children (:children node)]
-                           (if-let [child (first children)]
-                             (recur (conj layouted-nodes
-                                          (assoc child
-                                                 :x (if (::centered node)
-                                                      (/ (- (:width node)
-                                                            (:width child))
-                                                         2)
-                                                      0)
-                                                 :y y))
-                                    (+ y (:height child)
-                                       (:margin node))
-                                    (rest children))
-                             layouted-nodes))))})
+   :get-size vertical-stack-get-size
+   :give-space vertical-stack-give-space
+   :make-layout vertical-stack-make-layout})
 
 (defn vertically [& children]
   (assoc vertical-stack
@@ -108,45 +116,54 @@
          :margin margin
          :children (flatten-contents children)))
 
+(defn- horizontal-stack-get-size
+  [node]
+  {:width (if (empty? (:children node))
+            0
+            (+ (* (dec (count (:children node)))
+                  (:margin node))
+               (reduce + (map :width (:children node)))))
+   :height (apply max
+                  (conj (map :height (:children node))
+                        0))})
+
+(defn- horizontal-stack-give-space
+  [node]
+  (update-in node [:children]
+             (fn [children]
+               (map (fn [child]
+                      (assoc child
+                             :available-width java.lang.Integer/MAX_VALUE
+                             :available-height (:available-width node)))
+                    children))))
+
+(defn- horizontal-stack-make-layout
+  [node]
+  (assoc node :children
+         (loop [layouted-nodes []
+                x 0
+                children (:children node)]
+           (if-let [child (first children)]
+             (recur (conj layouted-nodes
+                          (assoc child
+                                 :x x
+                                 :y (if (::centered node)
+                                      (/ (- (:height node)
+                                            (:height child))
+                                         2)
+                                      0)))
+                    (+ x (:width child)
+                       (:margin node))
+                    (rest children))
+             layouted-nodes))))
+
 (def horizontal-stack
   {:type ::horizontal-stack
-   :get-size (fn [node]
-               {:width (if (empty? (:children node))
-                         0
-                         (+ (* (dec (count (:children node)))
-                               (:margin node))
-                            (reduce + (map :width (:children node)))))
-                :height (apply max
-                               (conj (map :height (:children node))
-                                     0))})
+   :get-size horizontal-stack-get-size
 
    ;; TODO: how to give each child only remaining space? is their size known here?
-   :give-space (fn [node]
-                 (update-in node [:children]
-                            (fn [children]
-                              (map (fn [child]
-                                     (assoc child
-                                            :available-width java.lang.Integer/MAX_VALUE
-                                            :available-height (:available-width node)))
-                                   children))))
-   :make-layout (fn [node]
-                  (assoc node :children
-                         (loop [layouted-nodes []
-                                x 0
-                                children (:children node)]
-                           (if-let [child (first children)]
-                             (recur (conj layouted-nodes
-                                          (assoc child
-                                                 :x x
-                                                 :y (if (::centered node)
-                                                      (/ (- (:height node)
-                                                            (:height child))
-                                                         2)
-                                                      0)))
-                                    (+ x (:width child)
-                                       (:margin node))
-                                    (rest children))
-                             layouted-nodes))))})
+   :give-space horizontal-stack-give-space
+   :make-layout horizontal-stack-make-layout})
 
 (defn horizontally [& children]
   (assoc horizontal-stack
@@ -167,47 +184,60 @@
 
 ;; center
 
+(defn center-make-layout [node]
+  (update node :children
+          (fn [[child]]
+            [(assoc child
+                    :x (/ (- (:width node)
+                             (:width child))
+                          2)
+                    :y (/ (- (:height node)
+                             (:height child))
+                          2))])))
+
 (defn center [child]
-  {:make-layout (fn [node]
-                  (update node :children
-                          (fn [[child]]
-                            [(assoc child
-                                    :x (/ (- (:width node)
-                                             (:width child))
-                                          2)
-                                    :y (/ (- (:height node)
-                                             (:height child))
-                                          2))])))
+  {:make-layout center-make-layout
    :children [child]})
 
-(defn center-horizontally [child]
-  {:make-layout (fn [node]
-                  (update node :children
-                          (fn [[child]]
-                            [(assoc child
-                                    :x (/ (- (:width node)
-                                             (:width child))
-                                          2)
-                                    :y 0)])))
-   :children [child]
-   :get-size (fn [node]
-               {:width (:available-width node)
-                :height (:height (first (:children node)))})})
+(defn- center-horizontally-make-layout
+  [node]
+  (update node :children
+          (fn [[child]]
+            [(assoc child
+                    :x (/ (- (:width node)
+                             (:width child))
+                          2)
+                    :y 0)])))
 
+(defn- center-horizontally-get-size
+  [node]
+  {:width (:available-width node)
+   :height (:height (first (:children node)))})
+
+(defn center-horizontally [child]
+  {:make-layout center-horizontally-make-layout
+   :children [child]
+   :get-size center-horizontally-get-size})
+
+
+(defn center-vertically-make-layout [node]
+  (update node :children
+          (fn [[child]]
+            [(assoc child
+                    :x 0
+                    :y (/ (- (:height node)
+                             (:height child))
+                          2))])))
+
+(defn- center-vertically-get-size
+  [node]
+  {:width (:width (first (:children node)))
+   :height (:available-height node)})
 
 (defn center-vertically [child]
-  {:make-layout (fn [node]
-                  (update node :children
-                          (fn [[child]]
-                            [(assoc child
-                                    :x 0
-                                    :y (/ (- (:height node)
-                                             (:height child))
-                                          2))])))
+  {:make-layout center-vertically-make-layout
    :children [child]
-   :get-size (fn [node]
-               {:width (:width (first (:children node)))
-                :height (:available-height node)})})
+   :get-size center-vertically-get-size})
 
 ;; box
 
@@ -264,32 +294,38 @@
 
 ;; hover
 
+(defn hover-give-space [node]
+  (update node
+          :children
+          (fn [[child]]
+            [(assoc child
+                    :available-width java.lang.Integer/MAX_VALUE
+                    :available-height java.lang.Integer/MAX_VALUE)])))
+
+(defn- hover-get-size
+  [_node]
+  {:width 0
+   :height 0})
+
+(defn hover-make-layout [options node]
+  (update node
+          :children
+          (fn [[child]]
+            [(assoc child
+                    :x 0
+                    :y 0
+                    :z (:z options))])))
 (defn hover
   ([child]
    (hover {:z 1} child))
 
   ([options child]
    {:children [child]
-    :get-size (fn [_node]
-                {:width 0
-                 :height 0})
+    :get-size hover-get-size
 
-    :give-space (fn [node]
-                  (update node
-                          :children
-                          (fn [[child]]
-                            [(assoc child
-                                    :available-width java.lang.Integer/MAX_VALUE
-                                    :available-height java.lang.Integer/MAX_VALUE)])))
+    :give-space hover-give-space
 
-    :make-layout (fn [node]
-                   (update node
-                           :children
-                           (fn [[child]]
-                             [(assoc child
-                                     :x 0
-                                     :y 0
-                                     :z (:z options))])))}))
+    :make-layout (partial hover-make-layout options)}))
 
 ;; transpose
 
