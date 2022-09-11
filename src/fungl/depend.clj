@@ -4,6 +4,8 @@
 (defmulti dependency-added :type)
 (defmulti current-value :type)
 
+(defmethod dependency-added nil [_dependency])
+
 (def ^:dynamic dependencies [])
 
 (defn with-dependencies-impl [function]
@@ -17,6 +19,13 @@
 (defmacro with-dependencies [& body]
   `(with-dependencies-impl (fn [] ~@body)))
 
+(defn with-hidden-dependencies-impl [function]
+  (binding [dependencies (conj dependencies (atom {}))]
+    (function)))
+
+(defmacro with-hidden-dependencies [& body]
+  `(with-hidden-dependencies-impl (fn [] ~@body)))
+
 (defn add-dependency [dependency value]
   (when-let [current-dependencies (last dependencies)]
     (do (dependency-added dependency)
@@ -24,7 +33,8 @@
                assoc dependency value))))
 
 (defn current-dependencies []
-  @(last dependencies))
+  (when-let [last-dependencies (last dependencies)]
+    @last-dependencies))
 
 (deftest dependency-test
   (with-dependencies
@@ -38,8 +48,15 @@
             :foo 1}
            (current-dependencies))))
 
-  (add-dependency :baz 1))
+  (with-dependencies
+    (add-dependency :foo 1)
+    (with-hidden-dependencies
+      (add-dependency :bar 2)
+      (is (= {:bar 2}
+             (current-dependencies))))
 
+    (is (= {:foo 1}
+           (current-dependencies))))
 
-#_(defn deref-depended-atom [depended-atom]
-    (add-dependency))
+  (add-dependency :baz 1)
+  (is (nil? (current-dependencies))))

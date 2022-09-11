@@ -1,7 +1,7 @@
 (ns fungl.dependable-atom-test
-   (:require (fungl [cache :as cache]
+  (:require (fungl [cache :as cache]
                     [dependable-atom :as dependable-atom]))
-   (:use [clojure.test]))
+  (:use [clojure.test]))
 
 (deftest cache-test
   (with-bindings (cache/state-bindings)

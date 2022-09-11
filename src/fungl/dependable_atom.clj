@@ -14,6 +14,10 @@
                            @atom)
     (deref atom))
 
+  clojure.lang.Named
+  (getName [_this]
+    name)
+
   clojure.lang.IAtom
   (swap [_this fn]
     (swap! atom fn))
