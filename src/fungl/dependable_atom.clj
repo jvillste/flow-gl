@@ -5,11 +5,12 @@
   (:refer-clojure :exclude [atom])
   (:import java.io.Writer))
 
-(defrecord Atom [atom]
+(defrecord Atom [name atom]
   clojure.lang.IDeref
   (deref [_this]
     (depend/add-dependency {:type ::type
-                            :atom atom}
+                            :atom atom
+                            :name name}
                            @atom)
     (deref atom))
 
@@ -65,8 +66,15 @@
                       (System/identityHashCode dependable-atom))
               "]")))
 
-(defn atom [value]
-  (->Atom (clojure.core/atom value)))
+(defn atom
+  ([value]
+   (atom nil value))
+  ([name value]
+   (->Atom name (clojure.core/atom value))))
+
+(defmacro def-named-atom [name value]
+  `(def ~name (->Atom ~(clojure.core/name name)
+                      (clojure.core/atom ~value))))
 
 (defmethod depend/current-value ::type [dependency]
   @(:atom dependency))
