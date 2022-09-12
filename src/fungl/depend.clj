@@ -1,10 +1,10 @@
 (ns fungl.depend
   (:require [clojure.test :refer :all]))
 
-(defmulti dependency-added :type)
-(defmulti current-value :type)
+(defmulti dependency-added class)
+(defmulti current-value class)
 
-(defmethod dependency-added nil [_dependency])
+(defmethod dependency-added Object [_dependency])
 
 (def ^:dynamic dependencies [])
 

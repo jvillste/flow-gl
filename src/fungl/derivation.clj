@@ -4,11 +4,9 @@
 
 (defrecord Derivation [name function]
   clojure.lang.IDeref
-  (deref [_this]
+  (deref [this]
     (let [result (depend/with-hidden-dependencies (cache/call! function))]
-      (depend/add-dependency {:type ::type
-                              :function function
-                              :name name}
+      (depend/add-dependency this
                              result)
       result))
 
@@ -22,10 +20,13 @@
   ([name function]
    (Derivation. name function)))
 
-(defmethod depend/current-value ::type [derivation]
-  (cache/call! (:function derivation)))
+(defmacro def-derivation [name & function-body]
+  `(def ~name (derive ~name
+                      (fn []
+                        ~@function-body))))
 
-(defmethod depend/dependency-added ::type [_derivation])
+(defmethod depend/current-value Derivation [derivation]
+  (cache/call! (:function derivation)))
 
 (defmethod print-method Derivation [derivation, ^java.io.Writer writer]
   (.write writer "#derivation[")

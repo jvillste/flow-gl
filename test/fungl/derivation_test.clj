@@ -1,4 +1,4 @@
-(ns fungl.dependable-atom-test
+(ns fungl.derivation-test
   (:require
    [clojure.test :refer :all]
    [fungl.cache :as cache]

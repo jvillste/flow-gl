@@ -7,10 +7,8 @@
 
 (defrecord Atom [name atom]
   clojure.lang.IDeref
-  (deref [_this]
-    (depend/add-dependency {:type ::type
-                            :atom atom
-                            :name name}
+  (deref [this]
+    (depend/add-dependency this
                            @atom)
     (deref atom))
 
@@ -80,7 +78,5 @@
   `(def ~name (->Atom ~(clojure.core/name name)
                       (clojure.core/atom ~value))))
 
-(defmethod depend/current-value ::type [dependency]
+(defmethod depend/current-value Atom [dependency]
   @(:atom dependency))
-
-(defmethod depend/dependency-added ::type [dependency])
