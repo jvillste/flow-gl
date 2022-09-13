@@ -34,10 +34,10 @@
   ([id]
    (value-registry/get! id)))
 
-(defmethod depend/current-value ::atom-registry [dependency]
-  @(value-registry/get! (:id dependency)
-                        (refine-specification (:id dependency)
-                                              (:specification dependency))))
+;; (defmethod depend/current-value ::atom-registry [dependency]
+;;   @(value-registry/get! (:id dependency)
+;;                         (refine-specification (:id dependency)
+;;                                               (:specification dependency))))
 
-(defmethod depend/dependency-added ::atom-registry [dependency]
-  (value-registry/mark-reference! (:id dependency)))
+;; (defmethod depend/dependency-added ::atom-registry [dependency]
+;;   (value-registry/mark-reference! (:id dependency)))

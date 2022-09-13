@@ -50,7 +50,11 @@
     (swap-vals! atom f arg1 arg2 args))
 
   (resetVals [_this value]
-    (reset-vals! atom value)))
+    (reset-vals! atom value))
+
+  depend/Depend
+  (current-value [_this]
+    @atom))
 
 (defmethod print-method Atom [dependable-atom, ^java.io.Writer writer]
   (.write writer "#dependable-atom[")
@@ -77,6 +81,3 @@
 (defmacro def-named-atom [name value]
   `(def ~name (->Atom ~(clojure.core/name name)
                       (clojure.core/atom ~value))))
-
-(defmethod depend/current-value Atom [dependency]
-  @(:atom dependency))

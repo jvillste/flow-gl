@@ -12,7 +12,11 @@
 
   clojure.lang.Named
   (getName [_this]
-    name))
+    name)
+
+  depend/Depend
+  (current-value [_this]
+    (cache/call! function)))
 
 (defn derive
   ([function]
@@ -24,9 +28,6 @@
   `(def ~name (derive ~name
                       (fn []
                         ~@function-body))))
-
-(defmethod depend/current-value Derivation [derivation]
-  (cache/call! (:function derivation)))
 
 (defmethod print-method Derivation [derivation, ^java.io.Writer writer]
   (.write writer "#derivation[")

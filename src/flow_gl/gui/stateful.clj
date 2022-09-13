@@ -53,10 +53,10 @@
       (update-in [destructors-key] dissoc id)))
 
 (deftest remove-stateful-test
-  (is (= {:states {} 
+  (is (= {:states {}
           :destructors {},
           :called #{}}
-         (remove-stateful {:states {:stateful-1 :stateful-1-state}  
+         (remove-stateful {:states {:stateful-1 :stateful-1-state}
                            :destructors {:stateful-1 :stateful-1-destructor},
                            :called #{}}
                           :stateful-1))))
@@ -103,14 +103,14 @@
     [(register-call all-stateful-state
                     id
                     delete-state
-                    @stateful-state-atom)     
+                    @stateful-state-atom)
      result]))
 
 (deftest call-with-state-atom-test
   (let [initializer (fn [] 1)
         destructor (fn [state])
         function (fn [state-atom] (swap! state-atom inc))]
-    (is (= [{:states {:stateful-1 2} 
+    (is (= [{:states {:stateful-1 2}
              :destructors {:stateful-1 destructor},
              :called #{:stateful-1}
              :calls-after-delete 1}
@@ -134,7 +134,7 @@
                                        arguments))]
     [(reduce (fn [all-stateful-state {:keys [id kind state-atom delete-state]}]
                (register-call all-stateful-state
-                              [id kind] 
+                              [id kind]
                               delete-state
                               @state-atom))
              all-stateful-state
@@ -179,7 +179,7 @@
                                                             destructor
                                                             function)
           all-stateful-state (delete-unused-states all-stateful-state)]
-      
+
       (is (= {:states {:stateful-1 2
                        :stateful-2 2}
               :destructors {:stateful-1 destructor
@@ -187,7 +187,7 @@
               :called #{}
               :calls-after-delete 0}
              all-stateful-state))
-      
+
       (is (= false @deleted-atom))
 
       (let [[all-stateful-state result] (call-with-state-atom all-stateful-state
@@ -202,8 +202,8 @@
                 :called #{:stateful-2}
                 :calls-after-delete 1}
                all-stateful-state))
-        
-        (is (= {:states {:stateful-2 3} 
+
+        (is (= {:states {:stateful-2 3}
                 :destructors {:stateful-2 destructor},
                 :called #{}
                 :calls-after-delete 0}
@@ -263,9 +263,9 @@
 (defn call-with-state-atom! [id initialize-state delete-state function & arguments]
   (let [[all-stateful-state result] (apply call-with-state-atom
                                            @all-stateful-state-atom id initialize-state delete-state function arguments)]
-    
+
     (reset! all-stateful-state-atom all-stateful-state)
-    
+
     (depend/add-dependency {:type ::stateful
                             :id id}
                            (stateful-state! id {:initialize-state initialize-state}))
@@ -276,7 +276,7 @@
   (let [stateful-specifications-with-ids (->> (partition 2 stateful-specifications-and-ids)
                                               (map (fn [[id stateful-specification]]
                                                      (assoc stateful-specification
-                                                            :id id)))) 
+                                                            :id id))))
         result-atom (atom nil)]
 
     (swap! all-stateful-state-atom
@@ -285,13 +285,13 @@
                                                       all-stateful-state stateful-specifications-with-ids function arguments)]
                (reset! result-atom result)
                all-stateful-state)))
-    
+
     (doseq [[id stateful-specification] (partition 2 stateful-specifications-and-ids)]
       (depend/add-dependency {:type ::stateful
                               :id [id (:kind stateful-specification)]}
                              (stateful-state! [id (:kind stateful-specification)]
                                               stateful-specification)))
-    
+
     @result-atom))
 
 
@@ -345,7 +345,7 @@
       (is (= 6
              (with-state-atoms! [stateul-1-state-atom :stateful-1 stateful-specification
                                  stateful-2-state-atom :stateful-2 stateful-specification]
-               
+
                (swap! stateul-1-state-atom + 5)
                @stateul-1-state-atom)))
 
@@ -359,23 +359,21 @@
       (is (= 11
              (with-state-atoms! [stateul-1-state-atom :stateful-1 stateful-specification
                                  stateful-2-state-atom :stateful-2 stateful-specification]
-               
+
                (swap! stateul-1-state-atom + 5)
                @stateul-1-state-atom))))))
 
-(defmethod depend/current-value ::stateful [dependency]
-  (get-stateful-state @all-stateful-state-atom (:id dependency)))
+;; (defmethod depend/current-value ::stateful [dependency]
+;;   (get-stateful-state @all-stateful-state-atom (:id dependency)))
 
 
-(defmethod depend/dependency-added ::stateful [dependency]
-  (swap! all-stateful-state-atom
-         update called-key (fnil conj #{}) (:id dependency))
+;; (defmethod depend/dependency-added ::stateful [dependency]
+;;   (swap! all-stateful-state-atom
+;;          update called-key (fnil conj #{}) (:id dependency))
 
-  (println "dependency added" (:id dependency)
-           (get @all-stateful-state-atom
-                called-key)))
+;;   (println "dependency added" (:id dependency)
+;;            (get @all-stateful-state-atom
+;;                 called-key)))
 
 #_(defn delete-unused-states-after! [calls]
     (swap! all-stateful-state-atom delete-unused-states calls))
-
-

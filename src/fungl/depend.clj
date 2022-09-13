@@ -1,10 +1,8 @@
 (ns fungl.depend
   (:require [clojure.test :refer :all]))
 
-(defmulti dependency-added class)
-(defmulti current-value class)
-
-(defmethod dependency-added Object [_dependency])
+(defprotocol Depend
+  (current-value [this]))
 
 (def ^:dynamic dependencies [])
 
@@ -28,9 +26,8 @@
 
 (defn add-dependency [dependency value]
   (when-let [current-dependencies (last dependencies)]
-    (do (dependency-added dependency)
-        (swap! current-dependencies
-               assoc dependency value))))
+    (swap! current-dependencies
+           assoc dependency value)))
 
 (defn current-dependencies []
   (when-let [last-dependencies (last dependencies)]
