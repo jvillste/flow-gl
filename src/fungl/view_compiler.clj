@@ -84,33 +84,35 @@
 
 ;; TODO: visualize component dependency tree
 
-(defn- compile-node [parent-is-view? id value]
+(defn- compile-node [parent-view-functions id value]
   (assert (bound? #'state)
           "Bindings returned by (state-bindings) should be bound.")
 
   (cond (view-call? value)
         (apply-metadata (meta value)
-                        (let [id (if parent-is-view?
+                        (let [id (if (not (empty? parent-view-functions))
                                    (vec (conj id
                                               (or (:local-id (meta value))
                                                   :call)))
                                    id)
-                              value (compile-node true
-                                                  id
-                                                  (apply-view-call id value))]
-                          (if (view-call? value)
-                            value
-                            (assoc value
-                                   :render
-                                   (or (:render value)
-                                       visuals/render-to-images-render-function)))))
+                              scene-graph (compile-node (conj parent-view-functions
+                                                              (first value))
+                                                        id
+                                                        (apply-view-call id value))]
+                          (assoc scene-graph
+                                 :view-functions (concat [(first value)]
+                                                         (or (:view-functions scene-graph)
+                                                             []))
+                                 :render
+                                 (or (:render scene-graph)
+                                     visuals/render-to-images-render-function))))
 
         (:children value)
         (-> value
             (update :children
                     (fn [children]
                       (vec (map-indexed (fn [index child]
-                                          (compile-node false
+                                          (compile-node []
                                                         (vec (conj id
                                                                    (or (:local-id (meta child))
                                                                        (:local-id child)
@@ -119,13 +121,13 @@
                                         children))))
             (assoc :id id))
 
-        :default
+        :else
         (assoc value
                :id id)))
 
 (defn compile [view-call-or-scene-graph]
   (binding [used-constructor-ids (atom #{})]
-    (let [result (compile-node false
+    (let [result (compile-node []
                                []
                                view-call-or-scene-graph)]
 
@@ -147,6 +149,7 @@
                                         (if (map? node)
                                           (dissoc node
                                                   :render
+                                                  :view-functions
                                                   :cached-view-call?)
                                           node))
                                       (compile value)))]
@@ -360,4 +363,30 @@
 
             (test-compile [view-1])
 
-            (is (= 0 (count (keys @(:constructor-cache state)))))))))))
+            (is (= 0 (count (keys @(:constructor-cache state))))))))
+
+
+      (testing ":view-functions"
+        (let [test-compile (fn [value]
+                             (walk/postwalk (fn [node]
+                                              (if (map? node)
+                                                (dissoc node
+                                                        :render
+                                                        :cached-view-call?)
+                                                node))
+                                            (compile value)))]
+          (let [view (fn []
+                       {:type :view})]
+            (is (= {:type :view
+                    :id []
+                    :view-functions [view]}
+                   (test-compile [view]))))
+
+          (let [view-1 (fn []
+                         {:type :view-1})
+                view-2 (fn []
+                         [view-1])]
+            (is (= {:type :view-1
+                    :id [:call]
+                    :view-functions [view-2 view-1]}
+                   (test-compile [view-2])))))))))
