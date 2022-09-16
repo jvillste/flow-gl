@@ -1,6 +1,7 @@
 (ns fungl.cache
   (:require [clojure.test :refer :all]
-            [fungl.depend :as depend])
+            [fungl.depend :as depend]
+            [medley.core :as medley])
   (:import (com.google.common.cache CacheBuilder CacheLoader)))
 
 (def ^:dynamic state)
@@ -12,6 +13,19 @@
      :request-count (.requestCount stats)
      :load-success-count (.loadSuccessCount stats)}))
 
+(defn call-and-return-result-and-dependencies [function arguments]
+  (depend/with-dependencies
+    (let [result (apply function arguments)]
+      {:result result
+       :dependencies (depend/current-dependencies)})))
+
+(defn set-dependencies! [function arguments dependencies]
+  (swap! (:dependencies state)
+         assoc
+         [function (or arguments
+                       [])]
+         dependencies))
+
 (defn create-state [maximum-size]
   (let [dependencies-atom (atom {})]
     {:cache (-> (CacheBuilder/newBuilder)
@@ -19,12 +33,12 @@
                 (.maximumSize maximum-size)
                 (.build (proxy [CacheLoader] []
                           (load [[function arguments]]
-                            (depend/with-dependencies
-                              (let [result (apply function arguments)]
-                                (swap! dependencies-atom
-                                       assoc
-                                       [function arguments]
-                                       (depend/current-dependencies))
+                            (let [{:keys [result dependencies]} (call-and-return-result-and-dependencies function arguments)]
+                              (set-dependencies! function
+                                                 arguments
+                                                 dependencies)
+                              (if (nil? result)
+                                ::nil
                                 result))))))
      :dependencies dependencies-atom}))
 
@@ -34,40 +48,34 @@
     (prn (.get (:cache state) [+ [1 2]]))
     (prn (stats state))
     (prn (.get (:cache state) [+ [1 2]]))
-    (prn (stats state)))
+    (prn (stats state)))) ;; TODO: remove-me
 
-  ) ;; TODO: remove-me
+(defn dependency-value-map [function arguments]
+  (clojure.core/get @(:dependencies state)
+                    [function (or arguments
+                                  [])]))
 
-(defn handle-dependencies [function arguments]
-  (loop [dependencies (get @(:dependencies state)
-                           [function arguments])]
-    (if-let [[dependency value] (first dependencies)]
-      (if (not= value (depend/current-value dependency))
-        (do #_(println "invalidating " [function arguments]
-                       "because" value " is not "(depend/current-value dependency))
-            #_(flow-gl.tools.trace/log "invalidating" function arguments
-                                       "because not" value "=" (depend/current-value dependency))
-            (swap! (:dependencies state)
-                   dissoc [function arguments])
-            (.invalidate (:cache state) [function arguments]))
-        (recur (rest dependencies)))
+(defn changed-dependency-value? [dependency-value-pair]
+  (let [[dependency value] dependency-value-pair]
+    (not= value (depend/current-value dependency))))
 
-      (doseq [[dependency value] (get @(:dependencies state)
-                                      [function arguments])]
-        #_(println "adding dependency to " (:id dependency)
-                   (:type dependency))
-        (depend/add-dependency dependency value)))))
+(defn should-be-invalidated? [function arguments]
+  (some changed-dependency-value?
+        (dependency-value-map function arguments)))
+
+(defn invalidate-cache [function arguments]
+  (when (should-be-invalidated? function arguments)
+    (swap! (:dependencies state)
+           dissoc [function arguments])
+    (.invalidate (:cache state) [function arguments])))
 
 (defn call-with-cache [state function & arguments]
+  (invalidate-cache function arguments)
 
-  #_(flow-gl.tools.trace/log "dependencies" (get @(:dependencies state)
-                                                 [function arguments]))
-  (handle-dependencies function arguments)
-
-  #_(when (.containsKey (.asMap (:cache state))
-                        [function arguments])
-      #_(trace/log "cache hit" function arguments))
-  (.get (:cache state) [function arguments]))
+  (let [result (.get (:cache state) [function arguments])]
+    (if (= ::nil result)
+      nil
+      result)))
 
 (defn in-use? []
   (bound? #'state))
@@ -77,7 +85,12 @@
 
 (defn cached? [function & arguments]
   (and (in-use?)
-       (boolean (.getIfPresent (:cache state) (function-call-key function arguments)))))
+       (boolean (.getIfPresent (:cache state) (function-call-key function (or arguments
+                                                                              []))))))
+
+(defn cache-is-valid? [function arguments]
+  (and (apply cached? function arguments)
+       (not (should-be-invalidated? function arguments))))
 
 (defn get [key]
   (when (in-use?)
@@ -104,7 +117,7 @@
 ;; Can guava cache hold value for wich the key does not contain all the information that is needed to compute the value?
 (defn call-with-cache-and-key [state cache-key function & arguments]
 
-  (handle-dependencies function arguments)
+  (invalidate-cache function arguments)
 
   (.get (:cache state) [function cache-key]
         (fn [] (apply function arguments))))
@@ -171,6 +184,10 @@
       (is (= {:call-count 1, :result 1}
              (call! f 1)))
 
+      (is (cached? f 1))
+      (is (not (cached? f 2)))
+      (is (not (cached? (fn []) 1)))
+
       (is (= {:call-count 1, :result 1}
              (call! f 1)))
 
@@ -185,3 +202,10 @@
 
       (is (= {:call-count 4, :result 3}
              (call-with-key! f :y 3))))))
+
+
+(comment
+  (with-bindings (state-bindings)
+    (let [f (fn [])]
+      (call! f)))
+  ) ;; TODO: remove-me

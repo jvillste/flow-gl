@@ -13,7 +13,7 @@
 (cache/defn-memoized adapt-to-space [node]
   (if-let [callable (:adapt-to-space node)]
     (->> (callable/call callable node)
-         (view-compiler/compile false (:id node)))
+         (view-compiler/compile-view-calls))
     node))
 
 (cache/defn-memoized do-layout [node]

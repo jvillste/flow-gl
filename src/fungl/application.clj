@@ -18,7 +18,8 @@
    [logga.core :as logga]
    [taoensso.tufte :as tufte]
    [flow-gl.gui.scene-graph :as scene-graph]
-   [fungl.component :as component]))
+   [fungl.component :as component]
+   [clojure.walk :as walk]))
 
 (tufte/add-basic-println-handler! {})
 
@@ -26,7 +27,7 @@
 (def ^:dynamic state-atom)
 
 (defn state-bindings []
-  {#'state-atom (atom {:highlight-view-call-cache-misses? false})})
+  {#'state-atom (atom {:highlight-view-call-cache-misses? #_true false})})
 
 (defn create-event-handling-state []
   (conj (state-bindings)
@@ -189,6 +190,22 @@
             (finally
               (async/close! renderable-scene-graph-channel)))))
 
+(defn render-cached-components-to-images [scene-graph]
+  (scene-graph/map-nodes (fn [node]
+                           (if (and (map? node)
+                                    (:view-functions node)
+                                    (every? (fn [dependency-map]
+                                              (and (contains? dependency-map :old-value)
+                                                   (= (:old-value dependency-map)
+                                                      (:new-value dependency-map))))
+                                            (-> node :view-functions :dependencies)))
+                             (assoc node
+                                    :render
+                                    (or (:render node)
+                                        visuals/render-to-images-render-function))
+                             node))
+                         scene-graph))
+
 (defn start-window [root-view-or-var & {:keys [window
                                                target-frame-rate
                                                do-profiling
@@ -205,10 +222,11 @@
                   render-state (create-render-state)]
               (deliver event-channel-promise (window/event-channel window))
               (start-event-thread (fn [width height]
-                                    (-> (view-compiler/compile [(if (var? root-view-or-var)
-                                                                  @root-view-or-var
-                                                                  root-view-or-var)])
-                                        (layout/do-layout-for-size width height)))
+                                    (-> (view-compiler/compile-view-calls [(if (var? root-view-or-var)
+                                                                             @root-view-or-var
+                                                                             root-view-or-var)])
+                                        (layout/do-layout-for-size width height)
+                                        (render-cached-components-to-images)))
                                   (window/event-channel window)
                                   renderable-scene-graph-channel
                                   (window/width window)
