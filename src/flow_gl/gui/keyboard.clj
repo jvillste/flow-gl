@@ -7,7 +7,8 @@
             [medley.core :as medley]
             [fungl.layout :as layout]
             [fungl.dependable-atom :as dependable-atom]
-            [fungl.view-compiler :as view-compiler]))
+            [fungl.view-compiler :as view-compiler]
+            [fungl.derivation :as derivation]))
 
 (defn- initialize-state []
   {})
@@ -177,8 +178,12 @@
 
 (def ^:dynamic state-atom)
 
+(derivation/def-derivation focused-node
+  (:focused-node @state-atom))
+
 (defn state-bindings []
-  {#'state-atom (dependable-atom/atom (initialize-state))})
+  {#'state-atom (dependable-atom/atom "keyboard state"
+                                      (initialize-state))})
 
 (defn set-focused-event-handler! [event-handler]
   (when (not= event-handler
@@ -282,7 +287,8 @@
 
                                             (scene-graph/find-first :can-gain-focus? scene-graph))]
           (set-focused-node! first-focusable-node))))
-    (set-focused-node! (scene-graph/find-first :can-gain-focus? scene-graph))))
+    (when-let [focusable-node (scene-graph/find-first :can-gain-focus? scene-graph)]
+      (set-focused-node! focusable-node))))
 
 (defn set-focus-on-mouse-clicked! [node event]
   (when (and (= :mouse-clicked
