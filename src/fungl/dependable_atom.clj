@@ -58,6 +58,8 @@
 
 (defmethod print-method Atom [dependable-atom, ^java.io.Writer writer]
   (.write writer "#dependable-atom[")
+  (.write writer (pr-str (:name dependable-atom)))
+  (.write writer " ")
   (print-method @dependable-atom writer)
   (.write writer (str " "
                       (format "0x%x"
@@ -66,6 +68,8 @@
 
 (defmethod pprint/simple-dispatch Atom [dependable-atom]
   (print "#dependable-atom[")
+  (print (pr-str (:name dependable-atom)))
+  (print " ")
   (print (string/trim (with-out-str (pprint/pprint @dependable-atom))))
   (print (str " "
               (format "0x%x"

@@ -10,7 +10,8 @@
             [fungl.swing.root-renderer :as root-renderer]
             [fungl.component :as component]
             [clojure.walk :as walk]
-            [fungl.depend :as depend]))
+            [fungl.depend :as depend]
+            [clojure.string :as string]))
 
 (def ^:dynamic state)
 
@@ -378,7 +379,6 @@
 
             (is (= 0 (count (keys @(:constructor-cache state)))))))))))
 
-
 (deftest test-view-functions
   (with-bindings (merge (state-bindings)
                         (cache/state-bindings))
@@ -464,25 +464,194 @@
                (compile-view-calls [view])))))))
 
 
-;; TODO: implement this:
+(defn view-functions-to-tree [{:keys [id children view-functions] :as node}]
+  (if (not (empty? view-functions))
+    (merge {:id id
+            :view-function (first view-functions)}
+           (when (or children
+                     (not (empty? (rest view-functions))))
+             {:children (if (empty? (rest view-functions))
+                          children
+                          [(view-functions-to-tree (update node :view-functions rest))])}))
+    node))
 
-;; (defn component-tree [node]
-;;   (let [child-component-trees (->> (:children node)
-;;                                    (map component-tree)
-;;                                    (remove nil?))]
-;;     {:children child-component-trees
-;;      :view-functions (:view-functions node)}))
+(deftest test-view-functions-to-tree
+  (is (= {:id 1}
+         (view-functions-to-tree {:id 1})))
 
-;; (deftest test-component-tree
-;;   (is (= nil
-;;          (with-bindings (merge (state-bindings)
-;;                                (cache/state-bindings))
-;;            (let [view-2 (let [state-atom (dependable-atom/atom "view-2 state" 1)]
-;;                           (fn [] {:type :view-2
-;;                                   :state @state-atom}))
-;;                  view-1 (fn [] {:type :view-1
-;;                                 :children [{:children [[view-2]
-;;                                                        [view-2]]}
-;;                                            {:children [[view-2]
-;;                                                        [view-2]]}]})]
-;;              (component-tree (compile-view-calls [view-1])))))))
+  (is (= {:id 1,
+          :view-function :view-function-1,
+          :children [{:id 1
+                      :view-function :view-function-2
+                      :children [:child]}]}
+         (view-functions-to-tree {:id 1
+                                  :children [:child]
+                                  :view-functions [:view-function-1
+                                                   :view-function-2]})))
+
+  (is (= {:id 1, :view-function :view-function-1}
+         (view-functions-to-tree {:id 1
+                                  :view-functions [:view-function-1]})))
+
+
+  (is (= {:id 1,
+          :view-function :view-function-1,
+          :children [{:id 1
+                      :view-function :view-function-2}]}
+         (view-functions-to-tree {:id 1
+                                  :view-functions [:view-function-1 :view-function-2]})))
+
+
+
+  (is (= {:id 1,
+          :view-function :view-function-1,
+          :children [{:id 1,
+                      :view-function :view-function-2,
+                      :children [{:view-functions [:view-function-3], :id 2}]}]}
+
+         (view-functions-to-tree {:view-functions [:view-function-1 :view-function-2]
+                                  :id 1
+                                  :children [{:view-functions [:view-function-3]
+                                              :id 2}]}))))
+
+(defn component-tree [node]
+  (view-functions-to-tree
+   (if-let [children (:children node)]
+     (assoc node :children (->> children
+                                (map component-tree)
+                                (mapcat (fn [child]
+                                          (if (:view-function child)
+                                            [child]
+                                            (:children child))))))
+     node)))
+
+
+(deftest test-component-tree-with-fake-scene-graph
+  (is (= {:id 1, :view-function :view-function-1}
+         (component-tree {:view-functions [:view-function-1]
+                          :id 1})))
+
+  (is (= {:id 1,
+          :view-function :view-function-1,
+          :children [{:id 1
+                      :view-function :view-function-2}]}
+         (component-tree {:view-functions [:view-function-1
+                                           :view-function-2]
+                          :id 1})))
+
+  (is (= '{:id 1,
+           :view-function :view-function-1,
+           :children
+           [{:id 1,
+             :view-function :view-function-2,
+             :children
+             ({:id 2,
+               :view-function :view-function-1,
+               :children [{:id 2, :view-function :view-function-2}]})}]}
+         (component-tree {:view-functions [:view-function-1
+                                           :view-function-2]
+                          :id 1
+                          :children [{:view-functions [:view-function-1
+                                                       :view-function-2]
+                                      :id 2}] })))
+
+  (is (= '{:children
+           ({:id 1,
+             :view-function :view-function-1,
+             :children
+             [{:id 1,
+               :view-function :view-function-2,
+               :children
+               ({:id 2,
+                 :view-function :view-function-1,
+                 :children [{:id 2, :view-function :view-function-2}]})}]})}
+         (component-tree {:children [{:view-functions [:view-function-1
+                                                       :view-function-2]
+                                      :id 1
+                                      :children [{:view-functions [:view-function-1
+                                                                   :view-function-2]
+                                                  :id 2}] }]}))))
+
+(deftest test-component-tree
+  (with-bindings (merge (state-bindings)
+                        (cache/state-bindings))
+    (let [view-2 (fn []
+                   (let [state-atom (dependable-atom/atom "view-2 state" 1)]
+                     (fn [] {:type :view-2
+                             :state @state-atom})))
+          view-1 (fn [] {:type :view-1
+                         :children [{:type :layout
+                                     :children [{:children [[view-2]]}
+                                                {:children [[view-2]]}]}]})
+          view-state-atom (fn [id]
+                            (first (first (get @(:dependencies cache/state)
+                                               [(get @(:constructor-cache state)
+                                                     id)
+                                                []]))))
+          component-tree (component-tree (compile-view-calls [view-1]))]
+
+      (is (= {:id [],
+              :view-function
+              {:function view-1
+               :dependencies []},
+              :children [{:id [0 0 0],
+                          :view-function
+                          {:function view-2
+                           :dependencies [{:dependency (view-state-atom [0 0 0])
+                                           :new-value 1}]}}
+                         {:id [0 1 0],
+                          :view-function
+                          {:function view-2
+                           :dependencies [{:dependency (view-state-atom [0 1 0])
+                                           :new-value 1}]}}]}
+
+             component-tree)))))
+
+
+(def label-component ^{:name "label-component" :ns *ns*}
+  (fn [label]
+    (let [state-atom (dependable-atom/atom {:foo :bar})]
+      (fn [label]
+        (str label @state-atom)))))
+
+(defn unchanged-dependency? [dependency-map]
+  (and (contains? dependency-map :old-value)
+       (= (:old-value dependency-map)
+          (:new-value dependency-map))))
+
+(defn print-component-tree
+  ([component-tree]
+   (print-component-tree 0 component-tree))
+
+  ([level component-tree]
+   (let [view-function-map (:view-function component-tree)]
+     (println (string/join " "
+                           (concat [(str (apply str (repeat (* level 2) " "))
+                                         (or (:name (meta (:function view-function-map)))
+                                             (:function view-function-map)))]
+                                   (for [dependency-map (:dependencies view-function-map)]
+                                     (str (or (name (:dependency dependency-map))
+                                              (:dependency dependency-map))
+                                          (if (not (unchanged-dependency? dependency-map))
+                                            "!"
+                                            "")))))))
+   (run! (partial print-component-tree (inc level))
+         (:children component-tree))))
+
+(deftest test-print-component-tree
+  (is (= "view-1
+  view-2 view-2-state!
+  view-2 view-2-state!
+"
+         (with-out-str (print-component-tree (with-bindings (merge (state-bindings)
+                                                                   (cache/state-bindings))
+                                               (let [view-2 ^{:name "view-2"} (fn []
+                                                                                (let [state-atom (dependable-atom/atom "view-2-state" 1)]
+                                                                                  (fn [] {:type :view-2
+                                                                                          :state @state-atom})))
+                                                     view-1 ^{:name "view-1"} (fn [] {:type :view-1
+                                                                                      :children [{:type :layout
+                                                                                                  :children [{:children [[view-2]]}
+                                                                                                             {:children [[view-2]]}]}]})]
+
+                                                 (component-tree (compile-view-calls [view-1])))))))))

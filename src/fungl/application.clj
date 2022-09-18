@@ -140,6 +140,9 @@
                                                                      (if-let [event (first events)]
                                                                        (do ;; (logga/write "handling" event)
                                                                          (handle-event! scene-graph event)
+                                                                         (println)
+                                                                         (println "handling" (:type event))
+                                                                         (view-compiler/print-component-tree (view-compiler/component-tree scene-graph))
                                                                          (cond (= :close-requested (:type event))
                                                                                nil
 
@@ -194,10 +197,7 @@
   (scene-graph/map-nodes (fn [node]
                            (if (and (map? node)
                                     (:view-functions node)
-                                    (every? (fn [dependency-map]
-                                              (and (contains? dependency-map :old-value)
-                                                   (= (:old-value dependency-map)
-                                                      (:new-value dependency-map))))
+                                    (every? view-compiler/unchanged-dependency?
                                             (-> node :view-functions :dependencies)))
                              (assoc node
                                     :render
@@ -222,9 +222,7 @@
                   render-state (create-render-state)]
               (deliver event-channel-promise (window/event-channel window))
               (start-event-thread (fn [width height]
-                                    (-> (view-compiler/compile-view-calls [(if (var? root-view-or-var)
-                                                                             @root-view-or-var
-                                                                             root-view-or-var)])
+                                    (-> (view-compiler/compile-view-calls [root-view-or-var])
                                         (layout/do-layout-for-size width height)
                                         (render-cached-components-to-images)))
                                   (window/event-channel window)

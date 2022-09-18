@@ -182,7 +182,7 @@
   (:focused-node @state-atom))
 
 (defn state-bindings []
-  {#'state-atom (dependable-atom/atom "keyboard state"
+  {#'state-atom (dependable-atom/atom "keyboard-state"
                                       (initialize-state))})
 
 (defn set-focused-event-handler! [event-handler]

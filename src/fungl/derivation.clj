@@ -11,8 +11,8 @@
       result))
 
   clojure.lang.Named
-  (getName [_this]
-    name)
+  (getName [this]
+    (:name this))
 
   depend/Depend
   (current-value [_this]
@@ -25,12 +25,14 @@
    (Derivation. name function)))
 
 (defmacro def-derivation [name & function-body]
-  `(def ~name (derive ~name
+  `(def ~name (derive (str (quote ~name))
                       (fn []
                         ~@function-body))))
 
 (defmethod print-method Derivation [derivation, ^java.io.Writer writer]
   (.write writer "#derivation[")
+  (.write writer (pr-str (:name derivation)))
+  (.write writer " ")
   (print-method @derivation writer)
   (.write writer (str " "
                       (format "0x%x"

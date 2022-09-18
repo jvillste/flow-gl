@@ -108,6 +108,9 @@
           (with-meta (cons 'fn function-declaration)
             {:rettag (:tag metadata)}))))
 
+(defn spy [name value]
+  (prn name value)
+  value)
 
 
 ;;;; Test

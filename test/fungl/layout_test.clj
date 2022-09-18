@@ -32,14 +32,14 @@
              :available-width 100,
              :available-height 2147483647})}
          (with-bindings (view-compiler/state-bindings)
-           (layout/select-layout-keys (layout/do-layout-for-size (view-compiler/compile false
-                                                                                        []
-                                                                                        {:local-id :a
-                                                                                         :adapt-to-space (fn [node]
-                                                                                                           (-> (layouts/vertically-2 {}
-                                                                                                                                     (dissoc node :adapt-to-space)
-                                                                                                                                     {:width 100 :height 100 :local-id :b})
-                                                                                                               (assoc :local-id :new-root
-                                                                                                                      :available-width (:available-width node)
-                                                                                                                      :available-height (:available-height node))))})
+           (layout/select-layout-keys (layout/do-layout-for-size (view-compiler/compile-view-calls false
+                                                                                                   []
+                                                                                                   {:local-id :a
+                                                                                                    :adapt-to-space (fn [node]
+                                                                                                                      (-> (layouts/vertically-2 {}
+                                                                                                                                                (dissoc node :adapt-to-space)
+                                                                                                                                                {:width 100 :height 100 :local-id :b})
+                                                                                                                          (assoc :local-id :new-root
+                                                                                                                                 :available-width (:available-width node)
+                                                                                                                                 :available-height (:available-height node))))})
                                                                  100 100))))))
