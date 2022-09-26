@@ -41,14 +41,15 @@
   (async/go-loop []
     (let [entry (async/<! channel)]
       (when entry
-        (do (swap! log-atom conj entry)
-            (recur))))))
+        (swap! log-atom conj entry)
+        (recur)))))
 
 (defmacro with-log [log-atom & body]
   `(let [channel# (async/chan)]
      (start-log-reading-process ~log-atom channel#)
      (with-debug-channel channel# ~@body)
-     (async/close! channel#)))
+     (async/close! channel#)
+     ~log-atom))
 
 
 (defn add-timed-entry-to-channel [channel values]
@@ -125,31 +126,31 @@
            "dynamic-debug-channel" (not (nil? flow-gl.debug/dynamic-debug-channel))))
 
 #_(let [channel (async/chan)]
-  (async/go-loop [value (async/<! channel)]
-    (when value
-      (do (println value)
-          (recur (async/<! channel)))))
-  (with-debug-channel channel
-    (async/go (Thread/sleep 1000)
-              (print-channels "go block")
-              (try (assert false "it was false")
-                   (catch Throwable e
-                     (.printStackTrace e *out*)))
-              (async/go (Thread/sleep 1000)
-                        (print-channels "go block in go block")))
-
-    (async/thread
-      (Thread/sleep 1200)
-      (print-channels "async thread")
+    (async/go-loop [value (async/<! channel)]
+      (when value
+        (do (println value)
+            (recur (async/<! channel)))))
+    (with-debug-channel channel
       (async/go (Thread/sleep 1000)
-                (print-channels "go block in async thread")))
-    
-    (.start (Thread. (fn []
-                       (Thread/sleep 1100)
-                       (print-channels "thread")
-                       (async/go (Thread/sleep 1000)
-                                 (print-channels "go block in thread")))))
+                (print-channels "go block")
+                (try (assert false "it was false")
+                     (catch Throwable e
+                       (.printStackTrace e *out*)))
+                (async/go (Thread/sleep 1000)
+                          (print-channels "go block in go block")))
 
-    (print-channels "parent")
-    
-    (println "parent finished")))
+      (async/thread
+        (Thread/sleep 1200)
+        (print-channels "async thread")
+        (async/go (Thread/sleep 1000)
+                  (print-channels "go block in async thread")))
+
+      (.start (Thread. (fn []
+                         (Thread/sleep 1100)
+                         (print-channels "thread")
+                         (async/go (Thread/sleep 1000)
+                                   (print-channels "go block in thread")))))
+
+      (print-channels "parent")
+
+      (println "parent finished")))
