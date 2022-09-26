@@ -2,7 +2,9 @@
   (:require
    [clojure.core.async :as async]
    [clojure.test :refer :all]
-   [flow-gl.debug :as debug]))
+   [flow-gl.debug :as debug]
+   [clojure.string :as string]
+   [fungl.util :as util]))
 
 (defn create-state []
   {:root-calls []
@@ -25,8 +27,9 @@
 
         (let [ending-call (-> (get-in trace [:open-calls (:call-id entry)])
                               (assoc :call-ended (:time entry)
-                                     :result (:result entry)
-                                     :exception (:exception entry)))]
+                                     :result (:result entry))
+                              (merge (when (:exception entry)
+                                       {:exception (:exception entry)})))]
           (let [trace (-> trace
                           (update-in [:open-calls] dissoc (:call-id entry))
                           (update-in [:current-calls] assoc (:thread entry) (:parent ending-call)))]
@@ -39,7 +42,7 @@
 
 (deftest add-entry-test
   (is (= {:root-calls
-          [{:result :bar,
+          [{:result :foo,
             :call-ended 4,
             :call-started 1,
             :child-calls
@@ -79,7 +82,7 @@
              (add-entry {:thread 1
                          :time 4
                          :call-id 1
-                         :result :bar})))))
+                         :result :foo})))))
 
 (defn trace-fn-call [name f arguments]
   (let [call-id (gensym)]
@@ -155,19 +158,21 @@
 
 
 (defn trace-var
-  ([ns s]
-   (trace-var (ns-resolve ns s)))
-  ([v]
-   (let [^clojure.lang.Var v (if (var? v) v (resolve v))
-         ns (.ns v)
-         s  (.sym v)]
-     (if (and (ifn? @v)
-              (-> v meta :macro not)
-              (-> v meta ::traced not))
-       (do (println "tracing" s)
-           (let [f @v
-                 vname (symbol (str ns "/" s))]
-             (doto v
+  ([ns symbol]
+   (trace-var (ns-resolve ns symbol)))
+  ([the-var]
+   (let [^clojure.lang.Var the-var (if (var? the-var)
+                               the-var
+                               (resolve the-var))
+         ns (.ns the-var)
+         symbol  (.sym the-var)]
+     (if (and (ifn? @the-var)
+              (-> the-var meta :macro not)
+              (-> the-var meta ::traced not))
+       (do (println "tracing" symbol)
+           (let [f @the-var
+                 vname (symbol (str ns "/" symbol))]
+             (doto the-var
                (alter-var-root #(fn tracing-wrapper [& args]
                                   (trace-fn-call vname % args)))
                (alter-meta! assoc ::traced f))))))))
@@ -201,11 +206,11 @@
     (-> v meta ::traced nil? not)))
 
 (defn start-tracer [input-channel trace-channel]
-  (async/thread (async/go-loop [trace (create-state)]
+  (async/thread (async/go-loop [trace-state (create-state)]
                   (if-let [entry (async/<! input-channel)]
-                    (let [new-trace (add-entry trace entry)]
-                      (async/>! trace-channel new-trace)
-                      (recur new-trace))
+                    (let [new-trace-state (add-entry trace-state entry)]
+                      (async/>! trace-channel new-trace-state)
+                      (recur new-trace-state))
                     (async/close! trace-channel)))))
 
 (defmacro with-trace-logging [& body]
@@ -221,59 +226,76 @@
      (async/close! channel#)))
 
 
-(defmacro log-to-atom [log-atom & body]
-  `(let [input-channel# (async/chan 50)
-         trace-channel# (async/chan)]
-     (start-tracer input-channel# trace-channel#)
-     (async/go-loop []
-       (when-let [entry# (async/<! trace-channel#)]
-         (swap! ~log-atom conj entry#)
-         (recur)))
-     (debug/with-debug-channel input-channel# ~@body)
-     (async/close! input-channel#)
-     ~log-atom))
+(defn trace-implementation [function]
+  (let [input-channel (async/chan)
+        trace-channel (async/chan)
+        go-block-channel (async/go (loop [last-trace-state nil]
+                                     (if-let [trace-state (async/<! trace-channel)]
+                                       (recur trace-state)
+                                       last-trace-state)))]
+    (start-tracer input-channel trace-channel)
+    (let [result (debug/with-debug-channel input-channel (function))]
+
+      (async/close! input-channel)
+
+      {:result result
+       :trace (async/<!! go-block-channel)})))
+
+(defmacro trace [& body]
+  `(trace-implementation (fn [] ~@body)))
 
 
-(defmacro with-trace [& body]
-  `(let [input-channel# (async/chan 50)
-         trace-channel# (async/chan)]
-     (start-tracer input-channel# trace-channel#)
-     #_(gui/start-control (create-trace-control input-channel# trace-channel#))
-     (start-trace-printer trace-channel#)
-     (debug/with-debug-channel input-channel# ~@body)
-     #_(Thread/sleep 1000)
-     #_(async/close! input-channel#)))
+(defn print-call-tree-implementation [level values-atom call]
+  (let [value-to-string (fn [value]
+                          (if (< 10 (util/value-size value))
+                            (do (swap! values-atom assoc (hash value) value)
+                                (str (hash value)))
+                            (pr-str value)))]
+    (println (string/join " "
+                          (concat [(str (apply str (repeat (* level 2) " "))
+                                        (:function-symbol call))]
+                                  (map value-to-string (:arguments call))
+                                  (when (:result call)
+                                    [" -> "
+                                     (value-to-string (:result call))])))))
 
+  (run! (partial print-call-tree-implementation
+                 (inc level)
+                 values-atom)
+        (:child-calls call))
+  values-atom)
 
-(defn foo [x] {:x x})
-(defn bar [x]
-  (log :in-bar)
-  (foo (+ 1 x)))
+(defn- print-call-tree [values-atom call]
+   (print-call-tree-implementation 0
+                                   values-atom
+                                   call))
+
+(defn with-call-tree-printing-implementation [values-atom function]
+  (let [{:keys [trace result]} (trace (function))]
+    (doseq [root-call (:root-calls trace)]
+      (print-call-tree values-atom
+                       root-call))
+    result))
+
+(defmacro with-call-tree-printing [values-atom & body]
+  `(with-call-tree-printing-implementation ~values-atom
+     (fn [] ~@body)))
 
 (comment
 
-  (do
-    (trace-var #'foo)
-    (trace-var #'bar)
-    (let [log-atom (atom [])]
-      (log-to-atom log-atom
+  (trace-ns 'flow-gl.tools.trace)
 
-                   (bar 1))
-      @log-atom)
-    #_(let [log-atom (atom [])]
-      (debug/with-log log-atom
-        (prn debug/dynamic-debug-channel) ;; TODO: remove-me
-
-        (log :log))
-      log-atom)
-    #_(with-trace
-        (bar 1))))
-
-(defn start []
-  (do (trace-ns 'flow-gl.tools.trace)
+  (do (defn foo [x] {:x x})
+      (defn bar [x]
+        (log :in-bar x)
+        (foo (+ 1 x)))
       (trace-var #'foo)
-      (trace-var #'bar)
+      (trace-var #'bar))
 
-      (with-trace-logging
-        (foo 1)
-        (bar 1))))
+  (with-trace-logging
+    (bar 1))
+
+  (with-call-tree-printing (atom {})
+     (bar 1)
+     (bar 2))
+  )
