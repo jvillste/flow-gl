@@ -19,7 +19,10 @@
    [taoensso.tufte :as tufte]
    [flow-gl.gui.scene-graph :as scene-graph]
    [fungl.component :as component]
-   [clojure.walk :as walk]))
+   [clojure.walk :as walk]
+   [flow-gl.tools.trace :as trace]
+   [fungl.depend :as depend]
+   [clojure.test :refer [deftest is]]))
 
 (tufte/add-basic-println-handler! {})
 
@@ -27,7 +30,9 @@
 (def ^:dynamic state-atom)
 
 (defn state-bindings []
-  {#'state-atom (atom {:highlight-view-call-cache-misses? #_true false})})
+  {#'state-atom (atom {:highlight-view-call-cache-misses? true #_false
+                       :window-width nil
+                       :window-height nil})})
 
 (defn create-event-handling-state []
   (conj (state-bindings)
@@ -36,7 +41,6 @@
         (keyboard/state-bindings)
         (animation/state-bindings)
         (cache/state-bindings)
-        (value-registry/state-bindings)
         (view-compiler/state-bindings)))
 
 (defn create-render-state []
@@ -49,16 +53,6 @@
                                     :render
                                     swing-root-renderer/render-scene-graph)
                              gl))
-
-(defn handle-event! [scene-graph event]
-  (taoensso.tufte/p :handle-event
-    (when (= :mouse
-             (:source event))
-      (mouse/handle-mouse-event! event))
-
-    (when (= :keyboard
-             (:source event))
-      (keyboard/handle-keyboard-event! scene-graph event))))
 
 (defn handle-new-scene-graph! [scene-graph]
   (keyboard/handle-new-scene-graph! scene-graph)
@@ -99,92 +93,132 @@
   `(.start (Thread. (fn [] ~@body)
                     ~name)))
 
-(defn run-create-scene-graph [create-scene-graph window-width window-height]
+(defn describe-dependables []
+  (println)
+  (println "dependables:")
+
+  (run! (fn [dependency]
+          (println (name dependency)
+                   (hash dependency)
+                   (view-compiler/describe-value (depend/current-value dependency))))
+        (cache/all-dependencies))
+
+  (println))
+
+(defn run-create-scene-graph [create-scene-graph]
   (let [scene-graph (taoensso.tufte/p :create-scene-graph
-                                      (create-scene-graph window-width
-                                                          window-height))]
+                                      (create-scene-graph (:window-width @state-atom)
+                                                          (:window-height @state-atom)))]
+
+    (describe-dependables)
+    (println "component tree:")
+    (view-compiler/print-component-tree (view-compiler/component-tree scene-graph))
+    (println)
     (handle-new-scene-graph! scene-graph)
     scene-graph))
 
 (def ^:dynamic event-channel)
 
+(defn send-event! [event]
+  (async/put! event-channel
+              event))
+
+(defn cache-miss? [node]
+  (and (contains? node :view-functions)
+       (some view-compiler/changed-dependency?
+             (mapcat :dependencies
+                     (:view-functions node)))))
+
+(deftest test-cache-miss?
+  (is (cache-miss? {:view-functions [{:dependencies ()}
+                                     {:dependencies [{:new-value 1, :old-value 2}]}]})))
+
+
 (defn highlight-cache-misses [scene-graph]
   (if (:highlight-view-call-cache-misses? @state-atom)
     (scene-graph/update-depth-first scene-graph
-                                    (fn [node]
-                                      (and (contains? node :cached-view-call?)
-                                           (not (:cached-view-call? node))))
+                                    cache-miss?
                                     (fn [node]
                                       (component/color-overlay [255 0 0 30]
                                                                node)))
     scene-graph))
 
-(defn start-event-thread [create-scene-graph given-event-channel renderable-scene-graph-channel initial-width initial-height target-frame-rate do-profile handle-initial-scene-graph!]
+
+(comment
+  (do
+    (trace/trace-var 'flow-gl.gui.scene-graph/flatten)
+    (trace/trace-ns 'fungl.application)
+    (trace/trace-ns 'fungl.view-compiler)
+    (trace/trace-ns 'fungl.layout)
+;;    (trace/trace-ns 'argupedia.ui2)
+    )
+  ) ;; TODO: remove-me
+
+(def layout-trace-value-atom (atom {}))
+
+;; layout
+;; view compilation
+;; component texture cache
+;; how to test scene graph generation and event handlig without rendering
+
+(defn process-event [create-scene-graph scene-graph event]
+  (println)
+  (println "handling" (:type event) (:key event))
+
+  (when (= :mouse
+           (:source event))
+    (mouse/handle-mouse-event! event))
+
+  (when (= :keyboard
+           (:source event))
+    (keyboard/handle-keyboard-event! scene-graph event))
+
+  (if (= :close-requested (:type event))
+    nil
+    (do (when (= :redraw (:type event))
+          (cache/invalidate-all!)
+          (reset! (:constructor-cache view-compiler/state)
+                  {}))
+
+        (when (= :resize-requested (:type event))
+          (swap! state-atom
+                 assoc
+                 :window-width (:width event)
+                 :window-height (:height event)))
+
+        (run-create-scene-graph create-scene-graph))))
+
+(defn start-event-thread [create-scene-graph given-event-channel renderable-scene-graph-channel initial-width initial-height target-frame-rate do-profile]
   (thread "event"
           (logga/write "starting event loop")
           (try
             (with-profiling do-profile :event-thread
               (with-bindings (merge (create-event-handling-state)
                                     {#'event-channel given-event-channel})
-                (let [initial-scene-graph (create-scene-graph initial-width initial-height)]
-                  (handle-new-scene-graph! initial-scene-graph)
-                  (when handle-initial-scene-graph!
-                    (handle-initial-scene-graph! initial-scene-graph))
-                  (loop [scene-graph initial-scene-graph
-                         window-width initial-width
-                         window-height initial-height]
-                    (let [[scene-graph window-width window-height] (loop [events (read-events given-event-channel target-frame-rate)
-                                                                          scene-graph scene-graph
-                                                                          window-width window-width
-                                                                          window-height window-height]
-                                                                     (if-let [event (first events)]
-                                                                       (do ;; (logga/write "handling" event)
-                                                                         (handle-event! scene-graph event)
-                                                                         (println)
-                                                                         (println "handling" (:type event))
-                                                                         (view-compiler/print-component-tree (view-compiler/component-tree scene-graph))
-                                                                         (cond (= :close-requested (:type event))
-                                                                               nil
+                (swap! state-atom
+                       assoc
+                       :window-width initial-width
+                       :window-height initial-height)
+                (loop [scene-graph (run-create-scene-graph create-scene-graph)]
 
-                                                                               (= :redraw (:type event))
-                                                                               (do (cache/invalidate-all!)
-                                                                                   (reset! (:constructor-cache view-compiler/state)
-                                                                                           {})
-                                                                                   (recur (rest events)
-                                                                                          (run-create-scene-graph create-scene-graph
-                                                                                                                  window-width
-                                                                                                                  window-height)
-                                                                                          window-width
-                                                                                          window-height))
 
-                                                                               (= :resize-requested (:type event))
-                                                                               (recur (rest events)
-                                                                                      (run-create-scene-graph create-scene-graph
-                                                                                                              (:width event)
-                                                                                                              (:height event))
-                                                                                      (:width event)
-                                                                                      (:height event))
+                  (let [scene-graph (loop [events (read-events given-event-channel target-frame-rate)
+                                           scene-graph scene-graph]
+                                      (if (empty? events)
+                                        scene-graph
+                                        (recur (rest events)
+                                               (process-event create-scene-graph
+                                                              scene-graph
+                                                              (first events)))))]
 
-                                                                               :default
-                                                                               (recur (rest events)
-                                                                                      (run-create-scene-graph create-scene-graph
-                                                                                                              window-width
-                                                                                                              window-height)
-                                                                                      window-width
-                                                                                      window-height)))
-                                                                       [scene-graph
-                                                                        window-width
-                                                                        window-height]))]
 
-                      (when scene-graph
-                        (async/>!! renderable-scene-graph-channel
-                                   (-> scene-graph
-                                       (highlight-cache-misses)
-                                       (layout/do-layout-for-size window-width window-height)))
-                        (value-registry/delete-unused-values! 10000)
-                        (recur scene-graph
-                               window-width
-                               window-height)))))))
+                    (when scene-graph
+                      (async/>!! renderable-scene-graph-channel
+                                 (-> scene-graph
+                                     (highlight-cache-misses)
+                                     (layout/do-layout-for-size (:window-width @state-atom)
+                                                                (:window-height @state-atom))))
+                      (recur scene-graph))))))
 
             (logga/write "exiting event handling loop")
 
@@ -193,12 +227,12 @@
             (finally
               (async/close! renderable-scene-graph-channel)))))
 
-(defn render-cached-components-to-images [scene-graph]
+(defn make-cached-components-render-to-images [scene-graph]
   (scene-graph/map-nodes (fn [node]
                            (if (and (map? node)
                                     (:view-functions node)
-                                    (every? view-compiler/unchanged-dependency?
-                                            (-> node :view-functions :dependencies)))
+                                    (not (every? view-compiler/changed-dependency?
+                                                 (-> node :view-functions :dependencies))))
                              (assoc node
                                     :render
                                     (or (:render node)
@@ -209,8 +243,7 @@
 (defn start-window [root-view-or-var & {:keys [window
                                                target-frame-rate
                                                do-profiling
-                                               on-exit
-                                               handle-initial-scene-graph!]
+                                               on-exit]
                                         :or {target-frame-rate 60
                                              do-profiling false}}]
   (let [event-channel-promise (promise)]
@@ -222,16 +255,16 @@
                   render-state (create-render-state)]
               (deliver event-channel-promise (window/event-channel window))
               (start-event-thread (fn [width height]
-                                    (-> (view-compiler/compile-view-calls [root-view-or-var])
-                                        (layout/do-layout-for-size width height)
-                                        (render-cached-components-to-images)))
+                                    (trace/with-call-tree-printing #_layout-trace-value-atom (atom {})
+                                      (-> (view-compiler/compile-view-calls [root-view-or-var])
+                                          (make-cached-components-render-to-images)
+                                          (layout/do-layout-for-size width height))))
                                   (window/event-channel window)
                                   renderable-scene-graph-channel
                                   (window/width window)
                                   (window/height window)
                                   target-frame-rate
-                                  do-profiling
-                                  handle-initial-scene-graph!)
+                                  do-profiling)
 
               (try (logga/write "starting render loop")
                    (with-profiling do-profiling :render-loop
@@ -258,3 +291,10 @@
                      (csp/drain @event-channel-promise 0)
                      ))))
     @event-channel-promise))
+
+;; (defn foo []
+;;   (scene-graph/flatten {:x 1 :y 1 :width 1 :height 10})
+;;   (scene-graph/flatten {:x 1 :y nil :width 1 :height nil}))
+
+;; (trace/with-call-tree-printing (atom {})
+;;   (foo))
