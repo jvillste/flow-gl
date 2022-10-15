@@ -14,7 +14,7 @@
 
   clojure.lang.Named
   (getName [_this]
-    name)
+    (str name))
 
   clojure.lang.IAtom
   (swap [_this fn]
