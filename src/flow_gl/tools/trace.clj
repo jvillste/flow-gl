@@ -94,7 +94,6 @@
     (let [[value exception] (try [(apply f arguments)
                                   nil]
                                  (catch Exception e
-                                   (println "got exception" e)
                                    [nil e]))]
 
 
@@ -171,7 +170,7 @@
               (-> the-var meta ::traced not))
        (do (println "tracing" symbol)
            (let [f @the-var
-                 vname (symbol (str ns "/" symbol))]
+                 vname (clojure.core/symbol (str ns "/" symbol))]
              (doto the-var
                (alter-var-root #(fn tracing-wrapper [& args]
                                   (trace-fn-call vname % args)))
@@ -234,7 +233,9 @@
                                        (recur trace-state)
                                        last-trace-state)))]
     (start-tracer input-channel trace-channel)
-    (let [result (debug/with-debug-channel input-channel (function))]
+    (let [result (try (debug/with-debug-channel input-channel (function))
+                      (catch Exception exception
+                          exception))]
 
       (async/close! input-channel)
 
@@ -245,12 +246,13 @@
   `(trace-implementation (fn [] ~@body)))
 
 
-(defn print-call-tree-implementation [level values-atom call]
+(defn- print-call-tree-implementation [level values-atom call]
   (let [value-to-string (fn [value]
-                          (if (< 10 (util/value-size value))
-                            (do (swap! values-atom assoc (hash value) value)
-                                (str (hash value)))
-                            (pr-str value)))]
+                          (let [value-size (util/value-size value)]
+                            (if (< 10 value-size)
+                              (do (swap! values-atom assoc (hash value) value)
+                                  (str "<"value-size " " (hash value) ">"))
+                              (pr-str value))))]
     (println (string/join " "
                           (concat [(str (apply str (repeat (* level 2) " "))
                                         (:function-symbol call))]
