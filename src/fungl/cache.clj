@@ -26,6 +26,12 @@
                        [])]
          dependencies))
 
+(defn all-dependencies []
+  (->> @(:dependencies state)
+       (vals)
+       (mapcat keys)
+       (distinct)))
+
 (defn create-state [maximum-size]
   (let [dependencies-atom (atom {})]
     {:cache (-> (CacheBuilder/newBuilder)
@@ -43,11 +49,13 @@
      :dependencies dependencies-atom}))
 
 (comment
-  (let [state (create-state 10)]
+  (with-bindings (state-bindings)
     (prn (stats state))
     (prn (.get (:cache state) [+ [1 2]]))
     (prn (stats state))
     (prn (.get (:cache state) [+ [1 2]]))
+    (prn (stats state))
+    (prn (.get (:cache state) [+ [1 3]]))
     (prn (stats state)))) ;; TODO: remove-me
 
 (defn dependency-value-map [function arguments]
@@ -71,7 +79,6 @@
 
 (defn call-with-cache [state function & arguments]
   (invalidate-cache function arguments)
-
   (let [result (.get (:cache state) [function arguments])]
     (if (= ::nil result)
       nil

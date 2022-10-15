@@ -44,7 +44,7 @@
         (view-compiler/state-bindings)))
 
 (defn create-render-state []
-  (conj (cache/state-bindings)
+  (conj #_(cache/state-bindings)
         (value-registry/state-bindings)
         (visuals/state-bindings)))
 
@@ -152,7 +152,7 @@
     (trace/trace-ns 'fungl.layout)
 ;;    (trace/trace-ns 'argupedia.ui2)
     )
-  ) ;; TODO: remove-me
+  )
 
 (def layout-trace-value-atom (atom {}))
 
@@ -188,45 +188,6 @@
 
         (run-create-scene-graph create-scene-graph))))
 
-(defn start-event-thread [create-scene-graph given-event-channel renderable-scene-graph-channel initial-width initial-height target-frame-rate do-profile]
-  (thread "event"
-          (logga/write "starting event loop")
-          (try
-            (with-profiling do-profile :event-thread
-              (with-bindings (merge (create-event-handling-state)
-                                    {#'event-channel given-event-channel})
-                (swap! state-atom
-                       assoc
-                       :window-width initial-width
-                       :window-height initial-height)
-                (loop [scene-graph (run-create-scene-graph create-scene-graph)]
-
-
-                  (let [scene-graph (loop [events (read-events given-event-channel target-frame-rate)
-                                           scene-graph scene-graph]
-                                      (if (empty? events)
-                                        scene-graph
-                                        (recur (rest events)
-                                               (process-event create-scene-graph
-                                                              scene-graph
-                                                              (first events)))))]
-
-
-                    (when scene-graph
-                      (async/>!! renderable-scene-graph-channel
-                                 (-> scene-graph
-                                     (highlight-cache-misses)
-                                     (layout/do-layout-for-size (:window-width @state-atom)
-                                                                (:window-height @state-atom))))
-                      (recur scene-graph))))))
-
-            (logga/write "exiting event handling loop")
-
-            (catch Throwable e
-              (logga/write "Exception in event loop" (prn-str e)))
-            (finally
-              (async/close! renderable-scene-graph-channel)))))
-
 (defn make-cached-components-render-to-images [scene-graph]
   (scene-graph/map-nodes (fn [node]
                            (if (and (map? node)
@@ -251,32 +212,47 @@
             (logga/write "creating window")
             (let [window (or window
                              (create-window))
-                  renderable-scene-graph-channel (async/chan)
-                  render-state (create-render-state)]
+                  create-scene-graph (fn [width height]
+                                       (trace/with-call-tree-printing #_layout-trace-value-atom (atom {})
+                                         (-> (view-compiler/compile-view-calls [root-view-or-var])
+                                             (make-cached-components-render-to-images)
+                                             (layout/do-layout-for-size width height))))]
               (deliver event-channel-promise (window/event-channel window))
-              (start-event-thread (fn [width height]
-                                    (trace/with-call-tree-printing #_layout-trace-value-atom (atom {})
-                                      (-> (view-compiler/compile-view-calls [root-view-or-var])
-                                          (make-cached-components-render-to-images)
-                                          (layout/do-layout-for-size width height))))
-                                  (window/event-channel window)
-                                  renderable-scene-graph-channel
-                                  (window/width window)
-                                  (window/height window)
-                                  target-frame-rate
-                                  do-profiling)
 
               (try (logga/write "starting render loop")
                    (with-profiling do-profiling :render-loop
-                     (loop []
-                       (when-let [scene-graph (async/<!! renderable-scene-graph-channel)]
-                         (tufte/p :render
-                                  (window/with-gl window gl
-                                    (with-bindings render-state
-                                      (render gl scene-graph)
-                                      (value-registry/delete-unused-values! 500))))
-                         (window/swap-buffers window)
-                         (recur))))
+                     (with-bindings (merge (create-event-handling-state)
+                                           {#'event-channel (window/event-channel window)}
+                                           (create-render-state))
+                       (swap! state-atom
+                              assoc
+                              :window-width (window/width window)
+                              :window-height (window/height window))
+                       (loop [scene-graph (run-create-scene-graph create-scene-graph)]
+                         (let [scene-graph (loop [events (read-events (window/event-channel window)
+                                                                      target-frame-rate)
+                                                  scene-graph scene-graph]
+                                             (if (empty? events)
+                                               scene-graph
+                                               (recur (rest events)
+                                                      (process-event create-scene-graph
+                                                                     scene-graph
+                                                                     (first events)))))]
+
+
+                           (when scene-graph
+                             (let [scene-graph (-> scene-graph
+                                                   (highlight-cache-misses)
+                                                   (layout/do-layout-for-size (:window-width @state-atom)
+                                                                              (:window-height @state-atom)))]
+
+
+                               (tufte/p :render
+                                        (window/with-gl window gl
+                                          (render gl scene-graph)
+                                          (value-registry/delete-unused-values! 500)))
+                               (window/swap-buffers window)
+                               (recur scene-graph)))))))
                    (logga/write "exiting render loop")
 
                    (when on-exit
@@ -291,10 +267,3 @@
                      (csp/drain @event-channel-promise 0)
                      ))))
     @event-channel-promise))
-
-;; (defn foo []
-;;   (scene-graph/flatten {:x 1 :y 1 :width 1 :height 10})
-;;   (scene-graph/flatten {:x 1 :y nil :width 1 :height nil}))
-
-;; (trace/with-call-tree-printing (atom {})
-;;   (foo))

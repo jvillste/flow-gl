@@ -7,7 +7,6 @@
             [flow-gl.gui.keyboard :as keyboard]
             [flow-gl.gui.visuals :as visuals]
             [fungl.application :as application]
-            [fungl.atom-registry :as atom-registry]
             [fungl.cache :as cache]
             [fungl.handler :as handler]
             [fungl.layouts :as layouts]
@@ -31,12 +30,6 @@
    (visuals/text-area (str value)
                       color
                       font)))
-
-#_(defn rows [color font string width]
-    (text/rows-for-text color
-                        font
-                        string
-                        width))
 
 (defn get-rows-node-size [node]
   (text/rows-size (:rows node)))
@@ -357,8 +350,6 @@
 
   {:adapt-to-space [adapt-to-space text index style handle-rows]})
 
-(defn get-state-atom [id]
-  (atom-registry/get! id atom-specification))
 
 (defn text-area-for-state-atom [state-atom {:keys [text on-change style]}]
   (swap! state-atom assoc :text text)
@@ -373,32 +364,10 @@
         (cond-> on-change
           (assoc :keyboard-event-handler [text-area-keyboard-event-handler state-atom text on-change]
                  :can-gain-focus? true)))))
-
-(defn text-area [id style text on-change & options]
-  (-> (text-area-for-state-atom (get-state-atom id)
-                                    (assoc options
-                                           :text text
-                                           :style style
-                                           :on-change on-change))
-      (assoc :id id)))
-
 (def default-options {:style {}
                       :text ""
-                      :on-change (fn [old-state new-state]
+                      :on-change (fn [_old-state new-state]
                                    new-state)})
-
-(defn text-area-2 [id & {:as options}]
-  (let [options (merge default-options
-                       options)]
-    (text-area id
-               (:style options)
-               (:text options)
-               (if-let [on-text-change (:on-text-change options)]
-                 (fn [old-state new-state]
-                   (when (not= (:text new-state) (:text old-state))
-                     (on-text-change (:text new-state)))
-                   new-state)
-                 (:on-change default-options)))))
 
 (defn text-area-3 [options]
   (let [state-atom (dependable-atom/atom (initialize-state))]
@@ -439,24 +408,10 @@
 
       (layouts/superimpose (visuals/rectangle-2 :color [0 0 0 255])
                            (layouts/with-margins 10 10 10 10
-                             (layouts/vertically-2 {:margin 10}
-                                                   (text-area :text-area
-                                                              {:color [255 255 255 255]}
-                                                              (:text-1 @state-atom)
-                                                              (fn [old-state new-state]
-                                                                (swap! state-atom assoc :text-1 (:text new-state))
-                                                                new-state))
-
-                                                   (text-area-2 :text-area-2
-                                                                :style {:color [255 255 255 255]}
-                                                                :text (:text-2 @state-atom)
-                                                                :on-text-change (fn [new-text]
-                                                                                  (swap! state-atom assoc :text-2 new-text)))
-
-                                                   [text-area-3 {:style {:color [255 255 255 255]}
+                             [text-area-3 {:style {:color [255 255 255 255]}
                                                                  :text (:text-3 @state-atom)
                                                                  :on-text-change (fn [new-text]
-                                                                                   (swap! state-atom assoc :text-3 new-text))}]))))))
+                                                                                   (swap! state-atom assoc :text-3 new-text))}])))))
 
 (defn start []
   (application/start-window #'demo-view))
