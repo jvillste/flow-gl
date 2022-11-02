@@ -159,14 +159,20 @@
     (apply call! function arguments)))
 
 (defmacro defn-memoized [name arguments & body]
-
   (let [implementation-name (symbol (namespace name)
                                     (str name "-implementation"))]
     `(do (declare ~name)
          (defn ~implementation-name ~arguments
            ~@body)
          (defn ~name ~arguments
-           (call! ~implementation-name ~@arguments)))))
+           (call! ~implementation-name ~@arguments))
+         (alter-meta! (var ~implementation-name)
+                      assoc
+                      :private true
+                      ::cached (var ~name))
+         (alter-meta! (var ~name)
+                      assoc
+                      ::uncached (var ~implementation-name)))))
 
 (defmacro def-10 [name]
   `(def ~name 10))

@@ -4,7 +4,8 @@
    [clojure.test :refer :all]
    [flow-gl.debug :as debug]
    [clojure.string :as string]
-   [fungl.util :as util]))
+   [fungl.util :as util]
+   [fungl.cache :as cache]))
 
 (defn create-state []
   {:root-calls []
@@ -140,41 +141,43 @@
 (defn untrace-var
   ([ns s]
    (untrace-var (ns-resolve ns s)))
-  ([v]
-   (let [^clojure.lang.Var v (if (var? v) v (resolve v))
-         ns (.ns v)
-         s  (.sym v)
-         f  ((meta v) ::traced)]
-     (when f
-       (doto v
-         (alter-var-root (constantly ((meta v) ::traced)))
-         (alter-meta! dissoc ::traced))))))
+  ([the-var]
+   (let [^clojure.lang.Var the-var (if (var? the-var) the-var (resolve the-var))]
+     (if-let [uncached-var (-> the-var meta :fungl.cache/uncached)]
+       (untrace-var uncached-var)
+       (when ((meta the-var) ::traced)
+         (println "untracing" the-var)
+         (doto the-var
+           (alter-var-root (constantly ((meta the-var) ::traced)))
+           (alter-meta! dissoc ::traced)))))))
 
 (defn untrace-ns [ns]
   (let [ns-fns (->> ns the-ns ns-interns vals)]
     (doseq [f ns-fns]
       (untrace-var f))))
 
-
 (defn trace-var
   ([ns symbol]
    (trace-var (ns-resolve ns symbol)))
   ([the-var]
    (let [^clojure.lang.Var the-var (if (var? the-var)
-                               the-var
-                               (resolve the-var))
+                                     the-var
+                                     (resolve the-var))
          ns (.ns the-var)
          symbol  (.sym the-var)]
-     (if (and (ifn? @the-var)
-              (-> the-var meta :macro not)
-              (-> the-var meta ::traced not))
-       (do (println "tracing" symbol)
-           (let [f @the-var
-                 vname (clojure.core/symbol (str ns "/" symbol))]
-             (doto the-var
-               (alter-var-root #(fn tracing-wrapper [& args]
-                                  (trace-fn-call vname % args)))
-               (alter-meta! assoc ::traced f))))))))
+     (if-let [uncached-var (-> the-var meta :fungl.cache/uncached)]
+       (do (println "not tracing cahed var" the-var)
+           (trace-var uncached-var))
+       (when (and (ifn? @the-var)
+                  (-> the-var meta :macro not)
+                  (-> the-var meta ::traced not))
+         (println "tracing" symbol)
+         (let [f @the-var
+               vname (clojure.core/symbol (str ns "/" symbol))]
+           (doto the-var
+             (alter-var-root #(fn tracing-wrapper [& args]
+                                (trace-fn-call vname % args)))
+             (alter-meta! assoc ::traced f))))))))
 
 (defn namespace-function-vars [namespace]
   (->> namespace ns-interns vals (filter (fn [v] (and (-> v var-get fn?)
@@ -235,7 +238,7 @@
     (start-tracer input-channel trace-channel)
     (let [result (try (debug/with-debug-channel input-channel (function))
                       (catch Exception exception
-                          exception))]
+                        exception))]
 
       (async/close! input-channel)
 
@@ -268,9 +271,9 @@
   values-atom)
 
 (defn- print-call-tree [values-atom call]
-   (print-call-tree-implementation 0
-                                   values-atom
-                                   call))
+  (print-call-tree-implementation 0
+                                  values-atom
+                                  call))
 
 (defn with-call-tree-printing-implementation [values-atom function]
   (let [{:keys [trace result]} (trace (function))]
@@ -298,6 +301,6 @@
     (bar 1))
 
   (with-call-tree-printing (atom {})
-     (bar 1)
-     (bar 2))
+    (bar 1)
+    (bar 2))
   )
