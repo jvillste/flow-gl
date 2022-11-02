@@ -7,6 +7,11 @@
    [fungl.util :as util]
    [fungl.cache :as cache]))
 
+(def next-id (atom 0))
+
+(defn- get-next-id []
+  (swap! next-id inc))
+
 (defn create-state []
   {:root-calls []
    :open-calls {}
@@ -86,7 +91,7 @@
                          :result :foo})))))
 
 (defn trace-fn-call [name f arguments]
-  (let [call-id (gensym)]
+  (let [call-id (get-next-id)]
     (debug/add-timed-entry :function-symbol name
                            :call-id call-id
                            :call-started true
@@ -110,7 +115,7 @@
 
 (defmacro tfn [name arguments & body]
   `(fn ~arguments
-     (let [call-id# (gensym)]
+     (let [call-id# (get-next-id)]
        (debug/add-timed-entry :function-symbol '~name
                               :call-id call-id#
                               :call-started true
@@ -123,7 +128,7 @@
 
 
 (defn log [& arguments]
-  (let [call-id (gensym)]
+  (let [call-id (get-next-id)]
     (debug/add-timed-entry :function-symbol nil
                            :call-id call-id
                            :call-started true
