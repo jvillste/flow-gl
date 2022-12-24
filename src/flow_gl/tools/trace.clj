@@ -150,11 +150,11 @@
    (let [^clojure.lang.Var the-var (if (var? the-var) the-var (resolve the-var))]
      (if-let [uncached-var (-> the-var meta :fungl.cache/uncached)]
        (untrace-var uncached-var)
-       (when ((meta the-var) ::traced)
+       (when ((meta the-var) ::original-function)
          (println "untracing" the-var)
          (doto the-var
-           (alter-var-root (constantly ((meta the-var) ::traced)))
-           (alter-meta! dissoc ::traced)))))))
+           (alter-var-root (constantly ((meta the-var) ::original-function)))
+           (alter-meta! dissoc ::original-function)))))))
 
 (defn untrace-ns [ns]
   (let [ns-fns (->> ns the-ns ns-interns vals)]
@@ -171,18 +171,28 @@
          ns (.ns the-var)
          symbol  (.sym the-var)]
      (if-let [uncached-var (-> the-var meta :fungl.cache/uncached)]
-       (do (println "not tracing cahed var" the-var)
+       (do (println "tracing cached var" the-var)
+           (let [original-function @the-var]
+             (doto the-var
+               (alter-var-root (fn [original-function]
+                                 (fn tracing-wrapper [& args]
+                                   (when (apply cache/cached?
+                                                @(-> the-var meta :fungl.cache/uncached)
+                                                args)
+                                     (log :cache-hit the-var))
+                                   (apply original-function args))))
+               (alter-meta! assoc ::original-function original-function)))
            (trace-var uncached-var))
        (when (and (ifn? @the-var)
                   (-> the-var meta :macro not)
-                  (-> the-var meta ::traced not))
+                  (-> the-var meta ::original-function not))
          (println "tracing" symbol)
          (let [f @the-var
                vname (clojure.core/symbol (str ns "/" symbol))]
            (doto the-var
              (alter-var-root #(fn tracing-wrapper [& args]
                                 (trace-fn-call vname % args)))
-             (alter-meta! assoc ::traced f))))))))
+             (alter-meta! assoc ::original-function f))))))))
 
 (defn namespace-function-vars [namespace]
   (->> namespace ns-interns vals (filter (fn [v] (and (-> v var-get fn?)
@@ -210,7 +220,7 @@
   "Returns true if the given var is currently traced, false otherwise"
   [v]
   (let [^clojure.lang.Var v (if (var? v) v (resolve v))]
-    (-> v meta ::traced nil? not)))
+    (-> v meta ::original-function nil? not)))
 
 (defn start-tracer [input-channel trace-channel]
   (async/thread (async/go-loop [trace-state (create-state)]
@@ -263,7 +273,11 @@
                               (pr-str value))))]
     (println (string/join " "
                           (concat [(str (apply str (repeat (* level 2) " "))
-                                        (:function-symbol call))]
+                                        (- (:call-ended call)
+                                           (:call-started call))
+                                        " "
+                                        (or (:function-symbol call)
+                                            ""))]
                                   (map value-to-string (:arguments call))
                                   (when (:result call)
                                     [" -> "
@@ -295,8 +309,11 @@
 
   (trace-ns 'flow-gl.tools.trace)
 
-  (do (defn foo [x] {:x x})
+  (do (defn foo [x]
+        (Thread/sleep 5)
+        {:x x})
       (defn bar [x]
+        (Thread/sleep 10)
         (log :in-bar x)
         (foo (+ 1 x)))
       (trace-var #'foo)
