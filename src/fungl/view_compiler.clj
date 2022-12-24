@@ -11,7 +11,8 @@
             [fungl.component :as component]
             [clojure.walk :as walk]
             [fungl.depend :as depend]
-            [clojure.string :as string]))
+            [clojure.string :as string]
+            [fungl.util :as util]))
 
 (def ^:dynamic state)
 
@@ -47,7 +48,6 @@
 
                                          :else
                                          (let [{:keys [result dependencies]} (cache/call-and-return-result-and-dependencies view-function-or-constructor arguments)]
-
                                            (if (fn? result)
                                              (do (swap! (:constructor-cache state)
                                                         assoc
@@ -56,12 +56,13 @@
                                                  (swap! used-constructor-ids conj the-id)
 
                                                  (apply cache/call! result arguments))
-                                             (do (cache/put! (cache/function-call-key view-function-or-constructor (or arguments
-                                                                                                                       []))
+                                             (do (cache/put! (cache/function-call-key view-function-or-constructor
+                                                                                      arguments)
                                                              result)
                                                  (cache/set-dependencies! view-function-or-constructor
                                                                           arguments
                                                                           dependencies)
+
                                                  result))))]
 
       (cond (view-call? scene-graph-or-view-call)
@@ -86,9 +87,7 @@
             (keys metadata))
     compiled-node))
 
-;; TODO: visualize component dependency tree
-
-(defn- compile-node [parent-view-functions id value]
+(defn compile-node [parent-view-functions id value]
   (assert (bound? #'state)
           "Bindings returned by (state-bindings) should be bound.")
 
@@ -110,15 +109,14 @@
                                                         id
                                                         (apply-view-call id value))]
                           (assoc scene-graph
-                                 ;;                                 TODO: (first value) may be a constructor
                                  :view-functions (concat [{:function (first value)
-                                                           :dependencies (for [[dependency _value] (cache/dependency-value-map (or (get @(:constructor-cache state)
+                                                           :dependencies (for [[dependable _value] (cache/dependency-value-map (or (get @(:constructor-cache state)
                                                                                                                                         id)
                                                                                                                                    (first value))
                                                                                                                                (rest value))]
-                                                                           (merge {:dependency dependency
-                                                                                   :new-value (depend/current-value dependency)}
-                                                                                  (when-let [old-value (get old-dependency-value-map dependency)]
+                                                                           (merge {:dependable dependable
+                                                                                   :new-value (depend/current-value dependable)}
+                                                                                  (when-let [old-value (get old-dependency-value-map dependable)]
                                                                                     {:old-value old-value})))}]
                                                          (:view-functions scene-graph)))))
 
@@ -151,7 +149,6 @@
         (swap! (:constructor-cache state)
                dissoc
                id))
-
       result)))
 
 (defn state-bindings []
@@ -422,7 +419,7 @@
                 :id []
                 :state 1
                 :view-functions [{:function view
-                                  :dependencies [{:dependency state-atom
+                                  :dependencies [{:dependable state-atom
                                                   :new-value 1}]}]}
                scene-graph))
 
@@ -432,7 +429,7 @@
                 :id []
                 :state 2
                 :view-functions [{:function view
-                                  :dependencies [{:dependency state-atom
+                                  :dependencies [{:dependable state-atom
                                                   :old-value 1,
                                                   :new-value 2}]}]}
                (compile-view-calls [view])))))
@@ -448,7 +445,7 @@
                 :id []
                 :state 1
                 :view-functions [{:function view
-                                  :dependencies [{:dependency state-atom
+                                  :dependencies [{:dependable state-atom
                                                   :new-value 1}]}]}
                (compile-view-calls [view])))
 
@@ -458,7 +455,7 @@
                 :id []
                 :state 2
                 :view-functions [{:function view
-                                  :dependencies [{:dependency state-atom
+                                  :dependencies [{:dependable state-atom
                                                   :old-value 1,
                                                   :new-value 2}]}]}
                (compile-view-calls [view])))))))
@@ -597,16 +594,15 @@
               :children [{:id [0 0 0],
                           :view-function
                           {:function view-2
-                           :dependencies [{:dependency (view-state-atom [0 0 0])
+                           :dependencies [{:dependable (view-state-atom [0 0 0])
                                            :new-value 1}]}}
                          {:id [0 1 0],
                           :view-function
                           {:function view-2
-                           :dependencies [{:dependency (view-state-atom [0 1 0])
+                           :dependencies [{:dependable (view-state-atom [0 1 0])
                                            :new-value 1}]}}]}
 
              component-tree)))))
-
 
 (def label-component ^{:name "label-component" :ns *ns*}
   (fn [label]
@@ -614,27 +610,61 @@
       (fn [label]
         (str label @state-atom)))))
 
-(defn unchanged-dependency? [dependency-map]
+(defn changed-dependency? [dependency-map]
   (and (contains? dependency-map :old-value)
-       (= (:old-value dependency-map)
-          (:new-value dependency-map))))
+       (not (= (:old-value dependency-map)
+               (:new-value dependency-map)))))
+
+(deftest test-changed-dependency?
+  (is (changed-dependency? {:old-value 2 :new-value 1}))
+  (is (not (changed-dependency? {:new-value 1})))
+  (is (not (changed-dependency? {:old-value 1 :new-value 1}))))
+
+(defn describe-value [value]
+  (if (< 10 (util/value-size value))
+    (hash value)
+    (pr-str value)))
+
+(defn describe-dependency-map [dependency-map]
+  (str (if (changed-dependency? dependency-map)
+         (util/escapes :red)
+         "")
+       "<"(or (name (:dependable dependency-map))
+              (:dependable dependency-map))
+       " "
+       (hash (:dependable dependency-map))
+       " "
+       (describe-value (:old-value dependency-map))
+       " "
+       (describe-value (:new-value dependency-map))
+       ">"
+       (if (changed-dependency? dependency-map)
+         (str "!" (util/escapes :reset))
+         "")))
+
+(defn function-class-name-to-function-name [function-class-name]
+  (-> (re-matches #".*\$(.*)@.*"
+                  function-class-name)
+      (second)
+      (string/replace "_" "-")))
+
+(deftest test-function-class-name-to-function-name
+  (is (= "stateful-component"
+         (function-class-name-to-function-name "argupedia.ui2$stateful_component@1dfa8582"))))
 
 (defn print-component-tree
   ([component-tree]
    (print-component-tree 0 component-tree))
 
   ([level component-tree]
+
    (let [view-function-map (:view-function component-tree)]
      (println (string/join " "
                            (concat [(str (apply str (repeat (* level 2) " "))
                                          (or (:name (meta (:function view-function-map)))
-                                             (:function view-function-map)))]
-                                   (for [dependency-map (:dependencies view-function-map)]
-                                     (str (or (name (:dependency dependency-map))
-                                              (:dependency dependency-map))
-                                          (if (not (unchanged-dependency? dependency-map))
-                                            "!"
-                                            "")))))))
+                                             (function-class-name-to-function-name (str (:function view-function-map)))))]
+                                   (map describe-dependency-map
+                                        (:dependencies view-function-map))))))
    (run! (partial print-component-tree (inc level))
          (:children component-tree))))
 
@@ -643,15 +673,22 @@
   view-2 view-2-state!
   view-2 view-2-state!
 "
-         (with-out-str (print-component-tree (with-bindings (merge (state-bindings)
-                                                                   (cache/state-bindings))
-                                               (let [view-2 ^{:name "view-2"} (fn []
-                                                                                (let [state-atom (dependable-atom/atom "view-2-state" 1)]
-                                                                                  (fn [] {:type :view-2
-                                                                                          :state @state-atom})))
-                                                     view-1 ^{:name "view-1"} (fn [] {:type :view-1
-                                                                                      :children [{:type :layout
-                                                                                                  :children [{:children [[view-2]]}
-                                                                                                             {:children [[view-2]]}]}]})]
+         (with-out-str
+           (with-bindings (merge (state-bindings)
+                                 (cache/state-bindings))
+             (let [view-2 ^{:name "view-2"} (fn []
+                                              (let [state-atom (dependable-atom/atom "view-2-state" 1)]
+                                                (fn [] {:type :view-2
+                                                        :state @state-atom})))
+                   view-1 ^{:name "view-1"} (fn [] {:type :view-1
+                                                    :children [{:type :layout
+                                                                :children [{:children [[view-2]]}
+                                                                           {:children [[view-2]]}]}]})]
 
-                                                 (component-tree (compile-view-calls [view-1])))))))))
+
+               (compile-view-calls [view-1])
+               (compile-view-calls [view-1])
+               (run! (fn [dependency]
+                       (prn (first dependency) (hash (first dependency)))) (keys @(:dependencies cache/state))) ;; TODO: remove-me
+
+               (print-component-tree (component-tree (compile-view-calls [view-1])))))))))

@@ -1,5 +1,6 @@
 (ns fungl.util
-  (:require [clojure.test :refer :all]))
+  (:require [clojure.test :refer :all]
+            [clojure.walk :as walk]))
 
 (defn options-map-to-destructuring [options-map]
   {:keys (vec (keys options-map))
@@ -111,6 +112,79 @@
 (defn spy [name value]
   (prn name value)
   value)
+
+(defn value-size
+  ([value]
+   (value-size 20 value))
+  ([maximum value]
+   (loop [values [value]
+          size 0]
+     (if (< maximum size)
+       size
+       (if (empty? values)
+         size
+         (let [value (first values)
+               value (if (instance? clojure.lang.IDeref value)
+                       (deref value)
+                       value)]
+           (if (seqable? value)
+             (recur (concat (rest values)
+                            (seq value))
+                    (inc size))
+             (recur (rest values)
+                    (inc size)))))))))
+
+(deftest test-value-size
+  (is (= 1
+         (value-size :a)))
+
+  (is (= 4
+         (value-size {:a :b})))
+
+  (is (= 6
+         (value-size {:a [:b :c]})))
+
+  (is (= 4
+         (value-size (atom {:a :b}))))
+
+  (is (= 5
+         (value-size [(atom {:a :b})])))
+
+  (is (= 3
+         (value-size [false true])))
+
+  (is (= 3
+         (value-size [nil 1])))
+
+  (is (= 21
+         (value-size (range 100))))
+
+  (is (= 6
+         (value-size 5 (range 100)))))
+
+
+;; originally from https://github.com/trhura/clojure-term-colors/blob/master/src/clojure/term/colors.clj
+(defn- escape-code
+  [i]
+  (str "\u001b[" i "m"))
+
+(def escape (merge (zipmap [:grey :red :green :yellow
+                            :blue :magenta :cyan :white]
+                           (map escape-code
+                                (range 30 38)))
+                   (zipmap [:on-grey :on-red :on-green :on-yellow
+                            :on-blue :on-magenta :on-cyan :on-white]
+                           (map escape-code
+                                (range 40 48)))
+                   (into {}
+                         (filter (comp not nil? key)
+                                 (zipmap [:bold, :dark, nil, :underline,
+                                          :blink, nil, :reverse-color, :concealed]
+                                         (map escape-code (range 1 9)))))
+                   {:reset (escape-code 0)}))
+
+(defn escapes [& keys]
+  (apply str (map escape keys)))
 
 
 ;;;; Test
