@@ -2,7 +2,7 @@
   :description "FIXME: write description"
   :repositories {"sonatype-oss-public" "https://oss.sonatype.org/content/groups/public/"} ;; for priority-map
   :resource-paths ["resources"]
-  :dependencies [[org.clojure/clojure "1.10.3"]
+  :dependencies [[org.clojure/clojure "1.11.1"]
                  [medley "1.3.0"]
                  [net.mikera/core.matrix "0.33.2"]
                  [com.taoensso/tufte "2.3.0-RC1"]
