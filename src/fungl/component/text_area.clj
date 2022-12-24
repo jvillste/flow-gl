@@ -350,7 +350,6 @@
 
   {:adapt-to-space [adapt-to-space text index style handle-rows]})
 
-
 (defn text-area-for-state-atom [state-atom {:keys [text on-change style]}]
   (swap! state-atom assoc :text text)
   (let [state @state-atom]
@@ -364,15 +363,15 @@
         (cond-> on-change
           (assoc :keyboard-event-handler [text-area-keyboard-event-handler state-atom text on-change]
                  :can-gain-focus? true)))))
+
 (def default-options {:style {}
                       :text ""
                       :on-change (fn [_old-state new-state]
                                    new-state)})
 
 (defn text-area-3 [options]
-  (let [state-atom (dependable-atom/atom (initialize-state))]
+  (let [state-atom (dependable-atom/atom "text-area-state" (initialize-state))]
     (fn [options]
-
       (when (not (= (:text options)
                     (:text @state-atom)))
         (swap! state-atom
