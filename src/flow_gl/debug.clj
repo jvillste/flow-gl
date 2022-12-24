@@ -25,6 +25,18 @@
   (println (apply str values))
   (last values))
 
+(defn measure-time-implementation [message function]
+  (let [start-time (.getTime (java.util.Date.))
+        result (function)]
+    (println (- (.getTime (java.util.Date.))
+                start-time)
+             message)
+    result))
+
+(defmacro measure-time [message & body]
+  `(measure-time-implementation ~message (fn [] ~@body)))
+
+
 ;; this is used for new threads
 (def debug-channel (thread-inheritable/thread-inheritable nil))
 
