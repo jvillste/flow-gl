@@ -1,10 +1,17 @@
 (ns fungl.cache
   (:require [clojure.test :refer :all]
             [fungl.depend :as depend]
-            [medley.core :as medley])
+            [medley.core :as medley]
+            [clojure.string :as string])
   (:import (com.google.common.cache CacheBuilder CacheLoader)))
 
 (def ^:dynamic state)
+
+(defn size
+  ([]
+   (size state))
+  ([state]
+   (.size (:cache state))))
 
 (defn stats [state]
   (let [stats (.stats (:cache state))]
@@ -32,6 +39,9 @@
        (mapcat keys)
        (distinct)))
 
+(defn as-map []
+  (.asMap (:cache state)))
+
 (defn create-state [maximum-size]
   (let [dependencies-atom (atom {})]
     {:cache (-> (CacheBuilder/newBuilder)
@@ -50,6 +60,11 @@
 
 (comment
   (with-bindings (state-bindings)
+    (prn (.asMap (:cache state)))
+    (prn (.get (:cache state) [+ [1 2]]))
+    (prn (.asMap (:cache state))))
+
+  (with-bindings (state-bindings)
     (prn (stats state))
     (prn (.get (:cache state) [+ [1 2]]))
     (prn (stats state))
@@ -58,10 +73,14 @@
     (prn (.get (:cache state) [+ [1 3]]))
     (prn (stats state)))) ;; TODO: remove-me
 
+
+(defn function-call-key [function arguments]
+  [function (or arguments
+                [])])
+
 (defn dependency-value-map [function arguments]
   (clojure.core/get @(:dependencies state)
-                    [function (or arguments
-                                  [])]))
+                    (function-call-key function arguments)))
 
 (defn changed-dependency-value? [dependency-value-pair]
   (let [[dependency value] dependency-value-pair]
@@ -71,15 +90,21 @@
   (some changed-dependency-value?
         (dependency-value-map function arguments)))
 
+
+
 (defn invalidate-cache [function arguments]
   (when (should-be-invalidated? function arguments)
     (swap! (:dependencies state)
-           dissoc [function arguments])
-    (.invalidate (:cache state) [function arguments])))
+           dissoc (function-call-key function arguments))
+    (.invalidate (:cache state) (function-call-key function arguments))))
+
+
 
 (defn call-with-cache [state function & arguments]
   (invalidate-cache function arguments)
-  (let [result (.get (:cache state) [function arguments])]
+  (let [result (.get (:cache state)
+                     (function-call-key function
+                                        arguments))]
     (if (= ::nil result)
       nil
       result)))
@@ -87,13 +112,11 @@
 (defn in-use? []
   (bound? #'state))
 
-(defn function-call-key [function arguments]
-  [function arguments])
+
 
 (defn cached? [function & arguments]
   (and (in-use?)
-       (boolean (.getIfPresent (:cache state) (function-call-key function (or arguments
-                                                                              []))))))
+       (boolean (.getIfPresent (:cache state) (function-call-key function arguments)))))
 
 (defn cache-is-valid? [function arguments]
   (and (apply cached? function arguments)
@@ -130,7 +153,7 @@
         (fn [] (apply function arguments))))
 
 (defn state-bindings []
-  {#'state (create-state 100)})
+  {#'state (create-state 5000)})
 
 (defn cached []
   (.keySet (.asMap (:cache state))))
