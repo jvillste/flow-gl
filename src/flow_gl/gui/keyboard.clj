@@ -181,6 +181,9 @@
 (derivation/def-derivation focused-node
   (:focused-node @state-atom))
 
+(derivation/def-derivation focused-node-id-derivation
+  (:focused-node-id @state-atom))
+
 (defn state-bindings []
   {#'state-atom (dependable-atom/atom "keyboard-state"
                                       (initialize-state))})
@@ -324,11 +327,13 @@
 (defn sub-component-is-focused? []
   (= view-compiler/id
      (take (count view-compiler/id)
-           (:focused-node-id @state-atom))))
+           @focused-node-id-derivation
+           #_(:focused-node-id @state-atom))))
 
 (defn component-is-focused? []
   (= view-compiler/id
-     (:focused-node-id @state-atom)))
+     @focused-node-id-derivation
+     #_(:focused-node-id @state-atom)))
 
 ;; events
 
