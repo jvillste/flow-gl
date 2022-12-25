@@ -120,7 +120,8 @@
                                                                            (merge {:dependable dependable
                                                                                    :new-value (depend/current-value dependable)}
                                                                                   (when-let [old-value (get old-dependency-value-map dependable)]
-                                                                                    {:old-value old-value})))}]
+                                                                                    {:old-value old-value})))
+                                                           :local-id (:local-id (meta value))}]
                                                          (:view-functions scene-graph)))))
 
         (:children value)
