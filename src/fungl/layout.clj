@@ -18,8 +18,6 @@
     node))
 
 (cache/defn-memoized do-layout [node]
-  #_(taoensso.tufte/p :do-layout-called)
-  #_(println "do-layout")
   (-> node
       (adapt-to-space)
       (measuring/give-space)
@@ -46,7 +44,7 @@
         (do-layout-for-size width height))))
 
 
-(def layout-keys [:type :local-id :id :x :y :width :height :available-width :available-height])
+(def layout-keys [:type :local-id :id :x :y :width :height :available-width :available-height :children :view-functions])
 
 (defn select-layout-keys [scene-graph]
   (scene-graph/map-nodes #(select-keys % layout-keys)
