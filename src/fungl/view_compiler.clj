@@ -91,6 +91,9 @@
   (assert (bound? #'state)
           "Bindings returned by (state-bindings) should be bound.")
 
+  (assert (not (integer? (:local-id (meta value))))
+          "local ids can not be integers")
+
   (cond (view-call? value)
         (apply-metadata (meta value)
                         (let [id (if (not (empty? parent-view-functions))
