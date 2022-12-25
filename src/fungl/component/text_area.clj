@@ -369,7 +369,7 @@
                       :on-change (fn [_old-state new-state]
                                    new-state)})
 
-(defn text-area-3 [options]
+(defn text-area-3 [_options]
   (let [state-atom (dependable-atom/atom "text-area-state" (initialize-state))]
     (fn [options]
       (when (not (= (:text options)
@@ -398,9 +398,9 @@
 
 (defn demo-view []
   (let [state-atom (dependable-atom/atom {:text-1 (apply str
-                                                               (repeat 10 "text 1 "))
-                                                :text-2 "text 2"
-                                                :text-3 "text 3"})]
+                                                         (repeat 10 "text 1 "))
+                                          :text-2 "text 2"
+                                          :text-3 "text 3"})]
     (fn []
       @animation/state-atom
       (animation/swap-state! animation/set-wake-up 1000)
@@ -408,9 +408,9 @@
       (layouts/superimpose (visuals/rectangle-2 :color [0 0 0 255])
                            (layouts/with-margins 10 10 10 10
                              [text-area-3 {:style {:color [255 255 255 255]}
-                                                                 :text (:text-3 @state-atom)
-                                                                 :on-text-change (fn [new-text]
-                                                                                   (swap! state-atom assoc :text-3 new-text))}])))))
+                                           :text (:text-3 @state-atom)
+                                           :on-text-change (fn [new-text]
+                                                             (swap! state-atom assoc :text-3 new-text))}])))))
 
 (defn start []
   (application/start-window #'demo-view))
