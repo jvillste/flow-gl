@@ -660,10 +660,11 @@
    (print-component-tree 0 component-tree))
 
   ([level component-tree]
-
    (let [view-function-map (:view-function component-tree)]
      (println (string/join " "
                            (concat [(str (apply str (repeat (* level 2) " "))
+                                         (when-let [local-id (:local-id view-function-map)]
+                                           (str local-id " "))
                                          (or (:name (meta (:function view-function-map)))
                                              (function-class-name-to-function-name (str (:function view-function-map)))))]
                                    (map describe-dependency-map
