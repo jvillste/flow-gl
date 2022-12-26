@@ -93,7 +93,7 @@
 
 
 
-(defn invalidate-cache [function arguments]
+(defn invalidate-cache-if-needed [function arguments]
   (when (should-be-invalidated? function arguments)
     (swap! (:dependencies state)
            dissoc (function-call-key function arguments))
@@ -102,7 +102,7 @@
 
 
 (defn call-with-cache [state function & arguments]
-  (invalidate-cache function arguments)
+  (invalidate-cache-if-needed function arguments)
   (let [result (.get (:cache state)
                      (function-call-key function
                                         arguments))]
@@ -148,7 +148,7 @@
 ;; Can guava cache hold value for wich the key does not contain all the information that is needed to compute the value?
 (defn call-with-cache-and-key [state cache-key function & arguments]
 
-  (invalidate-cache function arguments)
+  (invalidate-cache-if-needed function arguments)
 
   (.get (:cache state) [function cache-key]
         (fn [] (apply function arguments))))
