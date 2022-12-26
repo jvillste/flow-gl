@@ -50,9 +50,10 @@
                 (.build (proxy [CacheLoader] []
                           (load [[function arguments]]
                             (let [{:keys [result dependencies]} (call-and-return-result-and-dependencies function arguments)]
-                              (set-dependencies! function
-                                                 arguments
-                                                 dependencies)
+                              (when (not (empty? dependencies))
+                                (set-dependencies! function
+                                                   arguments
+                                                   dependencies))
                               (if (nil? result)
                                 ::nil
                                 result))))))
