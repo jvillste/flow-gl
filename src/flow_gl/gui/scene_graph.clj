@@ -365,24 +365,24 @@
 (deftest test-nodes-on-local-id-path
   (is (= [{:id []}]
          (nodes-on-local-id-path {:id []}
-                           [])))
+                                 [])))
 
   (is (= [{:id []}]
          (nodes-on-local-id-path {:id []}
-                           [0])))
+                                 [0])))
 
   (is (= [{:id []
            :children [{:type :child}]}
           {:type :child}]
          (nodes-on-local-id-path {:id []
-                            :children [{:type :child}]}
-                           [0])))
+                                  :children [{:type :child}]}
+                                 [0])))
 
   (is (= [{:id []
            :children [{:type :child}]}]
          (nodes-on-local-id-path {:id []
-                            :children [{:type :child}]}
-                           [10])))
+                                  :children [{:type :child}]}
+                                 [10])))
 
   (is (= [{:id [],
            :children
@@ -393,11 +393,11 @@
           {:local-id :b, :children [{:id [:b 0]}]}
           {:id [:b 0]}]
          (nodes-on-local-id-path {:id []
-                            :children [{:local-id :a
-                                        :children [{:id [:a 0]}]}
-                                       {:local-id :b
-                                        :children [{:id [:b 0]}]}]}
-                           [:b 0]))))
+                                  :children [{:local-id :a
+                                              :children [{:id [:a 0]}]}
+                                             {:local-id :b
+                                              :children [{:id [:b 0]}]}]}
+                                 [:b 0]))))
 
 (defn intersection [rectangle-1 rectangle-2]
   (if (or
@@ -452,11 +452,13 @@
                          [(:y reference-node)
                           (horizontal-distance reference-node node)])))))
 
-(defn map-nodes [function scene-graph]
+(defn map-nodes [function scene-graph & [{:keys [descend?] :or {descend? (constantly true)}}]]
   (let [result (function scene-graph)]
     (if-let [children (:children scene-graph)]
-      (assoc result
-             :children (map (partial map-nodes function) children))
+      (if (descend? scene-graph)
+        (assoc result
+               :children (map (partial map-nodes function) children))
+        result)
       result)))
 
 
@@ -539,4 +541,3 @@
                                     (:height %))
                                 nodes))
                 min-y)}))
-
