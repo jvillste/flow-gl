@@ -27,13 +27,14 @@
        :dependencies (depend/current-dependencies)})))
 
 (defn set-dependencies! [function arguments dependencies]
-  (swap! (:dependencies state)
-         assoc
-         [function (or arguments
-                       [])]
-         dependencies))
+  (when (not (empty? dependencies))
+    (swap! (:dependencies state)
+           assoc
+           [function (or arguments
+                         [])]
+           dependencies)))
 
-(defn all-dependencies []
+(defn all-dependables []
   (->> @(:dependencies state)
        (vals)
        (mapcat keys)
@@ -50,10 +51,9 @@
                 (.build (proxy [CacheLoader] []
                           (load [[function arguments]]
                             (let [{:keys [result dependencies]} (call-and-return-result-and-dependencies function arguments)]
-                              (when (not (empty? dependencies))
-                                (set-dependencies! function
-                                                   arguments
-                                                   dependencies))
+                              (set-dependencies! function
+                                                 arguments
+                                                 dependencies)
                               (if (nil? result)
                                 ::nil
                                 result))))))
