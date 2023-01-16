@@ -9,7 +9,8 @@
             [fungl.util :as util]
             [fungl.swing.root-renderer :as root-renderer]
             [fungl.cache :as cache]
-            [flow-gl.gui.scene-graph :as scene-graph]))
+            [flow-gl.gui.scene-graph :as scene-graph]
+            [fungl.renderer :as renderer]))
 
 
 
@@ -212,22 +213,25 @@
   {#'image-cache (cache/create-state 30)})
 
 (defn render-to-images [scene-graph]
-  (assoc (select-keys scene-graph [:x :y :z])
-         :children (map (fn [[z leaf-nodes]]
-                          (let [bounding-box (scene-graph/bounding-box leaf-nodes)]
-                            (assoc (image (root-renderer/render-to-buffered-image bounding-box
-                                                                                  leaf-nodes))
-                                   :z z
-                                   :x (- (:x bounding-box)
-                                         (:x scene-graph))
-                                   :y (- (:y bounding-box)
-                                         (:y scene-graph)))))
-                        (group-by :z (filter :draw-function (scene-graph/leaf-nodes scene-graph))))))
+  (assoc (select-keys scene-graph [:x :y :z :width :height :id])
+         :children (doall (map (fn [[z leaf-nodes]]
+                                 (let [bounding-box (scene-graph/bounding-box leaf-nodes)]
+                                   (assoc (image (root-renderer/render-to-buffered-image bounding-box
+                                                                                         leaf-nodes))
+                                          :z z
+                                          :x (- (:x bounding-box)
+                                                (:x scene-graph))
+                                          :y (- (:y bounding-box)
+                                                (:y scene-graph)))))
+                               (group-by :z (filter :draw-function (scene-graph/leaf-nodes (renderer/apply-renderers! scene-graph
+                                                                                                                      nil))))))))
 
 (defn render-to-images-render-function [_graphics scene-graph]
   (cache/call-with-cache image-cache
                          render-to-images
-                         scene-graph)
+                         (dissoc scene-graph
+                                 :render
+                                 :render-on-descend?))
   #_(render-to-images scene-graph))
 
 (defn render-cache [child]

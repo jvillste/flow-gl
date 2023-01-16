@@ -128,4 +128,7 @@ https://www.youtube.com/watch?v=109yVjGUFUs&list=PLhYdcB_7fSYg_JZtMHBLLzMoqbStNg
 **** Keyboard focus as a parameter to the render function?
 *** Keyboard event routing through component hierarchy
 *** Keyboard focus
+* rendering to textures
+** depth first recursion to determine branches that do not contain changed dependencies
+** changes must be tracked over the whole event batch
 

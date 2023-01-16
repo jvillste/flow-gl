@@ -16,10 +16,14 @@
 
 (defn render-nodes [graphics nodes]
 
+
   (let [transform (AffineTransform.)]
     (doseq [node nodes]
       (.setToTranslation transform (:x node) (:y node))
       (.setTransform graphics transform)
+
+      ;;  (prn 'drawing (:draw-function node)) ;; TODO remove me
+
       (apply (:draw-function node)
              graphics
              (render/image-function-parameters node)))))
@@ -30,7 +34,10 @@
     (.fillRect 0 0 5000 5000))
 
   (render-nodes graphics
-                (filter :draw-function (nodes-in-view scene-graph (:width scene-graph) (:height scene-graph)))))
+                (filter :draw-function
+                        (nodes-in-view scene-graph
+                                       (:width scene-graph)
+                                       (:height scene-graph)))))
 
 (defn render-to-buffered-image [bounding-box leaf-nodes]
   (let [buffered-image (buffered-image/create (min (:width bounding-box)

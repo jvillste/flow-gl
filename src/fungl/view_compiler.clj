@@ -12,12 +12,129 @@
             [clojure.walk :as walk]
             [fungl.depend :as depend]
             [clojure.string :as string]
-            [fungl.util :as util]))
+            [fungl.util :as util]
+            [fungl.id-comparator :as id-comparator]))
 
 (def ^:dynamic state)
 
 (def ^:dynamic id)
-(def ^:dynamic used-constructor-ids)
+(def ^:dynamic applied-view-call-ids)
+
+(defn is-prefix [sequence prefix-candidate]
+  (or (= [] prefix-candidate)
+      (= (take (count prefix-candidate)
+               sequence)
+         prefix-candidate)))
+
+(deftest test-is-prefix
+  (is (is-prefix [1 2]
+                 [1 2]))
+
+  (is (is-prefix [1 2 3]
+                 [1 2]))
+
+  (is (is-prefix [1 2 3]
+                 []))
+
+  (is (not (is-prefix [1 2 3]
+                      [2]))))
+
+(defn sorted-id-set [sequence]
+  (apply sorted-set-by
+         id-comparator/compare-ids
+         sequence))
+
+(defn closest-match [sorted-set value]
+  (first (rsubseq sorted-set <= value)))
+
+(deftest test-closest-match
+  (is (= [1]
+         (closest-match (sorted-id-set [[1]
+                                        [1 0]
+                                        [2 0]])
+                        [1])))
+
+  (is (= [1 0]
+         (closest-match (sorted-id-set [[1]
+                                        [1 0]
+                                        [2 1]])
+                        [2 0])))
+
+  (is (= [2 0]
+         (closest-match (sorted-id-set [[1]
+                                        [1 0]
+                                        [2 0]
+                                        [2 2]])
+                        [2 1])))
+
+  (is (= [2 0]
+         (closest-match (sorted-id-set [[1]
+                                        [1 0]
+                                        [2 0]
+                                        [2 2]])
+                        [2 0 1]))))
+
+(defn is-prefix-of-some [sorted-set-of-sequences sequence]
+  (or (and (= [] sequence)
+           (not (empty? sorted-set-of-sequences)))
+      (let [closest-match (first (subseq sorted-set-of-sequences
+                                         >=
+                                         sequence))]
+        (if closest-match
+          (if (is-prefix closest-match sequence)
+            true
+            false)
+          nil))))
+
+(deftest test-is-prefix-of-some
+  (let [sorted-set (sorted-id-set [[1]
+                                   [1 0]
+                                   [2 0]])]
+
+    (is (is-prefix-of-some sorted-set
+                           [1]))
+
+    (is (is-prefix-of-some sorted-set
+                           [1 0]))
+
+    (is (is-prefix-of-some sorted-set
+                           []))
+
+    (is (is-prefix-of-some (sorted-id-set [[:a :call]])
+                           [:a]))
+
+    (is (not (is-prefix-of-some sorted-set
+                                [3 0])))))
+
+(defn topmost-node-ids [node-ids]
+  (let [all-sorted-node-ids (sort-by identity
+                                     id-comparator/compare-ids
+                                     node-ids)]
+    (loop [remaining-sorted-node-ids (rest all-sorted-node-ids)
+           previous-node-id (first all-sorted-node-ids)
+           topmost-node-ids [(first all-sorted-node-ids)]]
+
+      (if (empty? remaining-sorted-node-ids)
+        topmost-node-ids
+        (let [next-node-id (first remaining-sorted-node-ids)]
+          (if (is-prefix next-node-id previous-node-id)
+            (recur (rest remaining-sorted-node-ids)
+                   next-node-id
+                   topmost-node-ids)
+            (recur (rest remaining-sorted-node-ids)
+                   next-node-id
+                   (conj topmost-node-ids
+                         next-node-id))))))))
+
+(deftest test-topmost-node-ids
+  (is (= [[]]
+         (topmost-node-ids [[]
+                            [1]
+                            [1 2]])))
+  (is (= [[1] [2]]
+         (topmost-node-ids [[1]
+                            [1 2]
+                            [2]]))))
 
 (defn- view-call? [value]
   (and (vector? value)
@@ -28,8 +145,6 @@
   (map? value))
 
 (defn- apply-view-call [the-id view-call]
-  (assert (bound? #'used-constructor-ids))
-
   (binding [id the-id]
     (let [[view-function-or-constructor & arguments] view-call
           scene-graph-or-view-call (cond (apply cache/cached?
@@ -43,7 +158,6 @@
                                                     the-id)
                                          (let [view-function (get @(:constructor-cache state)
                                                                   the-id)]
-                                           (swap! used-constructor-ids conj the-id)
                                            (apply cache/call! view-function arguments))
 
                                          :else
@@ -53,8 +167,6 @@
                                                         assoc
                                                         the-id
                                                         result)
-                                                 (swap! used-constructor-ids conj the-id)
-
                                                  (apply cache/call! result arguments))
                                              (do (cache/put! (cache/function-call-key view-function-or-constructor
                                                                                       arguments)
@@ -87,6 +199,22 @@
             (keys metadata))
     compiled-node))
 
+(defn function-class-name-to-function-name [function-class-name]
+  (when-let [match (re-matches #".*\$(.*)@.*"
+                               function-class-name)]
+    (-> match
+        (second)
+        (string/replace "_" "-"))))
+
+(deftest test-function-class-name-to-function-name
+  (is (= "stateful-component"
+         (function-class-name-to-function-name "argupedia.ui2$stateful_component@1dfa8582")))
+  (is (= nil
+         (function-class-name-to-function-name "#'foo.bar/baz"))))
+
+(defn function-name [function]
+  (function-class-name-to-function-name (str function)))
+
 (defn compile-node [parent-view-functions id value]
   (assert (bound? #'state)
           "Bindings returned by (state-bindings) should be bound.")
@@ -102,27 +230,71 @@
                                                   :call)))
                                    id)
 
-                              old-dependency-value-map (cache/dependency-value-map (or (get @(:constructor-cache state)
-                                                                                            id)
-                                                                                       (first value))
-                                                                                   (rest value))
+                              scene-graph (if-let [scene-graph (get @(:scene-graph-cache state)
+                                                                    id)]
+                                            (do (prn 'cache-hit!
+                                                     (function-name (if (var? (first value))
+                                                                      @(first value)
+                                                                      (first value)))
+                                                     id) ;; TODO: remove me
 
-                              scene-graph (compile-node (conj parent-view-functions
-                                                              (first value))
-                                                        id
-                                                        (apply-view-call id value))]
-                          (assoc scene-graph
-                                 :view-functions (concat [{:function (first value)
-                                                           :dependencies (for [[dependable _value] (cache/dependency-value-map (or (get @(:constructor-cache state)
-                                                                                                                                        id)
-                                                                                                                                   (first value))
-                                                                                                                               (rest value))]
-                                                                           (merge {:dependable dependable
-                                                                                   :new-value (depend/current-value dependable)}
-                                                                                  (when-let [old-value (get old-dependency-value-map dependable)]
-                                                                                    {:old-value old-value})))
-                                                           :local-id (:local-id (meta value))}]
-                                                         (:view-functions scene-graph)))))
+                                                (swap! applied-view-call-ids
+                                                       (fn [applied-view-call-ids]
+                                                         (apply conj
+                                                                applied-view-call-ids
+                                                                (->> (keys @(:scene-graph-cache state))
+                                                                     (filter (fn [node-id]
+                                                                               (is-prefix node-id
+                                                                                          id)))))))
+                                                (if (= visuals/render-to-images-render-function
+                                                       (:render scene-graph))
+                                                  scene-graph
+                                                  (assoc scene-graph
+                                                         :render visuals/render-to-images-render-function
+                                                         :render-on-descend? true)))
+                                            (do
+                                              (swap! applied-view-call-ids
+                                                     conj
+                                                     id)
+
+                                              (compile-node (conj parent-view-functions
+                                                                  (first value))
+                                                            id
+                                                            (apply-view-call id value))))
+
+                              dependency-value-map (cache/dependency-value-map (or (get @(:constructor-cache state)
+                                                                                        id)
+                                                                                   (first value))
+                                                                               (rest value))
+
+                              ;; scene-graph (assoc scene-graph
+                              ;;                    :view-functions (concat [{:function (first value)
+                              ;;                                              :dependencies (for [[dependable _value] dependency-value-map]
+                              ;;                                                              (merge {:dependable dependable
+                              ;;                                                                      :new-value (depend/current-value dependable)}
+                              ;;                                                                     (when-let [old-value (get old-dependency-value-map dependable)]
+                              ;;                                                                       {:old-value old-value})))
+                              ;;                                              :local-id (:local-id (meta value))}]
+                              ;;                                            (:view-functions scene-graph)))
+                              ]
+
+                          (when (not (empty? dependency-value-map))
+                            (swap! (:node-dependencies state)
+                                   assoc
+                                   id
+                                   dependency-value-map))
+
+                          (swap! (:scene-graph-cache state)
+                                 assoc
+                                 id
+                                 scene-graph)
+
+                          (swap! (:view-functions state)
+                                 assoc
+                                 id
+                                 (first value))
+
+                          scene-graph))
 
         (:children value)
         (-> value
@@ -142,22 +314,59 @@
         (assoc value
                :id id)))
 
+(defn invalidated-node-ids [node-dependencies]
+  (->> node-dependencies
+       (filter (fn [[_node-id dependency-value-map]]
+                 (some (fn [[dependency value]]
+                         (not (= value
+                                 (depend/current-value dependency))))
+                       dependency-value-map)))
+       (map first)))
+
 (defn compile-view-calls [view-call-or-scene-graph]
-  (binding [used-constructor-ids (atom #{})]
+  (let [sorted-invalidated-node-ids-set (sorted-id-set (invalidated-node-ids @(:node-dependencies state)))
+        invalidated-node-ids-set-with-parents (set (filter (fn [node-id]
+                                                             (is-prefix-of-some sorted-invalidated-node-ids-set
+                                                                                node-id))
+                                                           (keys @(:scene-graph-cache state))))]
+
+
+    (swap! (:node-dependencies state)
+           (partial medley/remove-keys
+                    invalidated-node-ids-set-with-parents))
+
+    (swap! (:scene-graph-cache state)
+           (partial medley/remove-keys
+                    invalidated-node-ids-set-with-parents)))
+
+  (binding [applied-view-call-ids (atom #{})]
     (let [result (compile-node []
                                []
                                view-call-or-scene-graph)]
 
-      (doseq [id (set/difference (set (keys @(:constructor-cache state)))
-                                 @used-constructor-ids)]
-        (swap! (:constructor-cache state)
-               dissoc
-               id))
+      (swap! (:scene-graph-cache state)
+             (partial medley/filter-keys
+                      @applied-view-call-ids))
+
+      (swap! (:view-functions state)
+             (partial medley/filter-keys
+                      @applied-view-call-ids))
+
+      (swap! (:node-dependencies state)
+             (partial medley/filter-keys
+                      @applied-view-call-ids))
+
+      (swap! (:constructor-cache state)
+             (partial medley/filter-keys
+                      @applied-view-call-ids))
+
       result)))
 
 (defn state-bindings []
   {#'state {:constructor-cache (atom {})
-            :used-constructors (atom #{})}})
+            :node-dependencies (atom {})
+            :scene-graph-cache (atom {})
+            :view-functions (atom {})}})
 
 (deftest test-compile
   (let [test-compile (fn [value]
@@ -633,8 +842,8 @@
   (str (if (changed-dependency? dependency-map)
          (util/escapes :red)
          "")
-       "<"(or (name (:dependable dependency-map))
-              (:dependable dependency-map))
+       "<" (or (name (:dependable dependency-map))
+               (:dependable dependency-map))
        " "
        (hash (:dependable dependency-map))
        " "
@@ -646,15 +855,6 @@
          (str "!" (util/escapes :reset))
          "")))
 
-(defn function-class-name-to-function-name [function-class-name]
-  (-> (re-matches #".*\$(.*)@.*"
-                  function-class-name)
-      (second)
-      (string/replace "_" "-")))
-
-(deftest test-function-class-name-to-function-name
-  (is (= "stateful-component"
-         (function-class-name-to-function-name "argupedia.ui2$stateful_component@1dfa8582"))))
 
 (defn print-component-tree
   ([component-tree]
