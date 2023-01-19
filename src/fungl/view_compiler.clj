@@ -240,14 +240,10 @@
 
                                                 (swap! state
                                                        update
-                                                       :applied-view-call-ids
-                                                       (fn [applied-view-call-ids]
-                                                         (apply conj
-                                                                applied-view-call-ids
-                                                                (->> (keys (:scene-graph-cache @state))
-                                                                     (filter (fn [node-id]
-                                                                               (is-prefix node-id
-                                                                                          id)))))))
+                                                       :cached-view-call-ids
+                                                       conj
+                                                       id)
+
                                                 (if (= visuals/render-to-images-render-function
                                                        (:render scene-graph))
                                                   scene-graph
@@ -336,26 +332,26 @@
 
 (defn start-compilation-cycle! []
   (let [sorted-invalidated-node-ids-set (sorted-id-set (invalidated-node-ids (:node-dependencies @state)))
-        invalidated-node-ids-set-with-parents (set (filter (fn [node-id]
-                                                             (is-prefix-of-some sorted-invalidated-node-ids-set
-                                                                                node-id))
-                                                           (keys (:scene-graph-cache @state))))]
+        remove-invalidated-view-call-ids (partial medley/remove-keys
+                                                  (partial is-prefix-of-some sorted-invalidated-node-ids-set))]
 
 
     (swap! state
            (fn [state]
              (-> state
-                 (update :node-dependencies
-                         (partial medley/remove-keys
-                                  invalidated-node-ids-set-with-parents))
-                 (update :scene-graph-cache
-                         (partial medley/remove-keys
-                                  invalidated-node-ids-set-with-parents))
-                 (assoc :applied-view-call-ids #{}))))))
+                 (update :node-dependencies remove-invalidated-view-call-ids)
+                 (update :scene-graph-cache remove-invalidated-view-call-ids)
+                 (assoc :applied-view-call-ids #{})
+                 (assoc :cached-view-call-ids #{}))))))
 
 (defn end-compilation-cycle! []
-  (let [remove-unused-view-call-ids (partial medley/filter-keys
-                                             (:applied-view-call-ids @state))]
+  (let [sorted-cached-view-call-ids-set (sorted-id-set (:cached-view-call-ids @state))
+        remove-unused-view-call-ids (partial medley/filter-keys
+                                             (fn [view-call-id]
+                                               (or (contains? (:applied-view-call-ids @state)
+                                                              view-call-id)
+                                                   (is-prefix-of-some sorted-cached-view-call-ids-set
+                                                                      view-call-id))))]
 
     (swap! state
            (fn [state]
@@ -372,6 +368,7 @@
 
 (defn state-bindings []
   {#'state (atom {:applied-view-call-ids #{}
+                  :cached-view-call-ids #{}
                   :constructor-cache {}
                   :node-dependencies {}
                   :scene-graph-cache {}
