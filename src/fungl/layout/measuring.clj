@@ -2,15 +2,14 @@
   (:require [fungl.cache :as cache]
             [fungl.callable :as callable]))
 
-(cache/defn-memoized ensure-available-space [node]
+(defn ensure-available-space [node]
   (assoc node
          :available-width (or (:available-width node)
                               java.lang.Integer/MAX_VALUE)
          :available-height (or (:available-height node)
                                java.lang.Integer/MAX_VALUE)))
 
-
-(cache/defn-memoized give-space [node]
+(defn give-space [node]
   (if (:children node)
     (let [node (ensure-available-space node)]
       (if-let [give-space-function (:give-space node)]
@@ -25,7 +24,7 @@
 
     node))
 
-(cache/defn-memoized size [node]
+(defn size [node]
   (if-let [get-size (:get-size node)]
     (callable/call get-size node)
     {:width (or (:width node)
@@ -33,10 +32,10 @@
      :height (or (:height node)
                  (:available-height node))}))
 
-(cache/defn-memoized add-size [node]
+(defn add-size [node]
   (conj node (size node)))
 
-(cache/defn-memoized make-layout [node]
+(defn make-layout [node]
   (if-let [make-layout-callable (:make-layout node)]
     (callable/call make-layout-callable node)
     (update-in node [:children]
