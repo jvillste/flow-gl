@@ -154,16 +154,18 @@
                                                 view-function-or-constructor
                                                 arguments)
 
-                                         (contains? @(:constructor-cache state)
+                                         (contains? (:constructor-cache @state)
                                                     the-id)
-                                         (let [view-function (get @(:constructor-cache state)
+                                         (let [view-function (get (:constructor-cache @state)
                                                                   the-id)]
                                            (apply cache/call! view-function arguments))
 
                                          :else
                                          (let [{:keys [result dependencies]} (cache/call-and-return-result-and-dependencies view-function-or-constructor arguments)]
                                            (if (fn? result)
-                                             (do (swap! (:constructor-cache state)
+                                             (do (swap! state
+                                                        update
+                                                        :constructor-cache
                                                         assoc
                                                         the-id
                                                         result)
@@ -230,7 +232,7 @@
                                                   :call)))
                                    id)
 
-                              scene-graph (if-let [scene-graph (get @(:scene-graph-cache state)
+                              scene-graph (if-let [scene-graph (get (:scene-graph-cache @state)
                                                                     id)]
                                             (do (prn 'cache-hit!
                                                      (function-name (if (var? (first value))
@@ -242,7 +244,7 @@
                                                        (fn [applied-view-call-ids]
                                                          (apply conj
                                                                 applied-view-call-ids
-                                                                (->> (keys @(:scene-graph-cache state))
+                                                                (->> (keys (:scene-graph-cache @state))
                                                                      (filter (fn [node-id]
                                                                                (is-prefix node-id
                                                                                           id)))))))
@@ -262,7 +264,7 @@
                                                             id
                                                             (apply-view-call id value))))
 
-                              dependency-value-map (cache/dependency-value-map (or (get @(:constructor-cache state)
+                              dependency-value-map (cache/dependency-value-map (or (get (:constructor-cache @state)
                                                                                         id)
                                                                                    (first value))
                                                                                (rest value))
@@ -279,17 +281,23 @@
                               ]
 
                           (when (not (empty? dependency-value-map))
-                            (swap! (:node-dependencies state)
+                            (swap! state
+                                   update
+                                   :node-dependencies
                                    assoc
                                    id
                                    dependency-value-map))
 
-                          (swap! (:scene-graph-cache state)
+                          (swap! state
+                                 update
+                                 :scene-graph-cache
                                  assoc
                                  id
                                  scene-graph)
 
-                          (swap! (:view-functions state)
+                          (swap! state
+                                 update
+                                 :view-functions
                                  assoc
                                  id
                                  (first value))
@@ -324,18 +332,22 @@
        (map first)))
 
 (defn compile-view-calls [view-call-or-scene-graph]
-  (let [sorted-invalidated-node-ids-set (sorted-id-set (invalidated-node-ids @(:node-dependencies state)))
+  (let [sorted-invalidated-node-ids-set (sorted-id-set (invalidated-node-ids (:node-dependencies @state)))
         invalidated-node-ids-set-with-parents (set (filter (fn [node-id]
                                                              (is-prefix-of-some sorted-invalidated-node-ids-set
                                                                                 node-id))
-                                                           (keys @(:scene-graph-cache state))))]
+                                                           (keys (:scene-graph-cache @state))))]
 
 
-    (swap! (:node-dependencies state)
+    (swap! state
+           update
+           :node-dependencies
            (partial medley/remove-keys
                     invalidated-node-ids-set-with-parents))
 
-    (swap! (:scene-graph-cache state)
+    (swap! state
+           update
+           :scene-graph-cache
            (partial medley/remove-keys
                     invalidated-node-ids-set-with-parents)))
 
@@ -344,29 +356,37 @@
                                []
                                view-call-or-scene-graph)]
 
-      (swap! (:scene-graph-cache state)
+      (swap! state
+             update
+             :scene-graph-cache
              (partial medley/filter-keys
                       @applied-view-call-ids))
 
-      (swap! (:view-functions state)
+      (swap! state
+             update
+             :view-functions
              (partial medley/filter-keys
                       @applied-view-call-ids))
 
-      (swap! (:node-dependencies state)
+      (swap! state
+             update
+             :node-dependencies
              (partial medley/filter-keys
                       @applied-view-call-ids))
 
-      (swap! (:constructor-cache state)
+      (swap! state
+             update
+             :constructor-cache
              (partial medley/filter-keys
                       @applied-view-call-ids))
 
       result)))
 
 (defn state-bindings []
-  {#'state {:constructor-cache (atom {})
-            :node-dependencies (atom {})
-            :scene-graph-cache (atom {})
-            :view-functions (atom {})}})
+  {#'state (atom {:constructor-cache {}
+                  :node-dependencies {}
+                  :scene-graph-cache {}
+                  :view-functions {}})})
 
 (deftest test-compile
   (let [test-compile (fn [value]
@@ -540,7 +560,7 @@
                                     ^{:local-id child-id} [view-2])})]
 
           (let [scene-graph (test-compile [view-1 :a :b])]
-            (is (= 2 (count (keys @(:constructor-cache state)))))
+            (is (= 2 (count (keys (:constructor-cache @state)))))
 
             (is (= [0 0]
                    (->> scene-graph
@@ -580,14 +600,14 @@
 
             (test-compile [view-1 :c])
 
-            (is (= 1 (count (keys @(:constructor-cache state)))))
+            (is (= 1 (count (keys (:constructor-cache @state)))))
 
             (is (= 4 @view-2-call-count-atom))
             (is (= 3 @view-2-constructor-call-count-atom))
 
             (test-compile [view-1])
 
-            (is (= 0 (count (keys @(:constructor-cache state)))))))))))
+            (is (= 0 (count (keys (:constructor-cache @state)))))))))))
 
 (deftest test-view-functions
   (with-bindings (merge (state-bindings)
@@ -624,7 +644,7 @@
                         :state @state-atom})))
             scene-graph (compile-view-calls [view])
             state-atom (first (first (get @(:dependencies cache/state)
-                                          [(get @(:constructor-cache state)
+                                          [(get (:constructor-cache @state)
                                                 [])
                                            []])))]
 
@@ -795,7 +815,7 @@
                                                 {:children [[view-2]]}]}]})
           view-state-atom (fn [id]
                             (first (first (get @(:dependencies cache/state)
-                                               [(get @(:constructor-cache state)
+                                               [(get (:constructor-cache @state)
                                                      id)
                                                 []]))))
           component-tree (component-tree (compile-view-calls [view-1]))]

@@ -73,11 +73,11 @@
     (swing-root-renderer/render-scene-graph gl
                                             (renderer/apply-renderers! scene-graph
                                                                        #_{:x 0
-                                                                        :y 0
-                                                                        :width (:width scene-graph)
-                                                                        :height (:height scene-graph)
-                                                                        :render swing-root-renderer/render-scene-graph
-                                                                        :children [scene-graph]}
+                                                                          :y 0
+                                                                          :width (:width scene-graph)
+                                                                          :height (:height scene-graph)
+                                                                          :render swing-root-renderer/render-scene-graph
+                                                                          :children [scene-graph]}
                                                                        ;; (if (:render scene-graph)
                                                                        ;;   scene-graph
                                                                        ;;   (assoc scene-graph
@@ -139,16 +139,16 @@
 (defonce layout-trace-value-atom (atom {}))
 
 (defn print-component-tree [view-call-dependency-value-maps-before-compilation]
-  (doseq [view-call-id (->> (keys @(:view-functions view-compiler/state))
+  (doseq [view-call-id (->> (keys (:view-functions @view-compiler/state))
                             (sort-by identity id-comparator/compare-ids))]
 
     (println view-call-id
-             (when-let [view-function (get @(:view-functions view-compiler/state)
+             (when-let [view-function (get (:view-functions @view-compiler/state)
                                            view-call-id)]
                (view-compiler/function-name (if (var? view-function)
                                               @view-function
                                               view-function)))
-             (->> (get @(:node-dependencies view-compiler/state)
+             (->> (get (:node-dependencies @view-compiler/state)
                        view-call-id)
                   (map (fn [[dependable _value]]
                          (let [old-value (get (get view-call-dependency-value-maps-before-compilation
@@ -160,9 +160,9 @@
                            (str (when changed?
                                   (util/escapes :red))
                                 (name dependable)
-                                (if changed?
-                                  "!"
-                                  "")
+                                #_(if changed?
+                                    "!"
+                                    "")
                                 " "
                                 (if changed?
                                   (str (view-compiler/describe-value old-value)
@@ -174,7 +174,7 @@
                   (sort)))))
 
 (defn create-scene-graph [root-view-or-var]
-  (let [view-call-dependency-value-maps-before-compilation @(:node-dependencies view-compiler/state)
+  (let [view-call-dependency-value-maps-before-compilation (:node-dependencies @view-compiler/state)
         scene-graph (cache/call! layout/do-layout-for-size
                                  (view-compiler/compile-view-calls [root-view-or-var])
                                  (:window-width @state-atom)
@@ -267,7 +267,9 @@
 
   (when (= :redraw (:type event))
     (cache/invalidate-all!)
-    (reset! (:constructor-cache view-compiler/state)
+    (swap!  view-compiler/state
+            assoc
+            :constructor-cache
             {}))
 
   (when (= :resize-requested (:type event))
