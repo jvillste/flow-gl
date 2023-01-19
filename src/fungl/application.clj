@@ -174,26 +174,26 @@
                   (sort)))))
 
 (defn create-scene-graph [root-view-or-var]
-  (let [view-call-dependency-value-maps-before-compilation (:node-dependencies @view-compiler/state)
-        scene-graph (cache/call! layout/do-layout-for-size
-                                 (view-compiler/compile-view-calls [root-view-or-var])
-                                 (:window-width @state-atom)
-                                 (:window-height @state-atom))]
+  (let [view-call-dependency-value-maps-before-compilation (:node-dependencies @view-compiler/state)]
+    (view-compiler/start-compilation-cycle!)
+    (let [scene-graph (layout/do-layout-for-size (view-compiler/compile-view-calls [root-view-or-var])
+                                                 (:window-width @state-atom)
+                                                 (:window-height @state-atom))]
+      (view-compiler/end-compilation-cycle!)
+      ;; (describe-dependables)
 
-    ;; (describe-dependables)
+      (println)
+      (print-component-tree view-call-dependency-value-maps-before-compilation)
+      (println)
 
-    (println)
-    (print-component-tree view-call-dependency-value-maps-before-compilation)
-    (println)
+      ;; (println "node dependencies")
+      ;; (doseq [[node-id dependables] (sort-by first
+      ;;                                        id-comparator/compare-ids
+      ;;                                        (seq @(:node-dependencies view-compiler/state)))]
+      ;;   (println node-id (sort (map name (keys dependables)))))
 
-    ;; (println "node dependencies")
-    ;; (doseq [[node-id dependables] (sort-by first
-    ;;                                        id-comparator/compare-ids
-    ;;                                        (seq @(:node-dependencies view-compiler/state)))]
-    ;;   (println node-id (sort (map name (keys dependables)))))
-
-    (handle-new-scene-graph! scene-graph)
-    scene-graph))
+      (handle-new-scene-graph! scene-graph)
+      scene-graph)))
 
 (def ^:dynamic event-channel)
 
