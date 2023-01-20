@@ -51,7 +51,7 @@
 
 (defn create-render-state []
   (conj #_(cache/state-bindings)
-        (value-registry/state-bindings)
+        #_(value-registry/state-bindings)
         (visuals/state-bindings)))
 
 ;; render gets graphics context and returns scene graph
@@ -278,6 +278,75 @@
            :window-width (:width event)
            :window-height (:height event))))
 
+(defn create-state [root-view]
+  (let [window (create-window)
+        bindings (merge (create-event-handling-state)
+                        {#'event-channel (window/event-channel window)}
+                        (create-render-state))]
+    (with-bindings bindings
+      (swap! state-atom
+             assoc
+             :window-width (window/width window)
+             :window-height (window/height window))
+      {:window window
+       :bindings bindings
+       :root-view root-view
+       :scene-graph-atom (atom (create-scene-graph root-view))})))
+
+(defn handle-events! [state events]
+  (with-bindings (:bindings state)
+    (let [scene-graph (loop [events events
+                             scene-graph @(:scene-graph-atom state)]
+                        (if (empty? events)
+                          scene-graph
+                          (if (= :close-requested (:type (first events)))
+                            nil
+                            (do (process-event! scene-graph
+                                                (first events))
+                                (recur (rest events)
+                                       (create-scene-graph (:root-view state)))))))]
+
+      (reset! (:scene-graph-atom state)
+              scene-graph)
+
+      (when scene-graph
+        (window/with-gl (:window state) gl
+          (render gl scene-graph))
+        (window/swap-buffers (:window state))))))
+
+(defn close! [state]
+  (window/close (:window state))
+  ;; events must be read from the channel so that the swing event loop can handle the close event
+  (csp/drain (window/event-channel (:window state))
+             0))
+
+(defn start-application [root-view & {:keys [target-frame-rate
+                                             on-exit]
+                                      :or {target-frame-rate 60}}]
+  (println "------------ start-window -------------")
+
+  (let [state (create-state root-view)]
+    (thread "application loop"
+            (try (loop [state state]
+                   (handle-events! state
+                                   (with-bindings (:bindings state)
+                                     (read-events (window/event-channel (:window state))
+                                                  target-frame-rate)))
+                   (when @(:scene-graph-atom state)
+                     (recur state)))
+
+                 (logga/write "exiting application loop")
+
+                 (catch Exception e
+                   (logga/write "Exception in application loop:" (prn-str e))
+                   (throw e))
+                 (finally
+                   (when on-exit
+                     (on-exit))
+                   (logga/write "closing window")
+                   (close! state))))
+    (window/event-channel (:window state))))
+
 (defn start-window [root-view-or-var & {:keys [window
                                                target-frame-rate
                                                do-profiling
@@ -297,7 +366,7 @@
               (try (logga/write "starting application loop")
                    (with-profiling do-profiling :render-loop
                      (with-bindings (merge (create-event-handling-state)
-                                           {#'event-channel (window/event-channel window)}
+                                           {#'event-channel (window/event-channel (create-window))}
                                            (create-render-state))
                        (swap! state-atom
                               assoc
@@ -322,10 +391,9 @@
                                                                                 (:window-height @state-atom)))]
 
                                (tufte/p :render
-                                        (trace/with-call-tree-printing (atom {})
-                                          (window/with-gl window gl
-                                            (render gl scene-graph)
-                                            (value-registry/delete-unused-values! 500))))
+                                        (window/with-gl window gl
+                                          (render gl scene-graph)
+                                          (value-registry/delete-unused-values! 500)))
                                (window/swap-buffers window)
                                (recur scene-graph)))))))
                    (logga/write "exiting application loop")
