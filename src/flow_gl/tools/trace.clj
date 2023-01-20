@@ -177,6 +177,7 @@
                (alter-var-root (fn [original-function]
                                  (fn tracing-wrapper [& args]
                                    (when (apply cache/cached?
+                                                cache/state
                                                 @(-> the-var meta :fungl.cache/uncached)
                                                 args)
                                      (log :cache-hit the-var))

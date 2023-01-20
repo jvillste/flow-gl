@@ -113,14 +113,12 @@
 (defn in-use? []
   (bound? #'state))
 
-
-
-(defn cached? [function & arguments]
+(defn cached? [state function & arguments]
   (and (in-use?)
        (boolean (.getIfPresent (:cache state) (function-call-key function arguments)))))
 
 (defn cache-is-valid? [function arguments]
-  (and (apply cached? function arguments)
+  (and (apply cached? state function arguments)
        (not (should-be-invalidated? function arguments))))
 
 (defn get [key]
@@ -221,9 +219,9 @@
       (is (= {:call-count 1, :result 1}
              (call! f 1)))
 
-      (is (cached? f 1))
-      (is (not (cached? f 2)))
-      (is (not (cached? (fn []) 1)))
+      (is (cached? state f 1))
+      (is (not (cached? state f 2)))
+      (is (not (cached? state (fn []) 1)))
 
       (is (= {:call-count 1, :result 1}
              (call! f 1)))
