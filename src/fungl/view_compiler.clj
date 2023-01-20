@@ -146,7 +146,6 @@
   (binding [id the-id]
     (let [[view-function-or-constructor & arguments] view-call
           scene-graph-or-view-call (cond (apply cache/cached?
-                                                cache/state
                                                 view-function-or-constructor
                                                 arguments)
                                          (apply cache/call!
