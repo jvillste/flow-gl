@@ -27,8 +27,7 @@
    [clojure.string :as string]
    [fungl.id-comparator :as id-comparator]
    [clojure.set :as set]
-   [fungl.util :as util]
-   [fungl.application :as application]))
+   [fungl.util :as util]))
 
 (tufte/add-basic-println-handler! {})
 
@@ -72,19 +71,7 @@
 
     (swing-root-renderer/render-scene-graph gl
                                             (renderer/apply-renderers! scene-graph
-                                                                       #_{:x 0
-                                                                          :y 0
-                                                                          :width (:width scene-graph)
-                                                                          :height (:height scene-graph)
-                                                                          :render swing-root-renderer/render-scene-graph
-                                                                          :children [scene-graph]}
-                                                                       ;; (if (:render scene-graph)
-                                                                       ;;   scene-graph
-                                                                       ;;   (assoc scene-graph
-                                                                       ;;          :render
-                                                                       ;;          swing-root-renderer/render-scene-graph))
-                                                                       gl))
-    ))
+                                                                       gl))))
 
 (defn handle-new-scene-graph! [scene-graph]
   (keyboard/handle-new-scene-graph! scene-graph)
@@ -120,11 +107,6 @@
                              ~@body)
      (do ~@body)))
 
-(defmacro thread [name & body]
-  ;; use async/thread to inherit bindings such as flow-gl.debug/dynamic-debug-channel
-  `(.start (Thread. (fn [] ~@body)
-                    ~name)))
-
 (defn describe-dependables []
   (println)
   (println "dependables:")
@@ -138,7 +120,7 @@
 
 (defonce layout-trace-value-atom (atom {}))
 
-(defn print-component-tree [view-call-dependency-value-maps-before-compilation]
+(defn print-component-tree [old-view-call-dependency-value-maps]
   (doseq [view-call-id (->> (keys (:view-functions @view-compiler/state))
                             (sort-by identity id-comparator/compare-ids))]
 
@@ -151,7 +133,7 @@
              (->> (get (:node-dependencies @view-compiler/state)
                        view-call-id)
                   (map (fn [[dependable _value]]
-                         (let [old-value (get (get view-call-dependency-value-maps-before-compilation
+                         (let [old-value (get (get old-view-call-dependency-value-maps
                                                    view-call-id)
                                               dependable)
                                current-value (depend/current-value dependable)
@@ -278,62 +260,74 @@
            :window-width (:width event)
            :window-height (:height event))))
 
-(defn create-state [root-view]
-  (let [window (create-window)
-        bindings (merge (create-event-handling-state)
-                        {#'event-channel (window/event-channel window)}
+(defn close-window! [window]
+  (window/close window)
+  ;; events must be read from the channel so that the swing event loop
+  ;; can handle the close event
+  (csp/drain (window/event-channel window)
+             0))
+
+(defn close! [state]
+  (close-window! (:window state)))
+
+(defn create-bindings-without-window [root-view]
+  (let [bindings (merge (create-event-handling-state)
                         (create-render-state))]
     (with-bindings bindings
       (swap! state-atom
              assoc
-             :window-width (window/width window)
-             :window-height (window/height window))
-      {:window window
-       :bindings bindings
-       :root-view root-view
-       :scene-graph-atom (atom (create-scene-graph root-view))})))
+             :window-width 400
+             :window-height 400
+             :root-view root-view)
+      (let [scene-graph (create-scene-graph root-view)]
+        (swap! state-atom
+               assoc
+               :scene-graph scene-graph)))
+    bindings))
 
-(defn handle-events! [state events]
-  (with-bindings (:bindings state)
-    (let [scene-graph (loop [events events
-                             scene-graph @(:scene-graph-atom state)]
-                        (if (empty? events)
-                          scene-graph
-                          (if (= :close-requested (:type (first events)))
-                            nil
-                            (do (process-event! scene-graph
-                                                (first events))
-                                (recur (rest events)
-                                       (create-scene-graph (:root-view state)))))))]
+(defn create-bindings [root-view]
+  (let [bindings (create-bindings-without-window root-view)]
+    (with-bindings bindings
+      (swap! state-atom
+             assoc
+             :window (create-window (:window-width @state-atom)
+                                    (:window-height @state-atom))))
+    bindings))
 
-      (reset! (:scene-graph-atom state)
-              scene-graph)
+(defn handle-events! [events]
+  (swap! state-atom
+         assoc
+         :scene-graph
+         (loop [events events
+                scene-graph (:scene-graph @state-atom)]
+           (if (empty? events)
+             scene-graph
+             (if (= :close-requested (:type (first events)))
+               nil
+               (do (process-event! scene-graph
+                                   (first events))
+                   (recur (rest events)
+                          (create-scene-graph (:root-view @state-atom)))))))))
 
-      (when scene-graph
-        (window/with-gl (:window state) gl
-          (render gl scene-graph))
-        (window/swap-buffers (:window state))))))
-
-(defn close! [state]
-  (window/close (:window state))
-  ;; events must be read from the channel so that the swing event loop can handle the close event
-  (csp/drain (window/event-channel (:window state))
-             0))
+(defmacro thread [name & body]
+  `(.start (Thread. (bound-fn [] ~@body)
+                    ~name)))
 
 (defn start-application [root-view & {:keys [target-frame-rate
                                              on-exit]
                                       :or {target-frame-rate 60}}]
   (println "------------ start-window -------------")
+  (with-bindings (create-bindings root-view)
+    (thread "fungl application"
+            (try (loop []
+                   (handle-events! (read-events (window/event-channel (:window @state-atom))
+                                                target-frame-rate))
 
-  (let [state (create-state root-view)]
-    (thread "application loop"
-            (try (loop [state state]
-                   (handle-events! state
-                                   (with-bindings (:bindings state)
-                                     (read-events (window/event-channel (:window state))
-                                                  target-frame-rate)))
-                   (when @(:scene-graph-atom state)
-                     (recur state)))
+                   (when (:scene-graph @state-atom)
+                     (window/with-gl (:window @state-atom) gl
+                       (render gl (:scene-graph @state-atom)))
+                     (window/swap-buffers (:window @state-atom))
+                     (recur)))
 
                  (logga/write "exiting application loop")
 
@@ -344,10 +338,10 @@
                    (when on-exit
                      (on-exit))
                    (logga/write "closing window")
-                   (close! state))))
-    (window/event-channel (:window state))))
+                   (close-window! (:window @state-atom)))))
+    (window/event-channel (:window @state-atom))))
 
-(defn start-window [root-view-or-var & {:keys [window
+#_(defn start-window [root-view-or-var & {:keys [window
                                                target-frame-rate
                                                do-profiling
                                                on-exit]
@@ -409,3 +403,7 @@
                      ;; events must be read from the channel so that the swing event loop can handle the close event
                      (csp/drain @event-channel-promise 0)))))
     @event-channel-promise))
+
+
+;; TODO: commit the refactoring of the application loop
+;; then create a test bench to application-test with a test "window" that inly records rendering commands in a log that can be checked in tests
