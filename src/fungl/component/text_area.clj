@@ -327,23 +327,23 @@
     (when handle-rows
       (handle-rows rows))
 
-    (conj node
-          (layouts/with-minimum-size (font/width (:font style) "W") (font/height (:font style))
-            (layouts/superimpose (when index
-                                   (let [rectangle (visuals/rectangle (:color style) 0 0)]
-                                     (if (empty? rows)
-                                       (assoc rectangle
-                                              :width 1
-                                              :x 0
-                                              :y 0
-                                              :height (font/height (:font style)))
-                                       (let [caret-position (character-position rows index)]
-                                         (assoc rectangle
-                                                :width 1
-                                                :x (:x caret-position)
-                                                :y (:y caret-position)
-                                                :height (:height caret-position))))))
-                                 (rows-node rows))))))
+    (merge (dissoc node :adapt-to-space)
+           (layouts/with-minimum-size (font/width (:font style) "W") (font/height (:font style))
+             (layouts/superimpose (when index
+                                    (let [rectangle (visuals/rectangle (:color style) 0 0)]
+                                      (if (empty? rows)
+                                        (assoc rectangle
+                                               :width 1
+                                               :x 0
+                                               :y 0
+                                               :height (font/height (:font style)))
+                                        (let [caret-position (character-position rows index)]
+                                          (assoc rectangle
+                                                 :width 1
+                                                 :x (:x caret-position)
+                                                 :y (:y caret-position)
+                                                 :height (:height caret-position))))))
+                                  (rows-node rows))))))
 
 (defn create-scene-graph [text index style handle-rows]
   (assert text)

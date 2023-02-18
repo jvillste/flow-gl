@@ -64,14 +64,14 @@
 ;;         swing-root-renderer/render-to-buffered-image    render given nodes to an image
 ;;           swing-root-renderer/render-nodes    calls given nodes draw-functions
 
-(defn render [gl scene-graph]
+(defn render [scene-graph render-scene-graph gl]
   (when (not (= scene-graph
                 (:previous-rendered-scene-graph @state-atom)))
     (swap! state-atom assoc :previous-rendered-scene-graph scene-graph)
 
-    (swing-root-renderer/render-scene-graph gl
-                                            (renderer/apply-renderers! scene-graph
-                                                                       gl))))
+    (render-scene-graph gl
+                        (renderer/apply-renderers! scene-graph
+                                                   gl))))
 
 (defn handle-new-scene-graph! [scene-graph]
   (keyboard/handle-new-scene-graph! scene-graph)
@@ -164,9 +164,9 @@
       (view-compiler/end-compilation-cycle!)
       ;; (describe-dependables)
 
-      (println)
-      (print-component-tree view-call-dependency-value-maps-before-compilation)
-      (println)
+      ;; (println)
+      ;; (print-component-tree view-call-dependency-value-maps-before-compilation)
+      ;; (println)
 
       ;; (println "node dependencies")
       ;; (doseq [[node-id dependables] (sort-by first
@@ -235,9 +235,9 @@
 (defn process-event! [scene-graph event]
   (swap! events-atom conj event) ;; TODO: remove me
 
-  (println)
-  (println "handling" (:type event) (:key event) #_(pr-str event))
-  (println)
+  ;; (println)
+  ;; (println "handling" (:type event) (:key event) #_(pr-str event))
+  ;; (println)
 
   (when (= :mouse
            (:source event))
@@ -325,7 +325,9 @@
 
                    (when (:scene-graph @state-atom)
                      (window/with-gl (:window @state-atom) gl
-                       (render gl (:scene-graph @state-atom)))
+                       (render (:scene-graph @state-atom)
+                               swing-root-renderer/render-scene-graph
+                               gl))
                      (window/swap-buffers (:window @state-atom))
                      (recur)))
 

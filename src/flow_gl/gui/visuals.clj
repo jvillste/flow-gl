@@ -123,12 +123,14 @@
 
 
 (defn text-area-adapt-to-space [color font string node]
-  (assoc node :rows (if (and string (not= string ""))
-                      (text/rows-for-text color
-                                          font
-                                          string
-                                          (:available-width node))
-                      nil)))
+  (-> node
+      (assoc :rows (if (and string (not= string ""))
+                          (text/rows-for-text color
+                                              font
+                                              string
+                                              (:available-width node))
+                          nil))
+      (dissoc :adapt-to-space)))
 
 (defn text-area-get-size [font node]
   (if-let [rows (:rows node)]
@@ -218,6 +220,7 @@
                                  (let [bounding-box (scene-graph/bounding-box leaf-nodes)]
                                    (assoc (image (root-renderer/render-to-buffered-image bounding-box
                                                                                          leaf-nodes))
+                                          :id (:id scene-graph)
                                           :z z
                                           :x (- (:x bounding-box)
                                                 (:x scene-graph))

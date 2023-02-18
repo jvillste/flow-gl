@@ -1,101 +1,103 @@
 (ns fungl.application-test
-  (:require [fungl.application :as application]
-            [clojure.test :require [deftest is]]
-            [fungl.layouts :as layouts]
-            [fungl.layout :as layout]
-            [flow-gl.gui.scene-graph :as scene-graph]
-            [fungl.cache :as cache]
-            [flow-gl.tools.trace :as trace]
-            [fungl.view-compiler :as view-compiler]
-            [fungl.dependable-atom :as dependable-atom]
-            [clojure.pprint :as pprint]))
+  (:require
+   [flow-gl.gui.visuals :as visuals]
+   [fungl.application :as application]
+   [fungl.dependable-atom :as dependable-atom]
+   [fungl.layouts :as layouts]
+   [fungl.swing.root-renderer :as root-renderer]
+   [clojure.string :as string]))
 
-(defn text [string]
-  {:string string
-   :width (count string)
+(def ^:dynamic log-atom)
+(defn log! [type & {:as values}]
+  (swap! log-atom conj (merge {:type type}
+                              values)))
+
+(defn text [the-text]
+  {:type :text
+   :string the-text
+   :description {:text the-text}
+   :draw-function (fn [_gl]
+                    (log! :drawing-text :text the-text))
+   :width (count the-text)
    :height 1})
 
-(def value-atom (atom {}))
+(defn counter []
+  (let [count-atom (dependable-atom/atom "count" 0)]
+    (fn []
+      (assoc (text (str @count-atom))
+             :keyboard-event-handler (fn [_node event]
+                                       (when (and (= :on-target (:phase event))
+                                                  (= :key-pressed (:type event)))
+                                         (swap! count-atom inc))
+                                       event)
+             :can-gain-focus? true))))
 
-(comment
-  (do (trace/untrace-ns 'fungl.layout)
-      (trace/trace-ns 'fungl.layout))
+(defn root-view []
+  (layouts/vertically-2 {}
+                        [counter]
+                        [counter]))
 
+(defn describe [node]
+  (merge {:type (:type node)}
+         (:description node)))
 
-  (trace/trace-var #'layout/do-layout)
-  (trace/untrace-var #'layout/do-layout)
+(defn render-scene-graph [gl scene-graph]
+  (log! :render-scene-graph)
 
+  (doseq [node (filter :draw-function
+                       (root-renderer/nodes-in-view scene-graph
+                                                    (:width scene-graph)
+                                                    (:height scene-graph)))]
+    (log! :drawing :node (describe node))))
 
-  (get @value-atom 1526611343)
+(defn run-test [root-view
+                body-fn]
+  (with-redefs [application/process-event! (let [old-process-event! application/process-event!]
+                                             (fn [scene-graph event]
+                                               (log! :process-event :event event)
+                                               (old-process-event! scene-graph event)))
+                root-renderer/render-to-buffered-image (fn [bounding-box leaf-nodes]
+                                                         (log! :renering-to-image)
+                                                         (doseq [leaf-node leaf-nodes]
+                                                           (log! :drawing :node (describe leaf-node)))
+                                                         (merge bounding-box
+                                                                {:leaf-nodes leaf-nodes}))
+                visuals/image (fn [buffered-image]
+                                (merge {:type :image
+                                        :description {:nodes (map describe (:leaf-nodes buffered-image))}
+                                        :draw-function (fn [_gl]
+                                                         (log! :drawing-image
+                                                               :nodes (map describe (:leaf-nodes buffered-image))))
+                                        :buffered-image buffered-image}
+                                       (select-keys buffered-image
+                                                    [:x :y :width :height])))]
+    (binding [log-atom (atom [])]
+      (with-bindings (application/create-bindings-without-window root-view)
+        (body-fn)
+        @log-atom))))
 
-  ;;  TODO: why these print the same call tree while the later one should be cached?
-  (with-bindings (cache/state-bindings)
-    (trace/with-call-tree-printing value-atom
-      (scene-graph/leaf-nodes (layout/do-layout-for-size (layouts/vertically-2 {:margin 1}
-                                                                               (text "foo")
-                                                                               (text "bar")
-                                                                               (layouts/horizontally-2 {:margin 1}
-                                                                                                       (text "foo")
-                                                                                                       (text "bar")))
-                                                         100
-                                                         100)))
-    (println "cache size:" (cache/size))
+(defn render! []
+  (application/render (:scene-graph @application/state-atom)
+                      render-scene-graph
+                      nil))
 
-
-    (trace/with-call-tree-printing value-atom
-      (scene-graph/leaf-nodes (layout/do-layout-for-size (layouts/vertically-2 {:margin 1}
-                                                                               (text "foo")
-                                                                               (text "bar")
-                                                                               (layouts/horizontally-2 {:margin 1}
-                                                                                                       (text "foo")
-                                                                                                       (text "bar")))
-                                                         100
-                                                         100)))
-
-
-    (println "cache size:" (cache/size))
-
-    )
-
-  (hash (layouts/horizontally-2 {:margin 1}
-                                (text "foo")
-                                (text "bar")))
-  (application/start-window)
-  (layout/do-layout)
-      (prn (meta #'layout/do-layout-implementation)) ;; TODO: remove me
-  )
-
-
-(defn text2 [string]
-  {:string string})
-
-(defn stateful-component [initial-count]
-  (let [state-atom (dependable-atom/atom "stateful-component-state"
-                                         initial-count)]
-    (fn [_initial-count]
-      (assoc (text2 (str @state-atom))
-             :increase (fn []
-                         (swap! state-atom inc))))))
-
-(defn root-component []
-  {:children [[stateful-component 1]
-              [stateful-component 2]]})
-
-(comment
-  (with-bindings (merge (cache/state-bindings)
-                        (view-compiler/state-bindings))
-    (trace/trace-var #'text2)
-    (trace/trace-var #'stateful-component)
-    (trace/trace-var #'root-component)
-
-    (let [scene-graph (trace/with-call-tree-printing value-atom
-                        (view-compiler/compile-view-calls [root-component]))]
-      (pprint/pprint scene-graph)
-      ((-> scene-graph :children first :increase)))
-
-    (pprint/pprint (trace/with-call-tree-printing value-atom
-                     (view-compiler/compile-view-calls [root-component])))
-
-    )
-
-  )
+(deftest test-1
+  (is (= (run-test (fn []
+                     (layouts/vertically-2 {}
+                                           [counter]
+                                           [counter]))
+                   (fn []
+                     (render!)
+                     (application/handle-events! [{:source :keyboard
+                                                   :type :key-pressed}])
+                     (render!)
+                     (render!)))
+         '[{:type :render-scene-graph}
+           {:type :drawing, :node {:type :text, :text "0"}}
+           {:type :drawing, :node {:type :text, :text "0"}}
+           {:type :process-event, :event {:source :keyboard, :type :key-pressed}}
+           {:type :renering-to-image}
+           {:type :drawing, :node {:type :text, :text "0"}}
+           {:type :render-scene-graph}
+           {:type :drawing, :node {:type :text, :text "1"}}
+           {:type :drawing, :node {:type :image, :nodes ({:type :text, :text "0"})}}])))

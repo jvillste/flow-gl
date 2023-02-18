@@ -13,6 +13,7 @@
                  [com.google.guava/guava "20.0"]
                  #_[org.clojure/tools.namespace "1.1.0"]
                  [logga "0.1.0-SNAPSHOT"]
-                 [slamhound "1.5.5"]]
+                 [slamhound "1.5.5"]
+                 [org.clojure/test.check "1.1.1"]]
   :aliases {"slamhound" ["run" "-m" "slam.hound"]}
   :test-paths ["src" "test"])

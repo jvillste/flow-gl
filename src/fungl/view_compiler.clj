@@ -13,7 +13,10 @@
             [fungl.depend :as depend]
             [clojure.string :as string]
             [fungl.util :as util]
-            [fungl.id-comparator :as id-comparator]))
+            [fungl.id-comparator :as id-comparator]
+            (clojure.test.check [clojure-test :as clojure-test]
+                                [generators :as generators]
+                                [properties :as properties])))
 
 (def ^:dynamic state)
 (def ^:dynamic id)
@@ -103,6 +106,87 @@
 
     (is (not (is-prefix-of-some sorted-set
                                 [3 0])))))
+
+(defn slow-some-is-prefix [sequences sequence]
+  (some #(is-prefix sequence %)
+        sequences))
+
+;; TODO: make this work using trie
+;; https://github.com/chetbox/clj-trie/blob/master/src/clj_trie/core.clj
+
+;; first test if cached-view-call-ids never becomes big enough for
+;; slow-some-is-prefix to become a bottleneck
+
+;; using a sorted set does not work because shorter sequences are
+;; separated from longer ones, empty sequence is always the first one
+;; for example
+
+(defn some-is-prefix [sorted-set-of-sequences sequence]
+  (or (and (= [] sequence)
+           (not (empty? sorted-set-of-sequences)))
+      (let [closest-match (first (rsubseq sorted-set-of-sequences
+                                          <=
+                                          sequence))]
+        (if closest-match
+          (if (is-prefix sequence closest-match)
+            true
+            false)
+          nil))))
+
+(defn run-some-is-prefix-rest [sequences sequence]
+  (= (boolean (slow-some-is-prefix sequences sequence))
+     (boolean (some-is-prefix (sorted-id-set sequences)
+                              sequence))))
+
+(deftest test-some-is-prefix
+  (is (run-some-is-prefix-rest (sorted-id-set [[1]])
+                               [1]))
+
+  (is (run-some-is-prefix-rest (sorted-id-set [[1]])
+                               [1 1]))
+
+  (is (run-some-is-prefix-rest (sorted-id-set [[1]])
+                               [1]))
+
+  (is (run-some-is-prefix-rest (sorted-id-set [[0]
+                                               [1]
+                                               [2]])
+                               [1]))
+
+  (is (run-some-is-prefix-rest (sorted-id-set [[0]
+                                               [1]
+                                               [2]])
+                               [1 1]))
+
+  (is (run-some-is-prefix-rest (sorted-id-set [[0]
+                                               [2]])
+                               [1 1 ]))
+
+  (is (run-some-is-prefix-rest (sorted-id-set [[0]
+                                               [1 1 0]
+                                               [1 1]
+                                               [2]])
+                               [1 1 1])))
+
+(clojure-test/defspec property-test-some-is-prefix 100
+  (properties/for-all [prefix-candidates (generators/vector (generators/vector generators/int))
+                       sequence (generators/vector generators/int)]
+                      (run-some-is-prefix-rest prefix-candidates
+                                               sequence)))
+
+(comment
+  (run-some-is-prefix-rest [[]
+                            [0]
+                            [0 0]]
+                           [0])
+
+  (run-some-is-prefix-rest [[]
+                            [0]]
+                           [1])
+  (sorted-id-set [[]
+                  [0]
+                  [1]])
+  ) ;; TODO: remove me
 
 (defn topmost-node-ids [node-ids]
   (let [all-sorted-node-ids (sort-by identity
@@ -215,7 +299,7 @@
 (defn function-name [function]
   (function-class-name-to-function-name (str function)))
 
-(defn compile-node [parent-view-functions id value]
+(defn compile-node [parent-is-view-call? id value]
   (assert (bound? #'state)
           "Bindings returned by (state-bindings) should be bound.")
 
@@ -224,19 +308,20 @@
 
   (cond (view-call? value)
         (apply-metadata (meta value)
-                        (let [id (if (not (empty? parent-view-functions))
+                        (let [id (if parent-is-view-call?
                                    (vec (conj id
                                               (or (:local-id (meta value))
                                                   :call)))
                                    id)
 
-                              scene-graph (if-let [scene-graph (get (:scene-graph-cache @state)
-                                                                    id)]
-                                            (do (prn 'cache-hit!
-                                                     (function-name (if (var? (first value))
-                                                                      @(first value)
-                                                                      (first value)))
-                                                     id) ;; TODO: remove me
+                              scene-graph (if-let [ ;; compnent cache is disabled. It did not work for command help in argupedia ui.
+                                                   scene-graph nil #_(get (:scene-graph-cache @state)
+                                                                          id)]
+                                            (do #_(prn 'component-cache-hit!
+                                                       (function-name (if (var? (first value))
+                                                                        @(first value)
+                                                                        (first value)))
+                                                       id) ;; TODO: remove me
 
                                                 (swap! state
                                                        update
@@ -244,23 +329,22 @@
                                                        conj
                                                        id)
 
-                                                (if (= visuals/render-to-images-render-function
-                                                       (:render scene-graph))
-                                                  scene-graph
-                                                  (assoc scene-graph
-                                                         :render visuals/render-to-images-render-function
-                                                         :render-on-descend? true)))
-                                            (do
-                                              (swap! state
-                                                     update
-                                                     :applied-view-call-ids
-                                                     conj
-                                                     id)
+                                                scene-graph)
+                                            (do #_(prn 'component-cache-miss
+                                                       (function-name (if (var? (first value))
+                                                                        @(first value)
+                                                                        (first value)))
+                                                       id)
+                                                (swap! state
+                                                       update
+                                                       :applied-view-call-ids
+                                                       conj
+                                                       id)
 
-                                              (compile-node (conj parent-view-functions
-                                                                  (first value))
-                                                            id
-                                                            (apply-view-call id value))))
+                                                (-> (compile-node true
+                                                                  id
+                                                                  (apply-view-call id value))
+                                                    (assoc :view-call? true))))
 
                               dependency-value-map (cache/dependency-value-map (or (get (:constructor-cache @state)
                                                                                         id)
@@ -307,7 +391,7 @@
             (update :children
                     (fn [children]
                       (vec (map-indexed (fn [index child]
-                                          (compile-node []
+                                          (compile-node false
                                                         (vec (conj id
                                                                    (or (:local-id (meta child))
                                                                        (:local-id child)
@@ -329,12 +413,15 @@
                        dependency-value-map)))
        (map first)))
 
+(defn invalidated? [node-id]
+  (is-prefix-of-some (:sorted-invalidated-node-ids-set @state) node-id))
 
 (defn start-compilation-cycle! []
   (let [sorted-invalidated-node-ids-set (sorted-id-set (invalidated-node-ids (:node-dependencies @state)))
         remove-invalidated-view-call-ids (partial medley/remove-keys
                                                   (partial is-prefix-of-some sorted-invalidated-node-ids-set))]
 
+    #_(prn 'sorted-invalidated-node-ids-set sorted-invalidated-node-ids-set) ;; TODO: remove me
 
     (swap! state
            (fn [state]
@@ -342,16 +429,23 @@
                  (update :node-dependencies remove-invalidated-view-call-ids)
                  (update :scene-graph-cache remove-invalidated-view-call-ids)
                  (assoc :applied-view-call-ids #{})
-                 (assoc :cached-view-call-ids #{}))))))
+                 (assoc :cached-view-call-ids #{})
+                 (assoc :sorted-invalidated-node-ids-set sorted-invalidated-node-ids-set))))
+    #_(prn :scene-graph-cache (keys (:scene-graph-cache @state))) ;; TODO: remove me
+    ))
 
 (defn end-compilation-cycle! []
+  ;; (prn '(:applied-view-call-ids @state) (:applied-view-call-ids @state)) ;; TODO: remove me
+  ;; (prn '(:cached-view-call-ids @state) (:cached-view-call-ids @state)) ;; TODO: remove me
+  ;; (prn ":scene-graph-cache after compilation: " (keys (:scene-graph-cache @state))) ;; TODO: remove me
+
   (let [sorted-cached-view-call-ids-set (sorted-id-set (:cached-view-call-ids @state))
         remove-unused-view-call-ids (partial medley/filter-keys
                                              (fn [view-call-id]
                                                (or (contains? (:applied-view-call-ids @state)
                                                               view-call-id)
-                                                   (is-prefix-of-some sorted-cached-view-call-ids-set
-                                                                      view-call-id))))]
+                                                   (slow-some-is-prefix sorted-cached-view-call-ids-set
+                                                                        view-call-id))))]
 
     (swap! state
            (fn [state]
@@ -362,7 +456,7 @@
                  (update :constructor-cache remove-unused-view-call-ids))))))
 
 (defn compile-view-calls [view-call-or-scene-graph]
-  (compile-node []
+  (compile-node false
                 []
                 view-call-or-scene-graph))
 

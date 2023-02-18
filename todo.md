@@ -63,3 +63,15 @@ removed from cache When view call is compiled
 ;; event handling
 ;; rendering
 ;; how to test scene graph generation and event handlig without rendering
+
+# binary tree layouts to facilitate image caching
+
+If vertical stack would for a binary tree of components, then the
+amount of images needed to be drawn when one component in the stack
+changes would be logarithmic to the number of components.
+
+# image caching
+
+c1
+  c2 (changed)
+  c3

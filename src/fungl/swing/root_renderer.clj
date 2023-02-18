@@ -15,20 +15,25 @@
           (cache/call! scene-graph/leaf-nodes scene-graph)))
 
 (defn render-nodes [graphics nodes]
-
-
   (let [transform (AffineTransform.)]
     (doseq [node nodes]
       (.setToTranslation transform (:x node) (:y node))
       (.setTransform graphics transform)
 
-      ;;  (prn 'drawing (:draw-function node)) ;; TODO remove me
+      #_(prn 'drawing
+           (:z node)
+           (:id node)
+           (:draw-function node)) ;; TODO remove me
 
       (apply (:draw-function node)
              graphics
              (render/image-function-parameters node)))))
 
 (defn render-scene-graph [graphics scene-graph]
+  #_(prn 'render-scene-graph #_scene-graph
+       (:id scene-graph)
+       (count (scene-graph/leaf-nodes scene-graph))) ;; TODO: remove me
+
   (doto graphics
     (.setColor (Color. 255 255 255 255))
     (.fillRect 0 0 5000 5000))
