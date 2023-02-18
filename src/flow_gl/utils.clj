@@ -1,5 +1,6 @@
 (ns flow-gl.utils
-  (:refer-clojure :exclude [get]))
+  (:refer-clojure :exclude [get])
+  (:require [clojure.test :refer [deftest is]]))
 
 #_(let [log-file-name "/Users/jukka/Downloads/versio2.txt"]
     (spit log-file-name "")
@@ -122,3 +123,14 @@
   (vec (concat (take index vector) (drop (+ index 1) vector))))
 
 #_(fact (remove [1 2 3 4] 1) => [1 3 4])
+
+(defn partial-rest [function & arguments]
+  (fn [value]
+    (apply function
+           value
+           arguments)))
+
+(deftest test-partial-rest
+  (is (= "012"
+         ((partial-rest str 1 2)
+          0))))
