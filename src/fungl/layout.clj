@@ -61,15 +61,15 @@
 
   #_(do-layout-implementation node)
 
-  (when (and (cache/cached? do-layout-implementation
-                            node)
-             (view-compiler/invalidated? (:id node)))
-    (cache/invalidate! (cache/function-call-key do-layout-implementation
-                                                [node])))
+  ;; (when (and (cache/cached? do-layout-implementation
+  ;;                           node)
+  ;;            (view-compiler/invalidated? (:id node)))
+  ;;   (cache/invalidate! (cache/function-call-key do-layout-implementation
+  ;;                                               [node])))
 
   (if (cache/cached? do-layout-implementation
                      node)
-    (do #_(println "layout cache hit" (pr-str (:id node)))
+    (do ;; (println "layout cache hit" (pr-str (:id node)))
         (swap! view-compiler/state
                update
                :cached-view-call-ids
