@@ -291,6 +291,8 @@
                (:y original-node))))
 
 (defn render-to-images [original-node]
+  #_(prn 'render-to-images (:id original-node)) ;; TODO: remove me
+
   (assoc (select-keys original-node [:x :y :z :width :height :id])
          :children (->> (renderer/apply-renderers! original-node
                                                    nil)
@@ -317,6 +319,8 @@
                                                                                                               nil))))))))
 
 (defn render-to-images-render-function [_graphics scene-graph]
+  #_(prn 'render-to-images-render-function (:id scene-graph)) ;; TODO: remove me
+
   #_(render-to-images (dissoc scene-graph
                               :render
                               :render-on-descend?))

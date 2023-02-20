@@ -314,7 +314,8 @@
                                                   :call)))
                                    id)
 
-                              scene-graph (if-let [ ;; compnent cache is disabled. It did not work for command help in argupedia ui.
+                              scene-graph (if-let [;; Scene graph cache is disabled. It did not work for command help in argupedia ui.
+                                                   ;; I did not try to debug it since the performance is ok now without it.
                                                    scene-graph nil #_(get (:scene-graph-cache @state)
                                                                           id)]
                                             (do #_(prn 'component-cache-hit!

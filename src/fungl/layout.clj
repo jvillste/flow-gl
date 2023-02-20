@@ -69,7 +69,7 @@
 
   (if (cache/cached? do-layout-implementation
                      node)
-    (do ;; (println "layout cache hit" (pr-str (:id node)))
+    (do #_(println "layout cache hit" (pr-str (:id node)))
         (swap! view-compiler/state
                update
                :cached-view-call-ids
