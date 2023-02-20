@@ -333,13 +333,13 @@
                                     (let [rectangle (visuals/rectangle (:color style) 0 0)]
                                       (if (empty? rows)
                                         (assoc rectangle
-                                               :width 1
+                                               :width 4
                                                :x 0
                                                :y 0
                                                :height (font/height (:font style)))
                                         (let [caret-position (character-position rows index)]
                                           (assoc rectangle
-                                                 :width 1
+                                                 :width 4
                                                  :x (:x caret-position)
                                                  :y (:y caret-position)
                                                  :height (:height caret-position))))))
@@ -413,4 +413,4 @@
                                                              (swap! state-atom assoc :text-3 new-text))}])))))
 
 (defn start []
-  (application/start-window #'demo-view))
+  (application/start-application #'demo-view))
