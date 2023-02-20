@@ -125,11 +125,11 @@
 (defn text-area-adapt-to-space [color font string node]
   (-> node
       (assoc :rows (if (and string (not= string ""))
-                          (text/rows-for-text color
-                                              font
-                                              string
-                                              (:available-width node))
-                          nil))
+                     (text/rows-for-text color
+                                         font
+                                         string
+                                         (:available-width node))
+                     nil))
       (dissoc :adapt-to-space)))
 
 (defn text-area-get-size [font node]
@@ -141,7 +141,7 @@
 (defn default-font []
   (font/create-by-name "CourierNewPSMT" 50)
   #_(font/create (.getPath (io/resource "LiberationSans-Regular.ttf"))
-               30))
+                 30))
 
 (defn liberation-sans-regular [size]
   (font/create liberation-sans-regular-path
@@ -214,22 +214,112 @@
 (defn state-bindings []
   {#'image-cache (cache/create-state 30)})
 
-(defn render-to-images [scene-graph]
-  (assoc (select-keys scene-graph [:x :y :z :width :height :id])
-         :children (doall (map (fn [[z leaf-nodes]]
-                                 (let [bounding-box (scene-graph/bounding-box leaf-nodes)]
-                                   (assoc (image (root-renderer/render-to-buffered-image bounding-box
-                                                                                         leaf-nodes))
-                                          :id (:id scene-graph)
-                                          :z z
-                                          :x (- (:x bounding-box)
-                                                (:x scene-graph))
-                                          :y (- (:y bounding-box)
-                                                (:y scene-graph)))))
-                               (group-by :z (filter :draw-function (scene-graph/leaf-nodes (renderer/apply-renderers! scene-graph
-                                                                                                                      nil))))))))
+(defn layers [nodes]
+  (->> nodes
+       (group-by :z)
+       (map (fn [[z layer-nodes]]
+              {:z z
+               :nodes layer-nodes
+               :bounding-box (scene-graph/bounding-box nodes)}))))
+
+(defn bounding-box-contains? [inner-bounding-box outer-bounding-box]
+  (and (<= (:x outer-bounding-box)
+           (:x inner-bounding-box))
+
+       (<= (:y outer-bounding-box)
+           (:y inner-bounding-box))
+
+       (<= (+ (:x inner-bounding-box)
+              (:width inner-bounding-box))
+           (+ (:x outer-bounding-box)
+              (:width outer-bounding-box)))
+
+       (<= (+ (:y inner-bounding-box)
+              (:height inner-bounding-box))
+           (+ (:y outer-bounding-box)
+              (:height outer-bounding-box)))))
+
+(defn merge-contained-layer [inner-layer outer-layer]
+  {:bounding-box (:bounding-box outer-layer)
+   :nodes (concat (:nodes outer-layer)
+                  (:nodes inner-layer))
+   :z (:z inner-layer)})
+
+(defn merge-contained-layers [layers]
+  (let [layers (sort-by :z layers)]
+    (loop [previous-layer (first layers)
+           layers (rest layers)
+           merged-layers []]
+      (let [layer (first layers)]
+        (if (nil? layer)
+          (conj merged-layers previous-layer)
+          (if (bounding-box-contains? (:bounding-box layer)
+                                      (:bounding-box previous-layer))
+            (recur (merge-contained-layer layer
+                                          previous-layer)
+                   (rest layers)
+                   merged-layers)
+            (recur layer
+                   (rest layers)
+                   (conj merged-layers
+                         previous-layer))))))))
+
+(deftest test-merge-contained-layers
+  (is (= [{:bounding-box {:x 0, :y 0, :width 2, :height 2}, :nodes '(1 2), :z 1}]
+         (merge-contained-layers [{:z 0 :nodes [1] :bounding-box {:x 0 :y 0 :width 2 :height 2}}
+                                  {:z 1 :nodes [2] :bounding-box {:x 0 :y 0 :width 1 :height 1}}])))
+
+  (is (= [{:z 0, :nodes [1], :bounding-box {:x 0, :y 0, :width 2, :height 2}}
+          {:z 1, :nodes [2], :bounding-box {:x 0, :y 0, :width 10, :height 1}}]
+         (merge-contained-layers [{:z 0 :nodes [1] :bounding-box {:x 0 :y 0 :width 2 :height 2}}
+                                  {:z 1 :nodes [2] :bounding-box {:x 0 :y 0 :width 10 :height 1}}])))
+
+  (is (= [{:z 0, :nodes [1], :bounding-box {:x 0, :y 0, :width 2, :height 2}}
+          {:bounding-box {:x 0, :y 0, :width 10, :height 1}, :nodes '(2 3), :z 2}]
+         (merge-contained-layers [{:z 0 :nodes [1] :bounding-box {:x 0 :y 0 :width 2 :height 2}}
+                                  {:z 1 :nodes [2] :bounding-box {:x 0 :y 0 :width 10 :height 1}}
+                                  {:z 2 :nodes [3] :bounding-box {:x 0 :y 0 :width 5 :height 1}}]))))
+
+(defn layer-to-image [original-node layer]
+  (assoc (image (root-renderer/render-to-buffered-image (:bounding-box layer)
+                                                        (:sort-by :z (:nodes layer))))
+         :id (:id original-node)
+         :z (:z layer)
+         :x (- (:x (:bounding-box layer))
+               (:x original-node))
+         :y (- (:y (:bounding-box layer))
+               (:y original-node))))
+
+(defn render-to-images [original-node]
+  (assoc (select-keys original-node [:x :y :z :width :height :id])
+         :children (->> (renderer/apply-renderers! original-node
+                                                   nil)
+                        (scene-graph/leaf-nodes)
+                        (filter :draw-function)
+                        (layers)
+                        (merge-contained-layers)
+                        (map (partial layer-to-image
+                                      original-node))
+                        (doall))
+
+         #_(doall (map (fn [[z leaf-nodes]]
+
+                         (let [bounding-box (scene-graph/bounding-box leaf-nodes)]
+                           (assoc (image (root-renderer/render-to-buffered-image bounding-box
+                                                                                 leaf-nodes))
+                                  :id (:id original-node)
+                                  :z z
+                                  :x (- (:x bounding-box)
+                                        (:x original-node))
+                                  :y (- (:y bounding-box)
+                                        (:y original-node)))))
+                       (group-by :z (filter :draw-function (scene-graph/leaf-nodes (renderer/apply-renderers! original-node
+                                                                                                              nil))))))))
 
 (defn render-to-images-render-function [_graphics scene-graph]
+  #_(render-to-images (dissoc scene-graph
+                              :render
+                              :render-on-descend?))
   (cache/call-with-cache image-cache
                          render-to-images
                          (dissoc scene-graph
