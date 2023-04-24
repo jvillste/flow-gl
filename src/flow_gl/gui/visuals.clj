@@ -110,6 +110,8 @@
                  (font/create font-file-path
                               font-size))]
     {:type ::text
+     :font-size font-size
+     :font-file-path font-file-path
      :color color
      :font font
      :adapt-to-scale adapt-text-to-scale
@@ -246,23 +248,25 @@
    :z (:z inner-layer)})
 
 (defn merge-contained-layers [layers]
-  (let [layers (sort-by :z layers)]
-    (loop [previous-layer (first layers)
-           layers (rest layers)
-           merged-layers []]
-      (let [layer (first layers)]
-        (if (nil? layer)
-          (conj merged-layers previous-layer)
-          (if (bounding-box-contains? (:bounding-box layer)
-                                      (:bounding-box previous-layer))
-            (recur (merge-contained-layer layer
-                                          previous-layer)
-                   (rest layers)
-                   merged-layers)
-            (recur layer
-                   (rest layers)
-                   (conj merged-layers
-                         previous-layer))))))))
+  (if (empty? layers)
+    layers
+    (let [layers (sort-by :z layers)]
+      (loop [previous-layer (first layers)
+             layers (rest layers)
+             merged-layers []]
+        (let [layer (first layers)]
+          (if (nil? layer)
+            (conj merged-layers previous-layer)
+            (if (bounding-box-contains? (:bounding-box layer)
+                                        (:bounding-box previous-layer))
+              (recur (merge-contained-layer layer
+                                            previous-layer)
+                     (rest layers)
+                     merged-layers)
+              (recur layer
+                     (rest layers)
+                     (conj merged-layers
+                           previous-layer)))))))))
 
 (deftest test-merge-contained-layers
   (is (= [{:bounding-box {:x 0, :y 0, :width 2, :height 2}, :nodes '(1 2), :z 1}]
@@ -278,7 +282,9 @@
           {:bounding-box {:x 0, :y 0, :width 10, :height 1}, :nodes '(2 3), :z 2}]
          (merge-contained-layers [{:z 0 :nodes [1] :bounding-box {:x 0 :y 0 :width 2 :height 2}}
                                   {:z 1 :nodes [2] :bounding-box {:x 0 :y 0 :width 10 :height 1}}
-                                  {:z 2 :nodes [3] :bounding-box {:x 0 :y 0 :width 5 :height 1}}]))))
+                                  {:z 2 :nodes [3] :bounding-box {:x 0 :y 0 :width 5 :height 1}}])))
+  (is (= []
+         (merge-contained-layers []))))
 
 (defn layer-to-image [original-node layer]
   (assoc (image (root-renderer/render-to-buffered-image (:bounding-box layer)
@@ -303,7 +309,6 @@
                         (map (partial layer-to-image
                                       original-node))
                         (doall))
-
          #_(doall (map (fn [[z leaf-nodes]]
 
                          (let [bounding-box (scene-graph/bounding-box leaf-nodes)]

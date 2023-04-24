@@ -35,7 +35,8 @@
        (count (scene-graph/leaf-nodes scene-graph))) ;; TODO: remove me
 
   (doto graphics
-    (.setColor (Color. 255 255 255 255))
+    #_(.setColor (Color. 255 255 255 255))
+    (.setColor (Color. 0 0 0 255))
     (.fillRect 0 0 5000 5000))
 
   (render-nodes graphics

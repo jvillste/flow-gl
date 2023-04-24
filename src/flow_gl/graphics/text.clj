@@ -55,7 +55,7 @@
                (conj rows {:layout layout
                            :from position
                            :to new-position} )))
-      
+
       rows)))
 
 (defn row-length [row]
@@ -76,7 +76,7 @@
         width))
 
 (comment
-  
+
   (layouts-for-text [255 255 255 255]
                     (font/create "LiberationSans-Regular.ttf" 15)
                     "a b c"

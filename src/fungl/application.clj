@@ -232,20 +232,22 @@
   (first @events-atom)
   ) ;; TODO: remove me
 
-(defn process-event! [scene-graph event]
+(defn process-event! [scene-graph-before-event-handling event]
   (swap! events-atom conj event) ;; TODO: remove me
 
   ;; (println)
   ;; (println "handling" (:type event) (:key event) #_(pr-str event))
   ;; (println)
 
-  (when (= :mouse
-           (:source event))
-    (mouse/handle-mouse-event! event))
+  (binding [scene-graph/current-scene-graph scene-graph-before-event-handling]
+    (when (= :mouse
+             (:source event))
+      (mouse/handle-mouse-event! event))
 
-  (when (= :keyboard
-           (:source event))
-    (keyboard/handle-keyboard-event! scene-graph event))
+    (when (= :keyboard
+             (:source event))
+      (keyboard/handle-keyboard-event! scene-graph-before-event-handling
+                                       event)))
 
   (when (= :redraw (:type event))
     (cache/invalidate-all!)

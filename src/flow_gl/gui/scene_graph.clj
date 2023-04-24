@@ -4,6 +4,9 @@
             [fungl.cache :as cache]
             [medley.core :as medley]))
 
+(def ^:dynamic current-scene-graph)
+
+
 #_(defprotocol Node
     (children [this]))
 

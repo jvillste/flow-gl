@@ -524,10 +524,11 @@
 
 (defn superimpose [& children]
   (let [children (flatten-contents children)]
-    (assert (not (empty? children)))
-    {:type ::superimpose
-     :children children
-     :get-size superimpose-get-size}))
+    (if (empty? children)
+      {:type ::superimpose}
+      {:type ::superimpose
+       :children children
+       :get-size superimpose-get-size})))
 
 (defn overlay-get-size [node]
   (measuring/size (first (:children node))))
