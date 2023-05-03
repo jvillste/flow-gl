@@ -308,6 +308,48 @@
                            {:children [{:id 1}]
                             :id 1}))))
 
+(defn find-first-child-breath-first [predicate scene-graph]
+  (or (some (fn [child]
+              (when (predicate child)
+                child))
+            (:children scene-graph))
+      (some (partial find-first-child-breath-first predicate)
+            (:children scene-graph))))
+
+(deftest test-find-first-child-breath-first
+  (is (= {:id 1}
+         (find-first-child-breath-first #(= 1 (:id %))
+                                        {:children [{:children [{:id 1}
+                                                                {:id 2}]
+                                                     :id 5}
+                                                    {:id 3}
+                                                    {:id 4}]
+                                         :id 6})))
+
+  (is (= nil
+         (find-first-child-breath-first (constantly false)
+                                        {:children [{:children [{:id 1}
+                                                                {:id 2}]
+                                                     :id 5}
+                                                    {:id 3}
+                                                    {:id 4}]
+                                         :id 6})))
+
+  (is (= {:id 4, :type :x}
+         (find-first-child-breath-first #(= :x (:type %))
+                                        {:children [{:children [{:id 1
+                                                                 :type :x}
+                                                                {:id 2}]
+                                                     :id 3}
+                                                    {:id 4
+                                                     :type :x}]
+                                         :id 5}))))
+
+(defn find-first-breath-first [predicate scene-graph]
+  (if (predicate scene-graph)
+    scene-graph
+    (find-first-child-breath-first predicate scene-graph)))
+
 (defn- path-to-first* [path predicate scene-graph]
   (if (predicate scene-graph)
     (conj path scene-graph)
