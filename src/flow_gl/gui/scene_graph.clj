@@ -316,39 +316,59 @@
       (some (partial find-first-child-breath-first predicate)
             (:children scene-graph))))
 
-(deftest test-find-first-child-breath-first
+(defn find-first-breath-first [predicate scene-graph]
+  (loop [queue (conj clojure.lang.PersistentQueue/EMPTY
+                     scene-graph)]
+    (if (empty? queue)
+      nil
+      (let [node (peek queue)]
+        (if (predicate node)
+          node
+          (recur (into (pop queue)
+                       (:children node))))))))
+
+(deftest test-find-first-breath-first
   (is (= {:id 1}
-         (find-first-child-breath-first #(= 1 (:id %))
-                                        {:children [{:children [{:id 1}
-                                                                {:id 2}]
-                                                     :id 5}
-                                                    {:id 3}
-                                                    {:id 4}]
-                                         :id 6})))
+         (find-first-breath-first #(= 1 (:id %))
+                                  {:children [{:children [{:id 1}
+                                                          {:id 2}]
+                                               :id 5}
+                                              {:id 3}
+                                              {:id 4}]
+                                   :id 6})))
 
   (is (= nil
-         (find-first-child-breath-first (constantly false)
-                                        {:children [{:children [{:id 1}
-                                                                {:id 2}]
-                                                     :id 5}
-                                                    {:id 3}
-                                                    {:id 4}]
-                                         :id 6})))
+         (find-first-breath-first (constantly false)
+                                  {:children [{:children [{:id 1}
+                                                          {:id 2}]
+                                               :id 5}
+                                              {:id 3}
+                                              {:id 4}]
+                                   :id 6})))
 
   (is (= {:id 4, :type :x}
-         (find-first-child-breath-first #(= :x (:type %))
-                                        {:children [{:children [{:id 1
-                                                                 :type :x}
-                                                                {:id 2}]
-                                                     :id 3}
-                                                    {:id 4
-                                                     :type :x}]
-                                         :id 5}))))
+         (find-first-breath-first #(= :x (:type %))
+                                  {:children [{:children [{:id 1
+                                                           :type :x}
+                                                          {:id 2}]
+                                               :id 3}
+                                              {:id 4
+                                               :type :x}]
+                                   :id 5})))
 
-(defn find-first-breath-first [predicate scene-graph]
-  (if (predicate scene-graph)
-    scene-graph
-    (find-first-child-breath-first predicate scene-graph)))
+  (is (= {:id 2, :type :x}
+         (find-first-breath-first #(= :x (:type %))
+                                  {:children [{:children [{:children [{:id 1
+                                                                       :type :x}]}]}
+                                              {:children [{:id 2
+                                                           :type :x}]}]})))
+
+  (is (= {:id 2, :type :x}
+         (find-first-breath-first #(= :x (:type %))
+                                  {:children [{:children [{:id 2
+                                                           :type :x}]}
+                                              {:children [{:children [{:id 1
+                                                                       :type :x}]}]}]}))))
 
 (defn- path-to-first* [path predicate scene-graph]
   (if (predicate scene-graph)
@@ -586,3 +606,20 @@
                                     (:height %))
                                 nodes))
                 min-y)}))
+
+(defn select-node-keys [keys scene-graph]
+  (map-nodes #(select-keys % keys)
+             scene-graph))
+
+(defn print-scene-graph
+  "use with select-node-keys"
+  ([scene-graph]
+   (print-scene-graph 0 scene-graph))
+
+  ([level scene-graph]
+   (println (str (apply str (repeat (* level 2) " "))
+                 (pr-str (dissoc scene-graph
+                                 :children))))
+
+   (run! (partial print-scene-graph (inc level))
+         (:children scene-graph))))
