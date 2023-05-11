@@ -13,7 +13,8 @@
             [fungl.value-registry :as value-registry]
             [fungl.layout :as layout]
             [fungl.dependable-atom :as dependable-atom]
-            [clojure.string :as string])
+            [clojure.string :as string]
+            [fungl.clipboard :as clipboard])
   (:import (java.awt.font TextHitInfo)))
 
 (defn default-font []
@@ -198,6 +199,13 @@
                 (inc (:index state))))
     state))
 
+(defn paste [state _rows]
+  (-> state
+      (update :text
+              insert
+              (:index state)
+              (clipboard/slurp-clipboard))))
+
 (defn insert-string [state rows character]
   (-> state
       (update :text
@@ -259,6 +267,10 @@
           (and (= :a (:key event))
                (:control? event))
           [move-to-the-beginning-of-the-row]
+
+          (and (= :v (:key event))
+               (:meta? event))
+          [paste]
 
           :else
           (when-let [character (:character event)]
