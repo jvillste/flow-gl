@@ -95,7 +95,7 @@
                                 :x x
                                 :y y
                                 :z z)
-                         (dissoc :children)))]
+                         #_(dissoc :children)))]
      (if (:children node)
        (loop [nodes nodes
               children (:children node)]
@@ -115,11 +115,12 @@
           {:x 15, :y 20, :expected-position 5, :z 10}
           {:x 5, :y 10, :expected-position 2, :z 0}
           {:x 5, :y 10, :expected-position 3, :z 0}]
-         (flatten {:y 5 :x 0 :id 1 :children [{:x 5 :y 5 :id 2 :children [{:x 5 :y 5 :expected-position 1}
-                                                                          {:x 5 :y 5 :z 10 :id 3 :children [{:x 5 :y 5 :expected-position 4}
-                                                                                                            {:x 5 :y 5 :expected-position 5}]}]}
-                                              {:x 5 :y 5 :expected-position 2}
-                                              {:x 5 :y 5 :expected-position 3}]}))))
+         (map #(dissoc % :children)
+              (flatten {:y 5 :x 0 :id 1 :children [{:x 5 :y 5 :id 2 :children [{:x 5 :y 5 :expected-position 1}
+                                                                               {:x 5 :y 5 :z 10 :id 3 :children [{:x 5 :y 5 :expected-position 4}
+                                                                                                                 {:x 5 :y 5 :expected-position 5}]}]}
+                                                   {:x 5 :y 5 :expected-position 2}
+                                                   {:x 5 :y 5 :expected-position 3}]})))))
 
 
 (defn conditionaly-flatten

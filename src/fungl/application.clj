@@ -171,7 +171,7 @@
       ;; (println "node dependencies")
       ;; (doseq [[node-id dependables] (sort-by first
       ;;                                        id-comparator/compare-ids
-      ;;                                        (seq @(:node-dependencies view-compiler/state)))]
+      ;;                                        (seq (:node-dependencies @view-compiler/state)))]
       ;;   (println node-id (sort (map name (keys dependables)))))
 
       (handle-new-scene-graph! scene-graph)
@@ -326,6 +326,7 @@
                                                 target-frame-rate))
 
                    (when (:scene-graph @state-atom)
+                     ;; (scene-graph/print-scene-graph (scene-graph/select-node-keys [:id :entity] (:scene-graph @state-atom)))
                      (window/with-gl (:window @state-atom) gl
                        (render (:scene-graph @state-atom)
                                swing-root-renderer/render-scene-graph

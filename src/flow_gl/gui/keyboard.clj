@@ -34,17 +34,15 @@
 
 ;; focused nodes
 
-(defn- set-focused-node
-  ([keyboard-state node]
+(defn- set-focused-node [keyboard-state node]
+  (assert (or (nil? node)
+              (:id node))
+          "Focused node must have :id")
 
-   (assert (or (nil? node)
-               (:id node))
-           "Focused node must have :id")
-
-   (-> keyboard-state
-       (assoc :focused-node-id (:id node)
-              :focused-node node)
-       (set-focused-event-handler (:keyboard-event-handler node)))))
+  (-> keyboard-state
+      (assoc :focused-node-id (:id node)
+             :focused-node node)
+      (set-focused-event-handler (:keyboard-event-handler node))))
 
 
 ;; focus cycling
@@ -280,7 +278,8 @@
   (if-let [focused-node-id (:focused-node-id @state-atom)]
     (let [focused-path (->> (scene-graph/id-to-local-id-path focused-node-id)
                             (scene-graph/nodes-on-local-id-path scene-graph)
-                            (reverse))]
+                            (reverse)
+                            (doall))]
       (when (not (= focused-node-id
                     (:id (first focused-path))))
         (when-let [first-focusable-node (or (scene-graph/find-first-child :can-gain-focus?
