@@ -154,6 +154,24 @@
            nodes))
        nodes))))
 
+
+(defn enumerate-nodes [node]
+  (loop [nodes-left [node]
+         nodes []]
+    (if-let [node (first nodes-left)]
+      (recur (concat (rest nodes-left) (:children node))
+             (conj nodes node))
+      nodes)))
+
+
+(test/deftest flatten-test
+  (is (= '({:id 1} {:id 2} {:id 3} {:id 4})
+         (map #(dissoc % :children)
+              (enumerate-nodes {:children [{:children [{:id 3}
+                                                       {:id 4}]
+                                            :id 2}]
+                                :id 1})))))
+
 (defn in-coordinates? [node x y]
   (and (>= x
            (:x node))
