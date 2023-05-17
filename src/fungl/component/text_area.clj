@@ -111,12 +111,14 @@
     index))
 
 (defn index-at-the-end-of-the-row [rows index]
-  (let [position (character-position rows index)]
-    (:to (nth rows (:row-number position)))))
+  (if-let [position (character-position rows index)]
+    (:to (nth rows (:row-number position)))
+    0))
 
 (defn index-at-the-beginning-of-the-row [rows index]
-  (let [position (character-position rows index)]
-    (:from (nth rows (:row-number position)))))
+  (if-let [position (character-position rows index)]
+    (:from (nth rows (:row-number position)))
+    0))
 
 
 (defn index-at-next-row [rows x index]
