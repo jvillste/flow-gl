@@ -93,7 +93,7 @@
   (set-focused-node state
                     (next-node (:focused-node-id state)
                                (filter :can-gain-focus?
-                                       (scene-graph/enumerate-nodes scene-graph))
+                                       (scene-graph/flatten scene-graph))
                                ordering
                                advance
                                limit)))
