@@ -305,15 +305,16 @@
                                  command-and-parameters))))))
 
 (defn text-area-keyboard-event-handler [state-atom text on-change _node event]
-  (when-let [command-and-parameters (keyboard-event-to-command event)]
-    (when on-change
-      (swap! state-atom
-             (fn [state]
-               (on-change state
-                          (apply handle-command
-                                 state
-                                 command-and-parameters))))))
-  event)
+  (if-let [command-and-parameters (keyboard-event-to-command event)]
+    (do (when on-change
+          (swap! state-atom
+                 (fn [state]
+                   (on-change state
+                              (apply handle-command
+                                     state
+                                     command-and-parameters)))))
+        nil)
+    event))
 
 (defn text-area-mouse-event-handler [state-atom rows node event]
   (if (= (:type event)
