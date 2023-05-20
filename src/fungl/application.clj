@@ -27,17 +27,20 @@
    [clojure.string :as string]
    [fungl.id-comparator :as id-comparator]
    [clojure.set :as set]
-   [fungl.util :as util]))
+   [fungl.util :as util]
+   [fungl.dependable-atom :as dependable-atom]))
 
 (tufte/add-basic-println-handler! {})
 
 
-(def ^:dynamic state-atom)
+(def ^:dynamic application-loop-state-atom)
+(def ^:dynamic state-atom) ;; applicaiton specific state
 
 (defn state-bindings []
-  {#'state-atom (atom {:highlight-view-call-cache-misses? true #_false
-                       :window-width nil
-                       :window-height nil})})
+  {#'state-atom (dependable-atom/atom {})
+   #'application-loop-state-atom (atom {:highlight-view-call-cache-misses? true #_false
+                                        :window-width nil
+                                        :window-height nil})})
 
 (defn create-event-handling-state []
   (conj (state-bindings)
@@ -66,8 +69,8 @@
 
 (defn render [scene-graph render-scene-graph gl]
   (when (not (= scene-graph
-                (:previous-rendered-scene-graph @state-atom)))
-    (swap! state-atom assoc :previous-rendered-scene-graph scene-graph)
+                (:previous-rendered-scene-graph @application-loop-state-atom)))
+    (swap! application-loop-state-atom assoc :previous-rendered-scene-graph scene-graph)
 
     (render-scene-graph gl
                         (renderer/apply-renderers! scene-graph
@@ -159,8 +162,8 @@
   (let [view-call-dependency-value-maps-before-compilation (:node-dependencies @view-compiler/state)]
     (view-compiler/start-compilation-cycle!)
     (let [scene-graph (layout/do-layout-for-size (view-compiler/compile-view-calls [root-view-or-var])
-                                                 (:window-width @state-atom)
-                                                 (:window-height @state-atom))]
+                                                 (:window-width @application-loop-state-atom)
+                                                 (:window-height @application-loop-state-atom))]
       (view-compiler/end-compilation-cycle!)
       ;; (describe-dependables)
 
@@ -195,7 +198,7 @@
 
 
 (defn highlight-cache-misses [scene-graph]
-  (if (:highlight-view-call-cache-misses? @state-atom)
+  (if (:highlight-view-call-cache-misses? @application-loop-state-atom)
     (scene-graph/update-depth-first scene-graph
                                     cache-miss?
                                     (fn [node]
@@ -257,7 +260,7 @@
             {}))
 
   (when (= :resize-requested (:type event))
-    (swap! state-atom
+    (swap! application-loop-state-atom
            assoc
            :window-width (:width event)
            :window-height (:height event))))
@@ -276,13 +279,13 @@
   (let [bindings (merge (create-event-handling-state)
                         (create-render-state))]
     (with-bindings bindings
-      (swap! state-atom
+      (swap! application-loop-state-atom
              assoc
              :window-width 400
              :window-height 400
              :root-view root-view)
       (let [scene-graph (create-scene-graph root-view)]
-        (swap! state-atom
+        (swap! application-loop-state-atom
                assoc
                :scene-graph scene-graph)))
     bindings))
@@ -290,18 +293,18 @@
 (defn create-bindings [root-view]
   (let [bindings (create-bindings-without-window root-view)]
     (with-bindings bindings
-      (swap! state-atom
+      (swap! application-loop-state-atom
              assoc
-             :window (create-window (:window-width @state-atom)
-                                    (:window-height @state-atom))))
+             :window (create-window (:window-width @application-loop-state-atom)
+                                    (:window-height @application-loop-state-atom))))
     bindings))
 
 (defn handle-events! [events]
-  (swap! state-atom
+  (swap! application-loop-state-atom
          assoc
          :scene-graph
          (loop [events events
-                scene-graph (:scene-graph @state-atom)]
+                scene-graph (:scene-graph @application-loop-state-atom)]
            (if (empty? events)
              scene-graph
              (if (= :close-requested (:type (first events)))
@@ -309,7 +312,7 @@
                (do (process-event! scene-graph
                                    (first events))
                    (recur (rest events)
-                          (create-scene-graph (:root-view @state-atom)))))))))
+                          (create-scene-graph (:root-view @application-loop-state-atom)))))))))
 
 (defmacro thread [name & body]
   `(.start (Thread. (bound-fn [] ~@body)
@@ -322,16 +325,16 @@
   (with-bindings (create-bindings root-view)
     (thread "fungl application"
             (try (loop []
-                   (handle-events! (read-events (window/event-channel (:window @state-atom))
+                   (handle-events! (read-events (window/event-channel (:window @application-loop-state-atom))
                                                 target-frame-rate))
 
-                   (when (:scene-graph @state-atom)
-                     ;; (scene-graph/print-scene-graph (scene-graph/select-node-keys [:id :entity] (:scene-graph @state-atom)))
-                     (window/with-gl (:window @state-atom) gl
-                       (render (:scene-graph @state-atom)
+                   (when (:scene-graph @application-loop-state-atom)
+                     ;; (scene-graph/print-scene-graph (scene-graph/select-node-keys [:id :entity] (:scene-graph @application-loop-state-atom)))
+                     (window/with-gl (:window @application-loop-state-atom) gl
+                       (render (:scene-graph @application-loop-state-atom)
                                swing-root-renderer/render-scene-graph
                                gl))
-                     (window/swap-buffers (:window @state-atom))
+                     (window/swap-buffers (:window @application-loop-state-atom))
                      (recur)))
 
                  (logga/write "exiting application loop")
@@ -343,8 +346,8 @@
                    (when on-exit
                      (on-exit))
                    (logga/write "closing window")
-                   (close-window! (:window @state-atom)))))
-    (window/event-channel (:window @state-atom))))
+                   (close-window! (:window @application-loop-state-atom)))))
+    (window/event-channel (:window @application-loop-state-atom))))
 
 #_(defn start-window [root-view-or-var & {:keys [window
                                                target-frame-rate
@@ -367,7 +370,7 @@
                      (with-bindings (merge (create-event-handling-state)
                                            {#'event-channel (window/event-channel (create-window))}
                                            (create-render-state))
-                       (swap! state-atom
+                       (swap! application-loop-state-atom
                               assoc
                               :window-width (window/width window)
                               :window-height (window/height window))
@@ -386,8 +389,8 @@
                            (when scene-graph
                              (let [scene-graph (-> scene-graph
                                                    #_(highlight-cache-misses)
-                                                   #_(layout/do-layout-for-size (:window-width @state-atom)
-                                                                                (:window-height @state-atom)))]
+                                                   #_(layout/do-layout-for-size (:window-width @application-loop-state-atom)
+                                                                                (:window-height @application-loop-state-atom)))]
 
                                (tufte/p :render
                                         (window/with-gl window gl
