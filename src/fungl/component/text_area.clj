@@ -263,7 +263,8 @@
           [delete-forward]
 
           (and (= :e (:key event))
-               (:control? event))
+               (:control? event)
+               (not (:meta? event)))
           [move-to-the-end-of-the-row]
 
           (and (= :a (:key event))
