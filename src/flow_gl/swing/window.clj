@@ -341,12 +341,11 @@
 
                   (.addMouseWheelListener (proxy [MouseWheelListener] []
                                             (mouseWheelMoved [event]
-                                              #_(async/put! event-channel (let [[x-distance y-distance z-distance] (.getRotation event)]
-                                                                            (assoc (create-mouse-event event :mouse-wheel-moved)
-                                                                                   :x-distance x-distance
-                                                                                   :y-distance y-distance
-                                                                                   :z-distance z-distance
-                                                                                   :rotation-scale (.getRotationScale event)))))))
+                                              (async/put! event-channel (assoc (create-mouse-event event :mouse-wheel-rotated)
+                                                                               :scroll-type (.getScrollType event)
+                                                                               :wheel-rotation (.getWheelRotation event)
+                                                                               :precise-wheel-rotation (.getPreciseWheelRotation event)
+                                                                               :horizontal? (.isShiftDown event))))))
                   (.requestFocus))
 
                 (->SwingWindow j-frame
