@@ -214,7 +214,7 @@
 (def ^:dynamic image-cache)
 
 (defn state-bindings []
-  {#'image-cache (cache/create-state 30)})
+  {#'image-cache (cache/create-state 100)})
 
 (defn layers [nodes]
   (->> nodes
