@@ -16,7 +16,8 @@
             [fungl.id-comparator :as id-comparator]
             (clojure.test.check [clojure-test :as clojure-test]
                                 [generators :as generators]
-                                [properties :as properties])))
+                                [properties :as properties])
+            taoensso.tufte))
 
 (def ^:dynamic state)
 (def ^:dynamic id)
@@ -243,7 +244,7 @@
                                            (apply cache/call! view-function arguments))
 
                                          :else
-                                         (let [{:keys [result dependencies]} (cache/call-and-return-result-and-dependencies view-function-or-constructor arguments)]
+                                         (let [{:keys [result dependencies]} (taoensso.tufte/p :uncached-view-call (cache/call-and-return-result-and-dependencies view-function-or-constructor arguments))]
                                            (if (fn? result)
                                              (do (swap! state
                                                         update

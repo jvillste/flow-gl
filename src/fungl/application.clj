@@ -72,9 +72,10 @@
                 (:previous-rendered-scene-graph @application-loop-state-atom)))
     (swap! application-loop-state-atom assoc :previous-rendered-scene-graph scene-graph)
 
-    (render-scene-graph gl
-                        (renderer/apply-renderers! scene-graph
-                                                   gl))))
+    (taoensso.tufte/p :render-scene-graph
+     (render-scene-graph gl
+                         (renderer/apply-renderers! scene-graph
+                                                    gl)))))
 
 (defn handle-new-scene-graph! [scene-graph]
   (keyboard/handle-new-scene-graph! scene-graph)
@@ -300,19 +301,22 @@
     bindings))
 
 (defn handle-events! [events]
+  ;; (prn 'events (map :type events)) ;; TODO: remove me
+
   (swap! application-loop-state-atom
          assoc
          :scene-graph
-         (loop [events events
-                scene-graph (:scene-graph @application-loop-state-atom)]
-           (if (empty? events)
-             scene-graph
-             (if (= :close-requested (:type (first events)))
-               nil
-               (do (process-event! scene-graph
-                                   (first events))
-                   (recur (rest events)
-                          (create-scene-graph (:root-view @application-loop-state-atom)))))))))
+         (taoensso.tufte/p :handle-events-loop
+          (loop [events events
+                 scene-graph (:scene-graph @application-loop-state-atom)]
+            (if (empty? events)
+              scene-graph
+              (if (= :close-requested (:type (first events)))
+                nil
+                (do (taoensso.tufte/p :process-event! (process-event! scene-graph
+                                                                      (first events)))
+                    (recur (rest events)
+                           (taoensso.tufte/p :create-scene-graph (create-scene-graph (:root-view @application-loop-state-atom)))))))))))
 
 (defmacro thread [name & body]
   `(.start (Thread. (bound-fn [] ~@body)
@@ -325,16 +329,22 @@
   (with-bindings (create-bindings root-view)
     (thread "fungl application"
             (try (loop []
-                   (handle-events! (read-events (window/event-channel (:window @application-loop-state-atom))
-                                                target-frame-rate))
+                   (with-profiling false #_true :application-looop
+                     (let [events (taoensso.tufte/p :read-events (read-events (window/event-channel (:window @application-loop-state-atom))
+                                                                              target-frame-rate))]
+                       (taoensso.tufte/p :handle-events! (handle-events! events)))
+
+                     (when (:scene-graph @application-loop-state-atom)
+                       ;; (scene-graph/print-scene-graph (scene-graph/select-node-keys [:id :entity] (:scene-graph @application-loop-state-atom)))
+                       (window/with-gl (:window @application-loop-state-atom) gl
+                         (taoensso.tufte/p :render
+                                           (render (:scene-graph @application-loop-state-atom)
+                                                   swing-root-renderer/render-scene-graph
+                                                   gl)))
+                       (taoensso.tufte/p :swap-buffers
+                        (window/swap-buffers (:window @application-loop-state-atom)))))
 
                    (when (:scene-graph @application-loop-state-atom)
-                     ;; (scene-graph/print-scene-graph (scene-graph/select-node-keys [:id :entity] (:scene-graph @application-loop-state-atom)))
-                     (window/with-gl (:window @application-loop-state-atom) gl
-                       (render (:scene-graph @application-loop-state-atom)
-                               swing-root-renderer/render-scene-graph
-                               gl))
-                     (window/swap-buffers (:window @application-loop-state-atom))
                      (recur)))
 
                  (logga/write "exiting application loop")
