@@ -157,6 +157,13 @@
 
 ;; Commands
 
+(defn toggle-anchor [state _rows]
+  (assoc state :anchor
+         (if (= (:index state)
+                (:anchor state))
+           nil
+           (:index state))))
+
 (defn previous-row [state rows]
   (assoc state :index (index-at-previous-row rows
                                              (:x-on-first-line-change state)
@@ -201,6 +208,32 @@
                 (inc (:index state))))
     state))
 
+(defn copy-selection-to-clipboard [state]
+  (clipboard/spit-clipboard (if (< (:anchor state)
+                                   (:index state))
+                              (subs (:text state)
+                                    (:anchor state)
+                                    (:index state))
+                              (subs (:text state)
+                                    (:index state)
+                                    (:anchor state)))))
+
+(defn copy [state _rows]
+  (copy-selection-to-clipboard state)
+  (assoc state :anchor nil))
+
+(defn cut [state _rows]
+  (copy-selection-to-clipboard state)
+
+  (-> state
+      (assoc :anchor nil)
+      (update :text
+              delete
+              (min (:anchor state)
+                   (:index state))
+              (max (:anchor state)
+                   (:index state)))))
+
 (defn paste [state _rows]
   (-> state
       (update :text
@@ -236,60 +269,75 @@
 
   (when (= :key-pressed
            (:type event))
-    (cond (and (or (= :up (:key event))
-                   (and (= :p (:key event))
-                        (:control? event)))
-               (not (empty? (:rows state)))
-               (< 0 (:row-number (character-position (:rows state) (:index state)))))
-          [previous-row]
+    (let [triggered-key-pattern (keyboard/event-to-key-pattern event)]
+      (cond (keyboard/key-patterns-match? [triggered-key-pattern]
+                                          [[#{:control} :space]])
+            [toggle-anchor]
 
-          (and (or (= :down (:key event))
-                   (and (= :n (:key event))
-                        (:control? event)))
-               (not (empty? (:rows state)))
-               (> (dec (count (:rows state)))
-                  (:row-number (character-position (:rows state) (:index state)))))
-          [next-row]
+            (and (or (= :up (:key event))
+                     (and (= :p (:key event))
+                          (:control? event)))
+                 (not (empty? (:rows state)))
+                 (< 0 (:row-number (character-position (:rows state) (:index state)))))
+            [previous-row]
 
-          (or (= :left (:key event))
-              (and (= :b (:key event))
-                   (:control? event)))
-          [backward]
+            (and (or (= :down (:key event))
+                     (and (= :n (:key event))
+                          (:control? event)))
+                 (not (empty? (:rows state)))
+                 (> (dec (count (:rows state)))
+                    (:row-number (character-position (:rows state) (:index state)))))
+            [next-row]
 
-          (or (= :right (:key event))
-              (and (= :f (:key event))
-                   (:control? event)))
-          [forward]
+            (or (= :left (:key event))
+                (and (= :b (:key event))
+                     (:control? event)))
+            [backward]
 
-          (= :back-space (:key event))
-          [delete-backward]
+            (or (= :right (:key event))
+                (and (= :f (:key event))
+                     (:control? event)))
+            [forward]
 
-          (and (= :d (:key event))
-               (:control? event))
-          [delete-forward]
+            (= :back-space (:key event))
+            [delete-backward]
 
-          (and (= :e (:key event))
-               (:control? event)
-               (not (:meta? event)))
-          [move-to-the-end-of-the-row]
+            (and (= :d (:key event))
+                 (:control? event))
+            [delete-forward]
 
-          (and (= :a (:key event))
-               (:control? event))
-          [move-to-the-beginning-of-the-row]
+            (and (= :e (:key event))
+                 (:control? event)
+                 (not (:meta? event)))
+            [move-to-the-end-of-the-row]
 
-          (and (= :v (:key event))
-               (:meta? event))
-          [paste]
+            (and (= :a (:key event))
+                 (:control? event))
+            [move-to-the-beginning-of-the-row]
 
-          :else
-          (when-let [character (:character event)]
-            (when (and (not (:control? event))
-                       (not (:alt? event))
-                       (not (:meta? event))
-                       (not (empty? (string/replace (str character)
-                                                    #"\p{C}" ;; from https://stackoverflow.com/a/62915361
-                                                    ""))))
-              [insert-string character])))))
+            (keyboard/key-patterns-match? [triggered-key-pattern]
+                                          [[#{:control} :y]])
+            [paste]
+
+            (and (keyboard/key-patterns-match? [triggered-key-pattern]
+                                               [[#{:meta} :w]])
+                 (:anchor state))
+            [copy]
+
+            (and (keyboard/key-patterns-match? [triggered-key-pattern]
+                                               [[#{:control} :w]])
+                 (:anchor state))
+            [cut]
+
+            :else
+            (when-let [character (:character event)]
+              (when (and (not (:control? event))
+                         (not (:alt? event))
+                         (not (:meta? event))
+                         (not (empty? (string/replace (str character)
+                                                      #"\p{C}" ;; from https://stackoverflow.com/a/62915361
+                                                      ""))))
+                [insert-string character]))))))
 
 (defn initialize-state [] {:index 0})
 

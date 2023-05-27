@@ -8,7 +8,8 @@
             [fungl.layout :as layout]
             [fungl.dependable-atom :as dependable-atom]
             [fungl.view-compiler :as view-compiler]
-            [fungl.derivation :as derivation]))
+            [fungl.derivation :as derivation]
+            [fungl.util :as util]))
 
 (defn- initialize-state []
   {})
@@ -341,3 +342,66 @@
           key)
        (= (:type keyboard-event)
           :key-pressed)))
+
+(defn event-to-key-pattern [event]
+  [(into #{}
+         (remove nil?)
+         [(when (:control? event)
+            :control)
+          (when (:shift? event)
+            :shift)
+          (when (:alt? event)
+            :alt)
+          (when (:meta? event)
+            :meta)])
+   (:key event)])
+
+(deftest test-event-to-key-pattern
+  (is (= [#{:shift} :n]
+         (event-to-key-pattern {:key-code 78
+                                :alt? false
+                                :key :n
+                                :control? false
+                                :time 1646884415009
+                                :phase :descent
+                                :type :key-pressed
+                                :source :keyboard
+                                :shift? true
+                                :is-auto-repeat nil
+                                :character \n}))))
+
+(defn key-patterns-match? [triggered-key-patterns command-key-patterns]
+  (if (vector? (first (first command-key-patterns)))
+    (some (fn [command-key-patterns]
+            (= triggered-key-patterns
+               command-key-patterns))
+          command-key-patterns)
+    (= triggered-key-patterns
+       command-key-patterns)))
+
+(defn key-patterns-prefix-match? [triggered-key-patterns command-key-patterns]
+  (if (vector? (first (first command-key-patterns)))
+    (some (fn [command-key-patterns]
+            (util/starts-with? triggered-key-patterns
+                               command-key-patterns))
+          command-key-patterns)
+    (util/starts-with? triggered-key-patterns
+                       command-key-patterns)))
+
+(deftest test-key-patterns-prefix-match?
+  (is (= true
+         (key-patterns-prefix-match? [[#{:meta} :a]]
+                                     [[#{:meta} :a] [#{:meta} :b]])))
+
+  (is (= false
+         (key-patterns-prefix-match? [[#{:meta} :a]]
+                                     [[#{:meta} :c] [#{:meta} :b]])))
+
+  (is (= true
+         (key-patterns-prefix-match? [[#{:meta} :a]]
+                                     [[[#{:meta} :c] [#{:meta} :b]]
+                                      [[#{:meta} :a] [#{:meta} :b]]])))
+  (is (= nil
+         (key-patterns-prefix-match? [[#{:meta} :a]]
+                                     [[[#{:meta} :c] [#{:meta} :b]]
+                                      [[#{:meta} :d] [#{:meta} :b]]]))))
