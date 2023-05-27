@@ -233,20 +233,22 @@
            parameters)))
 
 (defn keyboard-event-to-command [state event]
+
   (when (= :key-pressed
            (:type event))
-    (cond (or (= :up (:key event))
-              (and (= :p (:key event))
-                   (:control? event)))
+    (cond (and (or (= :up (:key event))
+                   (and (= :p (:key event))
+                        (:control? event)))
+               (not (empty? (:rows state)))
+               (< 0 (:row-number (character-position (:rows state) (:index state)))))
           [previous-row]
 
           (and (or (= :down (:key event))
                    (and (= :n (:key event))
                         (:control? event)))
-               (not (= (:index state)
-                       (index-at-next-row (:rows state)
-                                          (:x-on-first-line-change state)
-                                          (:index state)))))
+               (not (empty? (:rows state)))
+               (> (dec (count (:rows state)))
+                  (:row-number (character-position (:rows state) (:index state)))))
           [next-row]
 
           (or (= :left (:key event))
