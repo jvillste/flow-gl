@@ -232,7 +232,7 @@
            (:rows state)
            parameters)))
 
-(defn keyboard-event-to-command [event]
+(defn keyboard-event-to-command [state event]
   (when (= :key-pressed
            (:type event))
     (cond (or (= :up (:key event))
@@ -240,9 +240,13 @@
                    (:control? event)))
           [previous-row]
 
-          (or (= :down (:key event))
-              (and (= :n (:key event))
-                   (:control? event)))
+          (and (or (= :down (:key event))
+                   (and (= :n (:key event))
+                        (:control? event)))
+               (not (= (:index state)
+                       (index-at-next-row (:rows state)
+                                          (:x-on-first-line-change state)
+                                          (:index state)))))
           [next-row]
 
           (or (= :left (:key event))
@@ -306,7 +310,7 @@
                                  command-and-parameters))))))
 
 (defn text-area-keyboard-event-handler [state-atom text on-change _node event]
-  (if-let [command-and-parameters (keyboard-event-to-command event)]
+  (if-let [command-and-parameters (keyboard-event-to-command @state-atom event)]
     (do (when on-change
           (swap! state-atom
                  (fn [state]
