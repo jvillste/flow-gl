@@ -54,7 +54,7 @@
         (recur new-position
                (conj rows {:layout layout
                            :from position
-                           :to new-position} )))
+                           :to new-position})))
 
       rows)))
 
@@ -136,3 +136,12 @@
                  rows))
 
     buffered-image))
+
+(defn highlight-shape [layout from to]
+  (.getLogicalHighlightShape layout from to))
+
+   ;; Shape selection = layout.getLogicalHighlightShape(selStart, selLimit);
+   ;; // selection may consist of disjoint areas
+   ;; // graphics is assumed to be tranlated to origin of layout
+   ;; g.setColor(selectionColor);
+   ;; g.fill(selection);
