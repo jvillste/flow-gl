@@ -11,7 +11,7 @@
   ([]
    (size state))
   ([state]
-   (.size (:cache state))))
+   (.size ^com.google.common.cache.LocalCache$LocalLoadingCache (:cache state))))
 
 (defn stats [state]
   (let [stats (.stats (:cache state))]
@@ -41,7 +41,7 @@
        (distinct)))
 
 (defn as-map []
-  (.asMap (:cache state)))
+  (.asMap ^com.google.common.cache.LocalCache$LocalLoadingCache (:cache state)))
 
 (defn create-state [maximum-size]
   (let [dependencies-atom (atom {})]
@@ -97,13 +97,16 @@
   (when (should-be-invalidated? function arguments)
     (swap! (:dependencies state)
            dissoc (function-call-key function arguments))
-    (.invalidate (:cache state) (function-call-key function arguments))))
+    (.invalidate ^com.google.common.cache.LocalCache$LocalLoadingCache (:cache state) (function-call-key function arguments))))
 
 
 
 (defn call-with-cache [state function & arguments]
   (invalidate-cache-if-needed function arguments)
-  (let [result (.get (:cache state)
+  ;; (def state state) ;; TODO: remove me
+  ;; (def function function) ;; TODO: remove me
+  ;; (def arguments arguments) ;; TODO: remove me
+  (let [result (.get ^com.google.common.cache.LocalCache$LocalLoadingCache (:cache state)
                      (function-call-key function
                                         arguments))]
     (if (= ::nil result)
@@ -117,7 +120,8 @@
 
 (defn cached? [function & arguments]
   (and (in-use?)
-       (boolean (.getIfPresent (:cache state) (function-call-key function arguments)))))
+       (boolean (.getIfPresent ^com.google.common.cache.LocalCache$LocalLoadingCache (:cache state)
+                               (function-call-key function arguments)))))
 
 (defn cache-is-valid? [function arguments]
   (and (apply cached? function arguments)
@@ -125,24 +129,25 @@
 
 (defn get [key]
   (when (in-use?)
-    (.getIfPresent (:cache state) key)))
+    (.getIfPresent ^com.google.common.cache.LocalCache$LocalLoadingCache (:cache state)
+                   key)))
 
 
 
 (defn put! [key result]
   (when (in-use?)
-    (.put (:cache state)
+    (.put ^com.google.common.cache.LocalCache$LocalLoadingCache (:cache state)
           key
           result)))
 
 (defn invalidate! [key]
   (when (in-use?)
-    (.invalidate (:cache state)
+    (.invalidate ^com.google.common.cache.LocalCache$LocalLoadingCache (:cache state)
                  key)))
 
 (defn invalidate-all! []
   (when (in-use?)
-    (.invalidateAll (:cache state))))
+    (.invalidateAll ^com.google.common.cache.LocalCache$LocalLoadingCache (:cache state))))
 
 ;; TODO: Anonymous funciton can not be a cache key because it is a different function on every call
 ;; Can guava cache hold value for wich the key does not contain all the information that is needed to compute the value?
@@ -150,14 +155,14 @@
 
   (invalidate-cache-if-needed function arguments)
 
-  (.get (:cache state) [function cache-key]
+  (.get ^com.google.common.cache.LocalCache$LocalLoadingCache (:cache state) [function cache-key]
         (fn [] (apply function arguments))))
 
 (defn state-bindings []
   {#'state (create-state 5000)})
 
 (defn cached []
-  (.keySet (.asMap (:cache state))))
+  (.keySet (.asMap ^com.google.common.cache.LocalCache$LocalLoadingCache (:cache state))))
 
 (defn call! [function & arguments]
   (if (in-use?)
@@ -215,7 +220,7 @@
     (with-bindings (state-bindings)
 
       (is (= 1
-             (.get (:cache state) :x
+             (.get ^com.google.common.cache.LocalCache$LocalLoadingCache (:cache state) :x
                    (fn [] 1))))
 
       (is (= {:call-count 1, :result 1}
