@@ -2,7 +2,8 @@
   (:require [clojure.spec.alpha :as spec]
             [flow-gl.gui.scene-graph :as scene-graph]
             [fungl.layout.measuring :as measuring]
-            [clojure.test :refer :all]))
+            [clojure.test :refer :all]
+            [medley.core :as medley]))
 
 ;; common
 
@@ -645,3 +646,106 @@
   {:get-size get-flow-size
    :make-layout make-flow-layout
    :children (flatten-contents children)})
+
+
+;; vertical-split
+
+(defn- vertical-split-get-size [node]
+  {:width (:available-width node)
+   :height (:available-height node)})
+
+(defn- vertical-split-give-space [node]
+  (let [row-height (/ (:available-height node)
+                            (count (:children node)))]
+    (update node
+            :children
+            (fn [children]
+              (->> children
+                   (map (fn [child]
+                          (assoc child
+                                 :available-width (:available-width node)
+                                 :available-height row-height))))))))
+
+(defn- vertical-split-make-layout [node]
+  (let [row-height (/ (:available-height node)
+                      (count (:children node)))]
+    (update node :children
+            (fn [children]
+              (->> children
+                   (map-indexed (fn [row-number child]
+                                  (assoc child
+                                         :x 0
+                                         :y (* row-number row-height)))))))))
+
+(defn vertical-split [& children]
+  {:type ::vertical-split
+   :children children
+   :get-size vertical-split-get-size
+   :give-space vertical-split-give-space
+   :make-layout vertical-split-make-layout})
+
+
+;; grid
+
+(defn- grid-get-size [node]
+  (let [row-sizes (->> (partition-by ::row (:children node))
+                       (map (fn [row]
+                              {:width (reduce + (map :width row))
+                               :height (apply max (map :height row))})))]
+    {:width (apply max (map :width row-sizes))
+     :height (reduce + (map :height row-sizes))}))
+
+(defn- grid-give-space [node]
+    (update node
+            :children
+            (fn [children]
+              (->> children
+                   (map (fn [child]
+                          (assoc child
+                                 :available-width java.lang.Integer/MAX_VALUE
+                                 :available-height java.lang.Integer/MAX_VALUE)))))))
+
+(defn- grid-make-layout [node]
+  (assoc node :children
+         (let [column-widths (->> (:children node)
+                                  (group-by ::column)
+                                  (medley/map-vals (fn [column]
+                                                     (apply max (map :width column)))))
+               rows (partition-by ::row (:children node))]
+           (loop [layouted-nodes []
+                  x 0
+                  y 0
+                  cells (first rows)
+                  rows (rest rows)
+                  max-height 0]
+             (if-let [cell (first cells)]
+               (recur (conj layouted-nodes
+                            (assoc cell
+                                   :x x
+                                   :y y))
+                      (+ x (get column-widths (::column cell)))
+                      y
+                      (rest cells)
+                      rows
+                      (max max-height (:height cell)))
+               (if (not (empty? rows))
+                 (recur layouted-nodes
+                        0
+                        (+ y max-height)
+                        (first rows)
+                        (rest rows)
+                        0)
+                 layouted-nodes))))))
+
+(defn grid [rows]
+  {:type ::grid
+   :children (apply concat (map-indexed (fn [row-number row]
+                                          (map-indexed (fn [column-number cell]
+                                                         (assoc cell
+                                                                ::column column-number
+                                                                ::row row-number))
+                                                       row))
+                                        rows))
+   :get-size grid-get-size
+   :give-space grid-give-space
+   :make-layout grid-make-layout})

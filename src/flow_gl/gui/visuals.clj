@@ -334,8 +334,46 @@
                          (dissoc scene-graph
                                  :render
                                  :render-on-descend?))
+  #_(render-to-images (dissoc scene-graph
+                              :render
+                              :render-on-descend?))
   #_(render-to-images scene-graph))
 
-(defn render-cache [child]
+
+(defn leaf-nodes-to-image [original-node layer]
+  (assoc (image (root-renderer/render-to-buffered-image (:bounding-box layer)
+                                                        (:sort-by :z (:nodes layer))))
+         :id (:id original-node)
+         :z (:z layer)
+         :x (- (:x (:bounding-box layer))
+               (:x original-node))
+         :y (- (:y (:bounding-box layer))
+               (:y original-node))))
+
+(defn render-to-image [_graphics original-node]
+  (let [leaf-nodes (filter :draw-function (scene-graph/leaf-nodes-in-view (:available-width original-node)
+                                                                          (:available-height original-node)
+                                                                          (map (partial scene-graph/transpose
+                                                                                        (- (:x original-node))
+                                                                                        (- (:y original-node)))
+                                                                               (scene-graph/leaf-nodes (renderer/apply-renderers! (dissoc original-node
+                                                                                                                                          :render)
+                                                                                                                                  nil)))))
+        bounding-box (scene-graph/bounding-box leaf-nodes)]
+
+    (assoc (image (root-renderer/render-to-buffered-image (scene-graph/clip bounding-box
+                                                                            (assoc original-node
+                                                                                   :x 0
+                                                                                   :y 0))
+                                                          leaf-nodes))
+           :id (:id original-node)
+           :z 0
+           :x (+ (:x bounding-box)
+                 (:x original-node))
+           :y (+ (:y bounding-box)
+                 (:y original-node)))))
+
+(defn as-image [child]
   {:children [child]
-   :render render-to-images-render-function})
+   :render render-to-image
+   :render-on-descend? true})

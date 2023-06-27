@@ -82,7 +82,7 @@
          (for [index (range (.getNumImages image-reader true))]
            (copy (.read image-reader index))))))
 
-(defn draw-image [graphics image width height]
+(defn draw-image [^java.awt.Graphics2D graphics image width height]
   (.drawImage graphics
               image
               0
@@ -90,6 +90,7 @@
               (or width 100)
               (or height 100)
               nil))
+
 
 (defn create-from-file [url]
   (let [original-image (ImageIO/read (io/input-stream url))

@@ -642,3 +642,36 @@
 
    (run! (partial print-scene-graph (inc level))
          (:children scene-graph))))
+
+(defn leaf-nodes-in-view [width height leaf-nodes]
+  (filter (fn [node]
+            (intersects? {:x 0 :y 0 :width width :height height}
+                         node))
+          leaf-nodes))
+
+(defn nodes-in-view [scene-graph width height]
+  (leaf-nodes-in-view width height
+                      (cache/call! leaf-nodes scene-graph)))
+
+(defn transpose [x y node]
+  (-> node
+      (update :x #(+ % x))
+      (update :y #(+ % y))))
+
+(defn clip [clipped clipper]
+  (assoc clipped
+         :x (max (:x clipped)
+                 (:x clipper))
+         :y (max (:y clipped)
+                 (:y clipper))
+         :width (min (:width clipped)
+                     (max 0
+                          (- (+ (:x clipper)
+                                (:width clipper))
+                             (:x clipped))))
+
+         :height (min (:height clipped)
+                      (max 0
+                           (- (+ (:y clipper)
+                                 (:height clipper))
+                              (:y clipped))))))
