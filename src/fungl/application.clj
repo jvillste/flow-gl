@@ -322,6 +322,13 @@
   `(.start (Thread. (bound-fn [] ~@body)
                     ~name)))
 
+(comment
+  (require '[clj-async-profiler.core :as prof])
+  (prof/serve-ui 9898)
+  (set! *warn-on-reflection* true)
+  (set! *warn-on-reflection* false)
+  ) ;; TODO: remove me
+
 (defn start-application [root-view & {:keys [target-frame-rate
                                              on-exit]
                                       :or {target-frame-rate 60}}]
@@ -342,7 +349,7 @@
                                                    swing-root-renderer/render-scene-graph
                                                    gl)))
                        (taoensso.tufte/p :swap-buffers
-                        (window/swap-buffers (:window @application-loop-state-atom)))))
+                                         (window/swap-buffers (:window @application-loop-state-atom)))))
 
                    (when (:scene-graph @application-loop-state-atom)
                      (recur)))
