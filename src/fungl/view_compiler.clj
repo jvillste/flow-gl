@@ -220,16 +220,20 @@
                             [2]]))))
 
 (defn- view-call? [value]
-  (and (vector? value)
-       (or (fn? (first value))
-           (var? (first value)))))
+  (or (and (vector? value)
+           (or (fn? (first value))
+               (var? (first value))))
+      (and (map? value)
+           (:view-call value))))
 
 (defn- scene-graph? [value]
   (map? value))
 
 (defn- apply-view-call [the-id view-call]
   (binding [id the-id]
-    (let [[view-function-or-constructor & arguments] view-call
+    (let [[view-function-or-constructor & arguments] (if (vector? view-call)
+                                                       view-call
+                                                       (:view-call view-call))
           scene-graph-or-view-call (cond (apply cache/cached?
                                                 view-function-or-constructor
                                                 arguments)
@@ -276,9 +280,7 @@
   (if metadata
     (reduce (fn [node key]
               (if-let [metadata-value (get metadata key)]
-                (assoc node key (if (fn? metadata-value)
-                                  (metadata-value (get node key))
-                                  metadata-value))
+                (assoc node key metadata-value)
                 node))
             compiled-node
             (keys metadata))
@@ -308,14 +310,17 @@
           "local ids can not be integers")
 
   (cond (view-call? value)
-        (apply-metadata (meta value)
+        (apply-metadata (if (vector? value)
+                          (meta value)
+                          (dissoc value :view-call))
                         (let [id (if parent-is-view-call?
                                    (vec (conj id
-                                              (or (:local-id (meta value))
+                                              (or (:local-id (or (meta value)
+                                                                 (:local-id value)))
                                                   :call)))
                                    id)
 
-                              scene-graph (if-let [;; Scene graph cache is disabled. It did not work for command help in argupedia ui.
+                              scene-graph (if-let [ ;; Scene graph cache is disabled. It did not work for command help in argupedia ui.
                                                    ;; I did not try to debug it since the performance is ok now without it.
                                                    scene-graph nil #_(get (:scene-graph-cache @state)
                                                                           id)]
@@ -489,14 +494,21 @@
       (let [view (fn []
                    {:type :view})]
         (is (= {:type :view
-                :id []}
-               (test-compile [view]))))
+                :id []
+                :view-call? true}
+               (test-compile [view])))
+
+        (is (= {:type :view
+                :id []
+                :view-call? true}
+               (test-compile {:view-call [view]}))))
 
       (testing "if a view only calls another view, they must have different ids to differentiate their state. This is why there is a :call -keyword inserted into the id"
         (let [view-2 (fn [] {:type :view-2})
               view-1 (fn [] [view-2])]
           (is (= {:type :view-2
-                  :id [:call]}
+                  :id [:call]
+                  :view-call? true}
                  (test-compile [view-1])))))
 
 
@@ -505,8 +517,10 @@
                            :children [[view-2]]})]
         (is (= '{:type :view-1
                  :id []
+                 :view-call? true
                  :children ({:type :view-2
-                             :id [0]})}
+                             :id [0]
+                             :view-call? true})}
                (test-compile [view-1]))))
 
       (let [view-3 (fn [] {:type :view-3})
@@ -515,8 +529,10 @@
                            :children [[view-2]]})]
         (is (= '{:type :view-1
                  :id []
+                 :view-call? true
                  :children ({:type :view-3
-                             :id [0 :call]})}
+                             :id [0 :call]
+                             :view-call? true})}
                (test-compile [view-1]))))
 
       (testing "children get sequential ids"
@@ -528,15 +544,20 @@
                                         {:children [[view-2]
                                                     [view-2]]}]})]
           (is (= {:type :view-1,
+                  :view-call? true
                   :children [{:children [{:type :view-2,
-                                          :id [0 0]}
+                                          :id [0 0]
+                                          :view-call? true}
                                          {:type :view-2,
-                                          :id [0 1]}]
+                                          :id [0 1]
+                                          :view-call? true}]
                               :id [0]}
                              {:children [{:type :view-2,
-                                          :id [1 0]}
+                                          :id [1 0]
+                                          :view-call? true}
                                          {:type :view-2,
-                                          :id [1 1]}]
+                                          :id [1 1]
+                                          :view-call? true}]
                               :id [1]}]
                   :id []}
                  (test-compile [view-1])))))
@@ -552,16 +573,19 @@
                                          :children [[view-2]]} ]})]
           (is (= {:type :layout,
                   :id []
+                  :view-call? true
                   :children [{:local-id :a
                               :id [:a]
                               :type :layout,
                               :children [{:type :view-2,
-                                          :id [:a 0]}]}
+                                          :id [:a 0]
+                                          :view-call? true}]}
                              {:local-id :b
                               :id [:b]
                               :type :layout,
                               :children [{:type :view-2,
-                                          :id [:b 0]}]}]}
+                                          :id [:b 0]
+                                          :view-call? true}]}]}
                  (test-compile [view-1])))))
 
       (testing "local ids can be given as a metadata to the view call"
@@ -571,12 +595,15 @@
                                         ^{:local-id :b} [view-2]]})]
           (is (= {:type :view-1,
                   :id []
+                  :view-call? true
                   :children [{:type :view-2,
                               :local-id :a
-                              :id [:a]}
+                              :id [:a]
+                              :view-call? true}
                              {:type :view-2,
                               :local-id :b
-                              :id [:b]}]}
+                              :id [:b]
+                              :view-call? true}]}
                  (test-compile [view-1])))))
 
       (testing "local ids can be given as a metadata to scene graph node"
@@ -588,14 +615,17 @@
                                                          :children [[view-2]]}]})]
           (is (= {:type :layout,
                   :id []
+                  :view-call? true
                   :children [{:type :layout,
                               :id [:a]
                               :children [{:type :view-2,
-                                          :id [:a 0]}]}
+                                          :id [:a 0]
+                                          :view-call? true}]}
                              {:type :layout,
                               :id [:b]
                               :children [{:type :view-2,
-                                          :id [:b 0]}]}]}
+                                          :id [:b 0]
+                                          :view-call? true}]}]}
                  (test-compile [view-1])))))
 
       (testing "properties can be given as a metadata to the view call"
@@ -605,91 +635,103 @@
                                         ^{:z 2} [view-2]]})]
           (is (= {:type :view-1,
                   :id []
+                  :view-call? true
                   :children [{:type :view-2,
                               :id [0]
+                              :view-call? true
                               :z 1}
                              {:type :view-2,
                               :id [1]
+                              :view-call? true
                               :z 2}]}
                  (test-compile [view-1])))))
 
-      (testing "functions in metadata are applied to properties after viewcall is applied"
-        (let [view-2 (fn [] {:type :view-2
-                             :z 1})
+      (testing "properties can be given in view call map"
+        (let [view-2 (fn [] {:type :view-2})
               view-1 (fn [] {:type :view-1
-                             :children [^{:z inc} [view-2]]})]
+                             :children [{:z 1
+                                         :view-call [view-2]}
+                                        {:z 2
+                                         :view-call [view-2]}]})]
           (is (= {:type :view-1,
                   :id []
+                  :view-call? true
                   :children [{:type :view-2,
                               :id [0]
+                              :view-call? true
+                              :z 1}
+                             {:type :view-2,
+                              :id [1]
+                              :view-call? true
                               :z 2}]}
-                 (test-compile [view-1])))))
+                 (test-compile [view-1]))))))))
 
-      (testing "local state"
-        (let [handle-mouse-click (fn [count-atom]
-                                   (swap! count-atom inc))
-              view-2-call-count-atom (atom 0)
-              view-2-constructor-call-count-atom (atom 0)
-              view-2 (fn []
-                       (swap! view-2-constructor-call-count-atom inc)
-                       (let [count-atom (dependable-atom/atom 0)]
-                         (fn []
-                           (swap! view-2-call-count-atom inc)
-                           {:count @count-atom
-                            :on-mouse-click [handle-mouse-click count-atom]})))
-              view-1 (fn [& child-ids]
-                       {:children (for [child-id child-ids]
-                                    ^{:local-id child-id} [view-2])})]
+(deftest test-local-state
+  (testing "local state"
+    (let [handle-mouse-click (fn [count-atom]
+                               (swap! count-atom inc))
+          view-2-call-count-atom (atom 0)
+          view-2-constructor-call-count-atom (atom 0)
+          view-2 (fn []
+                   (swap! view-2-constructor-call-count-atom inc)
+                   (let [count-atom (dependable-atom/atom 0)]
+                     (fn []
+                       (swap! view-2-call-count-atom inc)
+                       {:count @count-atom
+                        :on-mouse-click [handle-mouse-click count-atom]})))
+          view-1 (fn [& child-ids]
+                   {:children (for [child-id child-ids]
+                                ^{:local-id child-id} [view-2])})]
 
-          (let [scene-graph (test-compile [view-1 :a :b])]
-            (is (= 2 (count (keys (:constructor-cache @state)))))
+      (let [scene-graph (test-compile [view-1 :a :b])]
+        (is (= 2 (count (keys (:constructor-cache @state)))))
 
-            (is (= [0 0]
-                   (->> scene-graph
-                        :children
-                        (map :count))))
+        (is (= [0 0]
+               (->> scene-graph
+                    :children
+                    (map :count))))
 
-            (is (= [[:a]
-                    [:b]]
-                   (->> scene-graph
-                        :children
-                        (map :id))))
+        (is (= [[:a]
+                [:b]]
+               (->> scene-graph
+                    :children
+                    (map :id))))
 
-            (->> scene-graph
-                 :children
-                 second
-                 :on-mouse-click
-                 (callable/call))
+        (->> scene-graph
+             :children
+             second
+             :on-mouse-click
+             (callable/call))
 
-            (is (= 2 @view-2-call-count-atom))
-            (is (= 2 @view-2-constructor-call-count-atom))
+        (is (= 2 @view-2-call-count-atom))
+        (is (= 2 @view-2-constructor-call-count-atom))
 
-            (is (= [0 1]
-                   (->> (test-compile [view-1 :a :b])
-                        :children
-                        (map :count))))
+        (is (= [0 1]
+               (->> (test-compile [view-1 :a :b])
+                    :children
+                    (map :count))))
 
-            (is (= 3 @view-2-call-count-atom))
-            (is (= 2 @view-2-constructor-call-count-atom))
+        (is (= 3 @view-2-call-count-atom))
+        (is (= 2 @view-2-constructor-call-count-atom))
 
-            (is (= [1]
-                   (->> (test-compile [view-1 :b])
-                        :children
-                        (map :count))))
+        (is (= [1]
+               (->> (test-compile [view-1 :b])
+                    :children
+                    (map :count))))
 
-            (is (= 3 @view-2-call-count-atom))
-            (is (= 2 @view-2-constructor-call-count-atom))
+        (is (= 3 @view-2-call-count-atom))
+        (is (= 2 @view-2-constructor-call-count-atom))
 
-            (test-compile [view-1 :c])
+        (test-compile [view-1 :c])
 
-            (is (= 1 (count (keys (:constructor-cache @state)))))
+        (is (= 1 (count (keys (:constructor-cache @state)))))
 
-            (is (= 4 @view-2-call-count-atom))
-            (is (= 3 @view-2-constructor-call-count-atom))
+        (is (= 4 @view-2-call-count-atom))
+        (is (= 3 @view-2-constructor-call-count-atom))
 
-            (test-compile [view-1])
+        (test-compile [view-1])
 
-            (is (= 0 (count (keys (:constructor-cache @state)))))))))))
+        (is (= 0 (count (keys (:constructor-cache @state)))))))))
 
 (deftest test-view-functions
   (with-bindings (merge (state-bindings)
