@@ -75,15 +75,18 @@
                :cached-view-call-ids
                conj
                (:id node))
-        (-> (cache/call! do-layout-implementation
-                         node)
-            (assoc :render visuals/render-to-images-render-function
-                   :render-on-descend? true))
+        (let [scene-graph (cache/call! do-layout-implementation
+                                       node)]
+          (if (:render scene-graph)
+            scene-graph
+            (assoc scene-graph
+                   :render visuals/render-to-images-render-function
+                   :render-on-descend? true)))
         #_(cond-> (cache/call! do-layout-implementation
-                             node)
-          (:view-call? node)
-          (assoc :render visuals/render-to-images-render-function
-                 :render-on-descend? true)))
+                               node)
+            (:view-call? node)
+            (assoc :render visuals/render-to-images-render-function
+                   :render-on-descend? true)))
     (cache/call! do-layout-implementation
                  node))
 

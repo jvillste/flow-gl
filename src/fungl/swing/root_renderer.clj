@@ -14,19 +14,15 @@
       (.setToTranslation transform (:x node) (:y node))
       (.setTransform graphics transform)
 
-      ;; (prn 'drawing
-      ;;      (:z node)
-      ;;      (:id node)
-      ;;      (:draw-function node)) ;; TODO remove me
+      ;; (prn 'drawing (:draw-function node) (:id node))
 
       (apply (:draw-function node)
              graphics
              (render/image-function-parameters node)))))
 
 (defn render-scene-graph [graphics scene-graph]
-  #_(prn 'render-scene-graph #_scene-graph
-         (:id scene-graph)
-         (count (scene-graph/leaf-nodes scene-graph))) ;; TODO: remove me
+  ;; (prn 'render-scene-graph #_scene-graph
+  ;;        (:id scene-graph))
 
   (doto graphics
     #_(.setColor (Color. 255 255 255 255))

@@ -324,7 +324,8 @@
                                                                                                               nil))))))))
 
 (defn render-to-images-render-function [_graphics scene-graph]
-  #_(prn 'render-to-images-render-function (:id scene-graph)) ;; TODO: remove me
+  ;; (println)
+  ;; (prn 'render-to-images-render-function (:id scene-graph))
 
   #_(render-to-images (dissoc scene-graph
                               :render
@@ -351,6 +352,8 @@
                (:y original-node))))
 
 (defn render-to-image [_graphics original-node]
+  ;; (prn 'render-to-image (:id original-node))
+
   (let [leaf-nodes (filter :draw-function (scene-graph/leaf-nodes-in-view (:available-width original-node)
                                                                           (:available-height original-node)
                                                                           (map (partial scene-graph/transpose
