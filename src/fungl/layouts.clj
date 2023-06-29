@@ -679,7 +679,7 @@
 
 (defn vertical-split [& children]
   {:type ::vertical-split
-   :children children
+   :children (flatten-contents children)
    :get-size vertical-split-get-size
    :give-space vertical-split-give-space
    :make-layout vertical-split-make-layout})
