@@ -487,8 +487,12 @@
              [:children]
              (fn [[child]]
                [(assoc child
-                       :x left-margin
-                       :y top-margin)])))
+                       :x (+ (or (:x child)
+                                 0)
+                             left-margin)
+                       :y (+ (or (:y child)
+                                 0)
+                             top-margin))])))
 
 (defn with-margins [top-margin right-margin bottom-margin left-margin child]
   (when child
