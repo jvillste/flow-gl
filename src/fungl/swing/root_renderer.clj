@@ -43,9 +43,9 @@
 
     (render-nodes (buffered-image/get-graphics buffered-image)
                   (map (fn [node]
-                         (-> node
-                             (update :x #(- % (:x bounding-box)))
-                             (update :y #(- % (:y bounding-box)))))
+                         (scene-graph/transpose (- (:x bounding-box))
+                                                (- (:y bounding-box))
+                                                node))
                        leaf-nodes))
 
     buffered-image))
