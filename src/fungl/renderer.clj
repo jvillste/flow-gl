@@ -2,6 +2,8 @@
   (:require [fungl.callable :as callable]))
 
 (defn apply-renderers! [scene-graph gl]
+  ;; (prn 'apply-renderers! (:id scene-graph)) ;; TODO: remove me
+
   (let [scene-graph (if (and (:children scene-graph)
                              (not (:render-on-descend? scene-graph)))
                       (update-in scene-graph
@@ -13,8 +15,7 @@
                       scene-graph)]
 
     (if (:render scene-graph)
-      (let [result (callable/call (:render scene-graph)
-                                  gl
-                                  scene-graph)]
-        result)
+      (callable/call (:render scene-graph)
+                     gl
+                     scene-graph)
       scene-graph)))
