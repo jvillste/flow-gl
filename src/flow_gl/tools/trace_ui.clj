@@ -364,7 +364,9 @@
 
 (defn start-trace-printer [trace-channel]
   #_(create-trace-printer :trace-printer trace-channel)
-  (let [event-channel (application/start-window (fn [width height]
+
+  ;; TODO: port to using application/start-application
+  #_(let [event-channel (application/start-window (fn [width height]
                                                   (let [trace-printer-state-atom (cache/call! create-trace-printer :trace-printer trace-channel)
                                                         reduce! (cache/call! reducer-for-atom trace-printer-state-atom)]
                                                     (#'create-trace-scene-graph
@@ -420,7 +422,9 @@
                                         (do-layout width height)))))))
 
 (defn show-value [value]
-  (let [value-atom (atom :a)]
+
+  ;; TODO: port to using application/start-application
+  #_(let [value-atom (atom :a)]
       (application/start-window (fn [width height]
                                   (let [[state reduce!] (stateful/state-and-reducer! :value-view value-view-stateful)]
                                     (-> (value-view state

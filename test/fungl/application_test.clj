@@ -5,7 +5,9 @@
    [fungl.dependable-atom :as dependable-atom]
    [fungl.layouts :as layouts]
    [fungl.swing.root-renderer :as root-renderer]
-   [clojure.string :as string]))
+   [clojure.string :as string]
+   [flow-gl.gui.scene-graph :as scene-graph]
+   [clojure.test :refer [deftest is]]))
 
 (def ^:dynamic log-atom)
 (defn log! [type & {:as values}]
@@ -45,9 +47,8 @@
   (log! :render-scene-graph)
 
   (doseq [node (filter :draw-function
-                       (root-renderer/nodes-in-view scene-graph
-                                                    (:width scene-graph)
-                                                    (:height scene-graph)))]
+                       (scene-graph/nodes-in-view-2 scene-graph
+                                                    scene-graph))]
     (log! :drawing :node (describe node))))
 
 (defn run-test [root-view
