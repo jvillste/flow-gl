@@ -123,6 +123,11 @@
        (boolean (.getIfPresent ^com.google.common.cache.LocalCache$LocalLoadingCache (:cache state)
                                (function-call-key function arguments)))))
 
+(defn cached-2? [state function & arguments]
+  (and (in-use?)
+       (boolean (.getIfPresent ^com.google.common.cache.LocalCache$LocalLoadingCache (:cache state)
+                               (function-call-key function arguments)))))
+
 (defn cache-is-valid? [function arguments]
   (and (apply cached? function arguments)
        (not (should-be-invalidated? function arguments))))

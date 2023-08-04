@@ -1,34 +1,29 @@
 (ns fungl.application
   (:require
-   [flow-gl.debug :as debug]
    [clojure.core.async :as async]
+   [clojure.test :refer [deftest is]]
    [flow-gl.csp :as csp]
    [flow-gl.gui.animation :as animation]
    [flow-gl.gui.keyboard :as keyboard]
    [flow-gl.gui.mouse :as mouse]
+   [flow-gl.gui.scene-graph :as scene-graph]
    [flow-gl.gui.stateful :as stateful]
-   [flow-gl.gui.visuals :as visuals]
    [flow-gl.gui.window :as window]
    [flow-gl.swing.window :as swing-window]
+   [flow-gl.tools.trace :as trace]
    [fungl.cache :as cache]
+   [fungl.component :as component]
+   [fungl.depend :as depend]
+   [fungl.dependable-atom :as dependable-atom]
+   [fungl.id-comparator :as id-comparator]
    [fungl.layout :as layout]
+   [fungl.node-image-cache :as node-image-cache]
    [fungl.renderer :as renderer]
    [fungl.swing.root-renderer :as swing-root-renderer]
-   [fungl.value-registry :as value-registry]
+   [fungl.util :as util]
    [fungl.view-compiler :as view-compiler]
    [logga.core :as logga]
-   [taoensso.tufte :as tufte]
-   [flow-gl.gui.scene-graph :as scene-graph]
-   [fungl.component :as component]
-   [clojure.walk :as walk]
-   [flow-gl.tools.trace :as trace]
-   [fungl.depend :as depend]
-   [clojure.test :refer [deftest is]]
-   [clojure.string :as string]
-   [fungl.id-comparator :as id-comparator]
-   [clojure.set :as set]
-   [fungl.util :as util]
-   [fungl.dependable-atom :as dependable-atom]))
+   [taoensso.tufte :as tufte]))
 
 (tufte/add-basic-println-handler! {})
 
@@ -54,7 +49,7 @@
 (defn create-render-state []
   (conj #_(cache/state-bindings)
         #_(value-registry/state-bindings)
-        (visuals/state-bindings)))
+        (node-image-cache/state-bindings)))
 
 ;; render gets graphics context and returns scene graph
 ;; draw-function gets graphics context and returns nil
@@ -70,12 +65,13 @@
 (defn render [scene-graph render-scene-graph gl]
   (when (not (= scene-graph
                 (:previous-rendered-scene-graph @application-loop-state-atom)))
-    (swap! application-loop-state-atom assoc :previous-rendered-scene-graph scene-graph)
 
     (taoensso.tufte/p :render-scene-graph
-     (render-scene-graph gl
-                         (renderer/apply-renderers! scene-graph
-                                                    gl)))))
+                      (render-scene-graph gl
+                                          (renderer/apply-renderers! (node-image-cache/render-recurring-nodes-to-images (:previous-rendered-scene-graph @application-loop-state-atom)
+                                                                                                                        scene-graph)
+                                                                     gl)))
+    (swap! application-loop-state-atom assoc :previous-rendered-scene-graph scene-graph)))
 
 (defn handle-new-scene-graph! [scene-graph]
   (keyboard/handle-new-scene-graph! scene-graph)

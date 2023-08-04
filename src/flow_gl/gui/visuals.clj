@@ -211,11 +211,6 @@
    :image-function-parameter-keys [:buffered-image :width :height]
    :hit-test hit-test-image})
 
-(def ^:dynamic image-cache)
-
-(defn state-bindings []
-  {#'image-cache (cache/create-state 100)})
-
 (defn layers [nodes]
   (->> nodes
        (group-by :z)
@@ -297,7 +292,7 @@
                (:y original-node))))
 
 (defn render-to-images [original-node]
-  #_(prn 'render-to-images (:id original-node)) ;; TODO: remove me
+  ;; (prn 'render-to-images (:id original-node)) ;; TODO: remove me
 
   (assoc (select-keys original-node [:x :y :z :width :height :id])
          :children (->> (renderer/apply-renderers! original-node
@@ -308,38 +303,7 @@
                         (merge-contained-layers)
                         (map (partial layer-to-image
                                       original-node))
-                        (doall))
-         #_(doall (map (fn [[z leaf-nodes]]
-
-                         (let [bounding-box (scene-graph/bounding-box leaf-nodes)]
-                           (assoc (image (root-renderer/render-to-buffered-image bounding-box
-                                                                                 leaf-nodes))
-                                  :id (:id original-node)
-                                  :z z
-                                  :x (- (:x bounding-box)
-                                        (:x original-node))
-                                  :y (- (:y bounding-box)
-                                        (:y original-node)))))
-                       (group-by :z (filter :draw-function (scene-graph/leaf-nodes (renderer/apply-renderers! original-node
-                                                                                                              nil))))))))
-
-(defn render-to-images-render-function [_graphics scene-graph]
-  ;; (println)
-  ;; (prn 'render-to-images-render-function (:id scene-graph))
-
-  #_(render-to-images (dissoc scene-graph
-                              :render
-                              :render-on-descend?))
-  (cache/call-with-cache image-cache
-                         render-to-images
-                         (dissoc scene-graph
-                                 :render
-                                 :render-on-descend?))
-  #_(render-to-images (dissoc scene-graph
-                              :render
-                              :render-on-descend?))
-  #_(render-to-images scene-graph))
-
+                        (doall))))
 
 (defn leaf-nodes-to-image [original-node layer]
   (assoc (image (root-renderer/render-to-buffered-image (:bounding-box layer)
@@ -352,31 +316,21 @@
                (:y original-node))))
 
 (defn render-to-image [_graphics original-node]
-  ;; (prn 'render-to-image (:id original-node))
-
-  (let [leaf-nodes (filter :draw-function (scene-graph/leaf-nodes-in-view (:available-width original-node)
-                                                                          (:available-height original-node)
-                                                                          (map (partial scene-graph/transpose
-                                                                                        (- (:x original-node))
-                                                                                        (- (:y original-node)))
-                                                                               (scene-graph/leaf-nodes (renderer/apply-renderers! (dissoc original-node
-                                                                                                                                          :render)
-                                                                                                                                  nil)))))
-        bounding-box (scene-graph/bounding-box leaf-nodes)]
-
-    (assoc (image (root-renderer/render-to-buffered-image (scene-graph/clip bounding-box
-                                                                            (assoc original-node
-                                                                                   :x 0
-                                                                                   :y 0))
+  (let [leaf-nodes (filter :draw-function (scene-graph/nodes-in-view-2 original-node
+                                                                       (scene-graph/leaf-nodes (renderer/apply-renderers! (dissoc original-node
+                                                                                                                                  :render)
+                                                                                                                          nil))))
+        bounding-box (scene-graph/bounding-box leaf-nodes)
+        clipped-bounding-box (scene-graph/clip bounding-box
+                                               original-node)]
+    (assoc (image (root-renderer/render-to-buffered-image clipped-bounding-box
                                                           leaf-nodes))
            :id (:id original-node)
            :z 0
-           :x (+ (:x bounding-box)
-                 (:x original-node))
-           :y (+ (:y bounding-box)
-                 (:y original-node)))))
+           :x (:x clipped-bounding-box)
+           :y (:y clipped-bounding-box))))
 
-(defn as-image [child]
+(defn clip [child]
   {:children [child]
    :render render-to-image
    :render-on-descend? true})

@@ -21,8 +21,8 @@
              (render/image-function-parameters node)))))
 
 (defn render-scene-graph [graphics scene-graph]
-  ;; (prn 'render-scene-graph #_scene-graph
-  ;;        (:id scene-graph))
+  ;; (prn)
+  ;; (prn 'render-scene-graph) ;; TODO: remove me
 
   (doto graphics
     #_(.setColor (Color. 255 255 255 255))
@@ -31,9 +31,9 @@
 
   (render-nodes graphics
                 (filter :draw-function
-                        (scene-graph/nodes-in-view scene-graph
-                                                   (:width scene-graph)
-                                                   (:height scene-graph)))))
+                        (scene-graph/scene-graph-nodes-in-view scene-graph
+                                                               (:width scene-graph)
+                                                               (:height scene-graph)))))
 
 (defn render-to-buffered-image [bounding-box leaf-nodes]
   (let [buffered-image (buffered-image/create (min (:width bounding-box)

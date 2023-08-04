@@ -58,37 +58,37 @@
       (measuring/make-layout)))
 
 (defn do-layout [node]
+  (cache/call! do-layout-implementation
+               node)
 
-  #_(do-layout-implementation node)
+  #_(when (and (cache/cached? do-layout-implementation
+                              node)
+               (view-compiler/invalidated? (:id node)))
+      (cache/invalidate! (cache/function-call-key do-layout-implementation
+                                                  [node])))
 
-  ;; (when (and (cache/cached? do-layout-implementation
-  ;;                           node)
-  ;;            (view-compiler/invalidated? (:id node)))
-  ;;   (cache/invalidate! (cache/function-call-key do-layout-implementation
-  ;;                                               [node])))
-
-  (if (cache/cached? do-layout-implementation
-                     node)
-    (do #_(println "layout cache hit" (pr-str (:id node)))
-        (swap! view-compiler/state
-               update
-               :cached-view-call-ids
-               conj
-               (:id node))
-        (let [scene-graph (cache/call! do-layout-implementation
-                                       node)]
-          (if (:render scene-graph)
-            scene-graph
-            (assoc scene-graph
-                   :render visuals/render-to-images-render-function
-                   :render-on-descend? true)))
-        #_(cond-> (cache/call! do-layout-implementation
-                               node)
-            (:view-call? node)
-            (assoc :render visuals/render-to-images-render-function
-                   :render-on-descend? true)))
-    (cache/call! do-layout-implementation
-                 node))
+  #_(if (cache/cached? do-layout-implementation
+                       node)
+      (do #_(println "layout cache hit" (pr-str (:id node)))
+          (swap! view-compiler/state
+                 update
+                 :cached-view-call-ids
+                 conj
+                 (:id node))
+          (let [scene-graph (cache/call! do-layout-implementation
+                                         node)]
+            (if (:render scene-graph)
+              scene-graph
+              (assoc scene-graph
+                     :render visuals/render-to-images-render-function
+                     :render-on-descend? true)))
+          #_(cond-> (cache/call! do-layout-implementation
+                                 node)
+              (:view-call? node)
+              (assoc :render visuals/render-to-images-render-function
+                     :render-on-descend? true)))
+      (cache/call! do-layout-implementation
+                   node))
 
   )
 

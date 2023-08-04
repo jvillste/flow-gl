@@ -164,7 +164,7 @@
       nodes)))
 
 
-(test/deftest flatten-test
+(test/deftest enumerate-nodes-test
   (is (= '({:id 1} {:id 2} {:id 3} {:id 4})
          (map #(dissoc % :children)
               (enumerate-nodes {:children [{:children [{:id 3}
@@ -536,12 +536,16 @@
                          [(:y reference-node)
                           (horizontal-distance reference-node node)])))))
 
-(defn map-nodes [function scene-graph & [{:keys [descend?] :or {descend? (constantly true)}}]]
+(defn map-nodes [function scene-graph & [{:keys [descend?] :as options :or {descend? (constantly true)}}]]
   (let [result (function scene-graph)]
     (if-let [children (:children scene-graph)]
       (if (descend? scene-graph)
         (assoc result
-               :children (map (partial map-nodes function) children))
+               :children (doall (map (fn [child]
+                                       (map-nodes function
+                                                  child
+                                                  options))
+                                     children)))
         result)
       result)))
 
@@ -643,15 +647,21 @@
    (run! (partial print-scene-graph (inc level))
          (:children scene-graph))))
 
-(defn leaf-nodes-in-view [width height leaf-nodes]
+(defn nodes-in-view [width height leaf-nodes]
   (filter (fn [node]
             (intersects? {:x 0 :y 0 :width width :height height}
                          node))
           leaf-nodes))
 
-(defn nodes-in-view [scene-graph width height]
-  (leaf-nodes-in-view width height
-                      (cache/call! leaf-nodes scene-graph)))
+(defn nodes-in-view-2 [view nodes]
+  (filter (fn [node]
+            (intersects? view
+                         node))
+          nodes))
+
+(defn scene-graph-nodes-in-view [scene-graph width height]
+  (nodes-in-view width height
+                 (cache/call! leaf-nodes scene-graph)))
 
 (defn transpose [x y node]
   (-> node
@@ -659,19 +669,26 @@
       (update :y #(+ % y))))
 
 (defn clip [clipped clipper]
-  (assoc clipped
-         :x (max (:x clipped)
-                 (:x clipper))
-         :y (max (:y clipped)
-                 (:y clipper))
-         :width (min (:width clipped)
-                     (max 0
-                          (- (+ (:x clipper)
-                                (:width clipper))
-                             (:x clipped))))
+  (let [clipped-x (max (:x clipped)
+                       (:x clipper))
+        clipped-y (max (:y clipped)
+                       (:y clipper))]
+    (assoc clipped
+           :x clipped-x
+           :y clipped-y
+           :width (min (:width clipped)
+                       (max 0
+                            (- (+ (:x clipper)
+                                  (:width clipper))
+                               clipped-x)))
 
-         :height (min (:height clipped)
-                      (max 0
-                           (- (+ (:y clipper)
-                                 (:height clipper))
-                              (:y clipped))))))
+           :height (min (:height clipped)
+                        (max 0
+                             (- (+ (:y clipper)
+                                   (:height clipper))
+                                clipped-y))))))
+
+(deftest test-clip
+  (is (= {:x 10, :y 10, :width 100, :height 50}
+         (clip {:x 0 :y 0 :width 100 :height 100}
+               {:x 10 :y 10 :width 150 :height 50}))))
