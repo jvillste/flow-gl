@@ -226,6 +226,8 @@
   (copy-selection-to-clipboard state)
 
   (-> state
+      (assoc :index (min (:anchor state)
+                         (:index state)))
       (assoc :anchor nil)
       (update :text
               delete
@@ -253,17 +255,20 @@
 
 
 (defn handle-command [state command & parameters]
-
-  (let [state (if (#{previous-row next-row} (if (var? command)
-                                              @command
-                                              command))
-                (assoc state :x-on-first-line-change (or (:x-on-first-line-change state)
-                                                         (:x (character-position (:rows state) (:index state)))))
-                (dissoc state :x-on-first-line-change))]
-    (apply command
-           state
-           (:rows state)
-           parameters)))
+  (try
+    (let [state (if (#{previous-row next-row} (if (var? command)
+                                                @command
+                                                command))
+                  (assoc state :x-on-first-line-change (or (:x-on-first-line-change state)
+                                                           (:x (character-position (:rows state) (:index state)))))
+                  (dissoc state :x-on-first-line-change))]
+      (apply command
+             state
+             (:rows state)
+             parameters))
+    (catch Exception exception
+      (prn exception)
+      state)))
 
 (defn keyboard-event-to-command [state event]
 
