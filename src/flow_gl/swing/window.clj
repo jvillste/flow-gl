@@ -19,7 +19,7 @@
   window/Window
   (run-with-gl [this runner]
     (let [buffer-strategy (.getBufferStrategy canvas)
-          graphics (.getDrawGraphics buffer-strategy)]
+          ^java.awt.Graphics2D graphics (.getDrawGraphics buffer-strategy)]
       (try
         (runner graphics)
         (finally

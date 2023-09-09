@@ -8,7 +8,7 @@
    (java.awt.geom AffineTransform)
    (java.awt Color)))
 
-(defn render-nodes [graphics nodes]
+(defn render-nodes [^java.awt.Graphics2D graphics nodes]
   (let [transform (AffineTransform.)]
     (doseq [node nodes]
       (.setToTranslation transform (:x node) (:y node))
@@ -20,7 +20,7 @@
              graphics
              (render/image-function-parameters node)))))
 
-(defn render-scene-graph [graphics scene-graph]
+(defn render-scene-graph [^java.awt.Graphics2D graphics scene-graph]
   ;; (prn)
   ;; (prn 'render-scene-graph) ;; TODO: remove me
 

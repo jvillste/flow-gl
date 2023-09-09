@@ -6,7 +6,7 @@
            (java.awt.image BufferedImage)
            (java.text AttributedString)))
 
-(defn draw [graphics color font text]
+(defn draw [^java.awt.Graphics2D graphics color font text]
   (let [[r g b a] (map (fn [color] (float (/ color 255))) color)]
     (doto graphics
       (.setColor (Color. r g b a))
@@ -62,7 +62,7 @@
   (.getCharacterCount (:layout row)))
 
 (defn line-break-measurer [color-vector font text]
-  (let [graphics (.getGraphics (BufferedImage. 1 1 BufferedImage/TYPE_INT_ARGB))]
+  (let [^java.awt.Graphics2D graphics (.getGraphics (BufferedImage. 1 1 BufferedImage/TYPE_INT_ARGB))]
     (.setRenderingHint graphics RenderingHints/KEY_TEXT_ANTIALIASING RenderingHints/VALUE_TEXT_ANTIALIAS_LCD_HBGR)
     (LineBreakMeasurer.
      (.getIterator (create-attributed-string text font (vector-to-awt-color color-vector)))

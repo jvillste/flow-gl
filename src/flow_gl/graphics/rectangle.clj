@@ -3,7 +3,7 @@
   (:import (java.awt BasicStroke Color RenderingHints)
            (java.awt.geom RoundRectangle2D$Double Rectangle2D$Double)))
 
-(defn fill [graphics color width height corner-arc-width corner-arc-height]
+(defn fill [^java.awt.Graphics2D graphics color width height corner-arc-width corner-arc-height]
   (let [[r g b a] (map (fn [color] (float (/ color 255)))
                        color)]
     (doto graphics
@@ -22,7 +22,7 @@
                                          (double corner-arc-width)
                                          (double corner-arc-height)))))))
 
-(defn draw [graphics color line-width width height corner-arc-width corner-arc-height]
+(defn draw [^java.awt.Graphics2D graphics color line-width width height corner-arc-width corner-arc-height]
   (let [[r g b a] (map (fn [color] (float (/ color 255)))
                        color)
         half-line-width (/ line-width 2)]

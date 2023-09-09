@@ -17,7 +17,7 @@
        (.getAllFonts (GraphicsEnvironment/getLocalGraphicsEnvironment))))
 
 (defn font-with-metrics [font]
-  (let [graphics (.getGraphics (BufferedImage. 1 1 BufferedImage/TYPE_INT_ARGB))]
+  (let [^java.awt.Graphics2D graphics (.getGraphics (BufferedImage. 1 1 BufferedImage/TYPE_INT_ARGB))]
 
     (.setFont graphics font)
 
@@ -43,7 +43,7 @@
 
   (@loaded-fonts [ttf-file-name size]))
 
-(defn width [font text] (.stringWidth (:font-metrics font) text))
+(defn width [font text] (.stringWidth ^java.awt.FontMetrics (:font-metrics font) text))
 
 (defn height [font] (+ (.getMaxAscent (:font-metrics font))
                        (.getMaxDescent (:font-metrics font))))
@@ -53,7 +53,7 @@
 (defn graphics-font [font] (:font font))
 
 (defn character-index-at-position [font text position]
-  (let [graphics (.getGraphics (BufferedImage. 1 1 BufferedImage/TYPE_INT_ARGB))
+  (let [^java.awt.Graphics2D graphics (.getGraphics (BufferedImage. 1 1 BufferedImage/TYPE_INT_ARGB))
         text-layout (TextLayout. text font (.getFontRenderContext graphics))
         hit-info (.hitTestChar text-layout position 1)]
     (.getCharIndex hit-info)))
