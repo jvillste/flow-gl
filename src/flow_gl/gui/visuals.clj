@@ -189,7 +189,7 @@
          (buffered-image-coordinate 100 200 200))))
 
 
-(defn hit-test-image [{:keys [buffered-image width height]} x y]
+(defn hit-test-image [{:keys [^java.awt.image.BufferedImage buffered-image width _height]} x y]
   (let [x (int (* x
                   (/ (- (.getWidth buffered-image)
                         1)
@@ -202,7 +202,7 @@
                (< y (.getHeight buffered-image)))
       (= 255 (last (buffered-image/get-color buffered-image x y))))))
 
-(defn image [buffered-image]
+(defn image [^java.awt.image.BufferedImage buffered-image]
   {:buffered-image buffered-image
    :width (.getWidth buffered-image)
    :height (.getHeight buffered-image)
