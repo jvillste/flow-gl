@@ -315,7 +315,7 @@
                           (dissoc value :view-call))
                         (let [id (if parent-is-view-call?
                                    (vec (conj id
-                                              (or (:local-id (or (meta value)
+                                              (or (:local-id (or (:local-id (meta value))
                                                                  (:local-id value)))
                                                   :call)))
                                    id)
