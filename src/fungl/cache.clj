@@ -228,10 +228,14 @@
              (.get ^com.google.common.cache.LocalCache$LocalLoadingCache (:cache state) :x
                    (fn [] 1))))
 
+      (is (not (cached? f 1)))
+      (is (not (cached-2? state f 1)))
+
       (is (= {:call-count 1, :result 1}
              (call! f 1)))
 
       (is (cached? f 1))
+      (is (cached-2? state f 1))
       (is (not (cached? f 2)))
       (is (not (cached? (fn []) 1)))
 
