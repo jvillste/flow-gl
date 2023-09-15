@@ -692,3 +692,17 @@
   (is (= {:x 10, :y 10, :width 100, :height 50}
          (clip {:x 0 :y 0 :width 100 :height 100}
                {:x 10 :y 10 :width 150 :height 50}))))
+
+(defn get-in-path [scene-graph path]
+  (loop [path path
+         scene-graph scene-graph]
+    (if (empty? path)
+      scene-graph
+      (let [step (first path)]
+        (recur (rest path)
+               (if (integer? step)
+                 (nth (:children scene-graph)
+                      step)
+                 (do (println 'local-ids (map :local-id (:children scene-graph)))
+                     (medley/find-first #(= step (:local-id %))
+                                        (:children scene-graph)))))))))
