@@ -62,9 +62,60 @@
 ;;         swing-root-renderer/render-to-buffered-image    render given nodes to an image
 ;;           swing-root-renderer/render-nodes    calls given nodes draw-functions
 
+;; TODO: investigate differences in deeper paths
+(defn node [scene-graph path]
+  (scene-graph/get-in-path scene-graph
+                           (scene-graph/id-to-local-id-path path)))
+
+(defn node-without-children [scene-graph path]
+  (-> (node scene-graph (scene-graph/id-to-local-id-path path))
+      (dissoc :children)))
+
+(comment
+  (def path [1 0])
+
+  (do (def the-saved-scene-graph the-scene-graph)
+      (def the-saved-previous-scene-graph the-previous-scene-graph))
+
+  (clojure.data/diff the-saved-scene-graph
+                     the-saved-previous-scene-graph)
+
+
+  (take 2 (clojure.data/diff (node the-saved-scene-graph path)
+                             (node the-saved-previous-scene-graph path)))
+
+  (clojure.data/diff the-saved-scene-graph
+                     the-saved-previous-scene-graph)
+
+  (:type (node the-saved-scene-graph path))
+
+  (= (node the-saved-scene-graph path)
+     (node the-saved-previous-scene-graph path))
+
+  (scene-graph/print-scene-graph (scene-graph/select-node-keys [:type :id]
+                                                               (node the-saved-scene-graph
+                                                                     path)))
+
+
+  )
+
+;; (def render-count-atom (atom 0))
 (defn render [scene-graph render-scene-graph gl]
+;;  (println "render" (swap! render-count-atom inc)) ;; TODO: remove me
+
   (when (not (= scene-graph
                 (:previous-rendered-scene-graph @application-loop-state-atom)))
+
+    ;; (def the-scene-graph scene-graph)
+    ;; (def the-previous-scene-graph (:previous-rendered-scene-graph @application-loop-state-atom))
+
+    ;; (let [path (scene-graph/id-to-local-id-path [1 :scrolling-pane 0 1 0 :notebook-body 0 [:value 0] :call])]
+    ;;   (when (not (= (node scene-graph path)
+    ;;                 (node (:previous-rendered-scene-graph @application-loop-state-atom) path)))
+    ;;     (println "saving scene graphs")
+
+    ;;     (def scene-graph scene-graph)
+    ;;     (def previous-scene-graph (:previous-rendered-scene-graph @application-loop-state-atom))))
 
     (taoensso.tufte/p :render-scene-graph
                       (render-scene-graph gl
@@ -303,16 +354,16 @@
          assoc
          :scene-graph
          (taoensso.tufte/p :handle-events-loop
-          (loop [events events
-                 scene-graph (:scene-graph @application-loop-state-atom)]
-            (if (empty? events)
-              scene-graph
-              (if (= :close-requested (:type (first events)))
-                nil
-                (do (taoensso.tufte/p :process-event! (process-event! scene-graph
-                                                                      (first events)))
-                    (recur (rest events)
-                           (taoensso.tufte/p :create-scene-graph (create-scene-graph (:root-view @application-loop-state-atom)))))))))))
+                           (loop [events events
+                                  scene-graph (:scene-graph @application-loop-state-atom)]
+                             (if (empty? events)
+                               scene-graph
+                               (if (= :close-requested (:type (first events)))
+                                 nil
+                                 (do (taoensso.tufte/p :process-event! (process-event! scene-graph
+                                                                                       (first events)))
+                                     (recur (rest events)
+                                            (taoensso.tufte/p :create-scene-graph (create-scene-graph (:root-view @application-loop-state-atom)))))))))))
 
 (defmacro thread [name & body]
   `(.start (Thread. (bound-fn [] ~@body)
@@ -363,67 +414,67 @@
     (window/event-channel (:window @application-loop-state-atom))))
 
 #_(defn start-window [root-view-or-var & {:keys [window
-                                               target-frame-rate
-                                               do-profiling
-                                               on-exit]
-                                        :or {target-frame-rate 60
-                                             do-profiling false}}]
-  (println "------------ start-window -------------")
-  (reset! events-atom []) ;; TODO: remove me
+                                                 target-frame-rate
+                                                 do-profiling
+                                                 on-exit]
+                                          :or {target-frame-rate 60
+                                               do-profiling false}}]
+    (println "------------ start-window -------------")
+    (reset! events-atom []) ;; TODO: remove me
 
-  (let [event-channel-promise (promise)]
-    (thread "application"
-            (logga/write "creating window")
-            (let [window (or window
-                             (create-window))]
-              (deliver event-channel-promise (window/event-channel window))
+    (let [event-channel-promise (promise)]
+      (thread "application"
+              (logga/write "creating window")
+              (let [window (or window
+                               (create-window))]
+                (deliver event-channel-promise (window/event-channel window))
 
-              (try (logga/write "starting application loop")
-                   (with-profiling do-profiling :render-loop
-                     (with-bindings (merge (create-event-handling-state)
-                                           {#'event-channel (window/event-channel (create-window))}
-                                           (create-render-state))
-                       (swap! application-loop-state-atom
-                              assoc
-                              :window-width (window/width window)
-                              :window-height (window/height window))
-                       (loop [scene-graph (create-scene-graph root-view-or-var)]
-                         (let [scene-graph (loop [events (read-events (window/event-channel window)
-                                                                      target-frame-rate)
-                                                  scene-graph scene-graph]
-                                             (if (empty? events)
-                                               scene-graph
-                                               (if (= :close-requested (:type (first events)))
-                                                 nil
-                                                 (do (process-event! scene-graph
-                                                                     (first events))
-                                                     (recur (rest events)
-                                                            (create-scene-graph root-view-or-var))))))]
-                           (when scene-graph
-                             (let [scene-graph (-> scene-graph
-                                                   #_(highlight-cache-misses)
-                                                   #_(layout/do-layout-for-size (:window-width @application-loop-state-atom)
-                                                                                (:window-height @application-loop-state-atom)))]
+                (try (logga/write "starting application loop")
+                     (with-profiling do-profiling :render-loop
+                       (with-bindings (merge (create-event-handling-state)
+                                             {#'event-channel (window/event-channel (create-window))}
+                                             (create-render-state))
+                         (swap! application-loop-state-atom
+                                assoc
+                                :window-width (window/width window)
+                                :window-height (window/height window))
+                         (loop [scene-graph (create-scene-graph root-view-or-var)]
+                           (let [scene-graph (loop [events (read-events (window/event-channel window)
+                                                                        target-frame-rate)
+                                                    scene-graph scene-graph]
+                                               (if (empty? events)
+                                                 scene-graph
+                                                 (if (= :close-requested (:type (first events)))
+                                                   nil
+                                                   (do (process-event! scene-graph
+                                                                       (first events))
+                                                       (recur (rest events)
+                                                              (create-scene-graph root-view-or-var))))))]
+                             (when scene-graph
+                               (let [scene-graph (-> scene-graph
+                                                     #_(highlight-cache-misses)
+                                                     #_(layout/do-layout-for-size (:window-width @application-loop-state-atom)
+                                                                                  (:window-height @application-loop-state-atom)))]
 
-                               (tufte/p :render
-                                        (window/with-gl window gl
-                                          (render gl scene-graph)
-                                          (value-registry/delete-unused-values! 500)))
-                               (window/swap-buffers window)
-                               (recur scene-graph)))))))
-                   (logga/write "exiting application loop")
+                                 (tufte/p :render
+                                          (window/with-gl window gl
+                                            (render gl scene-graph)
+                                            (value-registry/delete-unused-values! 500)))
+                                 (window/swap-buffers window)
+                                 (recur scene-graph)))))))
+                     (logga/write "exiting application loop")
 
-                   (when on-exit
-                     (on-exit))
-                   (catch Exception e
-                     (logga/write "Exception in application loop:" (prn-str e))
-                     (throw e))
-                   (finally
-                     (logga/write "closing window")
-                     (window/close window)
-                     ;; events must be read from the channel so that the swing event loop can handle the close event
-                     (csp/drain @event-channel-promise 0)))))
-    @event-channel-promise))
+                     (when on-exit
+                       (on-exit))
+                     (catch Exception e
+                       (logga/write "Exception in application loop:" (prn-str e))
+                       (throw e))
+                     (finally
+                       (logga/write "closing window")
+                       (window/close window)
+                       ;; events must be read from the channel so that the swing event loop can handle the close event
+                       (csp/drain @event-channel-promise 0)))))
+      @event-channel-promise))
 
 
 ;; TODO: commit the refactoring of the application loop
