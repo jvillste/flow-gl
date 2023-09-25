@@ -97,7 +97,7 @@
 (def liberation-sans-regular-path  (.getPath (io/resource "LiberationSans-Regular.ttf")))
 
 (util/defno text [string] {color [255 255 255 255]
-                           font-size 20
+                           font-size 30
                            font-file-path liberation-sans-regular-path
                            font nil}
 
@@ -292,9 +292,11 @@
                (:y original-node))))
 
 (defn render-to-images [original-node]
-  ;; (prn 'render-to-images (:id original-node)) ;; TODO: remove me
+  ;; (println)
+  ;; (prn 'render-to-images (:type original-node) (:id original-node)) ;; TODO: remove me
 
   (assoc (select-keys original-node [:x :y :z :width :height :id])
+         :type :rendered-to-images
          :children (->> (renderer/apply-renderers! original-node
                                                    nil)
                         (scene-graph/leaf-nodes)
@@ -333,4 +335,5 @@
 (defn clip [child]
   {:children [child]
    :render render-to-image
-   :render-on-descend? true})
+   :render-on-descend? true
+   :type :clip})
