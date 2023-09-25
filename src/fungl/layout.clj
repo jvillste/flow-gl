@@ -30,7 +30,7 @@
   #_(prn 'adapt-to-space (:id node)) ;; TODO: remove me
 
   (if-let [callable (:adapt-to-space node)]
-    (let [adapted-node (merge (->> (callable/call callable node)
+    (let [adapted-node (merge (->> (callable/call-with-cache callable node)
                                    (view-compiler/compile-node (:view-call? node)
                                                                (:id node) #_(concat (:id node)
                                                                                     [:adapted])))
