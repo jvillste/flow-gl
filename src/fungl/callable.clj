@@ -1,5 +1,6 @@
 (ns fungl.callable
-  (:require [clojure.test :refer [deftest is]]))
+  (:require [clojure.test :refer [deftest is]]
+            [fungl.cache :as cache]))
 
 (defn call [callable & arguments]
   (cond (vector? callable)
@@ -9,6 +10,16 @@
 
         (fn? callable)
         (apply callable arguments)))
+
+(defn call-with-cache [callable & arguments]
+  (cond (vector? callable)
+        (apply cache/call!
+               (first callable)
+               (concat (rest callable)
+                       arguments))
+
+        (fn? callable)
+        (apply cache/call! callable arguments)))
 
 (defn call-arguments-first [callable & arguments]
   (cond (vector? callable)
