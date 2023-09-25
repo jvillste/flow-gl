@@ -254,23 +254,23 @@
 ;; Commands end
 
 
-(defn handle-command [state command & parameters]
+(defn handle-command [rows state command & parameters]
   (try
     (let [state (if (#{previous-row next-row} (if (var? command)
                                                 @command
                                                 command))
                   (assoc state :x-on-first-line-change (or (:x-on-first-line-change state)
-                                                           (:x (character-position (:rows state) (:index state)))))
+                                                           (:x (character-position rows (:index state)))))
                   (dissoc state :x-on-first-line-change))]
       (apply command
              state
-             (:rows state)
+             rows
              parameters))
     (catch Exception exception
       (prn exception)
       state)))
 
-(defn keyboard-event-to-command [state event]
+(defn keyboard-event-to-command [state rows event]
 
   (when (= :key-pressed
            (:type event))
@@ -282,16 +282,16 @@
             (and (or (= :up (:key event))
                      (and (= :p (:key event))
                           (:control? event)))
-                 (not (empty? (:rows state)))
-                 (< 0 (:row-number (character-position (:rows state) (:index state)))))
+                 (not (empty? rows))
+                 (< 0 (:row-number (character-position rows (:index state)))))
             [previous-row]
 
             (and (or (= :down (:key event))
                      (and (= :n (:key event))
                           (:control? event)))
-                 (not (empty? (:rows state)))
-                 (> (dec (count (:rows state)))
-                    (:row-number (character-position (:rows state) (:index state)))))
+                 (not (empty? rows))
+                 (> (dec (count rows))
+                    (:row-number (character-position rows (:index state)))))
             [next-row]
 
             (or (= :left (:key event))
@@ -353,24 +353,14 @@
   {:font (default-font)
    :color [100 100 100 255]})
 
-#_(handler/def-handler-creator text-area-keyboard-event-handler [state-atom on-change rows] [event]
-    (prn event)
-    (when-let [command-and-parameters (keyboard-event-to-command event)]
-      (swap! state-atom
-             (fn [state]
-               (on-change state
-                          (apply handle-command
-                                 state
-                                 rows
-                                 command-and-parameters))))))
-
-(defn text-area-keyboard-event-handler [state-atom text on-change _node event]
-  (if-let [command-and-parameters (keyboard-event-to-command @state-atom event)]
+(defn text-area-keyboard-event-handler [state-atom rows on-change _node event]
+  (if-let [command-and-parameters (keyboard-event-to-command @state-atom rows event)]
     (do (when on-change
           (swap! state-atom
                  (fn [state]
                    (on-change state
                               (apply handle-command
+                                     rows
                                      state
                                      command-and-parameters)))))
         nil)
@@ -388,7 +378,7 @@
                                      :index index))))))
   event)
 
-(defn adapt-to-space [text index style handle-rows node]
+(defn adapt-to-space [text index style state-atom on-change node]
   (let [style (conj (default-style)
                     style)
         rows (if (empty? text)
@@ -399,10 +389,10 @@
                             text
                             (:available-width node)))]
 
-    (when handle-rows
-      (handle-rows rows))
-
     (merge (dissoc node :adapt-to-space)
+           {:mouse-event-handler [text-area-mouse-event-handler state-atom rows]
+            :keyboard-event-handler (when on-change
+                                      [text-area-keyboard-event-handler state-atom rows on-change])}
            (layouts/with-minimum-size (font/width (:font style) "W") (font/height (:font style))
              (layouts/superimpose (when index
                                     (let [rectangle (visuals/rectangle (:color style) 0 0)]
@@ -420,24 +410,18 @@
                                                  :height (:height caret-position))))))
                                   (rows-node rows))))))
 
-(defn create-scene-graph [text index style handle-rows]
-  (assert text)
-
-  {:adapt-to-space [adapt-to-space text index style handle-rows]})
-
 (defn text-area-for-state-atom [state-atom {:keys [text on-change style]}]
   (swap! state-atom assoc :text text)
   (let [state @state-atom]
-    (-> (create-scene-graph text
-                            (when (keyboard/component-is-focused?)
-                              (:index state))
-                            style
-                            (fn [rows]
-                              (swap! state-atom assoc :rows rows)))
-        (assoc :mouse-event-handler [text-area-mouse-event-handler state-atom (:rows @state-atom)])
+    (-> {:adapt-to-space [adapt-to-space
+                          text
+                          (when (keyboard/component-is-focused?)
+                            (:index state))
+                          style
+                          state-atom
+                          on-change]}
         (cond-> on-change
-          (assoc :keyboard-event-handler [text-area-keyboard-event-handler state-atom text on-change]
-                 :can-gain-focus? true)))))
+          (assoc :can-gain-focus? true)))))
 
 (def default-options {:style {}
                       :text ""
