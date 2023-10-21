@@ -271,7 +271,6 @@
                [(assoc outer
                        :x 0
                        :y 0
-                       :z 0
                        :width (max width
                                    (+ (:width inner)
                                       (* 2 margin)))
@@ -280,8 +279,7 @@
                                        (* 2 margin))))
                 (assoc inner
                        :x margin
-                       :y margin
-                       :z 1)])))
+                       :y margin)])))
 
 (defn box [margin outer inner]
   (when (and outer inner)
