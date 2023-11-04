@@ -117,6 +117,16 @@
          :margin margin
          :children (flatten-contents children)))
 
+(defn wrap
+  "adds a node to the scene graph without affecting the layout"
+  [child]
+  {:children [child]
+   :get-size (fn [node]
+               {:width (or (:width (first (:children node)))
+                           0)
+                :height (or (:height (first (:children node)))
+                            0)})})
+
 (defn- horizontal-stack-get-size
   [node]
   {:width (if (empty? (:children node))
