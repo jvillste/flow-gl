@@ -229,11 +229,14 @@
 (defn- scene-graph? [value]
   (map? value))
 
+(defn view-call-function-and-arguments [view-call]
+  (if (vector? view-call)
+    view-call
+    (:view-call view-call)))
+
 (defn- apply-view-call [the-id view-call]
   (binding [id the-id]
-    (let [[view-function-or-constructor & arguments] (if (vector? view-call)
-                                                       view-call
-                                                       (:view-call view-call))
+    (let [[view-function-or-constructor & arguments] (view-call-function-and-arguments view-call)
           scene-graph-or-view-call (cond (apply cache/cached?
                                                 view-function-or-constructor
                                                 arguments)
@@ -242,9 +245,9 @@
                                                 arguments)
 
                                          (contains? (:constructor-cache @state)
-                                                    the-id)
+                                                    [the-id view-function-or-constructor])
                                          (let [view-function (get (:constructor-cache @state)
-                                                                  the-id)]
+                                                                  [the-id view-function-or-constructor])]
                                            (apply cache/call! view-function arguments))
 
                                          :else
@@ -254,7 +257,7 @@
                                                         update
                                                         :constructor-cache
                                                         assoc
-                                                        the-id
+                                                        [the-id view-function-or-constructor]
                                                         result)
                                                  (apply cache/call! result arguments))
                                              (do (cache/put! (cache/function-call-key view-function-or-constructor
@@ -280,7 +283,11 @@
   (if metadata
     (reduce (fn [node key]
               (if-let [metadata-value (get metadata key)]
-                (assoc node key metadata-value)
+                (do (when (and (some? (get node key))
+                               (not (= (get node key)
+                                       metadata-value)))
+                      (println "WARNING: view call metada is overriding key" key "for node" (:id compiled-node)))
+                    (assoc node key metadata-value))
                 node))
             compiled-node
             (keys metadata))
@@ -310,88 +317,90 @@
           "local ids can not be integers")
 
   (cond (view-call? value)
-        (apply-metadata (if (vector? value)
-                          (meta value)
-                          (dissoc value :view-call))
-                        (let [id (if parent-is-view-call?
-                                   (vec (conj id
-                                              (or (:local-id (or (:local-id (meta value))
-                                                                 (:local-id value)))
-                                                  :call)))
-                                   id)
+        (let [[view-function arguments] (view-call-function-and-arguments value)]
+          (apply-metadata (if (vector? value)
+                            (meta value)
+                            (dissoc value :view-call))
+                          (let [id (if parent-is-view-call?
+                                     (vec (conj id
+                                                (or (:local-id (or (:local-id (meta value))
+                                                                   (:local-id value)))
+                                                    :call)))
+                                     id)
 
-                              scene-graph (if-let [ ;; Scene graph cache is disabled. It did not work for command help in argupedia ui.
-                                                   ;; I did not try to debug it since the performance is ok now without it.
-                                                   scene-graph nil #_(get (:scene-graph-cache @state)
-                                                                          id)]
-                                            (do #_(prn 'component-cache-hit!
-                                                       (function-name (if (var? (first value))
-                                                                        @(first value)
-                                                                        (first value)))
-                                                       id) ;; TODO: remove me
+                                scene-graph (if-let [ ;; Scene graph cache is disabled. It did not work for command help in argupedia ui.
+                                                     ;; I did not try to debug it since the performance is ok now without it.
+                                                     scene-graph nil #_(get (:scene-graph-cache @state)
+                                                                            id)]
+                                              (do #_(prn 'component-cache-hit!
+                                                         (function-name (if (var? (first value))
+                                                                          @(first value)
+                                                                          (first value)))
+                                                         id) ;; TODO: remove me
 
-                                                (swap! state
-                                                       update
-                                                       :cached-view-call-ids
-                                                       conj
-                                                       id)
+                                                  (swap! state
+                                                         update
+                                                         :cached-view-call-ids
+                                                         conj
+                                                         [id view-function])
 
-                                                scene-graph)
-                                            (do #_(prn 'component-cache-miss
-                                                       (function-name (if (var? (first value))
-                                                                        @(first value)
-                                                                        (first value)))
-                                                       id)
-                                                (swap! state
-                                                       update
-                                                       :applied-view-call-ids
-                                                       conj
-                                                       id)
+                                                  scene-graph)
+                                              (do #_(prn 'component-cache-miss
+                                                         (function-name (if (var? (first value))
+                                                                          @(first value)
+                                                                          (first value)))
+                                                         id)
 
-                                                (-> (compile-node true
-                                                                  id
-                                                                  (apply-view-call id value))
-                                                    (assoc :view-call? true))))
+                                                  (swap! state
+                                                         update
+                                                         :applied-view-call-ids
+                                                         conj
+                                                         [id view-function])
 
-                              dependency-value-map (cache/dependency-value-map (or (get (:constructor-cache @state)
-                                                                                        id)
-                                                                                   (first value))
-                                                                               (rest value))
+                                                  (-> (compile-node true
+                                                                    id
+                                                                    (apply-view-call id value))
+                                                      (assoc :view-call? true))))
 
-                              ;; scene-graph (assoc scene-graph
-                              ;;                    :view-functions (concat [{:function (first value)
-                              ;;                                              :dependencies (for [[dependable _value] dependency-value-map]
-                              ;;                                                              (merge {:dependable dependable
-                              ;;                                                                      :new-value (depend/current-value dependable)}
-                              ;;                                                                     (when-let [old-value (get old-dependency-value-map dependable)]
-                              ;;                                                                       {:old-value old-value})))
-                              ;;                                              :local-id (:local-id (meta value))}]
-                              ;;                                            (:view-functions scene-graph)))
-                              ]
+                                dependency-value-map (cache/dependency-value-map (or (get (:constructor-cache @state)
+                                                                                          [id view-function])
+                                                                                     view-function)
+                                                                                 arguments)
 
-                          (when (not (empty? dependency-value-map))
+                                ;; scene-graph (assoc scene-graph
+                                ;;                    :view-functions (concat [{:function (first value)
+                                ;;                                              :dependencies (for [[dependable _value] dependency-value-map]
+                                ;;                                                              (merge {:dependable dependable
+                                ;;                                                                      :new-value (depend/current-value dependable)}
+                                ;;                                                                     (when-let [old-value (get old-dependency-value-map dependable)]
+                                ;;                                                                       {:old-value old-value})))
+                                ;;                                              :local-id (:local-id (meta value))}]
+                                ;;                                            (:view-functions scene-graph)))
+                                ]
+
+                            (when (not (empty? dependency-value-map))
+                              (swap! state
+                                     update
+                                     :node-dependencies
+                                     assoc
+                                     [id view-function]
+                                     dependency-value-map))
+
                             (swap! state
                                    update
-                                   :node-dependencies
+                                   :scene-graph-cache
                                    assoc
-                                   id
-                                   dependency-value-map))
+                                   [id view-function]
+                                   scene-graph)
 
-                          (swap! state
-                                 update
-                                 :scene-graph-cache
-                                 assoc
-                                 id
-                                 scene-graph)
+                            (swap! state
+                                   update
+                                   :view-functions
+                                   assoc
+                                   [id view-function]
+                                   view-function)
 
-                          (swap! state
-                                 update
-                                 :view-functions
-                                 assoc
-                                 id
-                                 (first value))
-
-                          scene-graph))
+                            scene-graph)))
 
         (:children value)
         (-> value
@@ -424,7 +433,7 @@
   (is-prefix-of-some (:sorted-invalidated-node-ids-set @state) node-id))
 
 (defn start-compilation-cycle! []
-  (let [sorted-invalidated-node-ids-set (sorted-id-set (invalidated-node-ids (:node-dependencies @state)))
+  (let [sorted-invalidated-node-ids-set (sorted-id-set (map first (invalidated-node-ids (:node-dependencies @state))))
         remove-invalidated-view-call-ids (partial medley/remove-keys
                                                   (partial is-prefix-of-some sorted-invalidated-node-ids-set))]
 
@@ -446,13 +455,16 @@
   ;; (prn '(:cached-view-call-ids @state) (:cached-view-call-ids @state)) ;; TODO: remove me
   ;; (prn ":scene-graph-cache after compilation: " (keys (:scene-graph-cache @state))) ;; TODO: remove me
 
-  (let [sorted-cached-view-call-ids-set (sorted-id-set (:cached-view-call-ids @state))
+  (let [sorted-cached-view-call-ids-set (sorted-id-set (map first (:cached-view-call-ids @state)))
         remove-unused-view-call-ids (partial medley/filter-keys
                                              (fn [view-call-id]
-                                               (or (contains? (:applied-view-call-ids @state)
-                                                              view-call-id)
-                                                   (slow-some-is-prefix sorted-cached-view-call-ids-set
-                                                                        view-call-id))))]
+                                               (if (or (contains? (:applied-view-call-ids @state)
+                                                                  view-call-id)
+                                                       (slow-some-is-prefix sorted-cached-view-call-ids-set
+                                                                            (first view-call-id)))
+                                                 true
+                                                 (do #_(println "removing unused view call" view-call-id)
+                                                     false))))]
 
     (swap! state
            (fn [state]
