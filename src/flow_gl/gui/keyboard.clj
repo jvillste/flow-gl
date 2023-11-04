@@ -263,18 +263,16 @@
                                                  :children [{:id 5
                                                              :keyboard-event-handler :handler-5}]}]})))))
 
-(def next-scene-graph-handlers (atom []))
-
 (defn handle-next-scene-graph! [handler]
-  (swap! next-scene-graph-handlers conj handler))
+  (swap! state-atom update :next-scene-graph-handlers (fnil conj []) handler))
 
 (defn handle-new-scene-graph! [scene-graph]
   (swap! state-atom assoc :scene-graph scene-graph)
 
-  (doseq [handler @next-scene-graph-handlers]
+  (doseq [handler (:next-scene-graph-handlers @state-atom)]
     (handler scene-graph))
 
-  (reset! next-scene-graph-handlers [])
+  (swap! state-atom assoc :next-scene-graph-handlers [])
 
   (if-let [focused-node-id (:focused-node-id @state-atom)]
     (let [focused-path (->> (scene-graph/id-to-local-id-path focused-node-id)
