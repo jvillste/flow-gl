@@ -217,3 +217,12 @@
   (= (take (count sequence-1)
            sequence-2)
      sequence-1))
+
+(defn merge-meta [meta-to-be-merged value]
+  (with-meta value
+    (merge (meta value)
+           meta-to-be-merged)))
+
+(deftest test-merge-meta
+  (is (= {:bar 2, :foo 1}
+         (meta (merge-meta {:foo 1} ^{:bar 2} {})))))
