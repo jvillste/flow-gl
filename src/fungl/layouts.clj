@@ -753,9 +753,12 @@
   {:type ::grid
    :children (apply concat (map-indexed (fn [row-number row]
                                           (map-indexed (fn [column-number cell]
-                                                         (assoc cell
-                                                                ::column column-number
-                                                                ::row row-number))
+                                                         (let [metadata {::column column-number
+                                                                         ::row row-number}]
+                                                           (if (map? cell)
+                                                             (merge cell
+                                                                    metadata)
+                                                             (with-meta cell metadata))))
                                                        row))
                                         rows))
    :get-size grid-get-size
