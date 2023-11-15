@@ -1,6 +1,6 @@
 (ns flow-gl.gui.scene-graph
   (:require [clojure.spec.alpha :as spec]
-            [clojure.test :as test :refer [deftest is]]
+            [clojure.test :as test :refer [deftest is testing]]
             [fungl.cache :as cache]
             [medley.core :as medley]))
 
@@ -572,35 +572,42 @@
      (/ (:height node)
         2)))
 
-(defn select-closest-on-one-half-dimension [group-function measure reference-node nodes]
-  (->> nodes
-       (group-by group-function)
-       (medley/map-vals (fn [nodes]
-                          (first (sort-by (fn [node]
-                                            (Math/abs (- (measure node)
-                                                         (measure reference-node))))
-                                          nodes))))
-       (vals)
-       (sort-by group-function)))
+(defn closest-on-one-half-dimension [minimum maximum orthogonal-center reference-node nodes]
+  (let [closest-node (first (sort-by (fn [node]
+                                       (Math/abs (- (minimum reference-node)
+                                                    (maximum node))))
+                                     nodes))
+        row-nodes (filter (fn [node]
+                            (or (< (minimum closest-node)
+                                   (maximum node))
+                                (> (maximum closest-node)
+                                   (minimum node))))
+                          nodes)]
+    (first (sort-by (fn [node]
+                      (Math/abs (- (orthogonal-center reference-node)
+                                   (orthogonal-center node))))
+                    row-nodes))))
 
 (defn closest-nodes-on-one-dimension [reference-node-id minimum maximum orthogonal-center nodes]
   (let [reference-node (medley/find-first #(= reference-node-id (:id %))
                                           nodes)]
-    (concat (select-closest-on-one-half-dimension maximum
-                                                  orthogonal-center
-                                                  reference-node
-                                                  (filter (fn [node]
-                                                            (<= (maximum node)
-                                                                (minimum reference-node)))
-                                                          nodes))
+    (concat [(closest-on-one-half-dimension minimum
+                                            maximum
+                                            orthogonal-center
+                                            reference-node
+                                            (doall (filter (fn [node]
+                                                             (<= (maximum node)
+                                                                 (minimum reference-node)))
+                                                           nodes)))]
             [reference-node]
-            (select-closest-on-one-half-dimension minimum
-                                                  orthogonal-center
-                                                  reference-node
-                                                  (filter (fn [node]
-                                                            (>= (minimum node)
-                                                                (maximum reference-node)))
-                                                          nodes)))))
+            [(closest-on-one-half-dimension minimum
+                                            maximum
+                                            orthogonal-center
+                                            reference-node
+                                            (filter (fn [node]
+                                                      (>= (minimum node)
+                                                          (maximum reference-node)))
+                                                    nodes))])))
 
 (defn closest-horizontal-nodes [reference-node-id nodes]
   (closest-nodes-on-one-dimension reference-node-id
@@ -615,6 +622,57 @@
                                   bottom-edge
                                   horizontal-center
                                   nodes))
+
+(deftest test-closest-vertical-nodes
+  (testing "same size"
+    (is (= '({:x 100, :y 90, :width 10, :height 10}
+             {:id 1, :x 100, :y 100, :width 10, :height 10})
+           (closest-vertical-nodes 1 [{:id 1
+                                       :x 100
+                                       :y 100
+                                       :width 10
+                                       :height 10}
+
+                                      {:x 100
+                                       :y 90
+                                       :width 10
+                                       :height 10}
+
+                                      {:x 90
+                                       :y 90
+                                       :width 10
+                                       :height 10}]))))
+
+  (testing "the one on left is taller"
+    (is (= '({:x 100, :y 90, :width 10, :height 5}
+             {:id 1, :x 100, :y 100, :width 10, :height 10}
+             {:x 100, :y 110, :width 10, :height 5})
+           (closest-vertical-nodes 1 [{:id 1
+                                       :x 100
+                                       :y 100
+                                       :width 10
+                                       :height 10}
+
+                                      {:x 100
+                                       :y 90
+                                       :width 10
+                                       :height 5}
+
+                                      {:x 90
+                                       :y 90
+                                       :width 10
+                                       :height 10}
+
+                                      {:x 100
+                                       :y 110
+                                       :width 10
+                                       :height 5}
+
+                                      {:x 90
+                                       :y 110
+                                       :width 10
+                                       :height 10}])))))
+
 
 (defn bounding-box [nodes]
   (let [min-x (apply min (map :x nodes))
