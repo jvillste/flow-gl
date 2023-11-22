@@ -614,6 +614,25 @@
                       row-nodes
                       row-nodes-on-the-same-focus-depth)))))
 
+(defn closest-on-one-half-dimension-3 [minimum maximum distance-to-reference-node reference-node nodes]
+  (let [closest-node (first (sort-by distance-to-reference-node
+                                     nodes))
+        row-nodes (filter (fn [node]
+                            (intersects-in-one-dimension?  (minimum closest-node)
+                                                           (maximum closest-node)
+
+                                                           (minimum node)
+                                                           (maximum node)))
+                          nodes)
+        row-nodes-on-the-same-focus-depth (filter (fn [node]
+                                                    (= (:focus-depth reference-node)
+                                                       (:focus-depth node)))
+                                                  row-nodes)]
+    (first (sort-by distance-to-reference-node
+                    (if (empty? row-nodes-on-the-same-focus-depth)
+                      row-nodes
+                      row-nodes-on-the-same-focus-depth)))))
+
 
 (defn find-by-id [id nodes]
   (medley/find-first #(= id (:id %))
@@ -653,14 +672,30 @@
                                 (right-edge node-2)))
 
 (defn closest-node-directly-down [reference-node nodes]
-  (closest-node-down reference-node
-                     (filter (partial intersects-vertically? reference-node)
-                             nodes)))
+  (closest-on-one-half-dimension-3 top-edge
+                                   bottom-edge
+                                   (fn distance-to-reference-node [node]
+                                     (Math/abs (- (top-edge reference-node)
+                                                  (bottom-edge node))))
+                                   reference-node
+                                   (filter (fn [node]
+                                             (and (intersects-vertically? reference-node node)
+                                                  (>= (top-edge node)
+                                                      (bottom-edge reference-node))))
+                                           nodes)))
 
 (defn closest-node-directly-up [reference-node nodes]
-  (closest-node-up reference-node
-                   (filter (partial intersects-vertically? reference-node)
-                           nodes)))
+  (closest-on-one-half-dimension-3 top-edge
+                                   bottom-edge
+                                   (fn distance-to-reference-node [node]
+                                     (Math/abs (- (top-edge reference-node)
+                                                  (bottom-edge node))))
+                                   reference-node
+                                   (filter (fn [node]
+                                             (and (intersects-vertically? reference-node node)
+                                                  (<= (bottom-edge node)
+                                                      (top-edge reference-node))))
+                                           nodes)))
 
 
 (defn closest-node-left [reference-node nodes]
@@ -704,8 +739,8 @@
 
 (defn closest-node-directly-right [reference-node nodes]
   (closest-node-right reference-node
-                   (filter (partial intersects-horizontally? reference-node)
-                           nodes)))
+                      (filter (partial intersects-horizontally? reference-node)
+                              nodes)))
 
 (defn bounding-box [nodes]
   (let [min-x (apply min (map :x nodes))
