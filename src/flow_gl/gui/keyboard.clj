@@ -305,6 +305,11 @@
                                     move-focus
                                     scene-graph ordering advance limit))
 
+(defn move-focus-2! [node]
+  (move-focus-and-send-move-events! state-atom
+                                    set-focused-node
+                                    node))
+
 
 (defn cycle-focus [scene-graph event]
   (move-focus! scene-graph

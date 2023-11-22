@@ -83,42 +83,47 @@
 
 (defn flatten
   ([node]
-   (cache/call! flatten node 0 0 0 []))
+   (cache/call! flatten node 0 0 0 0 []))
 
-  ([node parent-x parent-y parent-z nodes]
+  ([node parent-x parent-y parent-z parent-focus-depth nodes]
    (let [x (+ parent-x (:x node))
          y (+ parent-y (:y node))
          z (+ parent-z (or (:z node)
                            0))
+         focus-depth (+ parent-focus-depth
+                        (if (:can-gain-focus? node)
+                          1 0))
          nodes (conj nodes
                      (-> (assoc node
                                 :x x
                                 :y y
-                                :z z)
+                                :z z
+                                :focus-depth focus-depth)
                          #_(dissoc :children)))]
      (if (:children node)
        (loop [nodes nodes
               children (:children node)]
          (if-let [child (first children)]
-           (recur (cache/call! flatten child x y z nodes)
+           (recur (cache/call! flatten child x y z focus-depth nodes)
                   (rest children))
            nodes))
        nodes))))
 
 
 (test/deftest flatten-test
-  (is (= [{:y 5, :x 0, :id 1, :z 0}
-          {:x 5, :y 10, :id 2, :z 0}
-          {:x 10, :y 15, :expected-position 1, :z 0}
-          {:x 10, :y 15, :z 10, :id 3}
-          {:x 15, :y 20, :expected-position 4, :z 10}
-          {:x 15, :y 20, :expected-position 5, :z 10}
-          {:x 5, :y 10, :expected-position 2, :z 0}
-          {:x 5, :y 10, :expected-position 3, :z 0}]
+  (is (= '({:y 5, :x 0, :id 1, :z 0, :focus-depth 0}
+           {:x 5, :y 10, :id 2, :can-gain-focus? true, :z 0, :focus-depth 1}
+           {:x 10, :y 15, :expected-position 1, :z 0, :focus-depth 1}
+           {:x 10, :y 15, :z 10, :id 3, :focus-depth 1}
+           {:x 15, :y 20, :expected-position 4, :can-gain-focus? true, :z 10, :focus-depth 2}
+           {:x 15, :y 20, :expected-position 5, :z 10, :focus-depth 1}
+           {:x 5, :y 10, :expected-position 2, :z 0, :focus-depth 0}
+           {:x 5, :y 10, :expected-position 3, :z 0, :focus-depth 0})
          (map #(dissoc % :children)
-              (flatten {:y 5 :x 0 :id 1 :children [{:x 5 :y 5 :id 2 :children [{:x 5 :y 5 :expected-position 1}
-                                                                               {:x 5 :y 5 :z 10 :id 3 :children [{:x 5 :y 5 :expected-position 4}
-                                                                                                                 {:x 5 :y 5 :expected-position 5}]}]}
+              (flatten {:y 5 :x 0 :id 1 :children [{:x 5 :y 5 :id 2  :can-gain-focus? true
+                                                    :children [{:x 5 :y 5 :expected-position 1}
+                                                               {:x 5 :y 5 :z 10 :id 3 :children [{:x 5 :y 5 :expected-position 4 :can-gain-focus? true}
+                                                                                                 {:x 5 :y 5 :expected-position 5}]}]}
                                                    {:x 5 :y 5 :expected-position 2}
                                                    {:x 5 :y 5 :expected-position 3}]})))))
 
@@ -572,107 +577,135 @@
      (/ (:height node)
         2)))
 
-(defn closest-on-one-half-dimension [minimum maximum orthogonal-center reference-node nodes]
-  (let [closest-node (first (sort-by (fn [node]
-                                       (Math/abs (- (minimum reference-node)
-                                                    (maximum node))))
+(defn intersects-in-one-dimension? [min-1 max-1 min-2 max-2]
+  (not (or (<= max-1
+               min-2)
+           (<= max-2
+               min-1))))
+
+(deftest test-intersects-in-one-dimension?
+  (is (intersects-in-one-dimension? 2 5 1 3))
+  (is (intersects-in-one-dimension? 2 5 3 4))
+  (is (intersects-in-one-dimension? 2 5 4 6))
+  (is (intersects-in-one-dimension? 2 5 1 6))
+  (is (not (intersects-in-one-dimension? 2 5 0 2)))
+  (is (not (intersects-in-one-dimension? 2 5 5 6)))
+  (is (not (intersects-in-one-dimension? 2 5 0 1)))
+  (is (not (intersects-in-one-dimension? 2 5 6 7))))
+
+(defn closest-on-one-half-dimension-2 [minimum maximum orthogonal-center distance-to-reference-node reference-node nodes]
+  (let [closest-node (first (sort-by distance-to-reference-node
                                      nodes))
         row-nodes (filter (fn [node]
-                            (or (< (minimum closest-node)
-                                   (maximum node))
-                                (> (maximum closest-node)
-                                   (minimum node))))
-                          nodes)]
+                            (intersects-in-one-dimension?  (minimum closest-node)
+                                                           (maximum closest-node)
+
+                                                           (minimum node)
+                                                           (maximum node)))
+                          nodes)
+        row-nodes-on-the-same-focus-depth (filter (fn [node]
+                                                    (= (:focus-depth reference-node)
+                                                       (:focus-depth node)))
+                                                  row-nodes)]
     (first (sort-by (fn [node]
                       (Math/abs (- (orthogonal-center reference-node)
                                    (orthogonal-center node))))
-                    row-nodes))))
+                    (if (empty? row-nodes-on-the-same-focus-depth)
+                      row-nodes
+                      row-nodes-on-the-same-focus-depth)))))
 
-(defn closest-nodes-on-one-dimension [reference-node-id minimum maximum orthogonal-center nodes]
-  (let [reference-node (medley/find-first #(= reference-node-id (:id %))
-                                          nodes)]
-    (concat [(closest-on-one-half-dimension minimum
-                                            maximum
-                                            orthogonal-center
-                                            reference-node
-                                            (doall (filter (fn [node]
-                                                             (<= (maximum node)
-                                                                 (minimum reference-node)))
-                                                           nodes)))]
-            [reference-node]
-            [(closest-on-one-half-dimension minimum
-                                            maximum
-                                            orthogonal-center
-                                            reference-node
-                                            (filter (fn [node]
-                                                      (>= (minimum node)
-                                                          (maximum reference-node)))
-                                                    nodes))])))
 
-(defn closest-horizontal-nodes [reference-node-id nodes]
-  (closest-nodes-on-one-dimension reference-node-id
-                                  left-edge
-                                  right-edge
-                                  vertical-center
-                                  nodes))
+(defn find-by-id [id nodes]
+  (medley/find-first #(= id (:id %))
+                     nodes))
 
-(defn closest-vertical-nodes [reference-node-id nodes]
-  (closest-nodes-on-one-dimension reference-node-id
-                                  top-edge
-                                  bottom-edge
-                                  horizontal-center
-                                  nodes))
+(defn closest-node-up [reference-node nodes]
+  (closest-on-one-half-dimension-2 top-edge
+                                   bottom-edge
+                                   horizontal-center
+                                   (fn distance-to-reference-node [node]
+                                     (Math/abs (- (top-edge reference-node)
+                                                  (bottom-edge node))))
+                                   reference-node
+                                   (filter (fn [node]
+                                             (<= (bottom-edge node)
+                                                 (top-edge reference-node)))
+                                           nodes)))
 
-(deftest test-closest-vertical-nodes
-  (testing "same size"
-    (is (= '({:x 100, :y 90, :width 10, :height 10}
-             {:id 1, :x 100, :y 100, :width 10, :height 10})
-           (closest-vertical-nodes 1 [{:id 1
-                                       :x 100
-                                       :y 100
-                                       :width 10
-                                       :height 10}
+(defn closest-node-down [reference-node nodes]
+  (closest-on-one-half-dimension-2 top-edge
+                                   bottom-edge
+                                   horizontal-center
+                                   (fn distance-to-reference-node [node]
+                                     (Math/abs (- (top-edge node)
+                                                  (bottom-edge reference-node))))
+                                   reference-node
+                                   (filter (fn [node]
+                                             (>= (top-edge node)
+                                                 (bottom-edge reference-node)))
+                                           nodes)))
 
-                                      {:x 100
-                                       :y 90
-                                       :width 10
-                                       :height 10}
+(defn intersects-vertically? [node-1 node-2]
+  (intersects-in-one-dimension? (left-edge node-1)
+                                (right-edge node-1)
 
-                                      {:x 90
-                                       :y 90
-                                       :width 10
-                                       :height 10}]))))
+                                (left-edge node-2)
+                                (right-edge node-2)))
 
-  (testing "the one on left is taller"
-    (is (= '({:x 100, :y 90, :width 10, :height 5}
-             {:id 1, :x 100, :y 100, :width 10, :height 10}
-             {:x 100, :y 110, :width 10, :height 5})
-           (closest-vertical-nodes 1 [{:id 1
-                                       :x 100
-                                       :y 100
-                                       :width 10
-                                       :height 10}
+(defn closest-node-directly-down [reference-node nodes]
+  (closest-node-down reference-node
+                     (filter (partial intersects-vertically? reference-node)
+                             nodes)))
 
-                                      {:x 100
-                                       :y 90
-                                       :width 10
-                                       :height 5}
+(defn closest-node-directly-up [reference-node nodes]
+  (closest-node-up reference-node
+                   (filter (partial intersects-vertically? reference-node)
+                           nodes)))
 
-                                      {:x 90
-                                       :y 90
-                                       :width 10
-                                       :height 10}
 
-                                      {:x 100
-                                       :y 110
-                                       :width 10
-                                       :height 5}
+(defn closest-node-left [reference-node nodes]
+  (closest-on-one-half-dimension-2 left-edge
+                                   right-edge
+                                   vertical-center
+                                   (fn distance-to-reference-node [node]
+                                     (Math/abs (- (left-edge reference-node)
+                                                  (right-edge node))))
+                                   reference-node
+                                   (filter (fn [node]
+                                             (<= (right-edge node)
+                                                 (left-edge reference-node)))
+                                           nodes)))
 
-                                      {:x 90
-                                       :y 110
-                                       :width 10
-                                       :height 10}])))))
+(defn closest-node-right [reference-node nodes]
+  (closest-on-one-half-dimension-2 left-edge
+                                   right-edge
+                                   vertical-center
+                                   (fn distance-to-reference-node [node]
+                                     (Math/abs (- (left-edge node)
+                                                  (right-edge reference-node))))
+                                   reference-node
+                                   (filter (fn [node]
+                                             (<= (right-edge reference-node)
+                                                 (left-edge node)))
+                                           nodes)))
 
+
+(defn intersects-horizontally? [node-1 node-2]
+  (intersects-in-one-dimension? (top-edge node-1)
+                                (bottom-edge node-1)
+
+                                (top-edge node-2)
+                                (bottom-edge node-2)))
+
+(defn closest-node-directly-left [reference-node nodes]
+  (closest-node-left reference-node
+                     (filter (partial intersects-horizontally? reference-node)
+                             nodes)))
+
+(defn closest-node-directly-right [reference-node nodes]
+  (closest-node-right reference-node
+                   (filter (partial intersects-horizontally? reference-node)
+                           nodes)))
 
 (defn bounding-box [nodes]
   (let [min-x (apply min (map :x nodes))
