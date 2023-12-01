@@ -608,8 +608,9 @@
                                                        (:focus-depth node)))
                                                   row-nodes)]
     (first (sort-by (fn [node]
-                      (Math/abs (- (orthogonal-center reference-node)
-                                   (orthogonal-center node))))
+                      [(distance-to-reference-node node)
+                       (Math/abs (- (orthogonal-center reference-node)
+                                    (orthogonal-center node)))])
                     (if (empty? row-nodes-on-the-same-focus-depth)
                       row-nodes
                       row-nodes-on-the-same-focus-depth)))))
