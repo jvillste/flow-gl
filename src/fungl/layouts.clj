@@ -700,12 +700,16 @@
 ;; grid
 
 (defn- grid-get-size [node]
-  (let [row-sizes (->> (partition-by ::row (:children node))
-                       (map (fn [row]
-                              {:width (reduce + (map :width row))
-                               :height (apply max (map :height row))})))]
-    {:width (apply max (map :width row-sizes))
-     :height (reduce + (map :height row-sizes))}))
+  {:width (->> (group-by ::column (:children node))
+               (vals)
+               (map (fn [column-nodes]
+                      (apply max (map :width column-nodes))))
+               (reduce +))
+   :height (->> (group-by ::row (:children node))
+                (vals)
+                (map (fn [row-nodes]
+                       (apply max (map :height row-nodes))))
+                (reduce +))})
 
 (defn- grid-give-space [node]
     (update node
@@ -753,12 +757,9 @@
   {:type ::grid
    :children (apply concat (map-indexed (fn [row-number row]
                                           (map-indexed (fn [column-number cell]
-                                                         (let [metadata {::column column-number
-                                                                         ::row row-number}]
-                                                           (if (map? cell)
-                                                             (merge cell
-                                                                    metadata)
-                                                             (with-meta cell metadata))))
+                                                         {::column column-number
+                                                          ::row row-number
+                                                          :node cell})
                                                        row))
                                         rows))
    :get-size grid-get-size
