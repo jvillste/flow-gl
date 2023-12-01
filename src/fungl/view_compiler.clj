@@ -286,7 +286,7 @@
                 (do (when (and (some? (get node key))
                                (not (= (get node key)
                                        metadata-value)))
-                      (println "WARNING: view call metada is overriding key" key "for node" (:id compiled-node)))
+                      (println "WARNING: metadata is overriding key" key "in node" (:id compiled-node) (:name (:command-set compiled-node)) (:name (:command-set metadata))))
                     (assoc node key metadata-value))
                 node))
             compiled-node
@@ -309,6 +309,10 @@
 (defn function-name [function]
   (function-class-name-to-function-name (str function)))
 
+(defn meta-node? [node]
+  (and (map? node)
+       (:node node)))
+
 (defn compile-node [parent-is-view-call? id value]
   (assert (bound? #'state)
           "Bindings returned by (state-bindings) should be bound.")
@@ -316,7 +320,11 @@
   (assert (not (integer? (:local-id (meta value))))
           "local ids can not be integers")
 
-  (cond (view-call? value)
+  (cond (meta-node? value)
+        (apply-metadata (dissoc value :node)
+                        (compile-node parent-is-view-call? id (:node value)))
+
+        (view-call? value)
         (let [[view-function arguments] (view-call-function-and-arguments value)]
           (apply-metadata (if (vector? value)
                             (meta value)
