@@ -294,9 +294,10 @@
                     (:row-number (character-position rows (:index state)))))
             [next-row]
 
-            (or (= :left (:key event))
-                (and (= :b (:key event))
-                     (:control? event)))
+            (and (or (= :left (:key event))
+                     (and (= :b (:key event))
+                          (:control? event)))
+                 (< 0 (:index state)))
             [backward]
 
             (or (= :right (:key event))
