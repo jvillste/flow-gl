@@ -251,7 +251,9 @@
                                            (apply cache/call! view-function arguments))
 
                                          :else
-                                         (let [{:keys [result dependencies]} (taoensso.tufte/p :uncached-view-call (cache/call-and-return-result-and-dependencies view-function-or-constructor arguments))]
+                                         (let [{:keys [result dependencies]} (cache/call-and-return-result-and-dependencies view-function-or-constructor arguments)]
+                                           (assert (some? result)
+                                                   "View call must not return nil")
                                            (if (fn? result)
                                              (do (swap! state
                                                         update
@@ -274,7 +276,8 @@
 
             (scene-graph? scene-graph-or-view-call)
             (-> scene-graph-or-view-call
-                (assoc :id the-id))
+                (assoc :id the-id
+                       :view-function view-function-or-constructor))
 
             :else
             (throw (Exception. (str "View function did not return a hash map: " view-function-or-constructor)))))))

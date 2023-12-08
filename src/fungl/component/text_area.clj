@@ -6,7 +6,6 @@
             [flow-gl.gui.animation :as animation]
             [flow-gl.gui.keyboard :as keyboard]
             [flow-gl.gui.visuals :as visuals]
-            [fungl.application :as application]
             [fungl.cache :as cache]
             [fungl.handler :as handler]
             [fungl.layouts :as layouts]
@@ -472,5 +471,6 @@
                                            :on-text-change (fn [new-text]
                                                              (swap! state-atom assoc :text-3 new-text))}])))))
 
-(defn start []
-  (application/start-application #'demo-view))
+
+;; (defn start []
+;;   (fungl.application/start-application #'demo-view))

@@ -23,7 +23,13 @@
    [fungl.util :as util]
    [fungl.view-compiler :as view-compiler]
    [logga.core :as logga]
-   [taoensso.tufte :as tufte]))
+   [taoensso.tufte :as tufte]
+   [fungl.layouts :as layouts]
+   [fungl.component.text-area :as text-area]
+
+   [flow-gl.graphics.font :as font]
+   [flow-gl.gui.visuals :as visuals]
+   [clojure.string :as string]))
 
 (tufte/add-basic-println-handler! {})
 
@@ -95,34 +101,116 @@
   (scene-graph/print-scene-graph (scene-graph/select-node-keys [:type :id]
                                                                (node the-saved-scene-graph
                                                                      path)))
-
-
   )
+
+
+(def font (font/create-by-name "CourierNewPSMT" 40))
+(def bold-font (font/create-by-name "CourierNewPS-BoldMT" 40))
+
+(defn text [string & [{:keys [font color] :or {font font
+                                               color [255 255 255 255]}}]]
+  (text-area/text (str string)
+                  color
+                  font))
+
+(defn fully-qualified-function-or-var-name [function-or-var]
+  (if (var? function-or-var)
+    (str (:ns (meta function-or-var))
+         "/"
+         (:name (meta function-or-var)))
+    (let [function-string (pr-str function-or-var)]
+      (subs function-string
+            10
+            (dec (count function-string))))))
+
+(deftest test-fully-qualified-function-or-var-name
+  (is (= "fungl.application/fully-qualified-function-or-var-name"
+         (fully-qualified-function-or-var-name fully-qualified-function-or-var-name)))
+
+  (is (= "fungl.application/fully-qualified-function-or-var-name"
+         (fully-qualified-function-or-var-name #'fully-qualified-function-or-var-name))))
+
+(defn unqualified-function-or-var-name [function-or-var]
+  (if (var? function-or-var)
+    (str (:name (meta function-or-var)))
+    (let [function-string (pr-str function-or-var)]
+      (second (string/split (subs function-string
+                                  10
+                                  (dec (count function-string)))
+                            #"/")))))
+
+(deftest test-uqualified-function-or-var-name
+  (is (= "unqualified-function-or-var-name"
+         (unqualified-function-or-var-name unqualified-function-or-var-name)))
+
+  (is (= "unqualified-function-or-var-name"
+         (unqualified-function-or-var-name #'unqualified-function-or-var-name))))
+
+(defn property [label value]
+  (layouts/horizontally-2 {:margin 20}
+                          (text label
+                                {:font bold-font
+                                 :color [100 200 100 255]})
+                          (text value)))
+
+(defn development-tools-view [scene-graph]
+  (layouts/box 10
+               (visuals/rectangle-2 :fill-color [50 50 50 220])
+               (layouts/vertically-2 {:margin 20}
+                                     (property "view functions:"
+                                               (string/join " " (map unqualified-function-or-var-name (remove nil? (map :view-function (scene-graph/path-to scene-graph
+                                                                                                                                                            (:focused-node-id @keyboard/state-atom)))))))
+                                     (property "command sets:"
+                                               (string/join " " (map pr-str (remove nil? (map :name (map :command-set (scene-graph/path-to scene-graph
+                                                                                                                                           (:focused-node-id @keyboard/state-atom))))))))
+                                     (property "focused node id:"
+                                               (:focused-node-id @keyboard/state-atom))
+
+                                     (property "focused keyboard event handler:"
+                                               (unqualified-function-or-var-name (first (:keyboard-event-handler (:focused-node @keyboard/state-atom))))))))
+
+(defn add-development-tools [scene-graph]
+  (if (:show-development-tools? @application-loop-state-atom)
+    (let [development-tools-layout (layout/do-layout-for-size (assoc (view-compiler/compile-view-calls (development-tools-view scene-graph))
+                                                                     :x 0
+                                                                     :y 0)
+                                                              (:window-width @application-loop-state-atom)
+                                                              (:window-height @application-loop-state-atom))]
+      {:children [scene-graph
+                  (assoc development-tools-layout
+                         :y (- (:window-height @application-loop-state-atom)
+                               (:height development-tools-layout)))]
+       :x 0
+       :y 0
+       :width (:window-width @application-loop-state-atom)
+       :height (:window-height @application-loop-state-atom)})
+    scene-graph))
+
 
 ;; (def render-count-atom (atom 0))
 (defn render [scene-graph render-scene-graph gl]
-;;  (println "render" (swap! render-count-atom inc)) ;; TODO: remove me
+  ;;  (println "render" (swap! render-count-atom inc)) ;; TODO: remove me
+  (let [scene-graph (add-development-tools scene-graph)]
+    (when (not (= scene-graph
+                  (:previous-rendered-scene-graph @application-loop-state-atom)))
 
-  (when (not (= scene-graph
-                (:previous-rendered-scene-graph @application-loop-state-atom)))
+      ;; (def the-scene-graph scene-graph)
+      ;; (def the-previous-scene-graph (:previous-rendered-scene-graph @application-loop-state-atom))
 
-    ;; (def the-scene-graph scene-graph)
-    ;; (def the-previous-scene-graph (:previous-rendered-scene-graph @application-loop-state-atom))
+      ;; (let [path (scene-graph/id-to-local-id-path [1 :scrolling-pane 0 1 0 :notebook-body 0 [:value 0] :call])]
+      ;;   (when (not (= (node scene-graph path)
+      ;;                 (node (:previous-rendered-scene-graph @application-loop-state-atom) path)))
+      ;;     (println "saving scene graphs")
 
-    ;; (let [path (scene-graph/id-to-local-id-path [1 :scrolling-pane 0 1 0 :notebook-body 0 [:value 0] :call])]
-    ;;   (when (not (= (node scene-graph path)
-    ;;                 (node (:previous-rendered-scene-graph @application-loop-state-atom) path)))
-    ;;     (println "saving scene graphs")
+      ;;     (def scene-graph scene-graph)
+      ;;     (def previous-scene-graph (:previous-rendered-scene-graph @application-loop-state-atom))))
 
-    ;;     (def scene-graph scene-graph)
-    ;;     (def previous-scene-graph (:previous-rendered-scene-graph @application-loop-state-atom))))
-
-    (taoensso.tufte/p :render-scene-graph
-                      (render-scene-graph gl
-                                          (renderer/apply-renderers! (node-image-cache/render-recurring-nodes-to-images (:previous-rendered-scene-graph @application-loop-state-atom)
-                                                                                                                        scene-graph)
-                                                                     gl)))
-    (swap! application-loop-state-atom assoc :previous-rendered-scene-graph scene-graph)))
+      (taoensso.tufte/p :render-scene-graph
+                        (render-scene-graph gl
+                                            (renderer/apply-renderers! (node-image-cache/render-recurring-nodes-to-images (:previous-rendered-scene-graph @application-loop-state-atom)
+                                                                                                                          scene-graph)
+                                                                       gl)))
+      (swap! application-loop-state-atom assoc :previous-rendered-scene-graph scene-graph))))
 
 (defn handle-new-scene-graph! [scene-graph]
   (keyboard/handle-new-scene-graph! scene-graph)
@@ -209,7 +297,9 @@
 (defn create-scene-graph [root-view-or-var]
   (let [view-call-dependency-value-maps-before-compilation (:node-dependencies @view-compiler/state)]
     (view-compiler/start-compilation-cycle!)
-    (let [scene-graph (layout/do-layout-for-size (view-compiler/compile-view-calls [root-view-or-var])
+    (let [scene-graph (layout/do-layout-for-size (assoc (view-compiler/compile-view-calls [root-view-or-var])
+                                                        :x 0
+                                                        :y 0)
                                                  (:window-width @application-loop-state-atom)
                                                  (:window-height @application-loop-state-atom))]
       (view-compiler/end-compilation-cycle!)
@@ -281,10 +371,10 @@
 (defonce events-atom (atom [])) ;; TODO: remove me
 (comment
   (first @events-atom)
-  ) ;; TODO: remove me
+  )
 
 (defn process-event! [scene-graph-before-event-handling event]
-  (swap! events-atom conj event) ;; TODO: remove me
+  ;; (swap! events-atom conj event)
 
   ;; (println)
   ;; (println "handling" (:type event) (:key event) #_(pr-str event))
@@ -311,7 +401,11 @@
     (swap! application-loop-state-atom
            assoc
            :window-width (:width event)
-           :window-height (:height event))))
+           :window-height (:height event)))
+
+  (when (keyboard/key-pattern-pressed? [#{:meta} :i]
+                                       event)
+    (swap! application-loop-state-atom update :show-development-tools? not)))
 
 (defn close-window! [window]
   (window/close window)

@@ -94,9 +94,7 @@
 
 (defn do-layout-for-size [scene-graph window-width window-height]
   (-> scene-graph
-      (assoc :x 0
-             :y 0
-             :available-width window-width
+      (assoc :available-width window-width
              :available-height window-height)
       (do-layout)))
 

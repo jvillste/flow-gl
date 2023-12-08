@@ -521,8 +521,8 @@
 
 (defn superimpose-get-size [node]
   (let [child-sizes (map (fn [child]
-                           (merge (select-keys child [:x :y])
-                                  (measuring/size child)))
+                           (merge (select-keys child [:x :y :width :height])
+                                  #_(measuring/size child)))
                          (:children node))]
     {:width (apply max
                    (map (fn [child-size]
