@@ -347,17 +347,19 @@
           :key-pressed)))
 
 (defn event-to-key-pattern [event]
-  [(into #{}
-         (remove nil?)
-         [(when (:control? event)
-            :control)
-          (when (:shift? event)
-            :shift)
-          (when (:alt? event)
-            :alt)
-          (when (:meta? event)
-            :meta)])
-   (:key event)])
+  (when (= (:source event)
+           :keyboard)
+    [(into #{}
+           (remove nil?)
+           [(when (:control? event)
+              :control)
+            (when (:shift? event)
+              :shift)
+            (when (:alt? event)
+              :alt)
+            (when (:meta? event)
+              :meta)])
+     (:key event)]))
 
 (deftest test-event-to-key-pattern
   (is (= [#{:shift} :n]
@@ -372,6 +374,11 @@
                                 :shift? true
                                 :is-auto-repeat nil
                                 :character \n}))))
+
+(defn key-pattern-pressed? [key-pattern event]
+  (and (= :key-pressed (:type event))
+       (= key-pattern
+          (event-to-key-pattern event))))
 
 (defn key-patterns-match? [triggered-key-patterns command-key-patterns]
   (if (vector? (first (first command-key-patterns)))
