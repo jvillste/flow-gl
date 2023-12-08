@@ -35,8 +35,8 @@
     [(.getRed color) (.getGreen color) (.getBlue color) (.getAlpha color)]))
 
 (defn create [width height]
-  (assert (and (< width 10000)
-               (< height 10000))
+  (assert (and (<= width 10000)
+               (<= height 10000))
           (str "Tried to create buffered image larger than 10.000 x 10.000. The requested size was " width " x " height))
 
   (BufferedImage. (max 1 width) (max 1 height) BufferedImage/TYPE_INT_ARGB)
