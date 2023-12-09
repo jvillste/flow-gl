@@ -114,7 +114,8 @@
                                                                         :phase (if (empty? (rest path))
 
                                                                                  :on-target
-                                                                                 :descent)))
+                                                                                 :descent)
+                                                                        :target-depth (dec (count path))))
                                                    event)]
                               (when returned-event
                                 (recur returned-event
@@ -123,16 +124,18 @@
                             event))]
     (when descended-event
       (loop [event (assoc descended-event :phase :ascent)
-             path (rest (reverse path))]
+             path (rest (reverse path))
+             target-depth 1]
         (when-let [node (first path)]
           (let [returned-event (if (:keyboard-event-handler node)
                                  (call-handler (:keyboard-event-handler node)
                                                node
-                                               event)
+                                               (assoc event :target-depth target-depth))
                                  event)]
             (when returned-event
               (recur returned-event
-                     (rest path)))))))))
+                     (rest path)
+                     (inc target-depth)))))))))
 
 (defn move-focus-and-send-move-events! [state-atom move-focus & arguments]
   (let [[old-state new-state] (swap-vals! state-atom
