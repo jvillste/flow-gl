@@ -131,13 +131,14 @@
          (fully-qualified-function-or-var-name #'fully-qualified-function-or-var-name))))
 
 (defn unqualified-function-or-var-name [function-or-var]
-  (if (var? function-or-var)
-    (str (:name (meta function-or-var)))
-    (let [function-string (pr-str function-or-var)]
-      (second (string/split (subs function-string
-                                  10
-                                  (dec (count function-string)))
-                            #"/")))))
+  (when function-or-var
+    (if (var? function-or-var)
+      (str (:name (meta function-or-var)))
+      (let [function-string (pr-str function-or-var)]
+        (second (string/split (subs function-string
+                                    10
+                                    (dec (count function-string)))
+                              #"/"))))))
 
 (deftest test-uqualified-function-or-var-name
   (is (= "unqualified-function-or-var-name"
@@ -403,7 +404,7 @@
            :window-width (:width event)
            :window-height (:height event)))
 
-  (when (keyboard/key-pattern-pressed? [#{:meta} :i]
+  (when (keyboard/key-pattern-pressed? [#{:alt :meta} :i]
                                        event)
     (swap! application-loop-state-atom update :show-development-tools? not)))
 

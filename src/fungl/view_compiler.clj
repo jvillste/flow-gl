@@ -289,7 +289,7 @@
                 (do (when (and (some? (get node key))
                                (not (= (get node key)
                                        metadata-value)))
-                      (println "WARNING: metadata is overriding key" key "in node" (:id compiled-node) (:name (:command-set compiled-node)) (:name (:command-set metadata))))
+                      (println "WARNING: metadata is overriding key" key "in node" (:id compiled-node)))
                     (assoc node key metadata-value))
                 node))
             compiled-node
