@@ -213,7 +213,9 @@
   (defno baz [a e] [:as options BarOptions]
     (+ e (bar a options))))
 
-(defn starts-with? [sequence-1 sequence-2]
+(defn starts-with?
+  "Does sequence-2 start with sequence-1?"
+  [sequence-1 sequence-2]
   (= (take (count sequence-1)
            sequence-2)
      sequence-1))

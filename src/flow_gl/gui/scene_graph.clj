@@ -744,18 +744,23 @@
                               nodes)))
 
 (defn bounding-box [nodes]
-  (let [min-x (apply min (map :x nodes))
-        min-y (apply min (map :y nodes))]
-    {:x min-x
-     :y min-y
-     :width (- (apply max (map #(+ (:x %)
-                                   (:width %))
-                               nodes))
-               min-x)
-     :height (- (apply max (map #(+ (:y %)
-                                    (:height %))
-                                nodes))
-                min-y)}))
+  (if (empty? nodes)
+    {:x 0
+     :y 0
+     :width 0
+     :height 0}
+    (let [min-x (apply min (map :x nodes))
+          min-y (apply min (map :y nodes))]
+      {:x min-x
+       :y min-y
+       :width (- (apply max (map #(+ (:x %)
+                                     (:width %))
+                                 nodes))
+                 min-x)
+       :height (- (apply max (map #(+ (:y %)
+                                      (:height %))
+                                  nodes))
+                  min-y)})))
 
 (defn select-node-keys [keys scene-graph]
   (map-nodes #(select-keys % keys)

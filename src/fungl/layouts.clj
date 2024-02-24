@@ -54,7 +54,7 @@
 (defn- vertical-stack-get-size
   [node]
   {:width (apply max
-                 (conj (map :width (:children node))
+                 (conj (remove nil? (map :given-width (:children node)))
                        0))
    :height (if (empty? (:children node))
              0
@@ -66,50 +66,61 @@
   [node]
   (update-in node [:children]
              (fn [children]
-
                (map (fn [child]
                       (assoc child
                              :available-width (:available-width node)
                              :available-height java.lang.Integer/MAX_VALUE))
                     children))))
 
-(defn- vertical-stack-make-layout
-  [node]
-  (assoc node :children
-         (loop [layouted-nodes []
-                y 0
-                children (:children node)]
-           (if-let [child (first children)]
-             (recur (conj layouted-nodes
-                          (assoc child
-                                 :x (if (::centered node)
-                                      (/ (- (:width node)
-                                            (:width child))
-                                         2)
-                                      0)
-                                 :y y))
-                    (+ y (:height child)
-                       (:margin node))
-                    (rest children))
-             layouted-nodes))))
+(defn- vertical-stack-make-layout [node]
+  (let [maximum-given-width (when (not (:fill-width? node))
+                              (min (:available-width node)
+                                   (apply max (conj (remove nil? (map :given-width (:children node)))
+                                                    0))))]
+    (assoc node :children
+           (loop [layouted-nodes []
+                  y 0
+                  children (:children node)]
+             (if-let [child (first children)]
+               (recur (conj layouted-nodes
+                            (assoc child
+                                   :x (if (::centered node)
+                                        (/ (- (:width node)
+                                              (:width child))
+                                           2)
+                                        0)
+                                   :y y
+                                   :width (if (not (:fill-width? node))
+                                            maximum-given-width
+                                            (:width child))))
+                      (+ y (:height child)
+                         (:margin node))
+                      (rest children))
+               layouted-nodes)))))
 
 (def vertical-stack
   {:type ::vertical-stack
    :get-size vertical-stack-get-size
    :give-space vertical-stack-give-space
-   :make-layout vertical-stack-make-layout})
+   :make-layout vertical-stack-make-layout
+   :fill-width? true})
 
 (defn vertically [& children]
   (assoc vertical-stack
          :margin 0
          :children (flatten-contents children)))
 
-(defn vertically-2 [options & children]
+(defn vertically-2 [{:keys [centered?
+                            fill-width?
+                            margin]
+                     :or {centered? false
+                          fill-width? true
+                          margin 0}}
+                    & children]
   (assoc vertical-stack
-         :margin (or (:margin options)
-                     0)
-         ::centered (or (:centered options)
-                        false)
+         :margin margin
+         ::centered centered?
+         :fill-width? fill-width?
          :children (flatten-contents children)))
 
 (defn vertically-with-margin [margin & children]
@@ -274,16 +285,18 @@
                        :available-height (- available-height
                                             (* 2 margin)))])))
 
-(defn box-make-layout [{:keys [width height margin] :as node}]
+(defn box-make-layout [{:keys [width height margin fill-width?] :as node}]
   (update-in node
              [:children]
              (fn [[outer inner]]
                [(assoc outer
                        :x 0
                        :y 0
-                       :width (max width
-                                   (+ (:width inner)
-                                      (* 2 margin)))
+                       :width (if fill-width?
+                                (:available-width node)
+                                (max width
+                                     (+ (:width inner)
+                                        (* 2 margin))))
                        :height (max height
                                     (+ (:height inner)
                                        (* 2 margin))))
@@ -291,9 +304,10 @@
                        :x margin
                        :y margin)])))
 
-(defn box [margin outer inner]
+(defn box [margin outer inner & [{:keys [fill-width?] :or {fill-width? false}}]]
   (when (and outer inner)
     {:type ::box
+     :fill-width? fill-width?
      :get-size box-get-size
      :give-space box-give-space
      :make-layout box-make-layout
@@ -421,11 +435,11 @@
              [:children]
              (fn [[child]]
                [(measuring/make-layout (assoc child
-                                           :x 0
-                                           :y 0
-                                           :z 0
-                                           :width width
-                                           :height height))])))
+                                              :x 0
+                                              :y 0
+                                              :z 0
+                                              :width width
+                                              :height height))])))
 
 (defn give-limited-space [{:keys [width-limit height-limit compare-function available-width available-height children] :as node}]
   (assoc node :children
@@ -495,10 +509,10 @@
              [:children]
              (fn [[child]]
                [(assoc child
-                       :x (+ (or (:x child)
+                       :x (+ (or (:given-x child)
                                  0)
                              left-margin)
-                       :y (+ (or (:y child)
+                       :y (+ (or (:given-x child)
                                  0)
                              top-margin))])))
 
@@ -513,6 +527,20 @@
      :right-margin right-margin
      :bottom-margin bottom-margin
      :left-margin left-margin
+
+     :children [child]}))
+
+(defn with-margin [margin child]
+  (when child
+    {:type ::with-margins
+     :get-size with-margins-get-size
+     :give-space with-margins-give-space
+     :make-layout with-margins-make-layout
+
+     :top-margin margin
+     :right-margin margin
+     :bottom-margin margin
+     :left-margin margin
 
      :children [child]}))
 
@@ -668,7 +696,7 @@
 
 (defn- vertical-split-give-space [node]
   (let [row-height (/ (:available-height node)
-                            (count (:children node)))]
+                      (count (:children node)))]
     (update node
             :children
             (fn [children]
@@ -712,14 +740,14 @@
                 (reduce +))})
 
 (defn- grid-give-space [node]
-    (update node
-            :children
-            (fn [children]
-              (->> children
-                   (map (fn [child]
-                          (assoc child
-                                 :available-width java.lang.Integer/MAX_VALUE
-                                 :available-height java.lang.Integer/MAX_VALUE)))))))
+  (update node
+          :children
+          (fn [children]
+            (->> children
+                 (map (fn [child]
+                        (assoc child
+                               :available-width java.lang.Integer/MAX_VALUE
+                               :available-height java.lang.Integer/MAX_VALUE)))))))
 
 (defn- grid-make-layout [node]
   (assoc node :children

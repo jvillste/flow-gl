@@ -5,7 +5,8 @@
             [flow-gl.gui.scene-graph :as scene-graph]
             [fungl.view-compiler :as view-compiler]
             [fungl.layout.measuring :as measuring]
-            [flow-gl.gui.visuals :as visuals]))
+            [flow-gl.gui.visuals :as visuals]
+            [clojure.test :refer [deftest is]]))
 
 ;; (def ^:dynamic layout-cache)
 
@@ -42,10 +43,47 @@
 
 (declare do-layout)
 
+
+;; TODO: would it be possible to adjust child size after children are given sizes? Some children are not given sizes and their sizes might depend on the ones that are given. For example horizontal lines in a table header
+
+(defn save-property [node key]
+  (let [storage-key (keyword (str "given-" (name key)))]
+    (assoc node
+           storage-key
+           (if (contains? node storage-key)
+             (storage-key node)
+             (key node)))))
+
+(deftest test-save-property
+  (is (= {:x 1, :given-x 1}
+         (save-property {:x 1} :x)))
+
+  (is (= {:x 1 :given-y nil}
+         (save-property {:x 1} :y)))
+
+  (is (= {:x 1, :given-x 2}
+         (save-property {:x 1
+                         :given-x 2} :x))))
+
+(defn save-layout [node]
+  (reduce save-property
+          node
+          [:width :height :x :y]))
+
+(deftest test-save-layout
+  (is (= {:x 10,
+          :width 20,
+          :given-width 20,
+          :given-height nil,
+          :given-x 10,
+          :given-y nil}
+         (save-layout {:x 10 :width 20}))))
+
 (defn- do-layout-implementation [node]
   #_(prn 'do-layout-implementation (:id node)) ;; TODO: remove me
 
   (-> node
+      (save-layout)
       (adapt-to-space)
       (measuring/give-space)
       (update-in [:children]

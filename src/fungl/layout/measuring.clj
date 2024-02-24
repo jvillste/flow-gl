@@ -26,14 +26,18 @@
 
 (defn size [node]
   (if-let [get-size (:get-size node)]
-    (callable/call get-size node)
-    {:width (or (:width node)
+    (let [size (callable/call get-size node)]
+      (assoc size
+             :given-width (:width size)
+             :given-height (:height size)))
+    {:width (or (:given-width node)
                 (:available-width node))
-     :height (or (:height node)
+     :height (or (:given-height node)
                  (:available-height node))}))
 
 (defn add-size [node]
-  (conj node (size node)))
+  (merge node
+        (size node)))
 
 (defn make-layout [node]
   (if-let [make-layout-callable (:make-layout node)]
