@@ -372,6 +372,9 @@
 (defonce events-atom (atom [])) ;; TODO: remove me
 (comment
   (first @events-atom)
+  (distinct (map :type @events-atom))
+  (count @events-atom)
+  (take 20 @events-atom)
   )
 
 (defn process-event! [scene-graph-before-event-handling event]
@@ -442,14 +445,41 @@
                                     (:window-height @application-loop-state-atom))))
     bindings))
 
+(defn preserve-only-latest-event [filtered-event-type events]
+  (reverse (loop [events (reverse events)
+                  filtered-event-encountered? false
+                  filtered-events []]
+             (if-let [event (first events)]
+               (recur (rest events)
+                      (or filtered-event-encountered?
+                          (= filtered-event-type
+                             (:type event)))
+                      (if (or (not filtered-event-encountered?)
+                              (not (= filtered-event-type
+                                      (:type event))))
+                        (conj filtered-events event)
+                        filtered-events))
+               filtered-events))))
+
+(deftest test-preserve-only-latest-event
+  (is (= '({:number 1, :type :a}
+           {:number 3, :type :c}
+           {:number 4, :type :b})
+       (preserve-only-latest-event :b
+                                   [{:number 1 :type :a}
+                                    {:number 2 :type :b}
+                                    {:number 3 :type :c}
+                                    {:number 4 :type :b}]))))
+
 (defn handle-events! [events]
-  ;; (prn 'events (map :type events)) ;; TODO: remove me
+  ;; (logga/write 'handle-events (map :type events))
+  ;; (logga/write 'events events) ;; TODO: remove me
 
   (swap! application-loop-state-atom
          assoc
          :scene-graph
          (taoensso.tufte/p :handle-events-loop
-                           (loop [events events
+                           (loop [events (preserve-only-latest-event :mouse-moved events)
                                   scene-graph (:scene-graph @application-loop-state-atom)]
                              (if (empty? events)
                                scene-graph
@@ -467,9 +497,33 @@
 (comment
   (require '[clj-async-profiler.core :as prof])
   (prof/serve-ui 9898)
+  (prof/profile (doseq [i (range 1000000)]
+                  (* i i)))
   (set! *warn-on-reflection* true)
   (set! *warn-on-reflection* false)
+
+  (prof/profile {:interval (let [millisecond 1000000
+                                 framerate 100]
+                             (/ (* 1000 millisecond)
+                                framerate))}
+                  (doseq [event (take 1 @application/events-atom)]
+                    (async/>!! event-channel
+                               event)))
   ) ;; TODO: remove me
+
+
+(defn application-loop-render! []
+  ;; (logga/write 'application-loop-render!) ;; TODO: remove me
+
+  (when (:scene-graph @application-loop-state-atom)
+    #_(scene-graph/print-scene-graph (scene-graph/select-node-keys [:id :entity] (:scene-graph @application-loop-state-atom)))
+    (window/with-gl (:window @application-loop-state-atom) gl
+      (taoensso.tufte/p :render
+                        (render (:scene-graph @application-loop-state-atom)
+                                swing-root-renderer/render-scene-graph
+                                gl)))
+    (taoensso.tufte/p :swap-buffers
+                      (window/swap-buffers (:window @application-loop-state-atom)))))
 
 (defn start-application [root-view & {:keys [target-frame-rate
                                              on-exit]
@@ -483,15 +537,7 @@
                                                                               target-frame-rate))]
                        (taoensso.tufte/p :handle-events! (handle-events! events)))
 
-                     (when (:scene-graph @application-loop-state-atom)
-                       ;; (scene-graph/print-scene-graph (scene-graph/select-node-keys [:id :entity] (:scene-graph @application-loop-state-atom)))
-                       (window/with-gl (:window @application-loop-state-atom) gl
-                         (taoensso.tufte/p :render
-                                           (render (:scene-graph @application-loop-state-atom)
-                                                   swing-root-renderer/render-scene-graph
-                                                   gl)))
-                       (taoensso.tufte/p :swap-buffers
-                                         (window/swap-buffers (:window @application-loop-state-atom)))))
+                     (application-loop-render!))
 
                    (when (:scene-graph @application-loop-state-atom)
                      (recur)))
