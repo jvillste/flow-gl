@@ -54,7 +54,7 @@
 (defn- vertical-stack-get-size
   [node]
   {:width (apply max
-                 (conj (remove nil? (map :given-width (:children node)))
+                 (conj (remove nil? (map :width (:children node)))
                        0))
    :height (if (empty? (:children node))
              0
