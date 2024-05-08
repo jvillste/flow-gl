@@ -2,7 +2,8 @@
   (:require [clojure.spec.alpha :as spec]
             [clojure.test :as test :refer [deftest is testing]]
             [fungl.cache :as cache]
-            [medley.core :as medley]))
+            [medley.core :as medley]
+            [logga.core :as logga]))
 
 (def ^:dynamic current-scene-graph)
 
@@ -127,39 +128,6 @@
                                                    {:x 5 :y 5 :expected-position 2}
                                                    {:x 5 :y 5 :expected-position 3}]})))))
 
-
-(defn conditionaly-flatten
-  ([node descent-predicate include-predicate]
-   (conditionaly-flatten node 0 0 0 [] descent-predicate include-predicate))
-
-  ([node parent-x parent-y parent-z nodes descent-predicate include-predicate]
-   (let [node-x (+ parent-x (or (:x node)
-                                0))
-         node-y (+ parent-y (or (:y node)
-                                0))
-         node-z (+ parent-z (or (:z node)
-                                0))
-         nodes (let [node (-> (assoc node
-                                     :x node-x
-                                     :y node-y
-                                     :z node-z)
-                              (dissoc :children))]
-                 (if (or (not include-predicate)
-                         (include-predicate node))
-                   (conj nodes node)
-                   nodes))]
-     (if (and (:children node)
-              (or (not descent-predicate)
-                  (descent-predicate node)))
-       (loop [nodes nodes
-              children (:children node)]
-         (if-let [child (first children)]
-           (recur (conditionaly-flatten child node-x node-y node-z nodes descent-predicate include-predicate)
-                  (rest children))
-           nodes))
-       nodes))))
-
-
 (defn enumerate-nodes [node]
   (loop [nodes-left [node]
          nodes []]
@@ -177,15 +145,23 @@
                                             :id 2}]
                                 :id 1})))))
 
-(defn in-coordinates? [node x y]
+(defn dimensions-in-coordinates? [node-x node-y node-width node-height x y]
   (and (>= x
-           (:x node))
+           node-x)
        (<= x
-           (+ (:x node) (:width node)))
+           (+ node-x node-width))
        (>= y
-           (:y node))
+           node-y)
        (<= y
-           (+ (:y node) (:height node)))))
+           (+ node-y node-height))))
+
+(defn in-coordinates? [node x y]
+  (dimensions-in-coordinates? (:x node)
+                              (:y node)
+                              (:width node)
+                              (:height node)
+                              x
+                              y))
 
 (spec/fdef in-coordinates?
   :args (spec/cat :node ::layouted-node
@@ -227,6 +203,30 @@
 
   (is (not (intersects? {:x 0 :y 0 :width 100 :height 100}
                         {:x -100 :y 10 :width 10 :height 10}))))
+
+(defn node-contains?
+  "Does node-1 contain node-2?"
+  [node-1 node-2]
+  (and (<= (:x node-1)
+           (:x node-2))
+       (>= (+ (:x node-1)
+              (:width node-1))
+           (+ (:x node-2)
+              (:width node-2)))
+
+       (<= (:y node-1)
+           (:y node-2))
+       (>= (+ (:y node-1)
+              (:height node-1))
+           (+ (:y node-2)
+              (:height node-2)))))
+
+(deftest test-node-contains?
+  (is (node-contains? {:x 1 :width 10 :y 1 :height 10}
+                      {:x 1 :width 10 :y 1 :height 10}))
+
+  (is (not (node-contains? {:x 1 :width 10 :y 1 :height 10}
+                           {:x 1 :width 100 :y 1 :height 10}))))
 
 (defn in-region? [x y width height node]
   (intersects? {:x 0 :y 0 :width width :height height}
@@ -277,6 +277,115 @@
                                (fn [node]
                                  (swap! count inc)
                                  (assoc node :applied @count)))))))
+
+(defn parent-contains-child? [parent child]
+  (and (<= 0 (:x child))
+       (<= 0 (:y child))
+       (>= (:width parent)
+           (+ (:x child)
+              (:width child)))
+       (>= (:height parent)
+           (+ (:y child)
+              (:height child)))))
+
+(deftest test-parent-contains-child?
+  (is (parent-contains-child? {:x 1 :width 10 :y 1 :height 10}
+                              {:x 0 :width 10 :y 0 :height 10}))
+
+  (is (not (parent-contains-child? {:x 1 :width 10 :y 1 :height 10}
+                                   {:x 1 :width 10 :y 1 :height 10}))))
+
+(defn containing-roots
+  ([node]
+   (containing-roots node
+                     [(assoc node
+                             :global-x (:x node)
+                             :global-y (:y node))]
+                     0 0))
+
+  ([node roots parent-x parent-y]
+   (let [node-global-x (+ parent-x (or (:x node)
+                                       0))
+         node-global-y (+ parent-y (or (:y node)
+                                       0))]
+     (if (:children node)
+       (loop [roots roots
+              children (:children node)]
+         (if-let [child (first children)]
+           (recur (containing-roots child
+                                    (if (parent-contains-child? node child)
+                                      roots
+                                      (conj roots
+                                            (assoc child
+                                                   :global-x (+ node-global-x
+                                                                (:x child))
+                                                   :global-y (+ node-global-y
+                                                                (:y child)))))
+                                    node-global-x
+                                    node-global-y)
+                  (rest children))
+
+           roots))
+       roots))))
+
+(deftest test-containing-roots
+  (is (= [{:x 0,
+           :y 0,
+           :width 100,
+           :height 100,
+           :children
+           [{:x 0, :y 0, :width 100, :height 100}
+            {:x 0, :y 0, :width 100, :height 100}],
+           :global-x 0,
+           :global-y 0}]
+
+         (containing-roots {:x 0 :y 0 :width 100 :height 100
+                            :children [{:x 0 :y 0 :width 100 :height 100}
+                                       {:x 0 :y 0 :width 100 :height 100}]})))
+
+  (is (= [{:x 10,
+           :y 0,
+           :width 100,
+           :height 100,
+           :children
+           [{:x 5, :y 0, :width 1000, :height 100}
+            {:x 0, :y 0, :width 100, :height 100}],
+           :global-x 10,
+           :global-y 0}
+          {:x 5, :y 0, :width 1000, :height 100, :global-x 15, :global-y 0}]
+
+         (containing-roots {:x 10 :y 0 :width 100 :height 100
+                            :children [{:x 5 :y 0 :width 1000 :height 100}
+                                       {:x 0 :y 0 :width 100 :height 100}]})))
+
+
+
+  (is (= [{:x 10,
+           :y 0,
+           :width 100,
+           :height 100,
+           :children
+           [{:x 5,
+             :y 0,
+             :width 1000,
+             :height 100,
+             :children [{:x 10, :y 10, :width 100, :height 1000}]}
+            {:x 0, :y 0, :width 100, :height 100}],
+           :global-x 10,
+           :global-y 0}
+          {:x 5,
+           :y 0,
+           :width 1000,
+           :height 100,
+           :children [{:x 10, :y 10, :width 100, :height 1000}],
+           :global-x 15,
+           :global-y 0}
+          {:x 10, :y 10, :width 100, :height 1000, :global-x 25, :global-y 10}]
+
+         (containing-roots {:x 10 :y 0 :width 100 :height 100
+                            :children [{:x 5 :y 0 :width 1000 :height 100
+                                        :children [{:x 10 :y 10 :width 100 :height 1000}]}
+                                       {:x 0 :y 0 :width 100 :height 100}]}))))
 
 (defn find-first [predicate scene-graph]
   (if (predicate scene-graph)

@@ -8,70 +8,98 @@
 
 (spec/def ::mouse-event (spec/keys :req-un [:scene-graph/x :scene-graph/y]))
 
-#_(defn mouse-event-handler-nodes-in-coordinates [graph x y]
-    (->> (scene-graph/flatten graph)
+(defn nodes-in-coordinates-in-one-containing-root
+  ([containing-root target-global-x target-global-y]
+   (nodes-in-coordinates-in-one-containing-root containing-root
+                                                (if (scene-graph/dimensions-in-coordinates? (:global-x containing-root)
+                                                                                            (:global-y containing-root)
+                                                                                            (:width containing-root)
+                                                                                            (:height containing-root)
+                                                                                            target-global-x
+                                                                                            target-global-y)
+                                                  [containing-root]
+                                                  [])
+                                                0
+                                                0
+                                                target-global-x
+                                                target-global-y))
 
-         (filter (fn [node]
-                   (and (:width node)
-                        (:height node)
-                        (scene-graph/in-coordinates? node x y)
-                        (if-let [hit-test (:hit-test node)]
-                          (hit-test node
-                                    (- x (:x node))
-                                    (- y (:y node)))
-                          true)
-                        (contains? node :mouse-event-handler))))
-         (sort-by :z)))
+  ([node nodes-in-coordinates parent-x parent-y target-global-x target-global-y]
+   (let [node-global-x (+ parent-x (or (:x node)
+                                       0))
+         node-global-y (+ parent-y (or (:y node)
+                                       0))]
+     (if (:children node)
+       (loop [nodes-in-coordinates nodes-in-coordinates
+              contained-children (filter (fn [child]
+                                           (scene-graph/parent-contains-child? node child))
+                                         (:children node))]
+         (if-let [contained-child (first contained-children)]
+           (if (scene-graph/dimensions-in-coordinates? (+ node-global-x
+                                                          (:x contained-child))
+                                                       (+ node-global-y
+                                                          (:y contained-child))
+                                                       (:width contained-child)
+                                                       (:height contained-child)
+                                                       target-global-x
+                                                       target-global-y)
+             (recur (nodes-in-coordinates-in-one-containing-root contained-child
+                                                                 (conj nodes-in-coordinates
+                                                                       contained-child)
+                                                                 node-global-x
+                                                                 node-global-y
+                                                                 target-global-x
+                                                                 target-global-y)
+                    (rest contained-children))
+
+             (recur nodes-in-coordinates
+                    (rest contained-children)))
+
+           nodes-in-coordinates))
+       nodes-in-coordinates))))
+
+(deftest test-nodes-in-coordinates-in-one-containing-root
+  (is (= []
+         (nodes-in-coordinates-in-one-containing-root {:x 10 :y 0 :width 100 :height 100 :global-x 10 :global-y 0}
+                                                      0
+                                                      0)))
+
+  (is (= [{:x 10, :y 0, :width 100, :height 100, :global-x 10, :global-y 0}]
+         (nodes-in-coordinates-in-one-containing-root {:x 10 :y 0 :width 100 :height 100 :global-x 10 :global-y 0}
+                                                      10
+                                                      0)))
+
+  (is (= [{:x 10,
+           :y 0,
+           :width 100,
+           :height 100,
+           :global-x 10,
+           :global-y 0,
+           :children
+           [{:x 5,
+             :y 0,
+             :width 1000,
+             :height 100,
+             :children [{:x 10, :y 10, :width 100, :height 1000}]}
+            {:x 0, :y 0, :width 100, :height 100}]}
+          {:x 0, :y 0, :width 100, :height 100}]
+         (nodes-in-coordinates-in-one-containing-root {:x 10 :y 0 :width 100 :height 100 :global-x 10, :global-y 0
+                                                       :children [{:x 5 :y 0 :width 1000 :height 100
+                                                                   :children [{:x 10 :y 10 :width 100 :height 1000}]}
+                                                                  {:x 0 :y 0 :width 100 :height 100}]}
+                                                      20
+                                                      0))))
 
 
-(defn mouse-event-handler-node-in-coordinates? [x y node]
-  (and (:width node)
-       (:height node)
-       (scene-graph/hits? node x y)
-       (contains? node :mouse-event-handler)))
+(defn nodes-in-coordinates [containing-roots global-x global-y]
+  (apply concat
+         (map (fn [containing-root]
+                (nodes-in-coordinates-in-one-containing-root containing-root
+                                                             global-x
+                                                             global-y))
+              containing-roots)))
 
-(defn node-in-coordinates? [x y node]
-  (scene-graph/hits? node x y))
 
-
-(defn clip-mouse-event? [x y node]
-  (if-let [clip-mouse-events (:clip-mouse-events node)]
-    (clip-mouse-events node x y)
-    false))
-
-(defn mouse-event-handler-nodes-in-coordinates [node x y]
-  (scene-graph/conditionaly-flatten node
-                                    (complement (partial clip-mouse-event? x y))
-                                    (partial mouse-event-handler-node-in-coordinates? x y)))
-
-(defn nodes-in-coordinates [node x y]
-  (scene-graph/conditionaly-flatten node
-                                    (complement (partial clip-mouse-event? x y))
-                                    (partial node-in-coordinates? x y)))
-
-(deftest mouse-event-handlers-in-coodriantes-test
-  (is (= '({:x 0, :y 5, :width 20, :height 20, :mouse-event-handler 1, :z 0}
-           {:x 5, :y 10, :width 5, :height 5, :mouse-event-handler 2, :z 0})
-         (mouse-event-handler-nodes-in-coordinates {:x 0 :y 5 :width 20 :height 20
-                                                    :mouse-event-handler 1
-                                                    :children [{:x 5 :y 5 :width 5 :height 5
-                                                                :mouse-event-handler 2}
-                                                               {:x 5 :y 5 :width 5 :height 5}
-                                                               {:x 50 :y 5 :width 5 :height 5
-                                                                :mouse-event-handler 3}]}
-                                                   5 10)))
-
-  (let [clip (fn [node x y] true)]
-    (is (= [{:x 0, :y 5, :width 20, :height 20, :mouse-event-handler 1, :z 0, :clip-mouse-events clip}]
-           (mouse-event-handler-nodes-in-coordinates {:x 0 :y 5 :width 20 :height 20
-                                                      :mouse-event-handler 1
-                                                      :clip-mouse-events clip
-                                                      :children [{:x 5 :y 5 :width 5 :height 5
-                                                                  :mouse-event-handler 2}
-                                                                 {:x 5 :y 5 :width 5 :height 5}
-                                                                 {:x 50 :y 5 :width 5 :height 5
-                                                                  :mouse-event-handler 3}]}
-                                                     5 10)))))
 
 (defn call-mouse-event-handler-for-node [event node]
   (let [event-after-call (callable/call (:mouse-event-handler node)
@@ -240,24 +268,26 @@
          :previous-nodes-under-mouse (:nodes-under-mouse state)))
 
 (defn update-nodes-under-mouse [state]
-  (assoc state :nodes-under-mouse
+  (assoc state
+         :nodes-under-mouse
          (if (and (:mouse-x state)
                   (:mouse-y state))
-           (nodes-in-coordinates (:scene-graph state)
+           (nodes-in-coordinates (:containing-roots state)
                                  (:mouse-x state)
                                  (:mouse-y state))
            [])))
 
 (defn handle-mouse-event [state event]
-  (let [state (if (or (not= (:x event)
-                            (:mouse-x event))
-                      (not= (:y event)
-                            (:mouse-y event)))
-                (update-nodes-under-mouse (assoc state
-                                                 :mouse-x (:x event)
-                                                 :mouse-y (:y event)))
-                state)
-         #_nodes-under-mouse #_(nodes-in-coordinates (:scene-graph state)
+  (let [state (if (and (= (:x event)
+                          (:mouse-x event))
+                       (= (:y event)
+                          (:mouse-y event)))
+                state
+                (-> state
+                    (assoc :mouse-x (:x event)
+                           :mouse-y (:y event))
+                    (update-nodes-under-mouse)))
+        #_nodes-under-mouse #_(nodes-in-coordinates (:scene-graph state)
                                                     (:x event)
                                                     (:y event))
         #_uncovered-node-under-mouse #_(last (:nodes-under-mouse state))
@@ -274,13 +304,14 @@
     (send-mouse-over-events-and-update-state state)))
 
 (defn handle-new-scene-graph [state scene-graph]
-  (if (not= scene-graph
-            (:scene-graph state))
-    (let [state (update-nodes-under-mouse (assoc state
-                                                 :scene-graph scene-graph))]
-
-      (send-mouse-over-events-and-update-state state))
-    state))
+  (if (= scene-graph
+         (:scene-graph state))
+    state
+    (-> state
+        (assoc :containing-roots (scene-graph/containing-roots scene-graph)
+               :scene-graph scene-graph)
+        (update-nodes-under-mouse)
+        (send-mouse-over-events-and-update-state))))
 
 
 
