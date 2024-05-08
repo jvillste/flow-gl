@@ -98,17 +98,25 @@
 
 (util/defno text [string] {color [255 255 255 255]
                            font-size 30
-                           font-file-path liberation-sans-regular-path
-                           font nil}
+                           font-file-path nil #_liberation-sans-regular-path
+                           font nil
+                           font-name nil}
 
   (assert (string? string))
   (assert (vector? color))
   (assert (number? font-size))
-  (assert (string? font-file-path))
 
-  (let [font (or font
-                 (font/create font-file-path
-                              font-size))]
+  (let [font (cond font
+                   font
+
+                   font-file-path
+                   (font/create font-file-path font-size)
+
+                   font-name
+                   (font/create-by-name font-name font-size)
+
+                   :else
+                   (font/create-by-name "CourierNewPSMT" font-size))]
     {:type ::text
      :font-size font-size
      :font-file-path font-file-path
