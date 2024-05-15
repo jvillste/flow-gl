@@ -478,17 +478,16 @@
   (swap! application-loop-state-atom
          assoc
          :scene-graph
-         (taoensso.tufte/p :handle-events-loop
-                           (loop [events (preserve-only-latest-event :mouse-moved events)
-                                  scene-graph (:scene-graph @application-loop-state-atom)]
-                             (if (empty? events)
-                               scene-graph
-                               (if (= :close-requested (:type (first events)))
-                                 nil
-                                 (do (taoensso.tufte/p :process-event! (process-event! scene-graph
-                                                                                       (first events)))
-                                     (recur (rest events)
-                                            (taoensso.tufte/p :create-scene-graph (create-scene-graph (:root-view @application-loop-state-atom)))))))))))
+         (loop [events (preserve-only-latest-event :mouse-moved events)
+                scene-graph (:scene-graph @application-loop-state-atom)]
+           (if (empty? events)
+             scene-graph
+             (if (= :close-requested (:type (first events)))
+               nil
+               (do (process-event! scene-graph
+                                   (first events))
+                   (recur (rest events)
+                          (create-scene-graph (:root-view @application-loop-state-atom)))))))))
 
 (defmacro thread [name & body]
   `(.start (Thread. (bound-fn [] ~@body)
