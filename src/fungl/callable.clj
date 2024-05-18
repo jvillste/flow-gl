@@ -1,6 +1,7 @@
 (ns fungl.callable
   (:require [clojure.test :refer [deftest is]]
-            [fungl.cache :as cache]))
+            [fungl.cache :as cache]
+            [fungl.identity-cache :as identity-cache]))
 
 (defn call [callable & arguments]
   (cond (vector? callable)
@@ -20,6 +21,22 @@
 
         (fn? callable)
         (apply cache/call! callable arguments)))
+
+(defn call-with-identity-cache [cache-atom number-of-identity-arguments callable & arguments]
+  (cond (vector? callable)
+        (apply identity-cache/call-with-cache
+               cache-atom
+               number-of-identity-arguments
+               (first callable)
+               (concat (rest callable)
+                       arguments))
+
+        (fn? callable)
+        (apply identity-cache/call-with-cache
+               cache-atom
+               number-of-identity-arguments
+               callable
+               arguments)))
 
 (defn call-arguments-first [callable & arguments]
   (cond (vector? callable)

@@ -378,7 +378,7 @@
                                      :index index))))))
   event)
 
-(defn adapt-to-space [text index style state-atom on-change node]
+(defn adapt-to-space [text index style state-atom on-change _node available-width _available-height]
   (let [style (conj (default-style)
                     style)
         rows (if (empty? text)
@@ -387,41 +387,40 @@
                             (:color style)
                             (:font style)
                             text
-                            (:available-width node)))]
+                            available-width))]
 
-    (merge (dissoc node :adapt-to-space)
-           {:mouse-event-handler [text-area-mouse-event-handler state-atom rows]
-            :keyboard-event-handler (when on-change
-                                      [text-area-keyboard-event-handler state-atom rows on-change])}
-           (layouts/with-minimum-size (font/width (:font style) "W") (font/height (:font style))
-             (layouts/superimpose (when index
-                                    (let [rectangle (visuals/rectangle (:color style) 0 0)]
-                                      (if (empty? rows)
-                                        (assoc rectangle
-                                               :width 4
-                                               :x 0
-                                               :y 0
-                                               :height (font/height (:font style)))
-                                        (let [caret-position (character-position rows index)]
-                                          (assoc rectangle
-                                                 :width 4
-                                                 :x (:x caret-position)
-                                                 :y (:y caret-position)
-                                                 :height (:height caret-position))))))
-                                  (rows-node rows))))))
+    (-> (layouts/with-minimum-size (font/width (:font style) "W") (font/height (:font style))
+          (layouts/superimpose (when index
+                                 (let [rectangle (visuals/rectangle (:color style) 0 0)]
+                                   (if (empty? rows)
+                                     (assoc rectangle
+                                            :width 4
+                                            :x 0
+                                            :y 0
+                                            :height (font/height (:font style)))
+                                     (let [caret-position (character-position rows index)]
+                                       (assoc rectangle
+                                              :width 4
+                                              :x (:x caret-position)
+                                              :y (:y caret-position)
+                                              :height (:height caret-position))))))
+                               (rows-node rows)))
+        (-> (assoc :mouse-event-handler [text-area-mouse-event-handler state-atom rows]
+                   :keyboard-event-handler (when on-change
+                                             [text-area-keyboard-event-handler state-atom rows on-change]))
+            (cond-> on-change
+              (assoc :can-gain-focus? true))))))
 
 (defn text-area-for-state-atom [state-atom {:keys [text on-change style]}]
   (swap! state-atom assoc :text text)
   (let [state @state-atom]
-    (-> {:adapt-to-space [adapt-to-space
-                          text
-                          (when (keyboard/component-is-focused?)
-                            (:index state))
-                          style
-                          state-atom
-                          on-change]}
-        (cond-> on-change
-          (assoc :can-gain-focus? true)))))
+    {:adapt-to-space [adapt-to-space
+                      text
+                      (when (keyboard/component-is-focused?)
+                        (:index state))
+                      style
+                      state-atom
+                      on-change]}))
 
 (def default-options {:style {}
                       :text ""

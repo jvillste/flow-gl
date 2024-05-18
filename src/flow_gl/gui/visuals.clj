@@ -132,17 +132,17 @@
 
 
 
-(defn text-area-adapt-to-space [color font string node]
+(defn text-area-adapt-to-space [color font string node available-width _available-height]
   (-> node
       (assoc :rows (if (and string (not= string ""))
                      (text/rows-for-text color
                                          font
                                          string
-                                         (:available-width node))
+                                         available-width)
                      nil))
       (dissoc :adapt-to-space)))
 
-(defn text-area-get-size [font node]
+(defn text-area-get-size [font node _available-width _available-height]
   (if-let [rows (:rows node)]
     (text/rows-size rows)
     {:width 0

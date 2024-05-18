@@ -50,7 +50,8 @@
         (keyboard/state-bindings)
         (animation/state-bindings)
         (cache/state-bindings)
-        (view-compiler/state-bindings)))
+        (view-compiler/state-bindings)
+        (layout/state-bindings)))
 
 (defn create-render-state []
   (conj #_(cache/state-bindings)
@@ -298,9 +299,7 @@
 (defn create-scene-graph [root-view-or-var]
   (let [view-call-dependency-value-maps-before-compilation (:node-dependencies @view-compiler/state)]
     (view-compiler/start-compilation-cycle!)
-    (let [scene-graph (layout/do-layout-for-size (assoc (view-compiler/compile-view-calls [root-view-or-var])
-                                                        :x 0
-                                                        :y 0)
+    (let [scene-graph (layout/do-layout-for-size (view-compiler/compile-view-calls [root-view-or-var])
                                                  (:window-width @application-loop-state-atom)
                                                  (:window-height @application-loop-state-atom))]
       (view-compiler/end-compilation-cycle!)
@@ -531,12 +530,10 @@
   (with-bindings (create-bindings root-view)
     (thread "fungl application"
             (try (loop []
-                   (with-profiling false #_true :application-looop
-                     (let [events (taoensso.tufte/p :read-events (read-events (window/event-channel (:window @application-loop-state-atom))
-                                                                              target-frame-rate))]
-                       (taoensso.tufte/p :handle-events! (handle-events! events)))
 
-                     (application-loop-render!))
+                   (handle-events! (read-events (window/event-channel (:window @application-loop-state-atom))
+                                                target-frame-rate))
+                   (application-loop-render!)
 
                    (when (:scene-graph @application-loop-state-atom)
                      (recur)))

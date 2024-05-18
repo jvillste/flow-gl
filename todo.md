@@ -75,3 +75,26 @@ changes would be logarithmic to the number of components.
 c1
   c2 (changed)
   c3
+
+# calulations to be cached
+- view call compilation
+- render
+- layout
+
+Hashmap and guava cache with scenegraph as key is slow.
+
+- use node id as key and put scenegraph into value and compare scenegraphs with identical? before using the value
+- use hash as key and put scenegraph into value and compare scenegraphs with identical? before using the value
+  - This requires calculating the hash. It is cached to the java objects though.
+  - Plus side is that the hash is smaller than node ids.
+
+# Scene graph diff update
+
+Layout and image must be updated for the changed scene graph
+parts. Each node is compared with identical? if the nodes are
+identical, a new value is added to the cache or the cached value is
+used.
+
+If the nodes are not identical, each child with the same id is compared.
+
+Lastly the node ids that were not encountered are removed from the cache.

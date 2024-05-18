@@ -21,23 +21,22 @@
                                    :available-width (:available-width node)
                                    :available-height (:available-height node)))
                           children)))))
-
     node))
 
-(defn size [node]
+(defn size [node available-width available-height]
   (if-let [get-size (:get-size node)]
-    (let [size (callable/call get-size node)]
+    (let [size (callable/call get-size node available-width available-height)]
       (assoc size
              :given-width (:width size)
              :given-height (:height size)))
     {:width (or (:given-width node)
-                (:available-width node))
+                available-width)
      :height (or (:given-height node)
-                 (:available-height node))}))
+                 available-height)}))
 
-(defn add-size [node]
+(defn add-size [node available-width available-height]
   (merge node
-        (size node)))
+        (size node available-width available-height)))
 
 (defn make-layout [node]
   (if-let [make-layout-callable (:make-layout node)]

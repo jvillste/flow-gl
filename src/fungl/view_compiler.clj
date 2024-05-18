@@ -123,16 +123,18 @@
 ;; for example
 
 (defn some-is-prefix [sorted-set-of-sequences sequence]
-  (or (and (= [] sequence)
-           (not (empty? sorted-set-of-sequences)))
-      (let [closest-match (first (rsubseq sorted-set-of-sequences
-                                          <=
-                                          sequence))]
-        (if closest-match
-          (if (is-prefix sequence closest-match)
-            true
-            false)
-          nil))))
+  (boolean (or (some empty?
+                     sorted-set-of-sequences)
+               #_(and (= [] sequence)
+                      (not (empty? sorted-set-of-sequences)))
+               (let [closest-match (first (rsubseq sorted-set-of-sequences
+                                                   <=
+                                                   sequence))]
+                 (if closest-match
+                   (if (is-prefix sequence closest-match)
+                     true
+                     false)
+                   nil)))))
 
 (defn run-some-is-prefix-rest [sequences sequence]
   (= (boolean (slow-some-is-prefix sequences sequence))
@@ -169,17 +171,27 @@
                                                [2]])
                                [1 1 1])))
 
-(clojure-test/defspec property-test-some-is-prefix 100
+(clojure-test/defspec property-tpest-some-is-prefix 1000
   (properties/for-all [prefix-candidates (generators/vector (generators/vector generators/int))
                        sequence (generators/vector generators/int)]
                       (run-some-is-prefix-rest prefix-candidates
                                                sequence)))
 
 (comment
-  (run-some-is-prefix-rest [[]
-                            [0]
-                            [0 0]]
-                           [0])
+  (property-tpest-some-is-prefix)
+
+
+  (let [prefixes [[-7] [-7 0]]
+        sequence [-7 1]]
+    [(slow-some-is-prefix prefixes sequence)
+     (some-is-prefix (sorted-id-set prefixes)
+                      sequence)])
+
+  (some-is-prefix (sorted-id-set [[0]]) [])
+
+
+  (run-some-is-prefix-rest [[-7] [-7 0]]
+                           [-7 1])
 
   (run-some-is-prefix-rest [[]
                             [0]]
@@ -189,35 +201,35 @@
                   [1]])
   ) ;; TODO: remove me
 
-(defn topmost-node-ids [node-ids]
-  (let [all-sorted-node-ids (sort-by identity
-                                     id-comparator/compare-ids
-                                     node-ids)]
-    (loop [remaining-sorted-node-ids (rest all-sorted-node-ids)
-           previous-node-id (first all-sorted-node-ids)
-           topmost-node-ids [(first all-sorted-node-ids)]]
+;; (defn topmost-node-ids [node-ids]
+;;   (let [all-sorted-node-ids (sort-by identity
+;;                                      id-comparator/compare-ids
+;;                                      node-ids)]
+;;     (loop [remaining-sorted-node-ids (rest all-sorted-node-ids)
+;;            previous-node-id (first all-sorted-node-ids)
+;;            topmost-node-ids [(first all-sorted-node-ids)]]
 
-      (if (empty? remaining-sorted-node-ids)
-        topmost-node-ids
-        (let [next-node-id (first remaining-sorted-node-ids)]
-          (if (is-prefix next-node-id previous-node-id)
-            (recur (rest remaining-sorted-node-ids)
-                   next-node-id
-                   topmost-node-ids)
-            (recur (rest remaining-sorted-node-ids)
-                   next-node-id
-                   (conj topmost-node-ids
-                         next-node-id))))))))
+;;       (if (empty? remaining-sorted-node-ids)
+;;         topmost-node-ids
+;;         (let [next-node-id (first remaining-sorted-node-ids)]
+;;           (if (is-prefix next-node-id previous-node-id)
+;;             (recur (rest remaining-sorted-node-ids)
+;;                    next-node-id
+;;                    topmost-node-ids)
+;;             (recur (rest remaining-sorted-node-ids)
+;;                    next-node-id
+;;                    (conj topmost-node-ids
+;;                          next-node-id))))))))
 
-(deftest test-topmost-node-ids
-  (is (= [[]]
-         (topmost-node-ids [[]
-                            [1]
-                            [1 2]])))
-  (is (= [[1] [2]]
-         (topmost-node-ids [[1]
-                            [1 2]
-                            [2]]))))
+;; (deftest test-topmost-node-ids
+;;   (is (= [[]]
+;;          (topmost-node-ids [[]
+;;                             [1]
+;;                             [1 2]])))
+;;   (is (= [[1] [2]]
+;;          (topmost-node-ids [[1]
+;;                             [1 2]
+;;                             [2]]))))
 
 (defn- view-call? [value]
   (or (and (vector? value)
@@ -338,16 +350,18 @@
                                                                    (:local-id value)))
                                                     :call)))
                                      id)
-
+                                ;;  _ (prn 'cache-keys (keys (:scene-graph-cache @state))) ;; TODO: remove me
                                 scene-graph (if-let [ ;; Scene graph cache is disabled. It did not work for command help in argupedia ui.
                                                      ;; I did not try to debug it since the performance is ok now without it.
-                                                     scene-graph nil #_(get (:scene-graph-cache @state)
-                                                                            id)]
+                                                     scene-graph #_nil (get (:scene-graph-cache @state)
+                                                                            [id view-function])]
                                               (do #_(prn 'component-cache-hit!
                                                          (function-name (if (var? (first value))
                                                                           @(first value)
                                                                           (first value)))
                                                          id) ;; TODO: remove me
+
+                                                  ;; (println "found from cache " [id view-function] (System/identityHashCode scene-graph))
 
                                                   (swap! state
                                                          update
@@ -361,17 +375,28 @@
                                                                           @(first value)
                                                                           (first value)))
                                                          id)
-
                                                   (swap! state
                                                          update
                                                          :applied-view-call-ids
                                                          conj
                                                          [id view-function])
 
-                                                  (-> (compile-node true
-                                                                    id
-                                                                    (apply-view-call id value))
-                                                      (assoc :view-call? true))))
+
+                                                  (let [scene-graph (-> (compile-node true
+                                                                                      id
+                                                                                      (apply-view-call id value))
+                                                                        (assoc :view-call? true))]
+
+                                                    ;;                                                    (println "adding to cache " [id view-function] (System/identityHashCode scene-graph))
+
+                                                    (swap! state
+                                                           update
+                                                           :scene-graph-cache
+                                                           assoc
+                                                           [id view-function]
+                                                           scene-graph)
+
+                                                    scene-graph)))
 
                                 dependency-value-map (cache/dependency-value-map (or (get (:constructor-cache @state)
                                                                                           [id view-function])
@@ -397,12 +422,7 @@
                                      [id view-function]
                                      dependency-value-map))
 
-                            (swap! state
-                                   update
-                                   :scene-graph-cache
-                                   assoc
-                                   [id view-function]
-                                   scene-graph)
+
 
                             (swap! state
                                    update
@@ -418,12 +438,14 @@
             (update :children
                     (fn [children]
                       (vec (map-indexed (fn [index child]
-                                          (compile-node false
-                                                        (vec (conj id
-                                                                   (or (:local-id (meta child))
-                                                                       (:local-id child)
-                                                                       index)))
-                                                        child))
+                                          (let [compiled-node (compile-node false
+                                                                            (vec (conj id
+                                                                                       (or (:local-id (meta child))
+                                                                                           (:local-id child)
+                                                                                           index)))
+                                                                            child)]
+;;                                            (prn 'compiled-node (System/identityHashCode compiled-node)) ;; TODO: remove me
+                                            compiled-node))
                                         children))))
             (assoc :id id))
 
@@ -435,8 +457,8 @@
   (->> node-dependencies
        (filter (fn [[_node-id dependency-value-map]]
                  (some (fn [[dependency value]]
-                         (not (= value
-                                 (depend/current-value dependency))))
+                         (not (identical? value
+                                          (depend/current-value dependency))))
                        dependency-value-map)))
        (map first)))
 
@@ -446,9 +468,11 @@
 (defn start-compilation-cycle! []
   (let [sorted-invalidated-node-ids-set (sorted-id-set (map first (invalidated-node-ids (:node-dependencies @state))))
         remove-invalidated-view-call-ids (partial medley/remove-keys
-                                                  (partial is-prefix-of-some sorted-invalidated-node-ids-set))]
+                                                  (fn [[id _view-function]]
+                                                    (is-prefix-of-some sorted-invalidated-node-ids-set
+                                                                       id)))]
 
-    #_(prn 'sorted-invalidated-node-ids-set sorted-invalidated-node-ids-set) ;; TODO: remove me
+;;    (prn 'sorted-invalidated-node-ids-set sorted-invalidated-node-ids-set) ;; TODO: remove me
 
     (swap! state
            (fn [state]
@@ -474,7 +498,7 @@
                                                        (slow-some-is-prefix sorted-cached-view-call-ids-set
                                                                             (first view-call-id)))
                                                  true
-                                                 (do #_(println "removing unused view call" view-call-id)
+                                                 (do (println "removing unused view call" view-call-id)
                                                      false))))]
 
     (swap! state
