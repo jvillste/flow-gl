@@ -29,7 +29,8 @@
 
    [flow-gl.graphics.font :as font]
    [flow-gl.gui.visuals :as visuals]
-   [clojure.string :as string]))
+   [clojure.string :as string]
+   [fungl.identity-cache :as identity-cache]))
 
 (tufte/add-basic-println-handler! {})
 
@@ -393,11 +394,19 @@
       (keyboard/handle-keyboard-event! scene-graph-before-event-handling
                                        event)))
 
-  (when (= :redraw (:type event))
+  (when (or (= :redraw (:type event))
+            (keyboard/key-pattern-pressed? [#{:alt :meta} :r]
+                                           event))
     (cache/invalidate-all!)
+    (reset! layout/layout-cache-atom (identity-cache/initial-state))
     (swap!  view-compiler/state
             assoc
             :constructor-cache
+            {})
+
+    (swap!  view-compiler/state
+            assoc
+            :scene-graph-cache
             {}))
 
   (when (= :resize-requested (:type event))
@@ -464,11 +473,11 @@
   (is (= '({:number 1, :type :a}
            {:number 3, :type :c}
            {:number 4, :type :b})
-       (preserve-only-latest-event :b
-                                   [{:number 1 :type :a}
-                                    {:number 2 :type :b}
-                                    {:number 3 :type :c}
-                                    {:number 4 :type :b}]))))
+         (preserve-only-latest-event :b
+                                     [{:number 1 :type :a}
+                                      {:number 2 :type :b}
+                                      {:number 3 :type :c}
+                                      {:number 4 :type :b}]))))
 
 (defn handle-events! [events]
   ;; (logga/write 'handle-events (map :type events))
@@ -481,7 +490,9 @@
                 scene-graph (:scene-graph @application-loop-state-atom)]
            (if (empty? events)
              scene-graph
-             (if (= :close-requested (:type (first events)))
+             (if (or (= :close-requested (:type (first events)))
+                     (keyboard/key-pattern-pressed? [#{:alt :meta} :w]
+                                                    (first events)))
                nil
                (do (process-event! scene-graph
                                    (first events))
@@ -504,9 +515,9 @@
                                  framerate 100]
                              (/ (* 1000 millisecond)
                                 framerate))}
-                  (doseq [event (take 1 @application/events-atom)]
-                    (async/>!! event-channel
-                               event)))
+                (doseq [event (take 1 @application/events-atom)]
+                  (async/>!! event-channel
+                             event)))
   ) ;; TODO: remove me
 
 
