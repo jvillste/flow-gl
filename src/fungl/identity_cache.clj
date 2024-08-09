@@ -2,9 +2,12 @@
   (:require [clojure.test :refer [deftest is testing]]
             [medley.core :as medley]))
 
+(defn initial-state []
+  {:hash-to-used-keys {}
+   :hash-to-mappings {}})
+
 (defn create-cache-atom []
-  (atom {:hash-to-used-keys {}
-         :hash-to-mappings {}}))
+  (atom (initial-state)))
 
 (defn add-to-cache! [cache-atom identity-keys value-keys value]
   (swap! cache-atom
@@ -130,7 +133,7 @@
 (defn reset-usage-tracking! [cache-atom]
   (swap! cache-atom assoc :hash-to-used-keys {}))
 
-(defn- used-key? [cache-atom parent-key? identity-keys value-keys]
+(defn- used-key? [cache-atom identity-keys value-keys]
   (if-some [used-keys (get-in @cache-atom
                               [:hash-to-used-keys (hash [identity-keys value-keys])])]
     (loop [used-keys used-keys]
@@ -165,9 +168,25 @@
                                                      cached-mappings)))
                           (medley/remove-vals empty?)))))))
 
+(defn statistics [cache-atom]
+  (merge (:usage-statistics @cache-atom)
+         {:mapping-count (count (apply concat (vals (:hash-to-mappings @cache-atom))))}))
+
+(defn with-cache* [cache-atom function]
+  (reset-usage-tracking! cache-atom)
+  (let [result (function)]
+    (remove-unused-keys! cache-atom)
+    (swap! cache-atom dissoc :usage-statistics)
+    result))
+
+(defmacro with-cache [cache-atom & body]
+  `(with-cache* ~cache-atom (fn [] ~@body)))
+
+;; TODO: when root node is cached everything else is removed from the cache and when something changes everything needs to be recalculated
 ;; TODO: allow passing anchestor? that tells if a cache key is anchestor of another cache key and use that to
 ;; keep children in cache when some anchestor is used
 (defn call-with-cache [cache-atom number-of-identity-arguments function & arguments]
+  #_(apply function arguments)
   (let [identity-keys (concat [function]
                               (take number-of-identity-arguments
                                     arguments))
@@ -181,12 +200,14 @@
 
     (if (= ::not-found value)
       (let [value (apply function arguments)]
+        (swap! cache-atom update-in [:usage-statistics :miss-count] (fnil inc 0))
         (add-to-cache! cache-atom
                        identity-keys
                        value-keys
                        value)
         value)
-      value)))
+      (do (swap! cache-atom update-in [:usage-statistics :hit-count] (fnil inc 0))
+          value))))
 
 (defn cached-call? [cache-atom number-of-identity-arguments function & arguments]
   (cached? cache-atom

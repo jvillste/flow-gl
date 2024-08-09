@@ -23,6 +23,7 @@
 ;; the view compiler state must be cleaned of removed components only after layout
 
 ;; it is enough to collect all cached node ids and then mark all their children as applied view calls when cleaning view call cache
+
 ;; this applis to layout cache as well as view compilers scene-graph-cache
 
 ;; when a layout comes from the cache, it means the component in that branch of the scene graph have not changed, thus no component cleanup is needed.
@@ -94,6 +95,9 @@
           (fn [children]
             (if children
               (mapv (fn [child available-area]
+                      #_(do-layout-implementation child
+                                                  (:available-width available-area)
+                                                  (:available-height available-area))
                       (identity-cache/call-with-cache layout-cache-atom
                                                       1
                                                       do-layout-implementation
@@ -121,76 +125,22 @@
       (measuring/add-size available-width available-height)
       (measuring/make-layout)))
 
-(defn- layout-root [root-node available-width available-height]
-  (assoc (identity-cache/call-with-cache layout-cache-atom
-                                         1
-                                         do-layout-implementation
-                                         root-node
-                                         available-width
-                                         available-height)
-         :x 0
-         :y 0
-         :width available-width
-         :height available-height))
-
-(defn do-layout [node available-width available-height]
-  (identity-cache/call-with-cache layout-cache-atom
-                                  1
-                                  layout-root
-                                  node
-                                  available-width
-                                  available-height)
-
-  #_(when (and (cache/cached? do-layout-implementation
-                              node)
-               (view-compiler/invalidated? (:id node)))
-      (cache/invalidate! (cache/function-call-key do-layout-implementation
-                                                  [node])))
-
-  #_(if (cache/cached? do-layout-implementation
-                       node)
-      (do #_(println "layout cache hit" (pr-str (:id node)))
-          (swap! view-compiler/state
-                 update
-                 :cached-view-call-ids
-                 conj
-                 (:id node))
-          (let [scene-graph (cache/call! do-layout-implementation
-                                         node)]
-            (if (:render scene-graph)
-              scene-graph
-              (assoc scene-graph
-                     :render visuals/render-to-images-render-function
-                     :render-on-descend? true)))
-          #_(cond-> (cache/call! do-layout-implementation
-                                 node)
-              (:view-call? node)
-              (assoc :render visuals/render-to-images-render-function
-                     :render-on-descend? true)))
-      (cache/call! do-layout-implementation
-                   node))
-
-  )
-
 (defn do-layout-for-size [scene-graph available-width available-height]
-  (reset! count-atom 0)
-  (identity-cache/reset-usage-tracking! layout-cache-atom)
-  (let [layouted-scene-graph (identity-cache/call-with-cache layout-cache-atom
-                                                             1
-                                                             layout-root
-                                                             scene-graph
-                                                             available-width
-                                                             available-height)]
-    (identity-cache/remove-unused-keys! layout-cache-atom)
-    ;; (println "layout count " @count-atom)
-    ;; (println "cache size" (count (keys (:hash-to-mappings @layout-cache-atom))))
-    layouted-scene-graph))
+  (identity-cache/with-cache layout-cache-atom
+    (let [result (assoc (do-layout-implementation scene-graph
+                                                  available-width
+                                                  available-height)
+                        :x 0
+                        :y 0
+                        :width available-width
+                        :height available-height)]
+      (prn (identity-cache/statistics layout-cache-atom))
+      result)))
 
 (defn layouted [create-scene-graph]
   (fn [width height]
     (-> (create-scene-graph)
         (do-layout-for-size width height))))
-
 
 (def layout-keys [:type :local-id :id :x :y :width :height :available-width :available-height :children :view-call? :can-gain-focus? #_:keyboard-event-handler
                   ])
