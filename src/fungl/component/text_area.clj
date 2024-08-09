@@ -36,7 +36,8 @@
 
 (defn rows-node [rows]
   {:rows rows
-   :get-size get-rows-node-size
+   :get-size (fn [node _available-width _available-height]
+               (get-rows-node-size node))
 
    :image-function text/create-buffered-image-for-rows
    :draw-function text/draw-rows
