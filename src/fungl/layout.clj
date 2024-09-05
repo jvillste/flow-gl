@@ -87,7 +87,7 @@
   node)
 
 (declare do-layout
-         do-layout-implementation)
+         layout-node)
 
 (defn do-layout-for-children [node available-width available-height]
   (update node
@@ -95,12 +95,12 @@
           (fn [children]
             (if children
               (mapv (fn [child available-area]
-                      #_(do-layout-implementation child
+                      #_(layout-node child
                                                   (:available-width available-area)
                                                   (:available-height available-area))
                       (identity-cache/call-with-cache layout-cache-atom
                                                       1
-                                                      do-layout-implementation
+                                                      layout-node
                                                       child
                                                       (:available-width available-area)
                                                       (:available-height available-area)))
@@ -114,10 +114,10 @@
                                :available-height available-height})))
               nil))))
 
-(def count-atom (atom 0))
+;; (def count-atom (atom 0))
 
-(defn- do-layout-implementation [node available-width available-height]
-  (swap! count-atom inc)
+(defn layout-node [node available-width available-height]
+;;   (swap! count-atom inc)
   (-> node
       (adapt-to-space available-width available-height)
       (do-layout-for-children available-width available-height)
@@ -125,22 +125,20 @@
       (measuring/add-size available-width available-height)
       (measuring/make-layout)))
 
-(defn do-layout-for-size [scene-graph available-width available-height]
-  (identity-cache/with-cache layout-cache-atom
-    (let [result (assoc (do-layout-implementation scene-graph
-                                                  available-width
-                                                  available-height)
-                        :x 0
-                        :y 0
-                        :width available-width
-                        :height available-height)]
+(defn layout-scene-graph [scene-graph available-width available-height]
+  (identity-cache/with-cache-cleanup layout-cache-atom
+    (let [layouted-scene-graph (assoc (layout-node scene-graph available-width available-height)
+                                      :x 0
+                                      :y 0
+                                      :width available-width
+                                      :height available-height)]
       (prn (identity-cache/statistics layout-cache-atom))
-      result)))
+      layouted-scene-graph)))
 
 (defn layouted [create-scene-graph]
   (fn [width height]
     (-> (create-scene-graph)
-        (do-layout-for-size width height))))
+        (layout-scene-graph width height))))
 
 (def layout-keys [:type :local-id :id :x :y :width :height :available-width :available-height :children :view-call? :can-gain-focus? #_:keyboard-event-handler
                   ])

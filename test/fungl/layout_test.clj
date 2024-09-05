@@ -32,7 +32,7 @@
              :available-width 100,
              :available-height 2147483647})}
          (with-bindings (view-compiler/state-bindings)
-           (layout/select-layout-keys (layout/do-layout-for-size (view-compiler/compile-view-calls false
+           (layout/select-layout-keys (layout/layout-scene-graph (view-compiler/compile-view-calls false
                                                                                                    []
                                                                                                    {:local-id :a
                                                                                                     :adapt-to-space (fn [node]

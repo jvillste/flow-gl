@@ -172,15 +172,15 @@
   (merge (:usage-statistics @cache-atom)
          {:mapping-count (count (apply concat (vals (:hash-to-mappings @cache-atom))))}))
 
-(defn with-cache* [cache-atom function]
+(defn with-cache-cleanup* [cache-atom function]
   (reset-usage-tracking! cache-atom)
+  (swap! cache-atom dissoc :usage-statistics)
   (let [result (function)]
     (remove-unused-keys! cache-atom)
-    (swap! cache-atom dissoc :usage-statistics)
     result))
 
-(defmacro with-cache [cache-atom & body]
-  `(with-cache* ~cache-atom (fn [] ~@body)))
+(defmacro with-cache-cleanup [cache-atom & body]
+  `(with-cache-cleanup* ~cache-atom (fn [] ~@body)))
 
 ;; TODO: when root node is cached everything else is removed from the cache and when something changes everything needs to be recalculated
 ;; TODO: allow passing anchestor? that tells if a cache key is anchestor of another cache key and use that to

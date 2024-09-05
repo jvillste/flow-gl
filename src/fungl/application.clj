@@ -174,7 +174,7 @@
 
 (defn add-development-tools [scene-graph]
   (if (:show-development-tools? @application-loop-state-atom)
-    (let [development-tools-layout (layout/do-layout-for-size (assoc (view-compiler/compile-view-calls (development-tools-view scene-graph))
+    (let [development-tools-layout (layout/layout-scene-graph (assoc (view-compiler/compile-view-calls (development-tools-view scene-graph))
                                                                      :x 0
                                                                      :y 0)
                                                               (:window-width @application-loop-state-atom)
@@ -300,7 +300,7 @@
 (defn create-scene-graph [root-view-or-var]
   (let [view-call-dependency-value-maps-before-compilation (:node-dependencies @view-compiler/state)]
     (view-compiler/start-compilation-cycle!)
-    (let [scene-graph (layout/do-layout-for-size (view-compiler/compile-view-calls [root-view-or-var])
+    (let [scene-graph (layout/layout-scene-graph (view-compiler/compile-view-calls [root-view-or-var])
                                                  (:window-width @application-loop-state-atom)
                                                  (:window-height @application-loop-state-atom))]
       (view-compiler/end-compilation-cycle!)
@@ -601,7 +601,7 @@
                              (when scene-graph
                                (let [scene-graph (-> scene-graph
                                                      #_(highlight-cache-misses)
-                                                     #_(layout/do-layout-for-size (:window-width @application-loop-state-atom)
+                                                     #_(layout/layout-scene-graph (:window-width @application-loop-state-atom)
                                                                                   (:window-height @application-loop-state-atom)))]
 
                                  (tufte/p :render
