@@ -1,4 +1,10 @@
 (ns strict-core
+  "clojure.core with type assertions.
+
+   Usage:
+
+   (ns my-ns
+     (:require [strict-core :refer :all]))"
   (:refer-clojure :exclude [get-in]))
 
 (defn get-in
