@@ -13,11 +13,11 @@
                       m))
    (assert (instance? clojure.lang.Seqable
                       ks))
-   (get-in m ks))
+   (clojure.core/get-in m ks))
 
   ([m ks not-found]
    (assert (instance? clojure.lang.Associative
                       m))
    (assert (instance? clojure.lang.Seqable
                       ks))
-   (get-in m ks not-found)))
+   (clojure.core/get-in m ks not-found)))
