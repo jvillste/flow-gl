@@ -8,12 +8,12 @@
             [flow-gl.gui.visuals :as visuals]
             [clojure.test :refer [deftest is]]
             [clj-async-profiler.core :as prof]
-            [fungl.identity-cache :as identity-cache]))
+            [fungl.hierarchical-identity-cache :as hierarchical-identity-cache]))
 
 (def ^:dynamic layout-cache-atom)
 
 (defn state-bindings []
-  {#'layout-cache-atom (identity-cache/create-cache-atom)})
+  {#'layout-cache-atom (hierarchical-identity-cache/create-cache-atom)})
 
 (spec/def ::available-width int?)
 (spec/def ::available-height int?)
@@ -33,12 +33,13 @@
   #_(prn 'adapt-to-space (:id node)) ;; TODO: remove me
 
   (if-let [callable (:adapt-to-space node)]
-    (adapt-to-space (->> (callable/call-with-identity-cache layout-cache-atom
-                                                            0
-                                                            callable
-                                                            node
-                                                            available-width
-                                                            available-height)
+    (adapt-to-space (->> (callable/call-with-hierarchical-identity-cache layout-cache-atom
+                                                                         (:id node)
+                                                                         0
+                                                                         callable
+                                                                         node
+                                                                         available-width
+                                                                         available-height)
                          (view-compiler/compile-node (:view-call? node)
                                                      (:id node)
                                                      #_(concat (:id node)
@@ -96,14 +97,15 @@
             (if children
               (mapv (fn [child available-area]
                       #_(layout-node child
-                                                  (:available-width available-area)
-                                                  (:available-height available-area))
-                      (identity-cache/call-with-cache layout-cache-atom
-                                                      1
-                                                      layout-node
-                                                      child
-                                                      (:available-width available-area)
-                                                      (:available-height available-area)))
+                                     (:available-width available-area)
+                                     (:available-height available-area))
+                      (hierarchical-identity-cache/call-with-cache layout-cache-atom
+                                                                   (:id child)
+                                                                   1
+                                                                   layout-node
+                                                                   child
+                                                                   (:available-width available-area)
+                                                                   (:available-height available-area)))
                     children
                     (if-some [available-area-for-children (:available-area-for-children node)]
                       (available-area-for-children node
@@ -117,7 +119,7 @@
 ;; (def count-atom (atom 0))
 
 (defn layout-node [node available-width available-height]
-;;   (swap! count-atom inc)
+  ;;   (swap! count-atom inc)
   (-> node
       (adapt-to-space available-width available-height)
       (do-layout-for-children available-width available-height)
@@ -126,13 +128,13 @@
       (measuring/make-layout)))
 
 (defn layout-scene-graph [scene-graph available-width available-height]
-  (identity-cache/with-cache-cleanup layout-cache-atom
+  (hierarchical-identity-cache/with-cache-cleanup layout-cache-atom
     (let [layouted-scene-graph (assoc (layout-node scene-graph available-width available-height)
                                       :x 0
                                       :y 0
                                       :width available-width
                                       :height available-height)]
-      (prn (identity-cache/statistics layout-cache-atom))
+      ;; (prn (hierarchical-identity-cache/statistics layout-cache-atom))
       layouted-scene-graph)))
 
 (defn layouted [create-scene-graph]

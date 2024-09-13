@@ -30,7 +30,7 @@
    [flow-gl.graphics.font :as font]
    [flow-gl.gui.visuals :as visuals]
    [clojure.string :as string]
-   [fungl.identity-cache :as identity-cache]))
+   [fungl.hierarchical-identity-cache :as hierarchical-identity-cache]))
 
 (tufte/add-basic-println-handler! {})
 
@@ -398,7 +398,7 @@
             (keyboard/key-pattern-pressed? [#{:alt :meta} :r]
                                            event))
     (cache/invalidate-all!)
-    (reset! layout/layout-cache-atom (identity-cache/initial-state))
+    (reset! layout/layout-cache-atom (hierarchical-identity-cache/initial-state))
     (swap!  view-compiler/state
             assoc
             :constructor-cache

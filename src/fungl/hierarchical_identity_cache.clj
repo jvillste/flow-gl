@@ -1,29 +1,35 @@
-(ns fungl.identity-cache
+(ns fungl.hierarchical-identity-cache
   (:require [clojure.test :refer [deftest is testing]]
-            [medley.core :as medley]))
+            [medley.core :as medley]
+            [fungl.trie :as trie]
+            [strict-core :refer :all]))
+
 
 (defn initial-state []
   {:hash-to-used-keys {}
-   :hash-to-mappings {}})
+   :hash-to-mappings {}
+   :used-paths-trie (trie/create-trie)})
 
 (defn create-cache-atom []
   (atom (initial-state)))
 
-(defn add-to-cache! [cache-atom identity-keys value-keys value]
+(defn add-to-cache! [cache-atom path identity-keys value-keys value]
   (swap! cache-atom
          update-in
          [:hash-to-mappings (hash [identity-keys value-keys])]
          (fnil conj [])
-         [identity-keys value-keys value]))
+         [path identity-keys value-keys value]))
 
 (deftest test-add-to-cache
   (let [cache-atom (create-cache-atom)]
     (add-to-cache! cache-atom
+                   []
                    [:identity-key]
                    [:value-key]
                    :value)
     (is (= {:hash-to-used-keys {},
-            :hash-to-mappings {83065300 [[[:identity-key] [:value-key] :value]]}}
+            :used-paths-trie {}
+            :hash-to-mappings {83065300 [[[] [:identity-key] [:value-key] :value]]}}
            @cache-atom))))
 
 (defn- identical-values? [sequence-1 sequence-2]
@@ -40,7 +46,12 @@
                     (rest sequence-2))
              false)))))
 
-(defn- add-used-key! [cache-atom identity-keys value-keys]
+(defn- add-used-key! [cache-atom path identity-keys value-keys]
+  (swap! cache-atom
+         update
+         :used-paths-trie
+         trie/add-to-trie
+         path)
   (swap! cache-atom
          update-in
          [:hash-to-used-keys
@@ -49,7 +60,7 @@
            (if (nil? used-keys)
              [[identity-keys value-keys]]
              (if (loop [mappings used-keys]
-                   (if-some [[cached-identity-keys cached-value-keys value] (first mappings)]
+                   (if-some [[cached-identity-keys cached-value-keys _value] (first mappings)]
                      (if (and (identical-values? identity-keys
                                                  cached-identity-keys)
                               (= value-keys
@@ -63,22 +74,26 @@
 (deftest test-add-used-key!
   (let [cache-atom (create-cache-atom)]
     (add-used-key! cache-atom
+                   []
                    [:identity-key] [:value-key])
     (is (= {:hash-to-used-keys {83065300 [[[:identity-key] [:value-key]]]},
-            :hash-to-mappings {}}
+            :hash-to-mappings {}
+            :used-paths-trie {::trie/head true}}
            @cache-atom))
 
     (add-used-key! cache-atom
+                   []
                    [:identity-key] [:value-key])
 
     (is (= {:hash-to-used-keys {83065300 [[[:identity-key] [:value-key]]]},
-            :hash-to-mappings {}}
+            :hash-to-mappings {}
+            :used-paths-trie {::trie/head true}}
            @cache-atom))))
 
 (defn- get-value-from-cache [cache-atom identity-keys value-keys]
   (loop [mappings (get-in @cache-atom
                           [:hash-to-mappings (hash [identity-keys value-keys])])]
-    (if-some [[cached-identity-keys cached-value-keys value] (first mappings)]
+    (if-some [[_path cached-identity-keys cached-value-keys value] (first mappings)]
       (if (and (identical-values? identity-keys
                                   cached-identity-keys)
                (= value-keys
@@ -87,54 +102,62 @@
         (recur (rest mappings)))
       ::not-found)))
 
-(defn get-from-cache [cache-atom identity-keys value-keys]
-  (add-used-key! cache-atom identity-keys value-keys)
-  (get-value-from-cache cache-atom identity-keys value-keys))
-
-(deftest test-get-from-cache
+(deftest test-get-value-from-cache
   (is (= :value
          (let [identity-key {:a :b}
                cache-atom (create-cache-atom)]
            (add-to-cache! cache-atom
+                          []
                           [identity-key]
                           [{:c :d}]
                           :value)
-           (get-from-cache cache-atom
-                           [identity-key]
-                           [{:c :d}]))))
+           (get-value-from-cache cache-atom
+                                 [identity-key]
+                                 [{:c :d}]))))
 
   (testing "value can be nil"
     (is (= nil
            (let [identity-key {:a :b}
                  cache-atom (create-cache-atom)]
              (add-to-cache! cache-atom
+                            []
                             [identity-key]
                             [{:c :d}]
                             nil)
-             (get-from-cache cache-atom
-                             [identity-key]
-                             [{:c :d}])))))
+             (get-value-from-cache cache-atom
+                                   [identity-key]
+                                   [{:c :d}])))))
 
   (testing "equality is not enough for identity keys"
     (is (= ::not-found
            (let [cache-atom (create-cache-atom)]
              (add-to-cache! cache-atom
+                            []
                             [{:a :b}]
                             [{:c :d}]
                             nil)
-             (get-from-cache cache-atom
-                             [{:a :b}]
-                             [{:c :d}]))))))
+             (get-value-from-cache cache-atom
+                                   [{:a :b}]
+                                   [{:c :d}]))))))
+
+
+;; (defn get-from-cache [cache-atom path identity-keys value-keys]
+;;   (add-used-key! cache-atom path identity-keys value-keys)
+;;   (get-value-from-cache cache-atom identity-keys value-keys))
 
 (defn cached? [cache-atom identity-keys value-keys]
   (not (= ::not-found
           (get-value-from-cache cache-atom identity-keys value-keys))))
 
 (defn reset-usage-tracking! [cache-atom]
-  (swap! cache-atom assoc :hash-to-used-keys {}))
+  (swap! cache-atom
+         (fn [cache]
+           (-> cache
+               (assoc :hash-to-used-keys {})
+               (assoc :used-paths-trie (trie/create-trie))))))
 
-(defn- used-key? [cache-atom identity-keys value-keys]
-  (if-some [used-keys (get-in @cache-atom
+(defn- used-key? [cache identity-keys value-keys]
+  (if-some [used-keys (get-in cache
                               [:hash-to-used-keys (hash [identity-keys value-keys])])]
     (loop [used-keys used-keys]
       (if-some [[used-identity-keys used-value-keys] (first used-keys)]
@@ -149,9 +172,9 @@
 
 (deftest test-used-key?
   (let [cache-atom (create-cache-atom)]
-    (add-used-key! cache-atom [] [])
-    (is (used-key? cache-atom [] []))
-    (is (not (used-key? cache-atom [1] [2])))))
+    (add-used-key! cache-atom [] [] [])
+    (is (used-key? @cache-atom [] []))
+    (is (not (used-key? @cache-atom [1] [2])))))
 
 (defn remove-unused-keys! [cache-atom]
   (swap! cache-atom
@@ -161,10 +184,12 @@
                    (fn [hash-to-mappings]
                      (->> hash-to-mappings
                           (medley/map-vals (fn [cached-mappings]
-                                             (filter (fn [[cached-identity-keys cached-value-keys]]
-                                                       (used-key? cache-atom
-                                                                  cached-identity-keys
-                                                                  cached-value-keys))
+                                             (filter (fn [[path cached-identity-keys cached-value-keys]]
+                                                       (or (used-key? @cache-atom
+                                                            cached-identity-keys
+                                                            cached-value-keys)
+                                                           (trie/prefix-in-trie? (:used-paths-trie cache)
+                                                                                 path)))
                                                      cached-mappings)))
                           (medley/remove-vals empty?)))))))
 
@@ -185,7 +210,7 @@
 ;; TODO: when root node is cached everything else is removed from the cache and when something changes everything needs to be recalculated
 ;; TODO: allow passing anchestor? that tells if a cache key is anchestor of another cache key and use that to
 ;; keep children in cache when some anchestor is used
-(defn call-with-cache [cache-atom number-of-identity-arguments function & arguments]
+(defn call-with-cache [cache-atom path number-of-identity-arguments function & arguments]
   #_(apply function arguments)
   (let [identity-keys (concat [function]
                               (take number-of-identity-arguments
@@ -194,19 +219,20 @@
         value-keys (drop number-of-identity-arguments
                          arguments)
 
-        value (get-from-cache cache-atom
-                              identity-keys
-                              value-keys)]
+        value (get-value-from-cache cache-atom identity-keys value-keys)]
 
     (if (= ::not-found value)
       (let [value (apply function arguments)]
         (swap! cache-atom update-in [:usage-statistics :miss-count] (fnil inc 0))
+        (add-used-key! cache-atom path identity-keys value-keys)
         (add-to-cache! cache-atom
+                       path
                        identity-keys
                        value-keys
                        value)
         value)
-      (do (swap! cache-atom update-in [:usage-statistics :hit-count] (fnil inc 0))
+      (do (add-used-key! cache-atom path identity-keys value-keys)
+          (swap! cache-atom update-in [:usage-statistics :hit-count] (fnil inc 0))
           value))))
 
 (defn cached-call? [cache-atom number-of-identity-arguments function & arguments]
@@ -224,24 +250,36 @@
           cache-atom (create-cache-atom)
           identity-key {:a :b}]
 
-      (call-with-cache cache-atom 1 function identity-key :a)
+      (call-with-cache cache-atom [:a] 1 function identity-key :a)
       (is (= 1 @call-count))
 
-      (call-with-cache cache-atom 1 function identity-key :a)
+      (call-with-cache cache-atom [:b] 1 function identity-key :a)
       (is (= 1 @call-count))
 
-      (call-with-cache cache-atom 1 function identity-key :b)
+      (call-with-cache cache-atom [:c] 1 function identity-key :b)
       (is (= 2 @call-count))
 
-      (is (= [[[[function {:a :b}]
-                [:a]]]
-
-              [[[function {:a :b}]
-                [:b]]]]
-
+      (is (= [[[[function {:a :b}] [:a]]]
+              [[[function {:a :b}] [:b]]]]
              (-> @cache-atom
                  :hash-to-used-keys
                  vals)))
+
+      (call-with-cache cache-atom [:b] 1 function identity-key :b)
+      (is (= 2 @call-count))
+
+
+      (is (= [[[[function {:a :b}] [:a]]]
+              [[[function {:a :b}] [:b]]]]
+             (-> @cache-atom
+                 :hash-to-used-keys
+                 vals)))
+
+      (is (= {:a {::trie/head true}
+              :b {::trie/head true}
+              :c {::trie/head true}}
+             (-> @cache-atom
+                 :used-paths-trie)))
 
       (reset-usage-tracking! cache-atom)
 
@@ -249,7 +287,9 @@
              (-> @cache-atom
                  :hash-to-used-keys)))
 
-      (call-with-cache cache-atom 1 function identity-key :b)
+      (call-with-cache cache-atom [:b] 1 function identity-key :b)
+
+
       (is (= 2 @call-count))
 
       (is (= [[[[function {:a :b}]
@@ -258,10 +298,12 @@
                  :hash-to-used-keys
                  vals)))
 
-      (is (= [[[[function {:a :b}]
+      (is (= [[[[:a]
+                [function {:a :b}]
                 [:a]
                 [{:a :b} :a]]]
-              [[[function {:a :b}]
+              [[[:c]
+                [function {:a :b}]
                 [:b]
                 [{:a :b} :b]]]]
              (-> @cache-atom
@@ -282,10 +324,10 @@
       (is (not (cached-call? cache-atom 1 function identity-key :a)))
       (is (cached-call? cache-atom 1 function identity-key :b))
 
-      (call-with-cache cache-atom 1 function identity-key :b)
+      (call-with-cache cache-atom [] 1 function identity-key :b)
       (is (= 2 @call-count))
 
-      (call-with-cache cache-atom 1 function identity-key :a)
+      (call-with-cache cache-atom [] 1 function identity-key :a)
       (is (= 3 @call-count))))
 
   (testing "zero arguments"
@@ -295,10 +337,10 @@
                      :result)
           cache-atom (create-cache-atom)]
 
-      (call-with-cache cache-atom 0 function)
+      (call-with-cache cache-atom [] 0 function)
       (is (= 1 @call-count))
 
-      (call-with-cache cache-atom 0 function)
+      (call-with-cache cache-atom [] 0 function)
       (is (= 1 @call-count))))
 
   (testing "zero identity arguments"
@@ -308,8 +350,20 @@
                      result)
           cache-atom (create-cache-atom)]
 
-      (is (= :result (call-with-cache cache-atom 0 function :result)))
+      (is (= :result (call-with-cache cache-atom [] 0 function :result)))
       (is (= 1 @call-count))
 
-      (is (= :result (call-with-cache cache-atom 0 function :result)))
+      (is (= :result (call-with-cache cache-atom [] 0 function :result)))
       (is (= 1 @call-count)))))
+
+(defn child [path]
+  {:path path})
+
+(defn container [path]
+  {:path path
+   :children [(child (conj path 1))
+              (child (conj path 2))]})
+
+(comment
+  (container [])
+  ) ;; TODO: remove me
