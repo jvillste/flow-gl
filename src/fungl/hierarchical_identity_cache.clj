@@ -4,7 +4,6 @@
             [fungl.trie :as trie]
             [strict-core :refer :all]))
 
-
 (defn initial-state []
   {:hash-to-used-keys {}
    :hash-to-mappings {}
@@ -46,12 +45,16 @@
                     (rest sequence-2))
              false)))))
 
-(defn- add-used-key! [cache-atom path identity-keys value-keys]
+(deftest test-identical-values?
+  (is (identical-values? [] [])))
+
+(defn- add-used-key! [cache-atom path usage identity-keys value-keys]
   (swap! cache-atom
          update
          :used-paths-trie
          trie/add-to-trie
-         path)
+         path
+         usage)
   (swap! cache-atom
          update-in
          [:hash-to-used-keys
@@ -75,19 +78,23 @@
   (let [cache-atom (create-cache-atom)]
     (add-used-key! cache-atom
                    []
-                   [:identity-key] [:value-key])
+                   :new
+                   [:identity-key]
+                   [:value-key])
     (is (= {:hash-to-used-keys {83065300 [[[:identity-key] [:value-key]]]},
             :hash-to-mappings {}
-            :used-paths-trie {::trie/head true}}
+            :used-paths-trie {::trie/value :new}}
            @cache-atom))
 
     (add-used-key! cache-atom
                    []
-                   [:identity-key] [:value-key])
+                   :reused
+                   [:identity-key]
+                   [:value-key])
 
     (is (= {:hash-to-used-keys {83065300 [[[:identity-key] [:value-key]]]},
             :hash-to-mappings {}
-            :used-paths-trie {::trie/head true}}
+            :used-paths-trie {::trie/value :reused}}
            @cache-atom))))
 
 (defn- get-value-from-cache [cache-atom identity-keys value-keys]
@@ -172,7 +179,7 @@
 
 (deftest test-used-key?
   (let [cache-atom (create-cache-atom)]
-    (add-used-key! cache-atom [] [] [])
+    (add-used-key! cache-atom [] :reused [] [])
     (is (used-key? @cache-atom [] []))
     (is (not (used-key? @cache-atom [1] [2])))))
 
@@ -185,11 +192,20 @@
                      (->> hash-to-mappings
                           (medley/map-vals (fn [cached-mappings]
                                              (filter (fn [[path cached-identity-keys cached-value-keys]]
-                                                       (or (used-key? @cache-atom
-                                                            cached-identity-keys
-                                                            cached-value-keys)
-                                                           (trie/prefix-in-trie? (:used-paths-trie cache)
-                                                                                 path)))
+                                                       (case (trie/last-value-on-path (:used-paths-trie cache)
+                                                                                      path)
+                                                         ;; TOOD: If last-value-on-path would tell if the value
+                                                         ;; was on the same path or on a prefix, we would only need
+                                                         ;; to call used-key? when the value was on the same path.
+                                                         ;; Calculating the hash of the keys in used-key? was a performance
+                                                         ;; bottleneck when it was done on every call on this function.
+                                                         :new (used-key? @cache-atom
+                                                                         cached-identity-keys
+                                                                         cached-value-keys)
+
+                                                         :reused true
+
+                                                         false))
                                                      cached-mappings)))
                           (medley/remove-vals empty?)))))))
 
@@ -224,14 +240,14 @@
     (if (= ::not-found value)
       (let [value (apply function arguments)]
         (swap! cache-atom update-in [:usage-statistics :miss-count] (fnil inc 0))
-        (add-used-key! cache-atom path identity-keys value-keys)
+        (add-used-key! cache-atom path :new identity-keys value-keys)
         (add-to-cache! cache-atom
                        path
                        identity-keys
                        value-keys
                        value)
         value)
-      (do (add-used-key! cache-atom path identity-keys value-keys)
+      (do (add-used-key! cache-atom path :reused identity-keys value-keys)
           (swap! cache-atom update-in [:usage-statistics :hit-count] (fnil inc 0))
           value))))
 
@@ -242,128 +258,136 @@
            (drop number-of-identity-arguments arguments)))
 
 (deftest cache-test
-  (testing "usage tracking with both identity and value arguments"
-    (let [call-count (atom 0)
-          function (fn [identity-key value-key]
-                     (swap! call-count inc)
-                     [identity-key value-key])
-          cache-atom (create-cache-atom)
-          identity-key {:a :b}]
+  (testing "usage"
+    (testing "zero arguments"
+      (let [call-count (atom 0)
+            function (fn []
+                       (swap! call-count inc)
+                       :result)
+            cache-atom (create-cache-atom)]
 
-      (call-with-cache cache-atom [:a] 1 function identity-key :a)
-      (is (= 1 @call-count))
+        (is (= :result (call-with-cache cache-atom [] 0 function)))
+        (is (= 1 @call-count))
 
-      (call-with-cache cache-atom [:b] 1 function identity-key :a)
-      (is (= 1 @call-count))
+        (is (= :result (call-with-cache cache-atom [] 0 function)))
+        (is (= 1 @call-count))))
 
-      (call-with-cache cache-atom [:c] 1 function identity-key :b)
-      (is (= 2 @call-count))
+    (testing "zero identity arguments"
+      (let [call-count (atom 0)
+            function (fn [result]
+                       (swap! call-count inc)
+                       result)
+            cache-atom (create-cache-atom)]
 
-      (is (= [[[[function {:a :b}] [:a]]]
-              [[[function {:a :b}] [:b]]]]
-             (-> @cache-atom
-                 :hash-to-used-keys
-                 vals)))
+        (is (= :result (call-with-cache cache-atom [] 0 function :result)))
+        (is (= 1 @call-count))
 
-      (call-with-cache cache-atom [:b] 1 function identity-key :b)
-      (is (= 2 @call-count))
+        (is (= :result (call-with-cache cache-atom [] 0 function :result)))
+        (is (= 1 @call-count))))
+
+    (testing "identity and value varguments"
+      (let [call-count (atom 0)
+            function (fn [identity-key value-key]
+                       (swap! call-count inc)
+                       [identity-key value-key])
+            identity-key #{:a}
+            cache-atom (create-cache-atom)]
+
+        (is (= [identity-key :a]
+               (call-with-cache cache-atom [:a] 1 function identity-key :a)))
+
+        (is (= [identity-key :a]
+               (call-with-cache cache-atom [:a] 1 function identity-key :a)))
+
+        (is (= 1 @call-count))
+
+        (is (= [identity-key :a]
+               (call-with-cache cache-atom [:a] 1 function #{:a} :a)))
+
+        (is (= 2 @call-count))
+
+        (is (= [identity-key :b]
+               (call-with-cache cache-atom [:a] 1 function identity-key :b)))
+
+        (is (= 3 @call-count)))))
+
+  (testing "cleanup"
+
+    (testing "old value in same path is removed"
+      (let [cache-atom (create-cache-atom)]
+
+        (with-cache-cleanup cache-atom
+          (call-with-cache cache-atom [:a] 0 identity :a))
 
 
-      (is (= [[[[function {:a :b}] [:a]]]
-              [[[function {:a :b}] [:b]]]]
-             (-> @cache-atom
-                 :hash-to-used-keys
-                 vals)))
+        (is (cached-call? cache-atom 0 identity :a))
 
-      (is (= {:a {::trie/head true}
-              :b {::trie/head true}
-              :c {::trie/head true}}
-             (-> @cache-atom
-                 :used-paths-trie)))
+        (with-cache-cleanup cache-atom
+          (call-with-cache cache-atom [:a] 0 identity :b))
 
-      (reset-usage-tracking! cache-atom)
+        (is (not (cached-call? cache-atom 0 identity :a)))
+        (is (cached-call? cache-atom 0 identity :b))))
 
-      (is (= {}
-             (-> @cache-atom
-                 :hash-to-used-keys)))
+    (testing "unused children are removed when parent changes"
+      (let [cache-atom (create-cache-atom)]
 
-      (call-with-cache cache-atom [:b] 1 function identity-key :b)
+        (with-cache-cleanup cache-atom
+          (call-with-cache cache-atom [:a :b] 0 identity 1)
+          (call-with-cache cache-atom [:a] 0 identity 2))
+
+        (is (cached-call? cache-atom 0 identity 1))
+        (is (cached-call? cache-atom 0 identity 2))
+
+        (with-cache-cleanup cache-atom
+          (call-with-cache cache-atom [:a :b] 0 identity 3)
+          (call-with-cache cache-atom [:a] 0 identity 4))
 
 
-      (is (= 2 @call-count))
+        (is (not (cached-call? cache-atom 0 identity 1)))
+        (is (not (cached-call? cache-atom 0 identity 2)))
 
-      (is (= [[[[function {:a :b}]
-                [:b]]]]
-             (-> @cache-atom
-                 :hash-to-used-keys
-                 vals)))
+        (is (cached-call? cache-atom 0 identity 3))
+        (is (cached-call? cache-atom 0 identity 4))))
 
-      (is (= [[[[:a]
-                [function {:a :b}]
-                [:a]
-                [{:a :b} :a]]]
-              [[[:c]
-                [function {:a :b}]
-                [:b]
-                [{:a :b} :b]]]]
-             (-> @cache-atom
-                 :hash-to-mappings
-                 vals)))
+    (testing "the same key is found on different paths when a common parent changes
+            and results to a change in only one child"
+      (let [cache-atom (create-cache-atom)]
 
-      (is (cached-call? cache-atom 1 function identity-key :a))
-      (is (cached-call? cache-atom 1 function identity-key :b))
+        (with-cache-cleanup cache-atom
+          (call-with-cache cache-atom [:a] 0 identity 1)
+          (call-with-cache cache-atom [:a :b] 0 identity 2)
+          (call-with-cache cache-atom [:a :c] 0 identity 2))
 
-      (is (= [[[[function {:a :b}]
-                [:b]]]]
-             (-> @cache-atom
-                 :hash-to-used-keys
-                 vals)))
+        (is (cached-call? cache-atom 0 identity 1))
+        (is (cached-call? cache-atom 0 identity 2))
 
-      (remove-unused-keys! cache-atom)
+        (with-cache-cleanup cache-atom
+          (call-with-cache cache-atom [:a] 0 identity 4)
+          (call-with-cache cache-atom [:a :b] 0 identity 2)
+          (call-with-cache cache-atom [:a :b] 0 identity 3))
 
-      (is (not (cached-call? cache-atom 1 function identity-key :a)))
-      (is (cached-call? cache-atom 1 function identity-key :b))
+        (is (not (cached-call? cache-atom 0 identity 1)))
 
-      (call-with-cache cache-atom [] 1 function identity-key :b)
-      (is (= 2 @call-count))
+        (is (cached-call? cache-atom 0 identity 2))
+        (is (cached-call? cache-atom 0 identity 3))
+        (is (cached-call? cache-atom 0 identity 4))))
 
-      (call-with-cache cache-atom [] 1 function identity-key :a)
-      (is (= 3 @call-count))))
 
-  (testing "zero arguments"
-    (let [call-count (atom 0)
-          function (fn []
-                     (swap! call-count inc)
-                     :result)
-          cache-atom (create-cache-atom)]
+    (testing "some values are reused and some are not in the same path.
+            Having many function calls for the same path during the same cycle
+            is not supported by the cache now."
+      (let [cache-atom (create-cache-atom)]
 
-      (call-with-cache cache-atom [] 0 function)
-      (is (= 1 @call-count))
+        (with-cache-cleanup cache-atom
+          (call-with-cache cache-atom [:a] 0 identity 1)
+          (call-with-cache cache-atom [:a] 0 identity 2))
 
-      (call-with-cache cache-atom [] 0 function)
-      (is (= 1 @call-count))))
+        (is (cached-call? cache-atom 0 identity 1))
+        (is (cached-call? cache-atom 0 identity 2))
 
-  (testing "zero identity arguments"
-    (let [call-count (atom 0)
-          function (fn [result]
-                     (swap! call-count inc)
-                     result)
-          cache-atom (create-cache-atom)]
+        (with-cache-cleanup cache-atom
+          (call-with-cache cache-atom [:a] 0 identity 1))
 
-      (is (= :result (call-with-cache cache-atom [] 0 function :result)))
-      (is (= 1 @call-count))
-
-      (is (= :result (call-with-cache cache-atom [] 0 function :result)))
-      (is (= 1 @call-count)))))
-
-(defn child [path]
-  {:path path})
-
-(defn container [path]
-  {:path path
-   :children [(child (conj path 1))
-              (child (conj path 2))]})
-
-(comment
-  (container [])
-  ) ;; TODO: remove me
+        (is (cached-call? cache-atom 0 identity 1))
+        (is (cached-call? cache-atom 0 identity 2)) ;; unused mapping is left to the cache
+        ))))
