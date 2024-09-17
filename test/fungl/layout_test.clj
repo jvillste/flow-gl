@@ -78,10 +78,15 @@
     (let [scene-graph (compile-view-calls [child-list 2])]
       (layout/layout-scene-graph scene-graph
                                  100 100)
-      (is (= {:miss-count 6, :mapping-count 6}
-             (hierarchical-identity-cache/statistics layout/layout-cache-atom)))
-      ;;      (def cache @layout/layout-cache-atom)
+      (is (= {:miss-count 4, :mapping-count 93}
+             (hierarchical-identity-cache/statistics layout/layout-node-cache-atom)))
+      ;;(def cache @layout/layout-node-cache-atom)
       (layout/layout-scene-graph scene-graph
                                  100 100)
-      (is (= {:hit-count 3, :mapping-count 6}
-             (hierarchical-identity-cache/statistics layout/layout-cache-atom))))))
+      (is (= {:hit-count 1, :mapping-count 93}
+             (hierarchical-identity-cache/statistics layout/layout-node-cache-atom)))
+
+      (is (identical? (layout/layout-scene-graph scene-graph
+                                                 100 100)
+                      (layout/layout-scene-graph scene-graph
+                                                 100 100))))))

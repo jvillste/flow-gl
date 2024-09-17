@@ -130,14 +130,23 @@
       (measuring/add-size available-width available-height)
       (measuring/make-layout)))
 
+(defn- layout-root [scene-graph available-width available-height]
+  (assoc (layout-node scene-graph available-width available-height)
+         :x 0
+         :y 0
+         :width available-width
+         :height available-height))
+
 (defn layout-scene-graph [scene-graph available-width available-height]
   (hierarchical-identity-cache/with-cache-cleanup layout-node-cache-atom
     (hierarchical-identity-cache/with-cache-cleanup adapt-to-space-cache-atom
-      (let [layouted-scene-graph (assoc (layout-node scene-graph available-width available-height)
-                                        :x 0
-                                        :y 0
-                                        :width available-width
-                                        :height available-height)]
+      (let [layouted-scene-graph (hierarchical-identity-cache/call-with-cache layout-node-cache-atom
+                                                                              []
+                                                                              1
+                                                                              layout-root
+                                                                              scene-graph
+                                                                              available-width
+                                                                              available-height)]
         ;; (prn)
         ;; (prn (hierarchical-identity-cache/statistics layout-node-cache-atom))
         ;; (prn (hierarchical-identity-cache/statistics adapt-to-space-cache-atom))
