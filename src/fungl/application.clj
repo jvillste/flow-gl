@@ -398,7 +398,8 @@
             (keyboard/key-pattern-pressed? [#{:alt :meta} :r]
                                            event))
     (cache/invalidate-all!)
-    (reset! layout/layout-cache-atom (hierarchical-identity-cache/initial-state))
+    (reset! layout/layout-node-cache-atom (hierarchical-identity-cache/initial-state))
+    (reset! layout/adapt-to-space-cache-atom (hierarchical-identity-cache/initial-state))
     (swap!  view-compiler/state
             assoc
             :constructor-cache

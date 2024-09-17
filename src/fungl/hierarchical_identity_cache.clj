@@ -146,36 +146,28 @@
           (swap! cache-atom update-in [:usage-statistics :hit-count] (fnil inc 0))
           value))))
 
-(defn remove-unused-mappings
-  ([last-cleanup-cycle-number cache-trie]
-   (remove-unused-mappings :root
-                           last-cleanup-cycle-number
-                           cache-trie))
+(defn remove-unused-mappings [last-cleanup-cycle-number cache-trie]
+  (let [status (when-some [last-accessed (-> cache-trie ::trie/value :last-accessed)]
+                 (when (< last-cleanup-cycle-number
+                          last-accessed)
+                   (-> cache-trie ::trie/value :status)))]
 
-  ([closest-parent-status last-cleanup-cycle-number cache-trie]
-   (let [status (when-some [last-accessed (-> cache-trie ::trie/value :last-accessed)]
-                  (when (< last-cleanup-cycle-number
-                           last-accessed)
-                    (-> cache-trie ::trie/value :status)))]
-
-     (if (= status :reused)
-       cache-trie
-       (loop [keys (remove #{::trie/value}
-                           (keys cache-trie))
-              cache-trie (if (some? status)
-                           cache-trie
-                           (dissoc cache-trie ::trie/value))]
-         (if-let [key (first keys)]
-           (recur (rest keys)
-                  (medley/remove-vals #{{}}
-                                      (update cache-trie
-                                              key
-                                              (fn [child-branch]
-                                                (remove-unused-mappings (or status
-                                                                            closest-parent-status)
-                                                                        last-cleanup-cycle-number
-                                                                        child-branch)))))
-           cache-trie))))))
+    (if (= status :reused)
+      cache-trie
+      (loop [keys (remove #{::trie/value}
+                          (keys cache-trie))
+             cache-trie (if (some? status)
+                          cache-trie
+                          (dissoc cache-trie ::trie/value))]
+        (if-let [key (first keys)]
+          (recur (rest keys)
+                 (medley/remove-vals #{{}}
+                                     (update cache-trie
+                                             key
+                                             (fn [child-branch]
+                                               (remove-unused-mappings last-cleanup-cycle-number
+                                                                       child-branch)))))
+          cache-trie)))))
 
 (deftest test-remove-unused-mappings
   (is (= {}
@@ -240,11 +232,32 @@
                                 (:last-cleanup-cycle-number cache)))
                (assoc :last-cleanup-cycle-number (:cycle-number cache))))))
 
+(defn leaf-count [a-map]
+  (+ (count (remove map? (vals a-map)))
+     (->> (vals a-map)
+          (filter map?)
+          (map leaf-count)
+          (apply +))))
+
+(deftest test-leaf-count
+  (is (= 0
+         (leaf-count {})))
+
+  (is (= 1
+         (leaf-count {:a 1})))
+
+  (is (= 1
+         (leaf-count {:a {:b 1}})))
+
+  (is (= 2
+         (leaf-count {:a {:b 1
+                        :c 2}}))))
+
 (defn statistics [cache-atom]
   (merge (:usage-statistics @cache-atom)
-         {:mapping-count (count (apply concat (vals (:hash-to-mappings @cache-atom))))}))
+         {:mapping-count (leaf-count (:cache-trie @cache-atom))}))
 
-(def ^:dynamic maximum-number-of-cycles-without-removing-unused-keys 100)
+(def ^:dynamic maximum-number-of-cycles-without-removing-unused-keys 10)
 
 (defn with-cache-cleanup* [cache-atom function]
   (swap! cache-atom dissoc :usage-statistics)

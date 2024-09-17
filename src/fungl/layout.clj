@@ -10,10 +10,13 @@
             [clj-async-profiler.core :as prof]
             [fungl.hierarchical-identity-cache :as hierarchical-identity-cache]))
 
-(def ^:dynamic layout-cache-atom)
+(def ^:dynamic layout-node-cache-atom)
+(def ^:dynamic adapt-to-space-cache-atom)
+
 
 (defn state-bindings []
-  {#'layout-cache-atom (hierarchical-identity-cache/create-cache-atom)})
+  {#'layout-node-cache-atom (hierarchical-identity-cache/create-cache-atom)
+   #'adapt-to-space-cache-atom (hierarchical-identity-cache/create-cache-atom)})
 
 (spec/def ::available-width int?)
 (spec/def ::available-height int?)
@@ -33,7 +36,7 @@
   #_(prn 'adapt-to-space (:id node)) ;; TODO: remove me
 
   (if-let [callable (:adapt-to-space node)]
-    (adapt-to-space (->> (callable/call-with-hierarchical-identity-cache layout-cache-atom
+    (adapt-to-space (->> (callable/call-with-hierarchical-identity-cache adapt-to-space-cache-atom
                                                                          (:id node)
                                                                          0
                                                                          callable
@@ -99,7 +102,7 @@
                       #_(layout-node child
                                      (:available-width available-area)
                                      (:available-height available-area))
-                      (hierarchical-identity-cache/call-with-cache layout-cache-atom
+                      (hierarchical-identity-cache/call-with-cache layout-node-cache-atom
                                                                    (:id child)
                                                                    1
                                                                    layout-node
@@ -128,14 +131,17 @@
       (measuring/make-layout)))
 
 (defn layout-scene-graph [scene-graph available-width available-height]
-  (hierarchical-identity-cache/with-cache-cleanup layout-cache-atom
-    (let [layouted-scene-graph (assoc (layout-node scene-graph available-width available-height)
-                                      :x 0
-                                      :y 0
-                                      :width available-width
-                                      :height available-height)]
-      ;; (prn (hierarchical-identity-cache/statistics layout-cache-atom))
-      layouted-scene-graph)))
+  (hierarchical-identity-cache/with-cache-cleanup layout-node-cache-atom
+    (hierarchical-identity-cache/with-cache-cleanup adapt-to-space-cache-atom
+      (let [layouted-scene-graph (assoc (layout-node scene-graph available-width available-height)
+                                        :x 0
+                                        :y 0
+                                        :width available-width
+                                        :height available-height)]
+        ;; (prn)
+        ;; (prn (hierarchical-identity-cache/statistics layout-node-cache-atom))
+        ;; (prn (hierarchical-identity-cache/statistics adapt-to-space-cache-atom))
+        layouted-scene-graph))))
 
 (defn layouted [create-scene-graph]
   (fn [width height]
