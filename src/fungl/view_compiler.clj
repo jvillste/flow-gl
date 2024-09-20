@@ -450,10 +450,11 @@
             (update :children
                     (fn [children]
                       (vec (map-indexed (fn [index child]
+                                          (assert (nil? (:local-id (meta child)))
+                                                  "Using metadata is deprecated. Use {:local-id 1 :node node} i.e. meta nodes instead.")
                                           (let [compiled-node (compile-node false
                                                                             (vec (conj id
-                                                                                       (or (:local-id (meta child))
-                                                                                           (:local-id child)
+                                                                                       (or (:local-id child)
                                                                                            index)))
                                                                             child)]
                                             ;;                                            (prn 'compiled-node (System/identityHashCode compiled-node)) ;; TODO: remove me
