@@ -232,30 +232,9 @@
                                 (:last-cleanup-cycle-number cache)))
                (assoc :last-cleanup-cycle-number (:cycle-number cache))))))
 
-(defn leaf-count [a-map]
-  (+ (count (remove map? (vals a-map)))
-     (->> (vals a-map)
-          (filter map?)
-          (map leaf-count)
-          (apply +))))
-
-(deftest test-leaf-count
-  (is (= 0
-         (leaf-count {})))
-
-  (is (= 1
-         (leaf-count {:a 1})))
-
-  (is (= 1
-         (leaf-count {:a {:b 1}})))
-
-  (is (= 2
-         (leaf-count {:a {:b 1
-                        :c 2}}))))
-
 (defn statistics [cache-atom]
   (merge (:usage-statistics @cache-atom)
-         {:mapping-count (leaf-count (:cache-trie @cache-atom))}))
+         {:mapping-count (trie/value-count (:cache-trie @cache-atom))}))
 
 (def ^:dynamic maximum-number-of-cycles-without-removing-unused-keys 10)
 
@@ -266,7 +245,7 @@
              (- (:cycle-number @cache-atom)
                 (:last-cleanup-cycle-number @cache-atom)))
       (remove-unused-mappings! cache-atom))
-    (swap! cache-atom update :cycle-number inc)
+    (swap! cache-atom update :cycle-number inc) ;; TODO: handle cycle-number overflow?
     result))
 
 (defmacro with-cache-cleanup [cache-atom & body]

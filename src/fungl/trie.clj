@@ -111,3 +111,20 @@
 
   (is (nil? (last-value-on-path (assoc-trie (create-trie) [:a] :value)
                                 [:b]))))
+
+
+
+(defn value-count [trie]
+  (+ (if (::value trie)
+       1 0)
+     (->> (dissoc trie ::value)
+          (vals)
+          (filter map?)
+          (map value-count)
+          (apply +))))
+
+(deftest test-value-count
+  (is (= 2
+         (value-count (-> (create-trie)
+                          (assoc-trie [:a :b] :value-1)
+                          (assoc-trie [:a :b :c] :value-2))))))
