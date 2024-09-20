@@ -194,8 +194,8 @@
 (defn render [scene-graph render-scene-graph gl]
   ;;  (println "render" (swap! render-count-atom inc)) ;; TODO: remove me
   (let [scene-graph (add-development-tools scene-graph)]
-    (when (not (= scene-graph
-                  (:previous-rendered-scene-graph @application-loop-state-atom)))
+    (when (not (identical? scene-graph
+                           (:previous-rendered-scene-graph @application-loop-state-atom)))
 
       ;; (def the-scene-graph scene-graph)
       ;; (def the-previous-scene-graph (:previous-rendered-scene-graph @application-loop-state-atom))
