@@ -540,6 +540,7 @@
                                       :or {target-frame-rate 60}}]
   (println "------------ start-window -------------")
   (with-bindings (create-bindings root-view)
+    (application-loop-render!)
     (thread "fungl application"
             (try (loop []
 
