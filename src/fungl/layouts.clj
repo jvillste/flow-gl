@@ -72,16 +72,17 @@
                   children (:children node)]
              (if-let [child (first children)]
                (recur (conj layouted-nodes
-                            (assoc child
-                                   :x (if (::centered node)
-                                        (/ (- (:width node)
-                                              (:width child))
-                                           2)
-                                        0)
-                                   :y y
-                                   :width (if (not (:fill-width? node))
-                                            maximum-given-width
-                                            (:width child))))
+                            {:node child
+                             :x (if (::centered node)
+                                  (/ (- (:width node)
+                                        (:width child))
+                                     2)
+                                  0)
+                             :y y
+                             :width (if (not (:fill-width? node))
+                                      maximum-given-width
+                                      (:width child))
+                             :height (:height child)})
                       (+ y (:height child)
                          (:margin node))
                       (rest children))
@@ -414,12 +415,12 @@
   (update-in node
              [:children]
              (fn [[child]]
-               [(measuring/make-layout (assoc child
-                                              :x 0
-                                              :y 0
-                                              :z 0
-                                              :width width
-                                              :height height))])))
+               [(measuring/make-layout {:node child
+                                        :x 0
+                                        :y 0
+                                        :z 0
+                                        :width width
+                                        :height height})])))
 
 (defn give-limited-available-area-for-children [{:keys [width-limit height-limit compare-function]} available-width available-height]
   [{:available-width (if width-limit

@@ -1,21 +1,19 @@
 (ns fungl.renderer
   (:require [fungl.callable :as callable]))
 
-(defn apply-renderers! [scene-graph gl]
-  ;; (prn 'apply-renderers! (:id scene-graph)) ;; TODO: remove me
-
-  (let [scene-graph (if (and (:children scene-graph)
-                             (not (:render-on-descend? scene-graph)))
-                      (update-in scene-graph
-                                 [:children]
+(defn apply-renderers! [layout-node gl]
+  (let [layout-node (if (and (:children (:node layout-node))
+                             (not (:render-on-descend? (:node layout-node))))
+                      (update-in layout-node
+                                 [:node :children]
                                  (fn [children]
                                    (doall (map (fn [child]
                                                  (apply-renderers! child gl))
                                                children))))
-                      scene-graph)]
+                      layout-node)]
 
-    (if (:render scene-graph)
-      (callable/call (:render scene-graph)
+    (if (:render (:node layout-node))
+      (callable/call (:render (:node layout-node))
                      gl
-                     scene-graph)
-      scene-graph)))
+                     layout-node)
+      layout-node)))

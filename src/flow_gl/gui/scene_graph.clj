@@ -41,7 +41,14 @@
 
   ([node parent-x parent-y parent-z leaves]
 
-   (let [x (+ parent-x (or (:x node)
+   (let [node (if (:node node)
+                (cond-> (:node node)
+                  (:x node) (assoc :x (:x node))
+                  (:y node) (assoc :y (:y node))
+                  (:width node) (assoc :width (:width node))
+                  (:height node) (assoc :height (:height node)))
+                node)
+         x (+ parent-x (or (:x node)
                            0))
          y (+ parent-y (or (:y node)
                            0))
@@ -75,6 +82,18 @@
            {:x 15, :y 20, :expected-position 4, :z 10}
            {:x 15, :y 20, :expected-position 5, :z 10})
          (leaf-nodes {:y 5 :x 0 :children [{:x 5 :y 5 :children [{:x 5 :y 5 :expected-position 1}
+                                                                 {:x 5 :y 5 :z 10 :children [{:x 5 :y 5 :expected-position 4}
+                                                                                             {:x 5 :y 5 :expected-position 5}]}]}
+                                           {:x 5 :y 5 :expected-position 2}
+                                           {:x 5 :y 5 :expected-position 3}]})))
+
+  (is (= '({:x 10, :y 15, :expected-position 1, :z 0}
+           {:x 5, :y 10, :expected-position 2, :z 0}
+           {:x 5, :y 10, :expected-position 3, :z 0}
+           {:x 15, :y 20, :expected-position 4, :z 10}
+           {:x 15, :y 20, :expected-position 5, :z 10})
+         (leaf-nodes {:y 5 :x 0 :children [{:x 5 :y 5 :children [{:node {:expected-position 1}
+                                                                  :x 5 :y 5}
                                                                  {:x 5 :y 5 :z 10 :children [{:x 5 :y 5 :expected-position 4}
                                                                                              {:x 5 :y 5 :expected-position 5}]}]}
                                            {:x 5 :y 5 :expected-position 2}

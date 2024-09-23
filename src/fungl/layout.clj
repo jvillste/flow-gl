@@ -1,13 +1,10 @@
 (ns fungl.layout
   (:require [clojure.spec.alpha :as spec]
-            [fungl.cache :as cache]
             [fungl.callable :as callable]
             [flow-gl.gui.scene-graph :as scene-graph]
             [fungl.view-compiler :as view-compiler]
             [fungl.layout.measuring :as measuring]
-            [flow-gl.gui.visuals :as visuals]
             [clojure.test :refer [deftest is]]
-            [clj-async-profiler.core :as prof]
             [fungl.hierarchical-identity-cache :as hierarchical-identity-cache]))
 
 (def ^:dynamic layout-node-cache-atom)
@@ -130,12 +127,14 @@
       (measuring/add-size available-width available-height)
       (measuring/make-layout)))
 
+
+
 (defn- layout-root [scene-graph available-width available-height]
-  (assoc (layout-node scene-graph available-width available-height)
-         :x 0
-         :y 0
-         :width available-width
-         :height available-height))
+  {:node (layout-node scene-graph available-width available-height)
+   :x 0
+   :y 0
+   :width available-width
+   :height available-height})
 
 (defn layout-scene-graph [scene-graph available-width available-height]
   (hierarchical-identity-cache/with-cache-cleanup layout-node-cache-atom
@@ -163,3 +162,74 @@
 (defn select-layout-keys [scene-graph]
   (scene-graph/map-nodes #(select-keys % layout-keys)
                          scene-graph))
+
+(defn apply-layout-nodes [node]
+  (let [node (if (:node node)
+               (cond-> (:node node)
+                 (:x node) (assoc :x (:x node))
+                 (:y node) (assoc :y (:y node))
+                 (:width node) (assoc :width (:width node))
+                 (:height node) (assoc :height (:height node)))
+               node)]
+    (if (:children node)
+      (update node :children (partial map apply-layout-nodes))
+      node)))
+
+(deftest test-apply-layout-nodes
+
+  (is (= {:expected-position 1, :x 5, :y 5}
+         (apply-layout-nodes {:node {:expected-position 1}
+                              :x 5
+                              :y 5})))
+
+  (is (= '{:y 5,
+           :x 0,
+           :children ({:expected-position 1, :x 5, :y 5} {:x 5, :y 5, :z 10})}
+         (apply-layout-nodes {:y 5 :x 0
+                              :children
+                              [{:node {:expected-position 1}
+                                :x 5 :y 5}
+                               {:x 5 :y 5 :z 10}]}))))
+
+
+
+(defn map-layout-nodes [function layout-node & [{:keys [descend?] :as options :or {descend? (constantly true)}}]]
+  (let [result (function layout-node)]
+    (if-some [children (:children (:node layout-node))]
+      (if (descend? layout-node)
+        (assoc-in result
+                  [:node :children]
+                  (mapv (fn [child]
+                          (map-layout-nodes function
+                                            child
+                                            options))
+                        children))
+        result)
+      result)))
+
+(deftest test-map-layout-nodes
+  (is (= (map-layout-nodes (fn [layout-node]
+                             (-> layout-node
+                                 (update-in [:node :value]
+                                            inc)))
+                           {:node {:value 1
+                                   :children [{:node {:value 2}}
+                                              {:node {:value 3}}]}})
+         '{:node {:value 2
+                  :children ({:node {:value 3}}
+                             {:node {:value 4}})}})))
+
+(defn select-layout-node-keys [layout-keys node-keys scene-graph]
+  (map-layout-nodes (fn [layout-node]
+                      (-> (select-keys layout-node (conj layout-keys :node))
+                          (update :node (fn [node]
+                                          (select-keys node node-keys)))))
+                    scene-graph))
+
+(deftest test-select-layout-node-keys
+  (is (= {:x 1, :node {:y 2, :children [{:node {:y 3}}]}}
+         (select-layout-node-keys [:x]
+                                  [:y]
+                                  {:x 1
+                                   :node {:y 2
+                                          :children [{:node {:y 3}}]}}))))

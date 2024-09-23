@@ -45,10 +45,12 @@
                (fn [children]
                  (if children
                    (map (fn [child]
-                          (assoc child
-                                 :x (or (:x child)
-                                        0)
-                                 :y (or (:y child)
-                                        0)))
+                          {:node child
+                           :x (or (:x child)
+                                  0)
+                           :y (or (:y child)
+                                  0)
+                           :width (:width child)
+                           :height (:height child)})
                         children)
                    nil)))))

@@ -10,7 +10,8 @@
             [fungl.swing.root-renderer :as root-renderer]
             [fungl.cache :as cache]
             [flow-gl.gui.scene-graph :as scene-graph]
-            [fungl.renderer :as renderer]))
+            [fungl.renderer :as renderer]
+            [fungl.layout :as layout]))
 
 
 
@@ -211,7 +212,8 @@
       (= 255 (last (buffered-image/get-color buffered-image x y))))))
 
 (defn image [^java.awt.image.BufferedImage buffered-image]
-  {:buffered-image buffered-image
+  {:type :image
+   :buffered-image buffered-image
    :width (.getWidth buffered-image)
    :height (.getHeight buffered-image)
    :draw-function buffered-image/draw-image
@@ -299,21 +301,22 @@
          :y (- (:y (:bounding-box layer))
                (:y original-node))))
 
-(defn render-to-images [original-node]
+(defn render-to-images [original-layout-node]
   ;; (println)
-  ;; (prn 'render-to-images (:type original-node) (:id original-node)) ;; TODO: remove me
+  ;; (prn 'render-to-images (:type original-layout-node) (:id original-layout-node)) ;; TODO: remove me
 
-  (assoc (select-keys original-node [:x :y :z :width :height :id])
-         :type :rendered-to-images
-         :children (->> (renderer/apply-renderers! original-node
-                                                   nil)
-                        (scene-graph/leaf-nodes)
-                        (filter :draw-function)
-                        (layers)
-                        (merge-contained-layers)
-                        (map (partial layer-to-image
-                                      original-node))
-                        (doall))))
+  (assoc original-layout-node
+         :node (assoc (:node original-layout-node)
+                      :type :rendered-to-images
+                      :children (->> (renderer/apply-renderers! original-layout-node
+                                                                nil)
+                                     (scene-graph/leaf-nodes)
+                                     (filter :draw-function)
+                                     (layers)
+                                     (merge-contained-layers)
+                                     (map (partial layer-to-image
+                                                   original-layout-node))
+                                     (doall)))))
 
 (defn leaf-nodes-to-image [original-node layer]
   (assoc (image (root-renderer/render-to-buffered-image (:bounding-box layer)
@@ -325,8 +328,9 @@
          :y (- (:y (:bounding-box layer))
                (:y original-node))))
 
-(defn render-to-image [_graphics original-node]
-  (let [leaf-nodes (filter :draw-function (scene-graph/nodes-in-view-2 original-node
+(defn render-to-image [_graphics original-layout-node]
+  (let [original-node (layout/apply-layout-nodes original-layout-node)
+        leaf-nodes (filter :draw-function (scene-graph/nodes-in-view-2 original-node
                                                                        (scene-graph/leaf-nodes (renderer/apply-renderers! (dissoc original-node
                                                                                                                                   :render)
                                                                                                                           nil))))

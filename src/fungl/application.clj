@@ -173,21 +173,21 @@
                                                (unqualified-function-or-var-name (first (:keyboard-event-handler (:focused-node @keyboard/state-atom))))))))
 
 (defn add-development-tools [scene-graph]
-  (if (:show-development-tools? @application-loop-state-atom)
-    (let [development-tools-layout (layout/layout-scene-graph (assoc (view-compiler/compile-view-calls (development-tools-view scene-graph))
-                                                                     :x 0
-                                                                     :y 0)
-                                                              (:window-width @application-loop-state-atom)
-                                                              (:window-height @application-loop-state-atom))]
-      {:children [scene-graph
-                  (assoc development-tools-layout
-                         :y (- (:window-height @application-loop-state-atom)
-                               (:height development-tools-layout)))]
-       :x 0
-       :y 0
-       :width (:window-width @application-loop-state-atom)
-       :height (:window-height @application-loop-state-atom)})
-    scene-graph))
+  (if false #_(:show-development-tools? @application-loop-state-atom) ;; TODO: development tools should be added to the scene graph before the layout to make layout cache work
+      (let [development-tools-layout (layout/layout-scene-graph (assoc (view-compiler/compile-view-calls (development-tools-view scene-graph))
+                                                                       :x 0
+                                                                       :y 0)
+                                                                (:window-width @application-loop-state-atom)
+                                                                (:window-height @application-loop-state-atom))]
+        {:children [scene-graph
+                    (assoc development-tools-layout
+                           :y (- (:window-height @application-loop-state-atom)
+                                 (:height development-tools-layout)))]
+         :x 0
+         :y 0
+         :width (:window-width @application-loop-state-atom)
+         :height (:window-height @application-loop-state-atom)})
+      scene-graph))
 
 
 ;; (def render-count-atom (atom 0))
@@ -210,9 +210,17 @@
 
       (taoensso.tufte/p :render-scene-graph
                         (render-scene-graph gl
-                                            (renderer/apply-renderers! (node-image-cache/render-recurring-nodes-to-images (:previous-rendered-scene-graph @application-loop-state-atom)
-                                                                                                                          scene-graph)
-                                                                       gl)))
+                                            (layout/apply-layout-nodes (renderer/apply-renderers! (node-image-cache/render-recurring-nodes-to-images (:previous-rendered-scene-graph @application-loop-state-atom)
+                                                                                                                                                     scene-graph)
+                                                                                                  gl))
+                                            #_(renderer/apply-renderers! (layout/apply-layout-nodes (node-image-cache/render-recurring-nodes-to-images (:previous-rendered-scene-graph @application-loop-state-atom)
+                                                                                                                                                       scene-graph))
+                                                                         gl)
+                                            #_scene-graph
+                                            #_(renderer/apply-renderers! scene-graph
+                                                                         #_(node-image-cache/render-recurring-nodes-to-images (:previous-rendered-scene-graph @application-loop-state-atom)
+                                                                                                                              scene-graph)
+                                                                         gl)))
       (swap! application-loop-state-atom assoc :previous-rendered-scene-graph scene-graph))))
 
 (defn handle-new-scene-graph! [scene-graph]
@@ -316,7 +324,7 @@
       ;;                                        (seq (:node-dependencies @view-compiler/state)))]
       ;;   (println node-id (sort (map name (keys dependables)))))
 
-      (handle-new-scene-graph! scene-graph)
+      (handle-new-scene-graph! (layout/apply-layout-nodes scene-graph)) ;; TODO: cache apply-layout-nodes
       scene-graph)))
 
 (def ^:dynamic event-channel)
@@ -375,6 +383,7 @@
   (distinct (map :type @events-atom))
   (count @events-atom)
   (take 20 @events-atom)
+  (reset! events-atom [])
   )
 
 (defn process-event! [scene-graph-before-event-handling event]
@@ -400,15 +409,15 @@
     (cache/invalidate-all!)
     (reset! layout/layout-node-cache-atom (hierarchical-identity-cache/initial-state))
     (reset! layout/adapt-to-space-cache-atom (hierarchical-identity-cache/initial-state))
-    (swap!  view-compiler/state
-            assoc
-            :constructor-cache
-            {})
+    (swap! view-compiler/state
+           assoc
+           :constructor-cache
+           {})
 
-    (swap!  view-compiler/state
-            assoc
-            :scene-graph-cache
-            {}))
+    (swap! view-compiler/state
+           assoc
+           :scene-graph-cache
+           {}))
 
   (when (= :resize-requested (:type event))
     (swap! application-loop-state-atom
@@ -495,7 +504,7 @@
                      (keyboard/key-pattern-pressed? [#{:alt :meta} :w]
                                                     (first events)))
                nil
-               (do (process-event! scene-graph
+               (do (process-event! (layout/apply-layout-nodes scene-graph) ;; TODO: cache apply-layout-nodes
                                    (first events))
                    (recur (rest events)
                           (create-scene-graph (:root-view @application-loop-state-atom)))))))))
@@ -540,6 +549,9 @@
                                       :or {target-frame-rate 60}}]
   (println "------------ start-window -------------")
   (with-bindings (create-bindings root-view)
+    (handle-events! [{:type :resize-requested
+                      :width (* 2 (:window-width @application-loop-state-atom)),
+                      :height (* 2 (:window-height @application-loop-state-atom))}])
     (application-loop-render!)
     (thread "fungl application"
             (try (loop []
