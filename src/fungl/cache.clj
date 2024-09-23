@@ -85,7 +85,9 @@
 
 (defn changed-dependency-value? [dependency-value-pair]
   (let [[dependency value] dependency-value-pair]
-    (not= value (depend/current-value dependency))))
+    (not (if (map? value)
+           (identical? value (depend/current-value dependency))
+           (= value (depend/current-value dependency))))))
 
 (defn should-be-invalidated? [function arguments]
   (some changed-dependency-value?
