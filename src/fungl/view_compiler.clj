@@ -446,7 +446,7 @@
                     (fn [children]
                       (vec (map-indexed (fn [index child]
                                           (assert (nil? (:local-id (meta child)))
-                                                  "Using metadata is deprecated. Use {:local-id 1 :node node} i.e. meta nodes instead.")
+                                                  (str "Using metadata is deprecated. Use {:local-id 1 :node node} i.e. meta nodes instead. local-id was: " (:local-id (meta child))))
                                           (let [compiled-node (compile-node false
                                                                             (vec (conj id
                                                                                        (or (:local-id child)
