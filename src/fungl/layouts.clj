@@ -429,7 +429,6 @@
 
 
 (defn make-limited-layout [{:keys [width height] :as node}]
-  TODO: this does not work
   (update-in node
              [:children]
              (fn [[child]]
