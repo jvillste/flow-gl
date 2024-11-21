@@ -45,6 +45,7 @@
                 (cond-> (:node node)
                   (:x node) (assoc :x (:x node))
                   (:y node) (assoc :y (:y node))
+                  (:z node) (assoc :z (:z node))
                   (:width node) (assoc :width (:width node))
                   (:height node) (assoc :height (:height node)))
                 node)
