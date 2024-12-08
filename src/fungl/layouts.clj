@@ -77,7 +77,8 @@
                                   (/ (- (:width node)
                                         (:width child))
                                      2)
-                                  0)
+                                  (or (:x child)
+                                      0))
                              :y y
                              :width (if (not (:fill-width? node))
                                       maximum-given-width
@@ -158,7 +159,8 @@
                                 (/ (- (:height node)
                                       (:height child))
                                    2)
-                                0)
+                                (or (:y child)
+                                    0))
                            :width (:width child)
                            :height (:height child)})
                     (+ x
