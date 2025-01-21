@@ -112,19 +112,12 @@
 
 ;; easing
 
-(defn ease-in-cubic [phase]
-  (Math/pow phase 3))
-
-(defn ease-out-cubic [phase]
+(defn exponential-ease-out [phase exponent]
   (- 1 (Math/pow (- 1 phase)
-                 3)))
+                 exponent)))
 
-(defn ease-in-out-cubic [phase]
-  (if (> 0.5 phase)
-    (* 4 (Math/pow phase 3))
-    (- 1 (/ (Math/pow (+ 2 (* -2 phase))
-                      3)
-            2))))
+(defn exponential-ease-in [phase exponent]
+  (Math/pow phase exponent))
 
 (defn exponential-ease-in-out [phase exponent]
   (if (> 0.5 phase)
