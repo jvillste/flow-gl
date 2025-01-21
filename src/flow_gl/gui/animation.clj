@@ -3,7 +3,7 @@
             [fungl.dependable-atom :as dependable-atom]))
 
 (defn initialize-state []
-  {})
+  {:time (System/currentTimeMillis)})
 
 (defn set-time-in-milliseconds [state time]
   (assoc state :time time))
