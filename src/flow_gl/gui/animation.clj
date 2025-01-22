@@ -62,7 +62,7 @@
 
 
 (defn sine [from to duration-in-seconds time-in-millis]
-  (let [duration-in-millis (* duration-in-seconds 1e6)]
+  (let [duration-in-millis (* duration-in-seconds 1e3)]
     (-> time-in-millis
         (mod duration-in-millis)
         (/ duration-in-millis)
@@ -78,9 +78,9 @@
   (are [time result] (= result
                         (sine 0 10 1 time))
     0.0 0.0
-    (* 1e6 2) 0.0
-    (* 1e6 1) 0.0
-    (* 1e6 1/2) 10.0))
+    (* 1e3 2) 0.0
+    (* 1e3 1) 0.0
+    (* 1e3 1/2) 10.0))
 
 ;; phasers
 
