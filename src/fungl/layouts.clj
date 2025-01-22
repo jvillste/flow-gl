@@ -77,8 +77,7 @@
                                   (/ (- (:width node)
                                         (:width child))
                                      2)
-                                  (or (:x child)
-                                      0))
+                                  0)
                              :y y
                              :width (if (not (:fill-width? node))
                                       maximum-given-width
@@ -159,8 +158,7 @@
                                 (/ (- (:height node)
                                       (:height child))
                                    2)
-                                (or (:y child)
-                                    0))
+                                0)
                            :width (:width child)
                            :height (:height child)})
                     (+ x
@@ -470,7 +468,7 @@
 (defn with-maximum-size [maximum-width maximum-height child]
   (when child
     {:get-size get-limited-size
-;;     :make-layout make-limited-layout
+     ;;     :make-layout make-limited-layout
      :available-area-for-children give-limited-available-area-for-children
      :width-limit maximum-width
      :height-limit maximum-height
@@ -503,12 +501,8 @@
              [:children]
              (fn [[child]]
                [{:node child
-                 :x (+ (or (:given-x child)
-                           0)
-                       left-margin)
-                 :y (+ (or (:given-x child)
-                           0)
-                       top-margin)
+                 :x left-margin
+                 :y top-margin
                  :width (:width child)
                  :height (:height child)}])))
 

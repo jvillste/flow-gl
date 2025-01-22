@@ -40,15 +40,26 @@
 
 (defn make-layout [node]
   (if-let [make-layout-callable (:make-layout node)]
-    (callable/call make-layout-callable node)
+    (as-> node node
+      (callable/call make-layout-callable node)
+      (update node :children (fn [children]
+                               (map (fn [child]
+                                      (-> child
+                                          (update :x (fn [x]
+                                                       (+ x (or (:given-x (:node child))
+                                                                0))))
+                                          (update :y (fn [y] (+ y (or (:given-y (:node child))
+                                                                      0))))))
+                                    children))))
+
     (update-in node [:children]
                (fn [children]
                  (if children
                    (map (fn [child]
                           {:node child
-                           :x (or (:x child)
+                           :x (or (:given-x child)
                                   0)
-                           :y (or (:y child)
+                           :y (or (:given-y child)
                                   0)
                            :width (:width child)
                            :height (:height child)})
