@@ -169,14 +169,14 @@
                     :start-time nil
                     :runtime-offset (:runtime (animation-state state key))))
 
+(defn delete [state key]
+  (update-animation state key (constantly nil)))
+
 (defn toggle [state key]
   (if (:start-time (animation-state state key))
     (stop state key)
     (start state key)))
 
-
-(defn running? [state key]
-  (:start-time (animation-state state key)))
 
 (defn start-if-not-running [state key]
   (if (not (running? state key))
@@ -375,12 +375,25 @@
     limited-runtime))
 
 (defn phase!
-  ([key]
-   (phase! key nil))
-
-  ([key duration]
+  [key duration]
    (/ (runtime! key duration)
-      (or duration 1000))))
+      duration))
+
+(defn phase [state key duration]
+  (/ (runtime state key)
+     duration))
+
+(defn repeating-phase! [key duration]
+  (mod (/ (runtime! key nil)
+          duration)
+       1))
+
+(defn running? [state key]
+  (:start-time (animation-state state key)))
+
+(defn animating? [state key duration]
+  (and (running? state key)
+       (> 1 (phase state key duration))))
 
 (defn one-to-zero [phase]
   (if (= 1 phase)
