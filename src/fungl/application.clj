@@ -210,6 +210,8 @@
 
       (taoensso.tufte/p :render-scene-graph
                         (render-scene-graph gl
+                                            #_(layout/apply-layout-nodes (renderer/apply-renderers! scene-graph
+                                                                                                  gl))
                                             (layout/apply-layout-nodes (renderer/apply-renderers! (node-image-cache/render-recurring-nodes-to-images (:previous-rendered-scene-graph @application-loop-state-atom)
                                                                                                                                                      scene-graph)
                                                                                                   gl))
@@ -409,10 +411,10 @@
     (cache/invalidate-all!)
     (reset! layout/layout-node-cache-atom (hierarchical-identity-cache/initial-state))
     (reset! layout/adapt-to-space-cache-atom (hierarchical-identity-cache/initial-state))
-    (swap! view-compiler/state
-           assoc
-           :constructor-cache
-           {})
+    ;; (swap! view-compiler/state
+    ;;        assoc
+    ;;        :constructor-cache
+    ;;        {})
 
     (swap! view-compiler/state
            assoc
