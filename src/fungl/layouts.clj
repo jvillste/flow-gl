@@ -154,11 +154,17 @@
              (recur (conj layouted-nodes
                           {:node child
                            :x x
-                           :y (if (::centered node)
-                                (/ (- (:height node)
-                                      (:height child))
-                                   2)
-                                0)
+                           :y (cond (::centered node)
+                                    (/ (- (:height node)
+                                          (:height child))
+                                       2)
+
+                                    (::end node)
+                                    (- (:height node)
+                                       (:height child))
+
+                                    :else
+                                    0)
                            :width (:width child)
                            :height (:height child)})
                     (+ x
@@ -189,6 +195,7 @@
          :margin (or (:margin options)
                      0)
          ::centered (:centered options)
+         ::end (:end options)
          :children (flatten-contents children)))
 
 (defn horizontally-with-margin [margin & children]
