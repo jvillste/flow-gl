@@ -166,7 +166,7 @@
         (fn [] (apply function arguments))))
 
 (defn state-bindings []
-  {#'state (create-state 5000)})
+  {#'state (create-state 50)})
 
 (defn cached []
   (.keySet (.asMap ^com.google.common.cache.LocalCache$LocalLoadingCache (:cache state))))
