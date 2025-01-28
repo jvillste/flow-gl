@@ -150,6 +150,9 @@
 (defn animation-state [state key]
   (get-in state [:animations key]))
 
+(defn running? [state key]
+  (:start-time (animation-state state key)))
+
 (defn update-animation [state key function & arguments]
   (apply update-in state [:animations key] function arguments))
 
@@ -387,9 +390,6 @@
   (mod (/ (runtime! key nil)
           duration)
        1))
-
-(defn running? [state key]
-  (:start-time (animation-state state key)))
 
 (defn animating? [state key duration]
   (and (running? state key)
