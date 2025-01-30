@@ -5,8 +5,8 @@
 (defn initialize-state []
   {:time (System/currentTimeMillis)})
 
-(defn set-time-in-milliseconds [state time]
-  (assoc state :time time))
+(defn add-animation-end-callback [state key callback]
+  (update-in state [:end-callbacks key] (fnil conj #{}) callback))
 
 (defn choose-sleep-time [sleep-time-1 sleep-time-2]
   (if sleep-time-1
@@ -156,11 +156,14 @@
 (defn update-animation [state key function & arguments]
   (apply update-in state [:animations key] function arguments))
 
-
-
-(defn start [state key]
-  (update-animation state key assoc
-                    :start-time (:time state)))
+(defn start
+  ([state key]
+   (update-animation state key assoc
+                     :start-time (:time state)))
+  ([state key duration]
+   (update-animation state key assoc
+                     :start-time (:time state)
+                     :duration duration)))
 
 (defn restart [state key]
   (update-animation state key assoc
@@ -364,36 +367,54 @@
 (defn transformed-runtime! [key]
   (transformed-runtime @state-atom key))
 
-(defn runtime! [key duration]
+(defn runtime!
+  ([key]
+   (runtime! key (:duration (animation-state @state-atom key))))
 
-  (let [runtime (transformed-runtime! key)
+  ([key duration]
 
-        limited-runtime (limit 0 duration runtime)]
+   (let [runtime (transformed-runtime! key)
 
-    (when (running? @state-atom key)
-      (swap-state! set-wake-up (wake-up-in-range 0 duration runtime)))
+         limited-runtime (limit 0 duration runtime)]
 
-    (swap-state! update-animation key
-                 assoc :runtime limited-runtime)
-    limited-runtime))
+     (when (running? @state-atom key)
+       (swap-state! set-wake-up (wake-up-in-range 0 duration runtime)))
+
+     (swap-state! update-animation key
+                  assoc :runtime limited-runtime)
+     limited-runtime)))
 
 (defn phase!
-  [key duration]
-   (/ (runtime! key duration)
-      duration))
+  ([key]
+   (/ (runtime! key)
+      (or (:duration (animation-state @state-atom key))
+          1)))
 
-(defn phase [state key duration]
-  (/ (runtime state key)
-     duration))
+  ([key duration]
+   (/ (runtime! key duration)
+      duration)))
+
+(defn phase
+  ([state key]
+   (/ (runtime state key)
+      (:duration (animation-state state key))))
+
+  ([state key duration]
+   (/ (runtime state key)
+      duration)))
 
 (defn repeating-phase! [key duration]
   (mod (/ (runtime! key nil)
           duration)
        1))
 
-(defn animating? [state key duration]
-  (and (running? state key)
-       (> 1 (phase state key duration))))
+(defn animating?
+  ([state key]
+   (and (running? state key)
+        (> 1 (phase state key (:duration (animation-state state key))))))
+  ([state key duration]
+   (and (running? state key)
+        (> 1 (phase state key duration)))))
 
 (defn one-to-zero [phase]
   (if (= 1 phase)
@@ -527,6 +548,17 @@
                                                 :y 5}
                                            1 {:x 1
                                               :y 5}]))))
+
+(defn set-time-in-milliseconds [state time]
+  (let [state (assoc state :time time)]
+    (reduce (fn [state [key callbacks]]
+              (if (<= 1 (phase state key))
+                (do (doseq [callback callbacks]
+                      (callback))
+                    (update state :end-callbacks dissoc key))
+                state))
+            state
+            (:end-callbacks state))))
 
 
 ;; TODO:
