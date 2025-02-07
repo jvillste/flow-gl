@@ -3,12 +3,18 @@
    [flow-gl.graphics.buffered-image :as buffered-image]
    [flow-gl.gui.scene-graph :as scene-graph]
    [fungl.cache :as cache]
-   [fungl.render :as render])
+   [fungl.render :as render]
+   [flow-gl.graphics.rectangle :as rectangle]
+   [fungl.color :as color]
+   [fungl.call-stack :as call-stack])
   (:import
    (java.awt.geom AffineTransform)
    (java.awt Color)))
 
-(defn render-nodes [^java.awt.Graphics2D graphics nodes]
+(defn render-nodes [^java.awt.Graphics2D graphics nodes & [{:keys [color-nodes?] :or {color-nodes? false}}]]
+  #_(println "render-nodes" (count nodes)
+             (first (call-stack/callers)))
+
   (let [transform (AffineTransform.)]
     (doseq [node nodes]
       (.setToTranslation transform (:x node) (:y node))
@@ -18,7 +24,18 @@
 
       (apply (:draw-function node)
              graphics
-             (render/image-function-parameters node)))))
+             (render/image-function-parameters node))
+
+      #_(when color-nodes?
+          (rectangle/fill graphics
+                          (concat (color/hsl-to-rgb (rand-int 360)
+                                                    1
+                                                    0.5)
+                                  [20])
+                          (:width node)
+                          (:height node)
+                          0
+                          0)))))
 
 (defn render-scene-graph [^java.awt.Graphics2D graphics scene-graph]
   ;; (prn)
@@ -33,7 +50,8 @@
                 (filter :draw-function
                         (scene-graph/scene-graph-nodes-in-view scene-graph
                                                                (:width scene-graph)
-                                                               (:height scene-graph)))))
+                                                               (:height scene-graph)))
+                {:color-nodes? true}))
 
 (defn render-to-buffered-image [bounding-box leaf-nodes]
   (let [buffered-image (buffered-image/create (min (:width bounding-box)
