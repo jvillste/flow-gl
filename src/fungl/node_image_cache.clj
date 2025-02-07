@@ -18,13 +18,13 @@
 (defn apply-image-cache [layout-node]
   (layout/map-layout-nodes (fn [layout-node]
                              (if (hierarchical-identity-cache/cached-call? image-cache-atom
-                                                                           (:id layout-node)
+                                                                           (-> layout-node :node :id)
                                                                            1
                                                                            render-to-images
                                                                            (:node layout-node)
                                                                            (dissoc layout-node :node))
                                (hierarchical-identity-cache/call-with-cache image-cache-atom
-                                                                            (:id layout-node)
+                                                                            (-> layout-node :node :id)
                                                                             1
                                                                             render-to-images
                                                                             (:node layout-node)
@@ -33,7 +33,7 @@
                            layout-node
                            {:descend? (fn [layout-node]
                                         (not (hierarchical-identity-cache/cached-call? image-cache-atom
-                                                                                       (:id layout-node)
+                                                                                       (-> layout-node :node :id)
                                                                                        1
                                                                                        render-to-images
                                                                                        (:node layout-node)
