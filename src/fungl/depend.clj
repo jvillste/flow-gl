@@ -57,3 +57,9 @@
 
   (add-dependency :baz 1)
   (is (nil? (current-dependencies))))
+
+(defn call-and-return-result-and-dependencies [function arguments]
+  (with-dependencies
+    (let [result (apply function arguments)]
+      {:result result
+       :dependencies (current-dependencies)})))

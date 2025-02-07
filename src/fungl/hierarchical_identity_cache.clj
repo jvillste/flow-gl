@@ -2,7 +2,9 @@
   (:require [clojure.test :refer [deftest is testing]]
             [medley.core :as medley]
             [fungl.trie :as trie]
-            [strict-core :refer :all]))
+            [strict-core :refer :all]
+            [fungl.depend :as depend]
+            [fungl.dependable-atom :as dependable-atom]))
 
 (defn initial-state []
   {:cache-trie (trie/create-trie)
@@ -12,16 +14,17 @@
 (defn create-cache-atom []
   (atom (initial-state)))
 
-(defn add-to-cache! [cache-atom path identity-keys value-keys cached-value]
+(defn add-to-cache! [cache-atom path identity-keys value-keys cached-value dependencies]
   (swap! cache-atom
          (fn [cache]
            (update cache
                    :cache-trie
-                   trie/assoc-trie
+                   trie/assoc-in-trie
                    path
                    {:identity-keys identity-keys
                     :value-keys value-keys
                     :value cached-value
+                    :dependencies dependencies
                     :status :new
                     :last-accessed (:cycle-number cache)}))))
 
@@ -31,12 +34,14 @@
                    [:a]
                    [:identity-key]
                    [:value-key]
-                   :value)
+                   :value
+                   {})
     (is (= {:cache-trie
             {:a {::trie/value {:identity-keys [:identity-key],
                                :value-keys [:value-key],
                                :value :value,
                                :status :new,
+                               :dependencies {}
                                :last-accessed 0}}},
             :cycle-number 0,
             :last-cleanup-cycle-number -1}
@@ -59,61 +64,32 @@
 (deftest test-identical-values?
   (is (identical-values? [] [])))
 
-(defn- get-value-from-cache [cache-atom path identity-keys value-keys]
+(defn- get-mapping-from-cache [cache-atom path identity-keys value-keys]
   (if-some [mapping (trie/get-in-trie (:cache-trie @cache-atom)
                                       path)]
     (if (and (identical-values? identity-keys
                                 (:identity-keys mapping))
              (= value-keys
                 (:value-keys mapping)))
-      (:value mapping)
+      mapping
       ::not-found)
     ::not-found))
 
-(deftest test-get-value-from-cache
-  (is (= :value
-         (let [identity-key {:a :b}
-               cache-atom (create-cache-atom)]
-           (add-to-cache! cache-atom
-                          []
-                          [identity-key]
-                          [{:c :d}]
-                          :value)
-           (get-value-from-cache cache-atom
-                                 []
-                                 [identity-key]
-                                 [{:c :d}]))))
+(defn changed-dependency-value? [dependency-value-pair]
+  (let [[dependency value] dependency-value-pair]
+    (not (if (coll? value)
+           (identical? value (depend/current-value dependency))
+           (= value (depend/current-value dependency))))))
 
-  (testing "value can be nil"
-    (is (= nil
-           (let [identity-key {:a :b}
-                 cache-atom (create-cache-atom)]
-             (add-to-cache! cache-atom
-                            []
-                            [identity-key]
-                            [{:c :d}]
-                            nil)
-             (get-value-from-cache cache-atom
-                                   []
-                                   [identity-key]
-                                   [{:c :d}])))))
-
-  (testing "equality is not enough for identity keys"
-    (is (= ::not-found
-           (let [cache-atom (create-cache-atom)]
-             (add-to-cache! cache-atom
-                            []
-                            [{:a :b}]
-                            [{:c :d}]
-                            nil)
-             (get-value-from-cache cache-atom
-                                   []
-                                   [{:a :b}]
-                                   [{:c :d}]))))))
+(defn invalid-mapping? [mapping]
+  (some changed-dependency-value?
+        (:dependencies mapping)))
 
 (defn cached? [cache-atom path identity-keys value-keys]
-  (not (= ::not-found
-          (get-value-from-cache cache-atom path identity-keys value-keys))))
+  (let [mapping (get-mapping-from-cache cache-atom path identity-keys value-keys)]
+    (not (or (= ::not-found
+                mapping)
+             (invalid-mapping? mapping)))))
 
 (defn call-with-cache [cache-atom path number-of-identity-arguments function & arguments]
   #_(apply function arguments)
@@ -124,27 +100,40 @@
         value-keys (drop number-of-identity-arguments
                          arguments)
 
-        value (get-value-from-cache cache-atom path identity-keys value-keys)]
+        mapping (get-mapping-from-cache cache-atom path identity-keys value-keys)
 
-    (if (= ::not-found value)
-      (let [value (apply function arguments)]
+        invalid? (invalid-mapping? mapping)]
+
+    (when invalid?
+      (swap! cache-atom
+             update
+             :cache-trie
+             (fn [trie]
+               (trie/dissoc-in-trie trie path))))
+
+    (if (or invalid?
+            (= ::not-found mapping))
+      (let [{:keys [result dependencies]} (depend/call-and-return-result-and-dependencies function arguments)]
         (swap! cache-atom update-in [:usage-statistics :miss-count] (fnil inc 0))
         (add-to-cache! cache-atom
                        path
                        identity-keys
                        value-keys
-                       value)
-        value)
+                       result
+                       dependencies)
+        result)
+
       (do (swap! cache-atom
                  update
                  :cache-trie
                  trie/update-in-trie
                  path
                  (fn [mapping]
-                   (assoc mapping :status :reused
+                   (assoc mapping
+                          :status :reused
                           :last-accessed (:cycle-number @cache-atom))))
           (swap! cache-atom update-in [:usage-statistics :hit-count] (fnil inc 0))
-          value))))
+          (:value mapping)))))
 
 (defn remove-unused-mappings [last-cleanup-cycle-number cache-trie]
   (let [status (when-some [last-accessed (-> cache-trie ::trie/value :last-accessed)]
@@ -200,6 +189,8 @@
   (is (= {::trie/value {:status :new
                         :last-accessed 1}}
          (remove-unused-mappings 0
+
+
                                  {::trie/value {:status :new
                                                 :last-accessed 1}
                                   :a {::trie/value {:status :reused
@@ -313,6 +304,17 @@
 
           (is (= 3 @call-count)))))
 
+    (testing "changed dependencies invalidate cache"
+      (let [cache-atom (create-cache-atom)
+            state-atom (dependable-atom/atom 1)
+            function (fn [] @state-atom)]
+        (with-cache-cleanup cache-atom
+          (is (= 1 (call-with-cache cache-atom [:a] 0 function)))
+          (is (cached-call? cache-atom [:a] 0 function))
+          (swap! state-atom inc)
+          (is (not (cached-call? cache-atom [:a] 0 function)))
+          (is (= 2 (call-with-cache cache-atom [:a] 0 function))))))
+
     (testing "cleanup"
 
       (testing "old value in same path is removed"
@@ -386,12 +388,12 @@
             (call-with-cache cache-atom [:a] 0 identity 1)
             (call-with-cache cache-atom [:a] 0 identity 2))
 
-          (is (cached-call? cache-atom [:a] 0 identity 1))
+          (is (not (cached-call? cache-atom [:a] 0 identity 1)))
           (is (cached-call? cache-atom [:a] 0 identity 2))
 
           (with-cache-cleanup cache-atom
             (call-with-cache cache-atom [:a] 0 identity 1))
 
           (is (cached-call? cache-atom [:a] 0 identity 1))
-          (is (cached-call? cache-atom [:a] 0 identity 2)) ;; unused mapping is left to the cache
+          (is (not (cached-call? cache-atom [:a] 0 identity 2))) ;; unused mapping is left to the cache
           )))))
