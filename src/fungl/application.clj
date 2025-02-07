@@ -447,8 +447,8 @@
     (with-bindings bindings
       (swap! application-loop-state-atom
              assoc
-             :window-width 400
-             :window-height 400
+             :window-width 1000
+             :window-height 800
              :root-view root-view)
       (let [scene-graph (create-scene-graph root-view)]
         (swap! application-loop-state-atom
