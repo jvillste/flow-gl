@@ -11,8 +11,9 @@
    :cycle-number 0
    :last-cleanup-cycle-number -1})
 
-(defn create-cache-atom []
-  (atom (initial-state)))
+(defn create-cache-atom [& [name]]
+  (atom (assoc (initial-state)
+               :name name)))
 
 (defn add-to-cache! [cache-atom path identity-keys value-keys cached-value dependencies]
   (swap! cache-atom
@@ -44,7 +45,8 @@
                                :dependencies {}
                                :last-accessed 0}}},
             :cycle-number 0,
-            :last-cleanup-cycle-number -1}
+            :last-cleanup-cycle-number -1
+            :name nil}
            @cache-atom))))
 
 (defn- identical-values? [sequence-1 sequence-2]
@@ -103,6 +105,10 @@
         mapping (get-mapping-from-cache cache-atom path identity-keys value-keys)
 
         invalid? (invalid-mapping? mapping)]
+
+    (prn (:name @cache-atom)
+         "invalid?"
+         invalid?) ;; TODO: remove me
 
     (when invalid?
       (swap! cache-atom
