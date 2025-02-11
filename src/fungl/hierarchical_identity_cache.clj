@@ -315,6 +315,20 @@
           (is (not (cached-call? cache-atom [:a] 0 function)))
           (is (= 2 (call-with-cache cache-atom [:a] 0 function))))))
 
+    (testing "changed dependencies invalidate cache with recursion"
+      (let [cache-atom (create-cache-atom)
+            state-atom (dependable-atom/atom 1)]
+        (letfn [(function [n]
+                  (if (= n 0)
+                    @state-atom
+                    (call-with-cache cache-atom [:a] 0 function (dec n))))]
+          (with-cache-cleanup cache-atom
+            (is (= 1 (call-with-cache cache-atom [:a] 0 function 1)))
+            (is (cached-call? cache-atom [:a] 0 function 1))
+            (swap! state-atom inc)
+            (is (not (cached-call? cache-atom [:a] 0 function 1)))
+            (is (= 2 (call-with-cache cache-atom [:a] 0 function 1)))))))
+
     (testing "cleanup"
 
       (testing "old value in same path is removed"
