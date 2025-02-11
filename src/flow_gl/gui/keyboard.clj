@@ -100,22 +100,38 @@
                                limit)))
 
 
+(defn keyboard-event? [value]
+  (and (map? value)
+       (= :keyboard (:source value))))
 
 ;; state
+
+(defn choose-returned-event [returned-value event]
+  (cond (keyboard-event? returned-value)
+        returned-value
+
+        (= :stop-propagation
+           returned-value)
+        nil
+
+        :else
+        event))
 
 (defn propagate-event! [path event]
   (let [descended-event (loop [event event
                                path path]
                           (if-let [node (first path)]
                             (let [returned-event (if (:keyboard-event-handler node)
-                                                   (call-handler (:keyboard-event-handler node)
-                                                                 node
-                                                                 (assoc event
-                                                                        :phase (if (empty? (rest path))
+                                                   (choose-returned-event (call-handler (:keyboard-event-handler node)
+                                                                                        node
+                                                                                        (assoc event
+                                                                                               :phase (if (empty? (rest path))
 
-                                                                                 :on-target
-                                                                                 :descent)
-                                                                        :target-depth (dec (count path))))
+                                                                                                        :on-target
+                                                                                                        :descent)
+                                                                                               :target-depth (dec (count path))))
+                                                                          event)
+
                                                    event)]
                               (when returned-event
                                 (recur returned-event
@@ -128,9 +144,11 @@
              target-depth 1]
         (when-let [node (first path)]
           (let [returned-event (if (:keyboard-event-handler node)
-                                 (call-handler (:keyboard-event-handler node)
-                                               node
-                                               (assoc event :target-depth target-depth))
+                                 (choose-returned-event (call-handler (:keyboard-event-handler node)
+                                                                      node
+                                                                      (assoc event :target-depth target-depth))
+
+                                                        event)
                                  event)]
             (when returned-event
               (recur returned-event
