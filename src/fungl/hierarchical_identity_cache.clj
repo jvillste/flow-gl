@@ -106,10 +106,6 @@
 
         invalid? (invalid-mapping? mapping)]
 
-    (prn (:name @cache-atom)
-         "invalid?"
-         invalid?) ;; TODO: remove me
-
     (when invalid?
       (swap! cache-atom
              update
