@@ -349,7 +349,7 @@
                                 ;;  _ (prn 'cache-keys (keys (:scene-graph-cache @state))) ;; TODO: remove me
                                 scene-graph (if-let [ ;; Scene graph cache is disabled. It did not work for command help in argupedia ui.
                                                      ;; I did not try to debug it since the performance is ok now without it.
-                                                     scene-graph #_nil (get (:scene-graph-cache @state)
+                                                     scene-graph nil #_(get (:scene-graph-cache @state)
                                                                             [id view-function arguments])]
 
 
