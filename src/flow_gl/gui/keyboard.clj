@@ -332,12 +332,14 @@
                                     node))
 
 
-(defn cycle-focus [scene-graph event]
+(defn cycle-focus [scene-graph & [forward?]]
   (move-focus! scene-graph
                order-nodes-down-right
-               (if (:shift event)
-                 dec
-                 inc)
+               (if (if (some? forward?)
+                     forward?
+                     true)
+                 inc
+                 dec)
                cycle-position))
 
 (defn handle-keyboard-event! [_scene-graph event]
