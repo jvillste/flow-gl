@@ -82,8 +82,8 @@
        (= value-keys
           (:value-keys mapping))))
 
-(defn- get-mapping-from-cache [cache-atom path mapping-id identity-keys value-keys]
-  (if-some [trie-node (trie/get-in-trie (:cache-trie @cache-atom)
+(defn- get-mapping-from-cache [cache path mapping-id identity-keys value-keys]
+  (if-some [trie-node (trie/get-in-trie (:cache-trie cache)
                                         path)]
     (if-some [mapping (get-in trie-node [:mappings mapping-id])]
       (if (keys-match? identity-keys value-keys mapping)
@@ -103,7 +103,7 @@
         (:dependencies mapping)))
 
 (defn cached? [cache-atom path mapping-id identity-keys value-keys]
-  (let [mapping (get-mapping-from-cache cache-atom path mapping-id identity-keys value-keys)]
+  (let [mapping (get-mapping-from-cache @cache-atom path mapping-id identity-keys value-keys)]
     (not (or (= ::not-found
                 mapping)
              (invalid-mapping? mapping)))))
@@ -122,7 +122,7 @@
                      (drop number-of-identity-arguments
                            arguments))
 
-        mapping (get-mapping-from-cache cache-atom path function identity-keys value-keys)
+        mapping (get-mapping-from-cache @cache-atom path function identity-keys value-keys)
 
         invalid? (invalid-mapping? mapping)]
 
