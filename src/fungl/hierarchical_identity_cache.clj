@@ -110,11 +110,17 @@
 
 (defn call-with-cache [cache-atom path number-of-identity-arguments function & arguments]
   #_(apply function arguments)
-  (let [identity-keys (take number-of-identity-arguments
-                            arguments)
+  (let [identity-keys (if (> 0 number-of-identity-arguments)
+                        (take-last (abs number-of-identity-arguments)
+                                   arguments)
+                        (take number-of-identity-arguments
+                              arguments))
 
-        value-keys (drop number-of-identity-arguments
-                         arguments)
+        value-keys (if (> 0 number-of-identity-arguments)
+                     (drop-last (abs number-of-identity-arguments)
+                                arguments)
+                     (drop number-of-identity-arguments
+                           arguments))
 
         mapping (get-mapping-from-cache cache-atom path function identity-keys value-keys)
 
@@ -312,7 +318,23 @@
           (is (= [identity-key :b]
                  (call-with-cache cache-atom [:a] 1 function identity-key :b)))
 
-          (is (= 3 @call-count)))))
+          (is (= 3 @call-count))
+
+          (testing "identity key as the last argument"
+            (is (= [:b identity-key]
+                   (call-with-cache cache-atom [:b] -1 function :b identity-key)))
+
+            (is (= 4 @call-count))
+
+            (is (= [:b identity-key]
+                   (call-with-cache cache-atom [:b] -1 function :b identity-key)))
+
+            (is (= 4 @call-count))
+
+            (is (= [:b identity-key]
+                   (call-with-cache cache-atom [:b] -1 function :b #{:a})))
+
+            (is (= 5 @call-count))))))
 
     (testing "changed dependencies invalidate cache"
       (let [cache-atom (create-cache-atom)
