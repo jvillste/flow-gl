@@ -139,7 +139,8 @@
                        dependencies)
         result)
 
-      (do (swap! cache-atom
+      (do (depend/add-dependencies (:dependencies mapping))
+          (swap! cache-atom
                  (fn [cache]
                    (update cache :cache-trie
                            trie/update-in-trie
@@ -346,6 +347,32 @@
           (swap! state-atom inc)
           (is (not (cached-call? cache-atom [:a] 0 function)))
           (is (= 2 (call-with-cache cache-atom [:a] 0 function))))))
+
+    (testing "two separate dependables invalidate cache"
+      (let [cache-atom (create-cache-atom)
+            state-1-atom (dependable-atom/atom 1)
+            function-1 (fn [] @state-1-atom)
+            state-2-atom (dependable-atom/atom 1)
+            function-2 (fn [] @state-2-atom)
+            root-function (fn []
+                            [(call-with-cache cache-atom [1] 0 function-1)
+                             (call-with-cache cache-atom [2] 0 function-2)])]
+
+        (with-cache-cleanup cache-atom
+          (is (= [1 1]
+                 (call-with-cache cache-atom [] 0 root-function))))
+
+        (swap! state-1-atom inc)
+
+        (with-cache-cleanup cache-atom
+          (is (= [2 1]
+                 (call-with-cache cache-atom [] 0 root-function))))
+
+        (swap! state-2-atom inc)
+
+        (with-cache-cleanup cache-atom
+          (is (= [2 2]
+                 (call-with-cache cache-atom [] 0 root-function))))))
 
     (testing "changed dependencies invalidate cache with recursion"
       (let [cache-atom (create-cache-atom)
