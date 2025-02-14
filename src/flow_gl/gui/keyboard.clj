@@ -348,13 +348,13 @@
                         event)
       (call-focused-event-handler! event))))
 
-(defn sub-component-is-focused? []
+(defn sub-component-is-in-focus? []
   (= view-compiler/id
      (take (count view-compiler/id)
            @focused-node-id-derivation
            #_(:focused-node-id @state-atom))))
 
-(defn component-is-focused? []
+(defn component-is-in-focus? []
   (= view-compiler/id
      @focused-node-id-derivation
      #_(:focused-node-id @state-atom)))

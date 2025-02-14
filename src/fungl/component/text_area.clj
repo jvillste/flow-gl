@@ -417,7 +417,7 @@
   (let [state @state-atom]
     {:adapt-to-space [adapt-to-space
                       text
-                      (when (keyboard/component-is-focused?)
+                      (when (keyboard/component-is-in-focus?)
                         (:index state))
                       style
                       state-atom
