@@ -152,19 +152,21 @@
           (swap! cache-atom update-in [:usage-statistics :hit-count] (fnil inc 0))
           (:value mapping)))))
 
-(defn remove-unused-mappings [last-cleanup-cycle-number cache-trie]
-  (let [status (when-some [last-accessed (-> cache-trie ::trie/value :last-accessed)]
-                 (when (< last-cleanup-cycle-number
-                          last-accessed)
-                   (-> cache-trie ::trie/value :status)))]
 
+
+(defn remove-unused-mappings [last-cleanup-cycle-number cache-trie]
+  (let [status (or (when-some [last-accessed (-> cache-trie ::trie/value :last-accessed)]
+                     (when (< last-cleanup-cycle-number
+                              last-accessed)
+                       (-> cache-trie ::trie/value :status)))
+                   :unused)]
     (if (= status :reused)
       cache-trie
       (loop [keys (remove #{::trie/value}
                           (keys cache-trie))
-             cache-trie (if (some? status)
-                          cache-trie
-                          (dissoc cache-trie ::trie/value))]
+             cache-trie (if (= :unused status)
+                          (dissoc cache-trie ::trie/value)
+                          cache-trie)]
         (if-let [key (first keys)]
           (recur (rest keys)
                  (medley/remove-vals #{{}}
