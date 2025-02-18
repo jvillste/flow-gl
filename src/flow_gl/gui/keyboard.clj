@@ -204,16 +204,17 @@
 (derivation/def-derivation focused-node-id-derivation
   (:focused-node-id @state-atom))
 
+(derivation/def-derivation focused-handler
+  (:focused-handler @state-atom))
+
 (defn state-bindings []
   {#'state-atom (dependable-atom/atom "keyboard-state"
                                       (initialize-state))})
 
 (defn set-focused-event-handler! [event-handler]
-  (when (not= event-handler
-              (:focused-handler @state-atom))
-    (move-focus-and-send-move-events! state-atom
-                                      set-focused-event-handler
-                                      event-handler)))
+  (move-focus-and-send-move-events! state-atom
+                                    set-focused-event-handler
+                                    event-handler))
 
 (defn call-focused-event-handler! [event]
   (let [state @state-atom]
