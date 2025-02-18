@@ -29,6 +29,11 @@
     (swap! current-dependencies
            assoc dependency value)))
 
+(defn add-dependencies [dependencies-to-be-added]
+  (when-let [current-dependencies (last dependencies)]
+    (swap! current-dependencies
+           merge dependencies-to-be-added)))
+
 (defn current-dependencies []
   (when-let [last-dependencies (last dependencies)]
     @last-dependencies))

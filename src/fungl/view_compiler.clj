@@ -12,7 +12,11 @@
             (clojure.test.check [clojure-test :as clojure-test]
                                 [generators :as generators]
                                 [properties :as properties])
-            taoensso.tufte))
+            taoensso.tufte
+            [fungl.hierarchical-identity-cache :as hierarchical-identity-cache]
+            [fungl.trie :as trie]))
+
+(def ^:dynamic compile-node-cache-atom)
 
 (def ^:dynamic state)
 (def ^:dynamic id)
@@ -180,7 +184,7 @@
         sequence [-7 1]]
     [(slow-some-is-prefix prefixes sequence)
      (some-is-prefix (sorted-id-set prefixes)
-                      sequence)])
+                     sequence)])
 
   (some-is-prefix (sorted-id-set [[0]]) [])
 
@@ -227,11 +231,13 @@
 ;;                             [2]]))))
 
 (defn- view-call? [value]
-  (or (and (vector? value)
-           (or (fn? (first value))
-               (var? (first value))))
-      (and (map? value)
-           (:view-call value))))
+  (assert (not (and (map? value)
+                    (:view-call value)))
+          "View calls as map are deprecated, use a vector and a meta node instead.")
+
+  (and (vector? value)
+       (or (fn? (first value))
+           (var? (first value)))))
 
 (defn- scene-graph? [value]
   (map? value))
@@ -241,53 +247,33 @@
     view-call
     (:view-call view-call)))
 
-(defn- apply-view-call [the-id view-call]
+(defn- apply-view-call [the-id compilation-path view-call]
   (binding [id the-id]
     (let [[view-function-or-constructor & arguments] (view-call-function-and-arguments view-call)
-          scene-graph-or-view-call (cond (apply cache/cached?
-                                                view-function-or-constructor
-                                                arguments)
-                                         (apply cache/call!
-                                                view-function-or-constructor
-                                                arguments)
-
-                                         (contains? (:constructor-cache @state)
-                                                    [the-id view-function-or-constructor])
-                                         (let [view-function (get (:constructor-cache @state)
-                                                                  [the-id view-function-or-constructor])]
-                                           (apply cache/call! view-function arguments))
-
-                                         :else
-                                         (let [{:keys [result dependencies]} (cache/call-and-return-result-and-dependencies view-function-or-constructor arguments)]
-                                           (assert (some? result)
-                                                   "View call must not return nil")
-                                           (if (fn? result)
-                                             (do (swap! state
-                                                        update
-                                                        :constructor-cache
-                                                        assoc
-                                                        [the-id view-function-or-constructor]
-                                                        result)
-                                                 (apply cache/call! result arguments))
-                                             (do (cache/put! (cache/function-call-key view-function-or-constructor
-                                                                                      arguments)
-                                                             result)
-                                                 (cache/set-dependencies! view-function-or-constructor
-                                                                          arguments
-                                                                          dependencies)
-
-                                                 result))))]
+          scene-graph-or-view-call (let [result (apply hierarchical-identity-cache/call-with-cache
+                                                       compile-node-cache-atom
+                                                       compilation-path
+                                                       0
+                                                       view-function-or-constructor
+                                                       arguments)]
+                                     (if (fn? result)
+                                       (apply hierarchical-identity-cache/call-with-cache
+                                              compile-node-cache-atom
+                                              compilation-path
+                                              0
+                                              result
+                                              arguments)
+                                       result))]
 
       (cond (view-call? scene-graph-or-view-call)
             scene-graph-or-view-call
 
             (scene-graph? scene-graph-or-view-call)
             (-> scene-graph-or-view-call
-                (assoc :id the-id
-                       :view-function view-function-or-constructor))
+                (assoc :id the-id))
 
             :else
-            (throw (Exception. (str "View function did not return a hash map: " view-function-or-constructor)))))))
+            (throw (Exception. (str "View function did not return a hash map nor a view call: " view-function-or-constructor)))))))
 
 (defn- apply-metadata [metadata compiled-node]
   (if metadata
@@ -323,7 +309,18 @@
   (and (map? node)
        (:node node)))
 
-(defn compile-node [parent-is-view-call? id value]
+(declare compile-node)
+
+(defn call-compile-node-with-cache [id compilation-path value]
+  (hierarchical-identity-cache/call-with-cache compile-node-cache-atom
+                                               compilation-path
+                                               -1
+                                               compile-node
+                                               id
+                                               compilation-path
+                                               value))
+
+(defn compile-node [id compilation-path value]
   (assert (bound? #'state)
           "Bindings returned by (state-bindings) should be bound.")
 
@@ -331,114 +328,27 @@
           "local ids can not be integers")
 
   (cond (meta-node? value)
-        (apply-metadata (dissoc value :node)
-                        (compile-node parent-is-view-call? id (:node value)))
+        (let [meta-node-compilation-path (conj compilation-path :meta-node)]
+          (hierarchical-identity-cache/call-with-cache compile-node-cache-atom
+                                                       meta-node-compilation-path
+                                                       -1
+                                                       apply-metadata
+                                                       (dissoc value :node)
+                                                       (call-compile-node-with-cache id
+                                                                                     meta-node-compilation-path
+                                                                                     (:node value))))
 
         (view-call? value)
-        (let [[view-function & arguments] (view-call-function-and-arguments value)]
-          (apply-metadata (if (vector? value)
-                            (meta value)
-                            (dissoc value :view-call))
-                          (let [id (if parent-is-view-call?
-                                     (vec (conj id
-                                                (or (:local-id (or (:local-id (meta value))
-                                                                   (:local-id value)))
-                                                    :call)))
-                                     id)
-                                ;; _ (prn '(keys (:scene-graph-cache @state)) (keys (:scene-graph-cache @state)))
-                                ;;  _ (prn 'cache-keys (keys (:scene-graph-cache @state))) ;; TODO: remove me
-                                scene-graph (if-let [ ;; Scene graph cache is disabled. It did not work for command help in argupedia ui.
-                                                     ;; I did not try to debug it since the performance is ok now without it.
-                                                     scene-graph nil #_(get (:scene-graph-cache @state)
-                                                                            [id view-function arguments])]
-
-
-
-                                              (do
-                                                #_(prn 'component-cache-hit!
-                                                       (function-name (if (var? (first value))
-                                                                        @(first value)
-                                                                        (first value)))
-                                                       id) ;; TODO: remove me
-
-                                                #_(println "found from cache " [id view-function arguments] (System/identityHashCode scene-graph))
-
-                                                (swap! state
-                                                       update
-                                                       :view-call-ids-from-cache
-                                                       conj
-                                                       [id view-function])
-
-                                                scene-graph)
-                                              (do #_(prn 'component-cache-miss
-                                                         (function-name (if (var? (first value))
-                                                                          @(first value)
-                                                                          (first value)))
-                                                         id)
-                                                  (swap! state
-                                                         update
-                                                         :applied-view-call-ids
-                                                         conj
-                                                         [id view-function])
-
-                                                  (swap! state
-                                                         update
-                                                         :applied-view-calls
-                                                         conj
-                                                         [id view-function arguments])
-
-
-                                                  (let [scene-graph (-> (compile-node true
-                                                                                      id
-                                                                                      (apply-view-call id value))
-                                                                        (assoc :view-call? true))]
-
-                                                    ;;                                                    (println "adding to cache " [id view-function] (System/identityHashCode scene-graph))
-
-                                                    #_(prn 'saving-scene-graph [id view-function arguments]) ;; TODO: remove me
-
-                                                    (swap! state
-                                                           update
-                                                           :scene-graph-cache
-                                                           assoc
-                                                           [id view-function arguments]
-                                                           scene-graph)
-
-                                                    scene-graph)))
-
-                                dependency-value-map (cache/dependency-value-map (or (get (:constructor-cache @state)
-                                                                                          [id view-function])
-                                                                                     view-function)
-                                                                                 arguments)
-                                ;; scene-graph (assoc scene-graph
-                                ;;                    :view-functions (concat [{:function (first value)
-                                ;;                                              :dependencies (for [[dependable _value] dependency-value-map]
-                                ;;                                                              (merge {:dependable dependable
-                                ;;                                                                      :new-value (depend/current-value dependable)}
-                                ;;                                                                     (when-let [old-value (get old-dependency-value-map dependable)]
-                                ;;                                                                       {:old-value old-value})))
-                                ;;                                              :local-id (:local-id (meta value))}]
-                                ;;                                            (:view-functions scene-graph)))
-                                ]
-
-                            (when (not (empty? dependency-value-map))
-                              (swap! state
-                                     update
-                                     :node-dependencies
-                                     assoc
-                                     [id view-function]
-                                     dependency-value-map))
-
-
-
-                            (swap! state
-                                   update
-                                   :view-functions
-                                   assoc
-                                   [id view-function]
-                                   view-function)
-
-                            scene-graph)))
+        (let [view-call-compilation-path (conj compilation-path :view-call)]
+          (call-compile-node-with-cache id
+                                        view-call-compilation-path
+                                        (hierarchical-identity-cache/call-with-cache compile-node-cache-atom
+                                                                                     view-call-compilation-path
+                                                                                     0
+                                                                                     apply-view-call
+                                                                                     id
+                                                                                     view-call-compilation-path
+                                                                                     value)))
 
         (:children value)
         (-> value
@@ -447,19 +357,21 @@
                       (vec (map-indexed (fn [index child]
                                           (assert (nil? (:local-id (meta child)))
                                                   (str "Using metadata is deprecated. Use {:local-id 1 :node node} i.e. meta nodes instead. local-id was: " (:local-id (meta child))))
-                                          (let [compiled-node (compile-node false
-                                                                            (vec (conj id
-                                                                                       (or (:local-id child)
-                                                                                           index)))
-                                                                            child)]
-                                            ;;                                            (prn 'compiled-node (System/identityHashCode compiled-node)) ;; TODO: remove me
-                                            compiled-node))
+                                          (call-compile-node-with-cache (vec (conj id
+                                                                                   (or (:local-id child)
+                                                                                       index)))
+                                                                        (vec (conj compilation-path
+                                                                                   (or (:local-id child)
+                                                                                       index)))
+                                                                        child))
                                         children))))
-            (assoc :id id))
+            (assoc :id id
+                   :compilation-path compilation-path))
 
         :else
         (assoc value
-               :id id)))
+               :id id
+               :compilation-path compilation-path)))
 
 (defn invalidated-node-ids [node-dependencies]
   (->> node-dependencies
@@ -529,9 +441,11 @@
                  (update :constructor-cache remove-unused-view-call-ids))))))
 
 (defn compile-view-calls [view-call-or-scene-graph]
-  (compile-node false
-                []
-                view-call-or-scene-graph))
+  (hierarchical-identity-cache/with-cache-cleanup compile-node-cache-atom
+    ;;    (prn "compile-node-cache" (hierarchical-identity-cache/statistics compile-node-cache-atom))
+    (call-compile-node-with-cache []
+                                  []
+                                  view-call-or-scene-graph)))
 
 (defn state-bindings []
   {#'state (atom {:applied-view-call-ids #{}
@@ -540,7 +454,8 @@
                   :constructor-cache {}
                   :node-dependencies {}
                   :scene-graph-cache {}
-                  :view-functions {}})})
+                  :view-functions {}})
+   #'compile-node-cache-atom (hierarchical-identity-cache/create-cache-atom "compile-node")})
 
 (deftest test-compile
   (let [test-compile (fn [value]
@@ -548,7 +463,9 @@
                                         (if (map? node)
                                           (dissoc node
                                                   :render
-                                                  :view-functions)
+                                                  :view-functions
+                                                  :view-function
+                                                  :compilation-path)
                                           node))
                                       (compile-view-calls value)))]
     (with-bindings (merge (state-bindings)
@@ -561,21 +478,25 @@
       (let [view (fn []
                    {:type :view})]
         (is (= {:type :view
-                :id []
-                :view-call? true}
-               (test-compile [view])))
+                :id []}
+               (test-compile [view]))))
 
+
+      (let [view (fn []
+                   {:type :view})
+            scene-graph (call-compile-node-with-cache [] [] [view])]
         (is (= {:type :view
                 :id []
-                :view-call? true}
-               (test-compile {:view-call [view]}))))
+                :compilation-path [:view-call]}
+               scene-graph))
+        (is (identical? scene-graph
+                        (call-compile-node-with-cache [] [] [view]))))
 
       (testing "if a view only calls another view, they must have different ids to differentiate their state. This is why there is a :call -keyword inserted into the id"
         (let [view-2 (fn [] {:type :view-2})
               view-1 (fn [] [view-2])]
           (is (= {:type :view-2
-                  :id [:call]
-                  :view-call? true}
+                  :id []}
                  (test-compile [view-1])))))
 
 
@@ -584,10 +505,8 @@
                            :children [[view-2]]})]
         (is (= '{:type :view-1
                  :id []
-                 :view-call? true
                  :children ({:type :view-2
-                             :id [0]
-                             :view-call? true})}
+                             :id [0]})}
                (test-compile [view-1]))))
 
       (let [view-3 (fn [] {:type :view-3})
@@ -596,10 +515,8 @@
                            :children [[view-2]]})]
         (is (= '{:type :view-1
                  :id []
-                 :view-call? true
                  :children ({:type :view-3
-                             :id [0 :call]
-                             :view-call? true})}
+                             :id [0]})}
                (test-compile [view-1]))))
 
       (testing "children get sequential ids"
@@ -611,20 +528,15 @@
                                         {:children [[view-2]
                                                     [view-2]]}]})]
           (is (= {:type :view-1,
-                  :view-call? true
                   :children [{:children [{:type :view-2,
-                                          :id [0 0]
-                                          :view-call? true}
+                                          :id [0 0]}
                                          {:type :view-2,
-                                          :id [0 1]
-                                          :view-call? true}]
+                                          :id [0 1]}]
                               :id [0]}
                              {:children [{:type :view-2,
-                                          :id [1 0]
-                                          :view-call? true}
+                                          :id [1 0]}
                                          {:type :view-2,
-                                          :id [1 1]
-                                          :view-call? true}]
+                                          :id [1 1]}]
                               :id [1]}]
                   :id []}
                  (test-compile [view-1])))))
@@ -640,98 +552,115 @@
                                          :children [[view-2]]} ]})]
           (is (= {:type :layout,
                   :id []
-                  :view-call? true
                   :children [{:local-id :a
                               :id [:a]
                               :type :layout,
                               :children [{:type :view-2,
-                                          :id [:a 0]
-                                          :view-call? true}]}
+                                          :id [:a 0]}]}
                              {:local-id :b
                               :id [:b]
                               :type :layout,
                               :children [{:type :view-2,
-                                          :id [:b 0]
-                                          :view-call? true}]}]}
-                 (test-compile [view-1])))))
-
-      (testing "local ids can be given as a metadata to the view call"
-        (let [view-2 (fn [] {:type :view-2})
-              view-1 (fn [] {:type :view-1
-                             :children [^{:local-id :a} [view-2]
-                                        ^{:local-id :b} [view-2]]})]
-          (is (= {:type :view-1,
-                  :id []
-                  :view-call? true
-                  :children [{:type :view-2,
-                              :local-id :a
-                              :id [:a]
-                              :view-call? true}
-                             {:type :view-2,
-                              :local-id :b
-                              :id [:b]
-                              :view-call? true}]}
-                 (test-compile [view-1])))))
-
-      (testing "local ids can be given as a metadata to scene graph node"
-        (let [view-2 (fn [] {:type :view-2})
-              view-1 (fn [] {:type :layout
-                             :children [^{:local-id :a} {:type :layout
-                                                         :children [[view-2]]}
-                                        ^{:local-id :b} {:type :layout
-                                                         :children [[view-2]]}]})]
-          (is (= {:type :layout,
-                  :id []
-                  :view-call? true
-                  :children [{:type :layout,
-                              :id [:a]
-                              :children [{:type :view-2,
-                                          :id [:a 0]
-                                          :view-call? true}]}
-                             {:type :layout,
-                              :id [:b]
-                              :children [{:type :view-2,
-                                          :id [:b 0]
-                                          :view-call? true}]}]}
-                 (test-compile [view-1])))))
-
-      (testing "properties can be given as a metadata to the view call"
-        (let [view-2 (fn [] {:type :view-2})
-              view-1 (fn [] {:type :view-1
-                             :children [^{:z 1} [view-2]
-                                        ^{:z 2} [view-2]]})]
-          (is (= {:type :view-1,
-                  :id []
-                  :view-call? true
-                  :children [{:type :view-2,
-                              :id [0]
-                              :view-call? true
-                              :z 1}
-                             {:type :view-2,
-                              :id [1]
-                              :view-call? true
-                              :z 2}]}
+                                          :id [:b 0]}]}]}
                  (test-compile [view-1])))))
 
       (testing "properties can be given in view call map"
         (let [view-2 (fn [] {:type :view-2})
               view-1 (fn [] {:type :view-1
                              :children [{:z 1
-                                         :view-call [view-2]}
+                                         :node [view-2]}
                                         {:z 2
-                                         :view-call [view-2]}]})]
+                                         :node [view-2]}]})]
           (is (= {:type :view-1,
                   :id []
-                  :view-call? true
                   :children [{:type :view-2,
                               :id [0]
-                              :view-call? true
                               :z 1}
                              {:type :view-2,
                               :id [1]
-                              :view-call? true
                               :z 2}]}
-                 (test-compile [view-1]))))))))
+                 (test-compile [view-1])))))
+
+      (testing "state"
+        (let [state-atom (dependable-atom/atom 0)
+              view-2-call-count-atom (atom 0)
+              view-2 (fn [] (swap! view-2-call-count-atom inc)
+                       {:type :view-2
+                        :state @state-atom})
+              view-1 (fn [] {:type :view-1
+                             :children [[view-2]]})]
+          (is (= {:type :view-1,
+                  :children [{:type :view-2, :state 0, :id [0]}],
+                  :id []}
+                 (test-compile [view-1])))
+          (is (= 1 @view-2-call-count-atom))
+          (is (= {:type :view-1,
+                  :children [{:type :view-2, :state 0, :id [0]}],
+                  :id []}
+                 (test-compile [view-1])))
+          (is (= 1 @view-2-call-count-atom))
+          (swap! state-atom inc)
+          (is (= {:type :view-1,
+                  :children [{:type :view-2, :state 1, :id [0]}],
+                  :id []}
+                 (test-compile [view-1])))
+          (is (= 2 @view-2-call-count-atom))
+          (swap! state-atom inc)
+          (is (= {:type :view-1,
+                  :children [{:type :view-2, :state 2, :id [0]}],
+                  :id []}
+                 (test-compile [view-1])))))
+
+
+
+      (testing "two states"
+        (let [state-2-atom (dependable-atom/atom 0)
+              state-3-atom (dependable-atom/atom 0)
+              view-2-call-count-atom (atom 0)
+              view-2 (fn [] (swap! view-2-call-count-atom inc)
+                       {:type :view-2
+                        :state @state-2-atom})
+              view-3-call-count-atom (atom 0)
+              view-3 (fn []
+                       (swap! view-3-call-count-atom inc)
+                       {:type :view-3
+                        :state @state-3-atom})
+              view-1 (fn [] {:type :view-1
+                             :children [[view-2]
+                                        [view-3]]})]
+          (is (= {:type :view-1,
+                  :children
+                  [{:type :view-2, :state 0, :id [0]}
+                   {:type :view-3, :state 0, :id [1]}],
+                  :id []}
+                 (test-compile [view-1])))
+          (is (= 1 @view-2-call-count-atom))
+          (is (= {:type :view-1,
+                  :children
+                  [{:type :view-2, :state 0, :id [0]}
+                   {:type :view-3, :state 0, :id [1]}],
+                  :id []}
+                 (test-compile [view-1])))
+          (is (= 1 @view-2-call-count-atom))
+          (swap! state-2-atom inc)
+          (is (= {:type :view-1,
+                  :children
+                  [{:type :view-2, :state 1, :id [0]}
+                   {:type :view-3, :state 0, :id [1]}],
+                  :id []}
+                 (test-compile [view-1])))
+          (is (= 2 @view-2-call-count-atom))
+          (is (= 1 @view-3-call-count-atom))
+
+          (swap! state-3-atom inc)
+          (is (= {:type :view-1,
+                  :children
+                  [{:type :view-2, :state 1, :id [0]}
+                   {:type :view-3, :state 1, :id [1]}],
+                  :id []}
+                 (test-compile [view-1])))
+          (is (= 2 @view-2-call-count-atom))
+          (is (= 2 @view-3-call-count-atom)))))))
 
 (deftest test-local-state
   (testing "local state"

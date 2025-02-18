@@ -234,6 +234,7 @@
 
   )
 
+
 (comment
   (test-layout-cache)
   ) ;; TODO: remove me
@@ -376,3 +377,25 @@
 
 
   ) ;; TODO: remove me
+
+
+
+(deftest test-compilation-cache
+  (with-bindings (merge (view-compiler/state-bindings)
+                        (layout/state-bindings)
+                        )
+    (let [view (fn []
+                 {:type :view})
+          scene-graph (view-compiler/call-compile-node-with-cache [] [] [view])
+          layout (layout/layout-scene-graph scene-graph 1 1)
+          scene-graph-2 (view-compiler/call-compile-node-with-cache [] [] [view])
+          layout-2 (layout/layout-scene-graph scene-graph 1 1)]
+      (is (= {:type :view
+              :id []
+              :compilation-path [:view-call]}
+             scene-graph))
+      (is (identical? scene-graph
+                      scene-graph-2))
+
+      (is (identical? layout
+                      layout-2)))))

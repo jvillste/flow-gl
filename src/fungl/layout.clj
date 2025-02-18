@@ -19,31 +19,18 @@
 (spec/def ::available-height int?)
 (spec/def ::node-with-space (spec/keys :req-un [::available-width ::available-height]))
 
-;; TODO keep track of the nodes which layout comes from the cache and use that to cleanup compnents from view-compiler state
-;; the view compiler state must be cleaned of removed components only after layout
-
-;; it is enough to collect all cached node ids and then mark all their children as applied view calls when cleaning view call cache
-
-;; this applis to layout cache as well as view compilers scene-graph-cache
-
-;; when a layout comes from the cache, it means the component in that branch of the scene graph have not changed, thus no component cleanup is needed.
-
-;; applied component cache
 (defn adapt-to-space [node available-width available-height]
-  #_(prn 'adapt-to-space (:id node)) ;; TODO: remove me
-
-  (if-let [callable (:adapt-to-space node)]
-    (adapt-to-space (->> (callable/call-with-hierarchical-identity-cache adapt-to-space-cache-atom
-                                                                         (:id node)
+  (if-some [adapt-to-space-callable (:adapt-to-space node)]
+    (adapt-to-space (->> (callable/call-with-hierarchical-identity-cache view-compiler/compile-node-cache-atom
+                                                                         (:compilation-path node)
                                                                          0
-                                                                         callable
+                                                                         adapt-to-space-callable
                                                                          node
                                                                          available-width
                                                                          available-height)
-                         (view-compiler/compile-node (:view-call? node)
-                                                     (:id node)
-                                                     #_(concat (:id node)
-                                                               [:adapted])))
+                         (view-compiler/call-compile-node-with-cache (:id node)
+                                                                     (conj (:compilation-path node)
+                                                                           :adapt-to-space)))
                     available-width available-height)
     node))
 
@@ -96,11 +83,8 @@
           (fn [children]
             (if children
               (mapv (fn [child available-area]
-                      #_(layout-node child
-                                     (:available-width available-area)
-                                     (:available-height available-area))
-                      (hierarchical-identity-cache/call-with-cache layout-node-cache-atom
-                                                                   (:id child)
+                      (hierarchical-identity-cache/call-with-cache view-compiler/compile-node-cache-atom
+                                                                   (:compilation-path child)
                                                                    1
                                                                    layout-node
                                                                    child
@@ -139,8 +123,8 @@
 (defn layout-scene-graph [scene-graph available-width available-height]
   (hierarchical-identity-cache/with-cache-cleanup layout-node-cache-atom
     (hierarchical-identity-cache/with-cache-cleanup adapt-to-space-cache-atom
-      (let [layouted-scene-graph (hierarchical-identity-cache/call-with-cache layout-node-cache-atom
-                                                                              []
+      (let [layouted-scene-graph (hierarchical-identity-cache/call-with-cache view-compiler/compile-node-cache-atom
+                                                                              (:compilation-path scene-graph)
                                                                               1
                                                                               layout-root
                                                                               scene-graph

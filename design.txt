@@ -86,7 +86,7 @@ model -> view-state
 child-view-state -> view-state
                     focus-handlers
 
-(p View is a function 
+(p View is a function
    ( state state-path ) ->  ( visual state )
 of a view state to a visual and a new view
 state. The view state affects the child view states, which are updated
@@ -170,3 +170,27 @@ query-execution-thread
 seleciton-go-block
 
 
+# view compiler
+
+Compiling a node can be cached, which should retain constructors in the cache
+
+a parent component scene graph should not be invalidated when some descentant is invalidated
+
+When a node is invalidated
+- nodes construtor is not invalidated
+- nodes scene graph is invalidated
+
+- nodes construtor can not become obsolete
+- nodes scene graph can not become obsolete
+
+- ancestor scene graphs are invalidated
+- ancestor constructors are not invalidated
+
+- ancestor scene graphs can not become obsolete
+- ancestor constructors can not become obsolete
+
+- descendant scene graphs are not invalidted
+- descendant constructors are not invalidted
+
+- descendant scene graphs may become obsolete
+- descendant constructors may become obsolete

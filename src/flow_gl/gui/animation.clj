@@ -262,7 +262,7 @@
   @state-atom)
 
 (defn state-bindings []
-  {#'state-atom (dependable-atom/atom (initialize-state))})
+  {#'state-atom (dependable-atom/atom "animation" (initialize-state))})
 
 (defn swap-state! [function & arguments]
   (apply swap! state-atom function arguments))

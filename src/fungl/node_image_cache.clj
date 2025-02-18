@@ -9,7 +9,7 @@
 (def ^:dynamic image-cache-atom)
 
 (defn state-bindings []
-  {#'image-cache-atom (hierarchical-identity-cache/create-cache-atom)})
+  {#'image-cache-atom (hierarchical-identity-cache/create-cache-atom "node-image-cache")})
 
 (defn render-to-images [node layout]
   (visuals/render-to-images (assoc layout
@@ -83,6 +83,6 @@
         layout-node))))
 
 (defn render-recurring-nodes-to-images [previous-scene-graph scene-graph]
-;;  (prn "image-cache" (hierarchical-identity-cache/statistics image-cache-atom)) ;; TODO: remove me
+;;  (prn "image-cache" (hierarchical-identity-cache/statistics image-cache-atom))
   (hierarchical-identity-cache/with-cache-cleanup image-cache-atom
     (render-recurring-nodes-to-images* previous-scene-graph scene-graph)))
