@@ -305,10 +305,10 @@
                                   (util/escapes :reset))))))
                   (sort)))))
 
-(defn create-scene-graph [root-view-or-var]
+(defn create-scene-graph [root-view-call]
   (let [view-call-dependency-value-maps-before-compilation (:node-dependencies @view-compiler/state)]
     (view-compiler/start-compilation-cycle!)
-    (let [scene-graph (layout/layout-scene-graph (view-compiler/compile-view-calls [root-view-or-var])
+    (let [scene-graph (layout/layout-scene-graph (view-compiler/compile-view-calls root-view-call)
                                                  (:window-width @application-loop-state-atom)
                                                  (:window-height @application-loop-state-atom))]
       (view-compiler/end-compilation-cycle!)
@@ -439,23 +439,23 @@
 (defn close! [state]
   (close-window! (:window state)))
 
-(defn create-bindings-without-window [root-view]
+(defn create-bindings-without-window [root-view-call]
   (let [bindings (merge (create-event-handling-state)
                         (create-render-state))]
     (with-bindings bindings
       (swap! application-loop-state-atom
              assoc
              :window-width 1000
-             :window-height 800
-             :root-view root-view)
-      (let [scene-graph (create-scene-graph root-view)]
+             :window-height 1000
+             :root-view-call root-view-call)
+      (let [scene-graph (create-scene-graph root-view-call)]
         (swap! application-loop-state-atom
                assoc
                :scene-graph scene-graph)))
     bindings))
 
-(defn create-bindings [root-view]
-  (let [bindings (create-bindings-without-window root-view)]
+(defn create-bindings [root-view-call]
+  (let [bindings (create-bindings-without-window root-view-call)]
     (with-bindings bindings
       (swap! application-loop-state-atom
              assoc
@@ -507,7 +507,7 @@
                (do (process-event! (layout/apply-layout-nodes scene-graph) ;; TODO: cache apply-layout-nodes
                                    (first events))
                    (recur (rest events)
-                          (create-scene-graph (:root-view @application-loop-state-atom)))))))))
+                          (create-scene-graph (:root-view-call @application-loop-state-atom)))))))))
 
 (defmacro thread [name & body]
   `(.start (Thread. (bound-fn [] ~@body)
@@ -548,7 +548,7 @@
                                              on-exit]
                                       :or {target-frame-rate 60}}]
   (println "------------ start-window -------------")
-  (with-bindings (create-bindings root-view)
+  (with-bindings (create-bindings [root-view])
     (handle-events! [{:type :resize-requested
                       :width (* 2 (:window-width @application-loop-state-atom)),
                       :height (* 2 (:window-height @application-loop-state-atom))}])
