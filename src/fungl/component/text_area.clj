@@ -16,15 +16,14 @@
             [fungl.clipboard :as clipboard])
   (:import (java.awt.font TextHitInfo)))
 
-(defn default-font []
-  (font/create (.getPath (io/resource "LiberationSans-Regular.ttf")) 18))
+(def default-font (font/built-in-font))
 
 (defn text
   ([value]
    (text value [255 255 255 255]))
 
   ([value color]
-   (text value color (default-font)))
+   (text value color default-font))
 
   ([value color font]
    (visuals/text-area (str value)
@@ -351,7 +350,7 @@
   {:create initialize-state})
 
 (defn default-style []
-  {:font (default-font)
+  {:font default-font
    :color [100 100 100 255]})
 
 (defn text-area-keyboard-event-handler [state-atom rows on-change _node event]
