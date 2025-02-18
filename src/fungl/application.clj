@@ -174,9 +174,7 @@
 
 (defn add-development-tools [scene-graph]
   (if false #_(:show-development-tools? @application-loop-state-atom) ;; TODO: development tools should be added to the scene graph before the layout to make layout cache work
-      (let [development-tools-layout (layout/layout-scene-graph (assoc (view-compiler/compile-view-calls (development-tools-view scene-graph))
-                                                                       :x 0
-                                                                       :y 0)
+      (let [development-tools-layout (layout/layout-scene-graph (view-compiler/compile-view-calls (development-tools-view scene-graph))
                                                                 (:window-width @application-loop-state-atom)
                                                                 (:window-height @application-loop-state-atom))]
         {:children [scene-graph
