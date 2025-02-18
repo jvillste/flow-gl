@@ -364,11 +364,19 @@
 
 ;; events
 
-(defn key-pressed? [keyboard-event key]
+(defn key-pressed-event? [keyboard-event key]
   (and (= (:key keyboard-event)
           key)
        (= (:type keyboard-event)
           :key-pressed)))
+
+(defn key-pressed? [event key]
+  (and (key-pressed-event? event key)
+       (= :on-target (:phase event))))
+
+(defn descendant-key-pressed? [event key]
+  (and (key-pressed-event? event key)
+       (= :descent (:phase event))))
 
 (defn event-to-key-pattern [event]
   (when (= (:source event)
