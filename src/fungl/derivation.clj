@@ -1,6 +1,7 @@
 (ns fungl.derivation
   (:require [fungl.depend :as depend]
-            [fungl.cache :as cache]))
+            [fungl.cache :as cache]
+            clojure.pprint))
 
 (defrecord Derivation [name function]
   clojure.lang.IDeref
@@ -38,3 +39,7 @@
                       (format "0x%x"
                               (System/identityHashCode derivation))
                       "]")))
+
+;; (prefer-method clojure.pprint/simple-dispatch
+;;                Derivation
+;;                clojure.lang.IDeref)
