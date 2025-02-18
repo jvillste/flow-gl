@@ -29,6 +29,27 @@
                                                      (.getAllFonts (GraphicsEnvironment/getLocalGraphicsEnvironment)))
                                   (float size))))
 
+(defn built-in-font [& [{:keys [name size style]
+                         :or {name :dialog
+                              size 40
+                              style :plain}}]]
+
+  (font-with-metrics (Font. (get {:dialog "Dialog"
+                                  :dialog-input "DialogInput"
+                                  :monospaced "Monospaced"
+                                  :serif "Serif"
+                                  :sans-serif "SansSerif"}
+                                 name)
+                            (get {:plain Font/PLAIN
+                                  :italic Font/ITALIC
+                                  :bold Font/BOLD}
+                                 style)
+                            size)))
+
+(defn derive [font size]
+  (.deriveFont font
+               (float size)))
+
 (def loaded-fonts (atom {}))
 
 (defn create [ttf-file-name size]
