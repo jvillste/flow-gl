@@ -1,4 +1,4 @@
-(defproject flow-gl "3"
+(defproject flow-gl "4"
   :description "FIXME: write description"
   :repositories {"sonatype-oss-public" "https://oss.sonatype.org/content/groups/public/"} ;; for priority-map
   :resource-paths ["resources"]
