@@ -327,10 +327,8 @@
       (handle-new-scene-graph! (layout/apply-layout-nodes scene-graph)) ;; TODO: cache apply-layout-nodes
       scene-graph)))
 
-(def ^:dynamic event-channel)
-
 (defn send-event! [event]
-  (async/put! event-channel
+  (async/put! (window/event-channel (:window @application-loop-state-atom))
               event))
 
 (defn cache-miss? [node]
