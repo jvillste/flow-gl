@@ -2,7 +2,7 @@
   (:require [clojure.test :refer [deftest is testing]]
             [medley.core :as medley]
             [fungl.trie :as trie]
-            [strict-core :refer :all]
+;;            [strict-core :refer :all]
             [fungl.depend :as depend]
             [fungl.dependable-atom :as dependable-atom]
             [clojure.set :as set]))
@@ -108,23 +108,50 @@
                 mapping)
              (invalid-mapping? mapping)))))
 
+(defn select-identity-keys [number-of-identity-arguments arguments]
+  (if (> 0 number-of-identity-arguments)
+    (take-last (abs number-of-identity-arguments)
+               arguments)
+    (take number-of-identity-arguments
+          arguments)))
+
+(defn select-value-keys [number-of-identity-arguments arguments]
+  (if (> 0 number-of-identity-arguments)
+    (drop-last (abs number-of-identity-arguments)
+               arguments)
+    (drop number-of-identity-arguments
+          arguments)))
+
 (defn call-with-cache [cache-atom path number-of-identity-arguments function & arguments]
   #_(apply function arguments)
-  (let [identity-keys (if (> 0 number-of-identity-arguments)
-                        (take-last (abs number-of-identity-arguments)
-                                   arguments)
-                        (take number-of-identity-arguments
-                              arguments))
+  (let [identity-keys (select-identity-keys number-of-identity-arguments arguments)
 
-        value-keys (if (> 0 number-of-identity-arguments)
-                     (drop-last (abs number-of-identity-arguments)
-                                arguments)
-                     (drop number-of-identity-arguments
-                           arguments))
+        value-keys (select-value-keys number-of-identity-arguments arguments)
 
         mapping (get-mapping-from-cache @cache-atom path function identity-keys value-keys)
 
         invalid? (invalid-mapping? mapping)]
+
+    #_(when true
+        #_(or invalid?
+              (= ::not-found mapping))
+        #_(= path [:view-call :view-call 0 0 :buttons :meta-node :view-call])
+        (println "call-with-cache"
+                 path
+                 function
+                 (if (= ::not-found
+                        mapping)
+                   "not found"
+                   "found")
+                 (if invalid?
+                   "invalid"
+                   "valid")
+                 (for [dependency-value-pair (:dependencies mapping)]
+                   [(:name (first dependency-value-pair))
+                    (if (changed-dependency-value? dependency-value-pair)
+                      "changed"
+                      "unchanged")])))
+
 
     (if (or invalid?
             (= ::not-found mapping))
@@ -265,8 +292,8 @@
   (cached? cache-atom
            path
            function
-           (take number-of-identity-arguments arguments)
-           (drop number-of-identity-arguments arguments)))
+           (select-identity-keys number-of-identity-arguments arguments)
+           (select-value-keys number-of-identity-arguments arguments)))
 
 (deftest cache-test
   (binding [maximum-number-of-cycles-without-removing-unused-keys 0]
@@ -487,5 +514,5 @@
             (call-with-cache cache-atom [:a] 0 function-1 1))
 
           (is (cached-call? cache-atom [:a] 0 function-1 1))
-           ;; unused mapping is left to the cache because another mapping was reused in the same path
+          ;; unused mapping is left to the cache because another mapping was reused in the same path
           (is (cached-call? cache-atom [:a] 0 function-2 2)))))))
