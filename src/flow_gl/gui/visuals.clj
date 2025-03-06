@@ -308,8 +308,8 @@
   (assoc original-layout-node
          :node (assoc (:node original-layout-node)
                       :type :rendered-to-images
-                      :children (->> (renderer/apply-renderers! original-layout-node
-                                                                nil)
+                      :children (->> (renderer/apply-renderers! nil
+                                                                original-layout-node)
                                      (scene-graph/leaf-nodes)
                                      (filter :draw-function)
                                      (layers)
@@ -331,9 +331,9 @@
 (defn render-to-image [_graphics original-layout-node]
   (let [original-node (layout/apply-layout-nodes original-layout-node)
         leaf-nodes (filter :draw-function (scene-graph/nodes-in-view-2 original-node
-                                                                       (scene-graph/leaf-nodes (renderer/apply-renderers! (dissoc original-node
-                                                                                                                                  :render)
-                                                                                                                          nil))))
+                                                                       (scene-graph/leaf-nodes (renderer/apply-renderers! nil
+                                                                                                                          (dissoc original-node
+                                                                                                                                  :render)))))
         bounding-box (scene-graph/bounding-box leaf-nodes)
         clipped-bounding-box (scene-graph/clip bounding-box
                                                original-node)]

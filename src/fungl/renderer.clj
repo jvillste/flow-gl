@@ -1,14 +1,14 @@
 (ns fungl.renderer
   (:require [fungl.callable :as callable]))
 
-(defn apply-renderers! [layout-node gl]
+(defn apply-renderers! [gl layout-node]
   (let [layout-node (if (and (:children (:node layout-node))
                              (not (:render-on-descend? (:node layout-node))))
                       (update-in layout-node
                                  [:node :children]
                                  (fn [children]
                                    (doall (map (fn [child]
-                                                 (apply-renderers! child gl))
+                                                 (apply-renderers! gl child))
                                                children))))
                       layout-node)]
 

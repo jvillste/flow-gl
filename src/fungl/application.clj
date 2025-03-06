@@ -187,43 +187,9 @@
          :height (:window-height @application-loop-state-atom)})
       scene-graph))
 
-
-;; (def render-count-atom (atom 0))
-(defn render [scene-graph render-scene-graph gl]
-  ;;  (println "render" (swap! render-count-atom inc)) ;; TODO: remove me
-  (let [scene-graph (add-development-tools scene-graph)]
-    (when (not (identical? scene-graph
-                           (:previous-rendered-scene-graph @application-loop-state-atom)))
-
-      ;; (def the-scene-graph scene-graph)
-      ;; (def the-previous-scene-graph (:previous-rendered-scene-graph @application-loop-state-atom))
-
-      ;; (let [path (scene-graph/id-to-local-id-path [1 :scrolling-pane 0 1 0 :notebook-body 0 [:value 0] :call])]
-      ;;   (when (not (= (node scene-graph path)
-      ;;                 (node (:previous-rendered-scene-graph @application-loop-state-atom) path)))
-      ;;     (println "saving scene graphs")
-
-      ;;     (def scene-graph scene-graph)
-      ;;     (def previous-scene-graph (:previous-rendered-scene-graph @application-loop-state-atom))))
-
-      (taoensso.tufte/p :render-scene-graph
-                        (render-scene-graph gl
-                                            #_(layout/apply-layout-nodes (renderer/apply-renderers! scene-graph
-                                                                                                  gl))
-                                            (layout/apply-layout-nodes (renderer/apply-renderers! (node-image-cache/render-recurring-nodes-to-images (:previous-rendered-scene-graph @application-loop-state-atom)
-                                                                                                                                                     scene-graph)
-                                                                                                  gl))
-                                            #_(renderer/apply-renderers! (layout/apply-layout-nodes (node-image-cache/render-recurring-nodes-to-images (:previous-rendered-scene-graph @application-loop-state-atom)
-                                                                                                                                                       scene-graph))
-                                                                         gl)
-                                            #_scene-graph
-                                            #_(renderer/apply-renderers! scene-graph
-                                                                         #_(node-image-cache/render-recurring-nodes-to-images (:previous-rendered-scene-graph @application-loop-state-atom)
-                                                                                                                              scene-graph)
-                                                                         gl)))
-      (swap! application-loop-state-atom assoc :previous-rendered-scene-graph scene-graph))))
-
 (defn handle-new-scene-graph! [scene-graph]
+  (scene-graph/print-scene-graph (scene-graph/select-node-keys [:compilation-path :type :can-gain-focus? :keyboard-event-handler] scene-graph))
+
   (keyboard/handle-new-scene-graph! scene-graph)
   (mouse/handle-new-scene-graph! scene-graph))
 
@@ -277,9 +243,9 @@
     (println view-call-id
              (when-let [view-function (get (:view-functions @view-compiler/state)
                                            view-call-id)]
-               (view-compiler/function-name (if (var? view-function)
-                                              @view-function
-                                              view-function)))
+               (util/function-name (if (var? view-function)
+                                     @view-function
+                                     view-function)))
              (->> (get (:node-dependencies @view-compiler/state)
                        view-call-id)
                   (map (fn [[dependable _value]]
@@ -386,6 +352,8 @@
 
 (defn process-event! [scene-graph-before-event-handling event]
   ;; (swap! events-atom conj event)
+
+  ;; (prn "cache stats" (cache/stats cache/state)) ;; TODO: remove me
 
   ;; (println)
   ;; (println "handling" (:type event) (:key event) #_(pr-str event))
@@ -530,17 +498,20 @@
 
 
 (defn application-loop-render! []
-  ;; (logga/write 'application-loop-render!) ;; TODO: remove me
+  (when-some [scene-graph (:scene-graph @application-loop-state-atom)]
 
-  (when (:scene-graph @application-loop-state-atom)
-    #_(scene-graph/print-scene-graph (scene-graph/select-node-keys [:id :entity] (:scene-graph @application-loop-state-atom)))
-    (window/with-gl (:window @application-loop-state-atom) gl
-      (taoensso.tufte/p :render
-                        (render (:scene-graph @application-loop-state-atom)
-                                swing-root-renderer/render-scene-graph
-                                gl)))
-    (taoensso.tufte/p :swap-buffers
-                      (window/swap-buffers (:window @application-loop-state-atom)))))
+    (let [previous-rendered-scene-graph (:previous-rendered-scene-graph @application-loop-state-atom)]
+      (when (not (identical? scene-graph
+                             previous-rendered-scene-graph))
+
+        (window/with-gl (:window @application-loop-state-atom) gl
+          (->> scene-graph
+               (node-image-cache/render-recurring-nodes-to-images previous-rendered-scene-graph)
+               (renderer/apply-renderers! gl)
+               (layout/apply-layout-nodes)
+               (swing-root-renderer/render-scene-graph gl)))
+        (window/swap-buffers (:window @application-loop-state-atom))
+        (swap! application-loop-state-atom assoc :previous-rendered-scene-graph scene-graph)))))
 
 (defn start-application [root-view & {:keys [target-frame-rate
                                              on-exit]
