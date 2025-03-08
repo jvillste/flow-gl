@@ -45,3 +45,26 @@
 
       (is (= 3 @derivation-call-count-atom))
       (is (= 2 @cached-function-call-count-atom)))))
+
+
+(deftest identity-test
+  (with-bindings (cache/state-bindings)
+    (let [foo-atom (dependable-atom/atom {:a 1
+                                          :b 2})
+          bar-derivation (derivation/derive (fn []
+                                              #{(:b @foo-atom)}))]
+
+      (is (identical? @bar-derivation
+                      @bar-derivation))
+
+      (let [bar-state @bar-derivation]
+        (swap! foo-atom update :a inc)
+        (is (identical? bar-state
+                        @bar-derivation))
+
+
+        (is (= #{2} @bar-derivation))
+        (swap! foo-atom update :b inc)
+        (is (= #{3} @bar-derivation))
+        (is (not (identical? bar-state
+                             @bar-derivation)))))))

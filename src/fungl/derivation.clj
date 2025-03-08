@@ -6,18 +6,31 @@
 (defrecord Derivation [name function]
   clojure.lang.IDeref
   (deref [this]
-    (let [result (depend/with-hidden-dependencies (cache/call! function))]
+    ;; TODO: add dependency tracking to identity-cache and use it here.
+    (let [old-cached-value (cache/get (cache/function-call-key function []))
+          result (depend/with-hidden-dependencies (cache/call! function))]
       (depend/add-dependency this
                              result)
-      result))
+      (cond (identical? old-cached-value
+                        result)
+
+            old-cached-value
+
+            (= old-cached-value
+               result)
+            (do (cache/put! (cache/function-call-key function []) old-cached-value)
+                old-cached-value)
+
+            :else
+            result)))
 
   clojure.lang.Named
   (getName [this]
     (:name this))
 
   depend/Depend
-  (current-value [_this]
-    (cache/call! function)))
+  (current-value [this]
+    (deref this)))
 
 (defn derive
   ([function]
@@ -27,7 +40,7 @@
 
 (defmacro def-derivation [name & function-body]
   `(def ~name (derive (str (quote ~name))
-                      (fn []
+                      (fn ~name []
                         ~@function-body))))
 
 (defmethod print-method Derivation [derivation, ^java.io.Writer writer]
