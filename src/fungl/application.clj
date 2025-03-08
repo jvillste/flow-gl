@@ -496,22 +496,35 @@
                              event)))
   ) ;; TODO: remove me
 
+(defn with-window-gl [body]
+  (window/with-gl (:window @application-loop-state-atom) gl
+    (body gl))
+  (window/swap-buffers (:window @application-loop-state-atom)))
 
-(defn application-loop-render! []
+(defn render! [nodes-to-image-node with-gl render-nodes]
   (when-some [scene-graph (:scene-graph @application-loop-state-atom)]
 
     (let [previous-rendered-scene-graph (:previous-rendered-scene-graph @application-loop-state-atom)]
       (when (not (identical? scene-graph
                              previous-rendered-scene-graph))
 
-        (window/with-gl (:window @application-loop-state-atom) gl
-          (->> scene-graph
-               (node-image-cache/render-recurring-nodes-to-images previous-rendered-scene-graph)
-               (renderer/apply-renderers! gl)
-               (layout/apply-layout-nodes)
-               (swing-root-renderer/render-scene-graph gl)))
-        (window/swap-buffers (:window @application-loop-state-atom))
+        (with-gl (fn [gl]
+                   (let [scene-graph (->> scene-graph
+                                          (node-image-cache/render-recurring-nodes-to-images nodes-to-image-node previous-rendered-scene-graph)
+                                          (renderer/apply-renderers! gl)
+                                          (layout/apply-layout-nodes))]
+                     (->> (scene-graph/scene-graph-nodes-in-view scene-graph
+                                                                 (:width scene-graph)
+                                                                 (:height scene-graph))
+                          (filter :draw-function)
+                          (render-nodes gl)))))
+
         (swap! application-loop-state-atom assoc :previous-rendered-scene-graph scene-graph)))))
+
+(defn render-to-swing-window! []
+  (render! visuals/nodes-to-buffered-image-node
+           with-window-gl
+           swing-root-renderer/render-nodes))
 
 (defn start-application [root-view & {:keys [target-frame-rate
                                              on-exit]
@@ -521,13 +534,15 @@
     (handle-events! [{:type :resize-requested
                       :width (* 2 (:window-width @application-loop-state-atom)),
                       :height (* 2 (:window-height @application-loop-state-atom))}])
-    (application-loop-render!)
+
+    (render-to-swing-window!)
+
     (thread "fungl application"
             (try (loop []
 
                    (handle-events! (read-events (window/event-channel (:window @application-loop-state-atom))
                                                 target-frame-rate))
-                   (application-loop-render!)
+                   (render-to-swing-window!)
 
                    (when (:scene-graph @application-loop-state-atom)
                      (recur)))

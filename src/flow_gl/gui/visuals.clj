@@ -291,17 +291,43 @@
   (is (= []
          (merge-contained-layers []))))
 
-(defn layer-to-image [original-node layer]
-  (assoc (image (root-renderer/render-to-buffered-image (:bounding-box layer)
-                                                        (:sort-by :z (:nodes layer))))
-         :id (:id original-node)
-         :z (:z layer)
-         :x (- (:x (:bounding-box layer))
-               (:x original-node))
-         :y (- (:y (:bounding-box layer))
-               (:y original-node))))
+(defn transpose-nodes-to-bounding-box [bounding-box nodes]
+  (map (fn [node]
+         (scene-graph/transpose (- (:x bounding-box))
+                                (- (:y bounding-box))
+                                node))
+       nodes))
 
-(defn render-to-images [original-layout-node]
+(defn render-to-buffered-image [width height leaf-nodes]
+  (let [buffered-image (buffered-image/create (min width
+                                                   10000)
+                                              (min height
+                                                   10000))]
+
+    (root-renderer/render-nodes (buffered-image/get-graphics buffered-image)
+                                leaf-nodes)
+
+    buffered-image))
+
+(defn nodes-to-buffered-image-node [width height nodes]
+  (image (render-to-buffered-image width height nodes )))
+
+(defn layer-to-image [original-node nodes-to-image-node layer]
+  (let [bounding-box (:bounding-box layer)]
+    (assoc (nodes-to-image-node (:width bounding-box)
+                                (:height bounding-box)
+                                (transpose-nodes-to-bounding-box bounding-box
+                                                                 (:nodes layer)))
+           :width (:width bounding-box)
+           :height (:height bounding-box)
+           :id (:id original-node)
+           :z (:z layer)
+           :x (- (:x (:bounding-box layer))
+                 (:x original-node))
+           :y (- (:y (:bounding-box layer))
+                 (:y original-node)))))
+
+(defn render-to-images [nodes-to-image-node original-layout-node]
   ;; (println)
   ;; (prn 'render-to-images (:type original-layout-node) (:id original-layout-node)) ;; TODO: remove me
 
@@ -315,18 +341,9 @@
                                      (layers)
                                      (merge-contained-layers)
                                      (map (partial layer-to-image
-                                                   original-layout-node))
+                                                   original-layout-node
+                                                   nodes-to-image-node))
                                      (doall)))))
-
-(defn leaf-nodes-to-image [original-node layer]
-  (assoc (image (root-renderer/render-to-buffered-image (:bounding-box layer)
-                                                        (:sort-by :z (:nodes layer))))
-         :id (:id original-node)
-         :z (:z layer)
-         :x (- (:x (:bounding-box layer))
-               (:x original-node))
-         :y (- (:y (:bounding-box layer))
-               (:y original-node))))
 
 (defn render-to-image [_graphics original-layout-node]
   (let [original-node (layout/apply-layout-nodes original-layout-node)
@@ -337,8 +354,10 @@
         bounding-box (scene-graph/bounding-box leaf-nodes)
         clipped-bounding-box (scene-graph/clip bounding-box
                                                original-node)]
-    (assoc (image (root-renderer/render-to-buffered-image clipped-bounding-box
-                                                          leaf-nodes))
+    (assoc (image (render-to-buffered-image (:width clipped-bounding-box)
+                                            (:height clipped-bounding-box)
+                                            (transpose-nodes-to-bounding-box bounding-box
+                                                                             leaf-nodes)))
            :id (:id original-node)
            :z 0
            :x (:x clipped-bounding-box)

@@ -11,22 +11,25 @@
 (defn state-bindings []
   {#'image-cache-atom (hierarchical-identity-cache/create-cache-atom "node-image-cache")})
 
-(defn render-to-images [node layout]
-  (visuals/render-to-images (assoc layout
+(defn render-to-images [nodes-to-image-node node layout]
+  (visuals/render-to-images nodes-to-image-node
+                            (assoc layout
                                    :node node)))
 
-(defn apply-image-cache [layout-node]
+(defn apply-image-cache [nodes-to-image-node layout-node]
   (layout/map-layout-nodes (fn [layout-node]
                              (if (hierarchical-identity-cache/cached-call? image-cache-atom
                                                                            (-> layout-node :node :id)
                                                                            1
                                                                            render-to-images
+                                                                           nodes-to-image-node
                                                                            (:node layout-node)
                                                                            (dissoc layout-node :node))
                                (hierarchical-identity-cache/call-with-cache image-cache-atom
                                                                             (-> layout-node :node :id)
                                                                             1
                                                                             render-to-images
+                                                                            nodes-to-image-node
                                                                             (:node layout-node)
                                                                             (dissoc layout-node :node))
                                layout-node))
@@ -36,16 +39,17 @@
                                                                                        (-> layout-node :node :id)
                                                                                        1
                                                                                        render-to-images
+                                                                                       nodes-to-image-node
                                                                                        (:node layout-node)
                                                                                        (dissoc layout-node :node))))}))
 
-(defn apply-cache-and-render-to-images [node layout]
-  (-> (assoc layout
-             :node node)
-      (apply-image-cache)
-      (visuals/render-to-images)))
+(defn apply-cache-and-render-to-images [nodes-to-image-node node layout]
+  (->> (assoc layout
+              :node node)
+       (apply-image-cache nodes-to-image-node)
+       (visuals/render-to-images nodes-to-image-node)))
 
-(defn- render-recurring-nodes-to-images* [previous-layout-node layout-node]
+(defn- render-recurring-nodes-to-images* [nodes-to-image-node previous-layout-node layout-node]
   (if (nil? previous-layout-node)
     layout-node
     (if (and (identical? (:node previous-layout-node)
@@ -56,6 +60,7 @@
                                                    (:id (:node layout-node))
                                                    1
                                                    apply-cache-and-render-to-images
+                                                   nodes-to-image-node
                                                    (:node layout-node)
                                                    (dissoc layout-node :node))
 
@@ -71,7 +76,8 @@
                                                   (:type (:node child-layout-node)))
                                                (= (:local-id (:node previous-child-layout-node))
                                                   (:local-id (:node child-layout-node))))))
-                               (render-recurring-nodes-to-images* previous-child-layout-node
+                               (render-recurring-nodes-to-images* nodes-to-image-node
+                                                                  previous-child-layout-node
                                                                   child-layout-node)
                                child-layout-node))
                            (partition 2 (interleave (concat (:children (:node previous-layout-node))
@@ -82,7 +88,9 @@
                                                     children)))))
         layout-node))))
 
-(defn render-recurring-nodes-to-images [previous-scene-graph scene-graph]
+(defn render-recurring-nodes-to-images [nodes-to-image-node previous-scene-graph scene-graph]
 ;;  (prn "image-cache" (hierarchical-identity-cache/statistics image-cache-atom))
   (hierarchical-identity-cache/with-cache-cleanup image-cache-atom
-    (render-recurring-nodes-to-images* previous-scene-graph scene-graph)))
+    (render-recurring-nodes-to-images* nodes-to-image-node
+                                       previous-scene-graph
+                                       scene-graph)))
