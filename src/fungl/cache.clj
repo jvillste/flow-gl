@@ -218,6 +218,14 @@
 
 
 (deftest cache-test
+  (let [function (fn [x] x)
+        argument #{1}]
+
+    (with-bindings (state-bindings)
+      (is (nil? (get (function-call-key function argument))))
+      (is (identical? argument (call-with-cache state function argument)))
+      (is (identical? argument (get (function-call-key function [argument]))))))
+
   (let [call-count (atom 0)
         f (fn [x]
             (swap! call-count inc)
