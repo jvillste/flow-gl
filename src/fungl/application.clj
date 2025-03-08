@@ -8,29 +8,21 @@
    [flow-gl.gui.mouse :as mouse]
    [flow-gl.gui.scene-graph :as scene-graph]
    [flow-gl.gui.stateful :as stateful]
+   [flow-gl.gui.visuals :as visuals]
    [flow-gl.gui.window :as window]
    [flow-gl.swing.window :as swing-window]
    [flow-gl.tools.trace :as trace]
    [fungl.cache :as cache]
    [fungl.component :as component]
-   [fungl.depend :as depend]
    [fungl.dependable-atom :as dependable-atom]
-   [fungl.id-comparator :as id-comparator]
+   [fungl.hierarchical-identity-cache :as hierarchical-identity-cache]
    [fungl.layout :as layout]
    [fungl.node-image-cache :as node-image-cache]
    [fungl.renderer :as renderer]
    [fungl.swing.root-renderer :as swing-root-renderer]
-   [fungl.util :as util]
    [fungl.view-compiler :as view-compiler]
    [logga.core :as logga]
-   [taoensso.tufte :as tufte]
-   [fungl.layouts :as layouts]
-   [fungl.component.text-area :as text-area]
-
-   [flow-gl.graphics.font :as font]
-   [flow-gl.gui.visuals :as visuals]
-   [clojure.string :as string]
-   [fungl.hierarchical-identity-cache :as hierarchical-identity-cache]))
+   [taoensso.tufte :as tufte]))
 
 (tufte/add-basic-println-handler! {})
 
@@ -55,150 +47,19 @@
         (layout/state-bindings)))
 
 (defn create-render-state []
-  (conj #_(cache/state-bindings)
-        #_(value-registry/state-bindings)
-        (node-image-cache/state-bindings)))
+  (node-image-cache/state-bindings))
 
-;; render gets graphics context and returns scene graph
-;; draw-function gets graphics context and returns nil
-
-;; application/render
-;;   renderer/apply-renderers!
-;;     swing-root-renderer/render-scene-graph
-;;     visuals/render-to-images-render-function
-;;       visuals/render-to-images    takes leaf nodes, groups them by z and renders an image for each z value
-;;         swing-root-renderer/render-to-buffered-image    render given nodes to an image
-;;           swing-root-renderer/render-nodes    calls given nodes draw-functions
-
-;; TODO: investigate differences in deeper paths
-(defn node [scene-graph path]
-  (scene-graph/get-in-path scene-graph
-                           (scene-graph/id-to-local-id-path path)))
-
-(defn node-without-children [scene-graph path]
-  (-> (node scene-graph (scene-graph/id-to-local-id-path path))
-      (dissoc :children)))
-
-(comment
-  (def path [1 0])
-
-  (do (def the-saved-scene-graph the-scene-graph)
-      (def the-saved-previous-scene-graph the-previous-scene-graph))
-
-  (clojure.data/diff the-saved-scene-graph
-                     the-saved-previous-scene-graph)
-
-
-  (take 2 (clojure.data/diff (node the-saved-scene-graph path)
-                             (node the-saved-previous-scene-graph path)))
-
-  (clojure.data/diff the-saved-scene-graph
-                     the-saved-previous-scene-graph)
-
-  (:type (node the-saved-scene-graph path))
-
-  (= (node the-saved-scene-graph path)
-     (node the-saved-previous-scene-graph path))
-
-  (scene-graph/print-scene-graph (scene-graph/select-node-keys [:type :id]
-                                                               (node the-saved-scene-graph
-                                                                     path)))
-  )
-
-
-(def font (font/create-by-name "CourierNewPSMT" 40))
-(def bold-font (font/create-by-name "CourierNewPS-BoldMT" 40))
-
-(defn text [string & [{:keys [font color] :or {font font
-                                               color [255 255 255 255]}}]]
-  (text-area/text (str string)
-                  color
-                  font))
-
-(defn fully-qualified-function-or-var-name [function-or-var]
-  (if (var? function-or-var)
-    (str (:ns (meta function-or-var))
-         "/"
-         (:name (meta function-or-var)))
-    (let [function-string (pr-str function-or-var)]
-      (subs function-string
-            10
-            (dec (count function-string))))))
-
-(deftest test-fully-qualified-function-or-var-name
-  (is (= "fungl.application/fully-qualified-function-or-var-name"
-         (fully-qualified-function-or-var-name fully-qualified-function-or-var-name)))
-
-  (is (= "fungl.application/fully-qualified-function-or-var-name"
-         (fully-qualified-function-or-var-name #'fully-qualified-function-or-var-name))))
-
-(defn unqualified-function-or-var-name [function-or-var]
-  (when function-or-var
-    (if (var? function-or-var)
-      (str (:name (meta function-or-var)))
-      (let [function-string (pr-str function-or-var)]
-        (second (string/split (subs function-string
-                                    10
-                                    (dec (count function-string)))
-                              #"/"))))))
-
-(deftest test-uqualified-function-or-var-name
-  (is (= "unqualified-function-or-var-name"
-         (unqualified-function-or-var-name unqualified-function-or-var-name)))
-
-  (is (= "unqualified-function-or-var-name"
-         (unqualified-function-or-var-name #'unqualified-function-or-var-name))))
-
-(defn property [label value]
-  (layouts/horizontally-2 {:margin 20}
-                          (text label
-                                {:font bold-font
-                                 :color [100 200 100 255]})
-                          (text value)))
-
-(defn development-tools-view [scene-graph]
-  (layouts/box 10
-               (visuals/rectangle-2 :fill-color [50 50 50 220])
-               (layouts/vertically-2 {:margin 20}
-                                     (property "view functions:"
-                                               (string/join " " (map unqualified-function-or-var-name (remove nil? (map :view-function (scene-graph/path-to scene-graph
-                                                                                                                                                            (:focused-node-id @keyboard/state-atom)))))))
-                                     (property "command sets:"
-                                               (string/join " " (map pr-str (remove nil? (map :name (map :command-set (scene-graph/path-to scene-graph
-                                                                                                                                           (:focused-node-id @keyboard/state-atom))))))))
-                                     (property "focused node id:"
-                                               (:focused-node-id @keyboard/state-atom))
-
-                                     (property "focused keyboard event handler:"
-                                               (unqualified-function-or-var-name (first (:keyboard-event-handler (:focused-node @keyboard/state-atom))))))))
-
-(defn add-development-tools [scene-graph]
-  (if false #_(:show-development-tools? @application-loop-state-atom) ;; TODO: development tools should be added to the scene graph before the layout to make layout cache work
-      (let [development-tools-layout (layout/layout-scene-graph (view-compiler/compile-view-calls (development-tools-view scene-graph))
-                                                                (:window-width @application-loop-state-atom)
-                                                                (:window-height @application-loop-state-atom))]
-        {:children [scene-graph
-                    (assoc development-tools-layout
-                           :y (- (:window-height @application-loop-state-atom)
-                                 (:height development-tools-layout)))]
-         :x 0
-         :y 0
-         :width (:window-width @application-loop-state-atom)
-         :height (:window-height @application-loop-state-atom)})
-      scene-graph))
 
 (defn handle-new-scene-graph! [scene-graph]
-;;  (scene-graph/print-scene-graph (scene-graph/select-node-keys [:compilation-path :type :can-gain-focus? :keyboard-event-handler] scene-graph))
+  ;;  (scene-graph/print-scene-graph (scene-graph/select-node-keys [:compilation-path :type :can-gain-focus? :keyboard-event-handler] scene-graph))
 
   (keyboard/handle-new-scene-graph! scene-graph)
   (mouse/handle-new-scene-graph! scene-graph))
 
-(defn create-window
+(defn create-swing-window
   ([]
-   (create-window 400 400))
+   (create-swing-window 400 400))
   ([width height]
-   #_(jogl-window/create 400 400
-                         :close-automatically true)
    (swing-window/create width height)))
 
 (defn read-events [event-channel target-frame-rate]
@@ -222,8 +83,6 @@
      (taoensso.tufte/profile {:id ~id}
                              ~@body)
      (do ~@body)))
-
-(defonce layout-trace-value-atom (atom {}))
 
 (defn create-scene-graph [root-view-call]
   (let [scene-graph (layout/layout-scene-graph (view-compiler/compile-view-calls root-view-call)
@@ -271,14 +130,6 @@
     ;;    (trace/trace-ns 'argupedia.ui2)
     )
   )
-
-
-
-(comment
-  (count @layout-trace-value-atom)
-  (get @layout-trace-value-atom
-       580955494)
-  ) ;; TODO: remove me
 
 
 (defonce events-atom (atom [])) ;; TODO: remove me
@@ -351,15 +202,6 @@
                :scene-graph scene-graph)))
     bindings))
 
-(defn create-bindings [root-view-call]
-  (let [bindings (create-bindings-without-window root-view-call)]
-    (with-bindings bindings
-      (swap! application-loop-state-atom
-             assoc
-             :window (create-window (:window-width @application-loop-state-atom)
-                                    (:window-height @application-loop-state-atom))))
-    bindings))
-
 (defn preserve-only-latest-event [filtered-event-type events]
   (reverse (loop [events (reverse events)
                   filtered-event-encountered? false
@@ -390,21 +232,22 @@
   ;; (logga/write 'handle-events (map :type events))
   ;; (logga/write 'events events) ;; TODO: remove me
 
-  (swap! application-loop-state-atom
-         assoc
-         :scene-graph
-         (loop [events (preserve-only-latest-event :mouse-moved events)
-                scene-graph (:scene-graph @application-loop-state-atom)]
-           (if (empty? events)
-             scene-graph
-             (if (or (= :close-requested (:type (first events)))
-                     (keyboard/key-pattern-pressed? [#{:alt :meta} :w]
-                                                    (first events)))
-               nil
-               (do (process-event! (layout/apply-layout-nodes scene-graph) ;; TODO: cache apply-layout-nodes
-                                   (first events))
-                   (recur (rest events)
-                          (create-scene-graph (:root-view-call @application-loop-state-atom)))))))))
+  (let [new-scene-graph (loop [events (preserve-only-latest-event :mouse-moved events)
+                               scene-graph (:scene-graph @application-loop-state-atom)]
+                          (if (empty? events)
+                            scene-graph
+                            (if (or (= :close-requested (:type (first events)))
+                                    (keyboard/key-pattern-pressed? [#{:alt :meta} :w]
+                                                                   (first events)))
+                              nil
+                              (do (process-event! (layout/apply-layout-nodes scene-graph) ;; TODO: cache apply-layout-nodes
+                                                  (first events))
+                                  (recur (rest events)
+                                         (create-scene-graph (:root-view-call @application-loop-state-atom)))))))]
+    (swap! application-loop-state-atom
+           assoc
+           :scene-graph
+           new-scene-graph)))
 
 (defmacro thread [name & body]
   `(.start (Thread. (bound-fn [] ~@body)
@@ -425,7 +268,7 @@
                 (doseq [event (take 1 @application/events-atom)]
                   (async/>!! event-channel
                              event)))
-  ) ;; TODO: remove me
+  )
 
 (defn with-window-gl [body]
   (window/with-gl (:window @application-loop-state-atom) gl
@@ -457,11 +300,20 @@
            with-window-gl
            swing-root-renderer/render-nodes))
 
+(defn create-bindings-wight-swing-window [root-view-call]
+  (let [bindings (create-bindings-without-window root-view-call)]
+    (with-bindings bindings
+      (swap! application-loop-state-atom
+             assoc
+             :window (create-swing-window (:window-width @application-loop-state-atom)
+                                          (:window-height @application-loop-state-atom))))
+    bindings))
+
 (defn start-application [root-view & {:keys [target-frame-rate
                                              on-exit]
                                       :or {target-frame-rate 60}}]
   (println "------------ start-window -------------")
-  (with-bindings (create-bindings [root-view])
+  (with-bindings (create-bindings-wight-swing-window [root-view])
     (handle-events! [{:type :resize-requested
                       :width (* 2 (:window-width @application-loop-state-atom)),
                       :height (* 2 (:window-height @application-loop-state-atom))}])
@@ -489,70 +341,3 @@
                    (logga/write "closing window")
                    (close-window! (:window @application-loop-state-atom)))))
     (window/event-channel (:window @application-loop-state-atom))))
-
-#_(defn start-window [root-view-or-var & {:keys [window
-                                                 target-frame-rate
-                                                 do-profiling
-                                                 on-exit]
-                                          :or {target-frame-rate 60
-                                               do-profiling false}}]
-    (println "------------ start-window -------------")
-    (reset! events-atom []) ;; TODO: remove me
-
-    (let [event-channel-promise (promise)]
-      (thread "application"
-              (logga/write "creating window")
-              (let [window (or window
-                               (create-window))]
-                (deliver event-channel-promise (window/event-channel window))
-
-                (try (logga/write "starting application loop")
-                     (with-profiling do-profiling :render-loop
-                       (with-bindings (merge (create-event-handling-state)
-                                             {#'event-channel (window/event-channel (create-window))}
-                                             (create-render-state))
-                         (swap! application-loop-state-atom
-                                assoc
-                                :window-width (window/width window)
-                                :window-height (window/height window))
-                         (loop [scene-graph (create-scene-graph root-view-or-var)]
-                           (let [scene-graph (loop [events (read-events (window/event-channel window)
-                                                                        target-frame-rate)
-                                                    scene-graph scene-graph]
-                                               (if (empty? events)
-                                                 scene-graph
-                                                 (if (= :close-requested (:type (first events)))
-                                                   nil
-                                                   (do (process-event! scene-graph
-                                                                       (first events))
-                                                       (recur (rest events)
-                                                              (create-scene-graph root-view-or-var))))))]
-                             (when scene-graph
-                               (let [scene-graph (-> scene-graph
-                                                     #_(highlight-cache-misses)
-                                                     #_(layout/layout-scene-graph (:window-width @application-loop-state-atom)
-                                                                                  (:window-height @application-loop-state-atom)))]
-
-                                 (tufte/p :render
-                                          (window/with-gl window gl
-                                            (render gl scene-graph)
-                                            (value-registry/delete-unused-values! 500)))
-                                 (window/swap-buffers window)
-                                 (recur scene-graph)))))))
-                     (logga/write "exiting application loop")
-
-                     (when on-exit
-                       (on-exit))
-                     (catch Exception e
-                       (logga/write "Exception in application loop:" (prn-str e))
-                       (throw e))
-                     (finally
-                       (logga/write "closing window")
-                       (window/close window)
-                       ;; events must be read from the channel so that the swing event loop can handle the close event
-                       (csp/drain @event-channel-promise 0)))))
-      @event-channel-promise))
-
-
-;; TODO: commit the refactoring of the application loop
-;; then create a test bench to application-test with a test "window" that inly records rendering commands in a log that can be checked in tests
