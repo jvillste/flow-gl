@@ -65,3 +65,8 @@
   (is (callable? [#'inc]))
 
   (is (not (callable? [1]))))
+
+(defn function [callable]
+  (if (vector? callable)
+    (first callable)
+    callable))

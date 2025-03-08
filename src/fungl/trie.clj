@@ -186,3 +186,33 @@
          (value-count (-> (create-trie)
                           (assoc-in-trie [:a :b] :value-1)
                           (assoc-in-trie [:a :b :c] :value-2))))))
+
+
+(defn do-values
+  ([function trie]
+   (do-values function trie []))
+
+  ([function trie path]
+   (when-some [value (::value trie)]
+     (function path value))
+   (loop [keys (remove #{::value}
+                       (keys trie))]
+     (when-let [key (first keys)]
+       (do-values function
+                  (get trie key)
+                  (conj path key))
+       (recur (rest keys))))))
+
+(defn values [trie]
+  (let [values-atom (atom {})]
+    (do-values (fn [path value]
+                 (swap! values-atom assoc path value))
+               trie)
+    @values-atom))
+
+(deftest test-values
+  (is (= {[:a] :value-1
+          [:a :b] :value-2}
+         (values (-> (create-trie)
+                     (assoc-in-trie [:a] :value-1)
+                     (assoc-in-trie [:a :b] :value-2))))))

@@ -59,6 +59,20 @@
             :name nil}
            @cache-atom))))
 
+(defn remove-dependencies! [cache-atom path mapping-id]
+  (swap! cache-atom
+         (fn [cache]
+           (update cache
+                   :cache-trie
+                   trie/update-in-trie
+                   path
+                   (fn [trie-node]
+                     (-> trie-node
+                         (update :mappings
+                                 update
+                                 mapping-id
+                                 assoc :dependencies {})))))))
+
 (defn- identical-values? [sequence-1 sequence-2]
   (and (= (count sequence-1)
           (count sequence-2))
@@ -82,13 +96,16 @@
        (= value-keys
           (:value-keys mapping))))
 
+(defn- get-mapping-from-cache-without-keys [cache path mapping-id]
+  (when-some [trie-node (trie/get-in-trie (:cache-trie cache)
+                                          path)]
+    (when-some [mapping (get-in trie-node [:mappings mapping-id])]
+      mapping)))
+
 (defn- get-mapping-from-cache [cache path mapping-id identity-keys value-keys]
-  (if-some [trie-node (trie/get-in-trie (:cache-trie cache)
-                                        path)]
-    (if-some [mapping (get-in trie-node [:mappings mapping-id])]
-      (if (keys-match? identity-keys value-keys mapping)
-        mapping
-        ::not-found)
+  (if-some [mapping (get-mapping-from-cache-without-keys cache path mapping-id)]
+    (if (keys-match? identity-keys value-keys mapping)
+      mapping
       ::not-found)
     ::not-found))
 
@@ -122,6 +139,50 @@
     (drop number-of-identity-arguments
           arguments)))
 
+(defn get-value-with-path-only [cache-atom path mapping-id]
+  (if-some [mapping (get-mapping-from-cache-without-keys @cache-atom
+                                                           path
+                                                           mapping-id)]
+    (do (swap! cache-atom
+               (fn [cache]
+                 (update cache :cache-trie
+                         trie/update-in-trie
+                         path
+                         (fn [trie-node]
+                           (assoc trie-node
+                                  :last-accessed (:cycle-number @cache-atom)
+                                  :status :reused)))))
+        (swap! cache-atom update-in [:usage-statistics :hit-count] (fnil inc 0))
+        (:value mapping))
+    ::not-found))
+
+(defn call-with-path-only-cache [cache-atom path function & arguments]
+  (if-some [mapping (get-mapping-from-cache-without-keys @cache-atom
+                                                         path
+                                                         function)]
+    (do (swap! cache-atom
+               (fn [cache]
+                 (update cache :cache-trie
+                         trie/update-in-trie
+                         path
+                         (fn [trie-node]
+                           (assoc trie-node
+                                  :last-accessed (:cycle-number @cache-atom)
+                                  :status :reused)))))
+        (swap! cache-atom update-in [:usage-statistics :hit-count] (fnil inc 0))
+        (:value mapping))
+
+    (let [result (apply function arguments)]
+      (swap! cache-atom update-in [:usage-statistics :miss-count] (fnil inc 0))
+      (add-to-cache! cache-atom
+                     path
+                     function
+                     []
+                     []
+                     result
+                     [])
+      result)))
+
 (defn call-with-cache [cache-atom path number-of-identity-arguments function & arguments]
   #_(apply function arguments)
   (let [identity-keys (select-identity-keys number-of-identity-arguments arguments)
@@ -133,24 +194,24 @@
         invalid? (invalid-mapping? mapping)]
 
     #_(when true
-        #_(or invalid?
-              (= ::not-found mapping))
-        #_(= path [:view-call :view-call 0 0 :buttons :meta-node :view-call])
-        (println "call-with-cache"
-                 path
-                 function
-                 (if (= ::not-found
-                        mapping)
-                   "not found"
-                   "found")
-                 (if invalid?
-                   "invalid"
-                   "valid")
-                 (for [dependency-value-pair (:dependencies mapping)]
-                   [(:name (first dependency-value-pair))
-                    (if (changed-dependency-value? dependency-value-pair)
-                      "changed"
-                      "unchanged")])))
+      #_(or invalid?
+            (= ::not-found mapping))
+      #_(= path [:view-call :view-call 0 0 :buttons :meta-node :view-call])
+      (println "call-with-cache"
+               function
+               path
+               (if (= ::not-found
+                      mapping)
+                 "not found"
+                 "found")
+               (if invalid?
+                 "invalid"
+                 "valid")
+               (for [dependency-value-pair (:dependencies mapping)]
+                 [(:name (first dependency-value-pair))
+                  (if (changed-dependency-value? dependency-value-pair)
+                    "invalid"
+                    "unchanged")])))
 
 
     (if (or invalid?
@@ -516,3 +577,48 @@
           (is (cached-call? cache-atom [:a] 0 function-1 1))
           ;; unused mapping is left to the cache because another mapping was reused in the same path
           (is (cached-call? cache-atom [:a] 0 function-2 2)))))))
+
+(defn dependency-nodes [cache]
+  (->> (trie/values (:cache-trie cache))
+       (mapcat (fn [[path value]]
+                 (for [[function mapping] (:mappings value)]
+                   {:path path
+                    :function function
+                    :dependencies (:dependencies mapping)})))))
+
+(deftest test-dependenciy-nodes
+  (let [cache-atom (create-cache-atom)
+        state-atom (dependable-atom/atom "state" 1)
+        function (fn [] @state-atom)]
+    (call-with-cache cache-atom [:a] 0 function)
+    (is (= [{:path [:a],
+             :function function
+             :dependencies {state-atom 1}}]
+           (dependency-nodes @cache-atom)))))
+
+(defn filter-invalid-dependencies [dependency-nodes]
+  (->> dependency-nodes
+       (map (fn [node]
+              (update node :dependencies
+                      (partial medley/filter-kv
+                               (comp changed-dependency-value?
+                                     vector)))))
+       (remove (fn [node]
+                 (empty? (:dependencies node))))))
+
+(deftest test-filter-invalid-dependencies
+  (let [cache-atom (create-cache-atom)
+        state-atom (dependable-atom/atom "state" 1)
+        function (fn [] @state-atom)]
+    (call-with-cache cache-atom [:a] 0 function)
+    (is (= [] (filter-invalid-dependencies (dependency-nodes @cache-atom))))
+    (swap! state-atom inc)
+    (is (= [{:path [:a],
+             :function function
+             :dependencies {state-atom 1}}]
+           (filter-invalid-dependencies (dependency-nodes @cache-atom))))))
+
+(defn print-dependency-nodes [dependency-nodes]
+  (run! (fn [{:keys [path function dependencies]}]
+          (println function path (map :name (keys dependencies))))
+        dependency-nodes))

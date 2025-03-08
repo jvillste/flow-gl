@@ -1,6 +1,7 @@
 (ns fungl.util
   (:require [clojure.test :refer :all]
-            [clojure.walk :as walk]))
+            [clojure.walk :as walk]
+            [clojure.string :as string]))
 
 (defn options-map-to-destructuring [options-map]
   {:keys (vec (keys options-map))
@@ -162,6 +163,39 @@
   (is (= 6
          (value-size 5 (range 100)))))
 
+
+(defn function-class-name-to-function-name [function-class-name]
+  (when-let [match (re-matches #".*\$(.*)@.*"
+                               function-class-name)]
+    (-> match
+        (second)
+        (string/replace "_" "-"))))
+
+(deftest test-function-class-name-to-function-name
+  (is (= "stateful-component"
+         (function-class-name-to-function-name "argupedia.ui2$stateful_component@1dfa8582")))
+  (is (= nil
+         (function-class-name-to-function-name "#'foo.bar/baz"))))
+
+(defn function-name [function]
+  (function-class-name-to-function-name (str function)))
+
+(deftest test-function-name
+  (is (= "inc"
+       (function-name inc))))
+
+(defn fully-qualified-function-name [function]
+  (when-let [match (re-matches #"(.*)\$(.*)@.*"
+                               (str function))]
+    (str (-> (nth match 1)
+             (string/replace "_" "-"))
+         "/"
+         (-> (nth match 2)
+             (string/replace "_" "-")))))
+
+(deftest test-fully-qualified-function-name
+  (is (= "clojure.core/inc"
+         (fully-qualified-function-name inc))))
 
 ;; originally from https://github.com/trhura/clojure-term-colors/blob/master/src/clojure/term/colors.clj
 (defn- escape-code
