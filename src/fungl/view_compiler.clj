@@ -18,7 +18,6 @@
 
 (def ^:dynamic compile-node-cache-atom)
 
-(def ^:dynamic state)
 (def ^:dynamic id)
 
 (defn is-prefix [sequence prefix-candidate]
@@ -355,9 +354,6 @@
                                                value))
 
 (defn compile-node [id compilation-path value]
-  (assert (bound? #'state)
-          "Bindings returned by (state-bindings) should be bound.")
-
   (assert (not (integer? (:local-id (meta value))))
           "local ids can not be integers")
 
@@ -420,63 +416,6 @@
                        dependency-value-map)))
        (map first)))
 
-(defn invalidated? [node-id]
-  (is-prefix-of-some (:sorted-invalidated-node-ids-set @state) node-id))
-
-(defn start-compilation-cycle! []
-  (let [sorted-invalidated-node-ids-set (sorted-id-set (map first (invalidated-node-ids (:node-dependencies @state))))
-        remove-invalidated-view-call-ids (partial medley/remove-keys
-                                                  (fn [[id _view-function]]
-                                                    (is-prefix-of-some sorted-invalidated-node-ids-set
-                                                                       id)))]
-
-    ;;    (prn 'sorted-invalidated-node-ids-set sorted-invalidated-node-ids-set) ;; TODO: remove me
-
-    (swap! state
-           (fn [state]
-             (-> state
-                 (update :node-dependencies remove-invalidated-view-call-ids)
-                 (update :scene-graph-cache remove-invalidated-view-call-ids)
-                 (assoc :applied-view-call-ids #{})
-                 (assoc :applied-view-calls #{})
-                 (assoc :view-call-ids-from-cache #{})
-                 (assoc :sorted-invalidated-node-ids-set sorted-invalidated-node-ids-set))))
-    #_(prn :scene-graph-cache (keys (:scene-graph-cache @state))) ;; TODO: remove me
-    ))
-
-(defn end-compilation-cycle! []
-  ;; (prn '(:applied-view-call-ids @state) (:applied-view-call-ids @state)) ;; TODO: remove me
-  ;; (prn '(:view-call-ids-from-cache @state) (:view-call-ids-from-cache @state)) ;; TODO: remove me
-  ;; (prn ":scene-graph-cache after compilation: " (keys (:scene-graph-cache @state))) ;; TODO: remove me
-
-  (let [sorted-cached-node-id-set (sorted-id-set (map first (:view-call-ids-from-cache @state)))
-        remove-unused-view-call-ids (partial medley/filter-keys
-                                             (fn [view-call-id]
-                                               (if (or (contains? (:applied-view-call-ids @state)
-                                                                  view-call-id)
-                                                       (slow-some-is-prefix sorted-cached-node-id-set
-                                                                            (first view-call-id)))
-                                                 true
-                                                 (do #_(println "removing unused view call id" view-call-id)
-                                                     false))))
-
-        remove-unused-view-calls (partial medley/filter-keys
-                                          (fn [view-call]
-                                            (if (or (contains? (:applied-view-calls @state)
-                                                               view-call)
-                                                    (slow-some-is-prefix sorted-cached-node-id-set
-                                                                         (first view-call)))
-                                              true
-                                              (do #_(println "removing unused view call" view-call)
-                                                  false))))]
-
-    (swap! state
-           (fn [state]
-             (-> state
-                 (update :scene-graph-cache remove-unused-view-calls)
-                 (update :view-functions remove-unused-view-call-ids)
-                 (update :node-dependencies remove-unused-view-call-ids)
-                 (update :constructor-cache remove-unused-view-call-ids))))))
 
 (defn compile-view-calls [view-call-or-scene-graph]
   (hierarchical-identity-cache/with-cache-cleanup compile-node-cache-atom
@@ -497,14 +436,7 @@
                                   []
                                   view-call-or-scene-graph)))
 (defn state-bindings []
-  {#'state (atom {:applied-view-call-ids #{}
-                  :applied-view-calls #{}
-                  :view-call-ids-from-cache #{}
-                  :constructor-cache {}
-                  :node-dependencies {}
-                  :scene-graph-cache {}
-                  :view-functions {}})
-   #'compile-node-cache-atom (hierarchical-identity-cache/create-cache-atom "compile-node")})
+  {#'compile-node-cache-atom (hierarchical-identity-cache/create-cache-atom "compile-node")})
 
 (deftest test-compile
   (let [test-compile (fn [value]
@@ -729,7 +661,7 @@
                                 ^{:local-id child-id} [view-2])})]
 
       (let [scene-graph (test-compile [view-1 :a :b])]
-        (is (= 2 (count (keys (:constructor-cache @state)))))
+;;        (is (= 2 (count (keys (:constructor-cache @state)))))
 
         (is (= [0 0]
                (->> scene-graph
@@ -769,14 +701,15 @@
 
         (test-compile [view-1 :c])
 
-        (is (= 1 (count (keys (:constructor-cache @state)))))
+;;        (is (= 1 (count (keys (:constructor-cache @state)))))
 
         (is (= 4 @view-2-call-count-atom))
         (is (= 3 @view-2-constructor-call-count-atom))
 
         (test-compile [view-1])
 
-        (is (= 0 (count (keys (:constructor-cache @state)))))))))
+;;        (is (= 0 (count (keys (:constructor-cache @state)))))
+        ))))
 
 (deftest test-view-functions
   (with-bindings (merge (state-bindings)
@@ -813,7 +746,7 @@
                         :state @state-atom})))
             scene-graph (compile-view-calls [view])
             state-atom (first (first (get @(:dependencies cache/state)
-                                          [(get (:constructor-cache @state)
+                                          [#_(get (:constructor-cache @state)
                                                 [])
                                            []])))]
 
@@ -984,7 +917,7 @@
                                                 {:children [[view-2]]}]}]})
           view-state-atom (fn [id]
                             (first (first (get @(:dependencies cache/state)
-                                               [(get (:constructor-cache @state)
+                                               [#_(get (:constructor-cache @state)
                                                      id)
                                                 []]))))
           component-tree (component-tree (compile-view-calls [view-1]))]

@@ -188,7 +188,7 @@
       scene-graph))
 
 (defn handle-new-scene-graph! [scene-graph]
-  (scene-graph/print-scene-graph (scene-graph/select-node-keys [:compilation-path :type :can-gain-focus? :keyboard-event-handler] scene-graph))
+;;  (scene-graph/print-scene-graph (scene-graph/select-node-keys [:compilation-path :type :can-gain-focus? :keyboard-event-handler] scene-graph))
 
   (keyboard/handle-new-scene-graph! scene-graph)
   (mouse/handle-new-scene-graph! scene-graph))
@@ -223,75 +223,15 @@
                              ~@body)
      (do ~@body)))
 
-(defn describe-dependables []
-  (println)
-  (println "dependables:")
-  (run! (fn [dependable]
-          (println (name dependable)
-                   (hash dependable)
-                   (view-compiler/describe-value (depend/current-value dependable))))
-        (cache/all-dependables))
-
-  (println))
-
 (defonce layout-trace-value-atom (atom {}))
 
-(defn print-component-tree [old-view-call-dependency-value-maps]
-  (doseq [view-call-id (->> (keys (:view-functions @view-compiler/state))
-                            (sort-by identity id-comparator/compare-ids))]
-
-    (println view-call-id
-             (when-let [view-function (get (:view-functions @view-compiler/state)
-                                           view-call-id)]
-               (util/function-name (if (var? view-function)
-                                     @view-function
-                                     view-function)))
-             (->> (get (:node-dependencies @view-compiler/state)
-                       view-call-id)
-                  (map (fn [[dependable _value]]
-                         (let [old-value (get (get old-view-call-dependency-value-maps
-                                                   view-call-id)
-                                              dependable)
-                               current-value (depend/current-value dependable)
-                               changed? (not (= old-value
-                                                current-value))]
-                           (str (when changed?
-                                  (util/escapes :red))
-                                (name dependable)
-                                #_(if changed?
-                                    "!"
-                                    "")
-                                " "
-                                (if changed?
-                                  (str (view-compiler/describe-value old-value)
-                                       " -> "
-                                       (view-compiler/describe-value current-value))
-                                  (view-compiler/describe-value current-value))
-                                (when changed?
-                                  (util/escapes :reset))))))
-                  (sort)))))
-
 (defn create-scene-graph [root-view-call]
-  (let [view-call-dependency-value-maps-before-compilation (:node-dependencies @view-compiler/state)]
-    (view-compiler/start-compilation-cycle!)
-    (let [scene-graph (layout/layout-scene-graph (view-compiler/compile-view-calls root-view-call)
-                                                 (:window-width @application-loop-state-atom)
-                                                 (:window-height @application-loop-state-atom))]
-      (view-compiler/end-compilation-cycle!)
-      ;; (describe-dependables)
+  (let [scene-graph (layout/layout-scene-graph (view-compiler/compile-view-calls root-view-call)
+                                               (:window-width @application-loop-state-atom)
+                                               (:window-height @application-loop-state-atom))]
 
-      ;; (println)
-      ;; (print-component-tree view-call-dependency-value-maps-before-compilation)
-      ;; (println)
-
-      ;; (println "node dependencies")
-      ;; (doseq [[node-id dependables] (sort-by first
-      ;;                                        id-comparator/compare-ids
-      ;;                                        (seq (:node-dependencies @view-compiler/state)))]
-      ;;   (println node-id (sort (map name (keys dependables)))))
-
-      (handle-new-scene-graph! (layout/apply-layout-nodes scene-graph)) ;; TODO: cache apply-layout-nodes
-      scene-graph)))
+    (handle-new-scene-graph! (layout/apply-layout-nodes scene-graph)) ;; TODO: cache apply-layout-nodes
+    scene-graph))
 
 (defn send-event! [event]
   (async/put! (window/event-channel (:window @application-loop-state-atom))
@@ -374,16 +314,7 @@
                                            event))
     (cache/invalidate-all!)
     (reset! layout/layout-node-cache-atom (hierarchical-identity-cache/initial-state))
-    (reset! layout/adapt-to-space-cache-atom (hierarchical-identity-cache/initial-state))
-    ;; (swap! view-compiler/state
-    ;;        assoc
-    ;;        :constructor-cache
-    ;;        {})
-
-    (swap! view-compiler/state
-           assoc
-           :scene-graph-cache
-           {}))
+    (reset! layout/adapt-to-space-cache-atom (hierarchical-identity-cache/initial-state)))
 
   (when (= :resize-requested (:type event))
     (swap! application-loop-state-atom

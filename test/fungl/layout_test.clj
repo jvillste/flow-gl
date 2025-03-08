@@ -67,10 +67,7 @@
                           [child (str "child " index)])))
 
 (defn compile-view-calls [view-call]
-  (view-compiler/start-compilation-cycle!)
-  (let [scene-graph (view-compiler/compile-view-calls view-call)]
-    (view-compiler/end-compilation-cycle!)
-    scene-graph))
+  (view-compiler/compile-view-calls view-call))
 
 (defn render-scene-graphs [& view-calls]
   (loop [view-calls view-calls
