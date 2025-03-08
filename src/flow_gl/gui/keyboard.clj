@@ -126,7 +126,6 @@
                                                                                         node
                                                                                         (assoc event
                                                                                                :phase (if (empty? (rest path))
-
                                                                                                         :on-target
                                                                                                         :descent)
                                                                                                :target-depth (dec (count path))))
