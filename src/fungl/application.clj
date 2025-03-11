@@ -334,10 +334,10 @@
 
     (thread "fungl application"
             (try (loop []
-
-                   (handle-events! (read-events (window/event-channel (:window @application-loop-state-atom))
-                                                target-frame-rate))
-                   (render-to-swing-window!)
+                   (identity-cache/with-cache-cleanup apply-layout-nodes-cache-atom
+                     (handle-events! (read-events (window/event-channel (:window @application-loop-state-atom))
+                                                  target-frame-rate))
+                     (render-to-swing-window!))
 
                    (when (:scene-graph @application-loop-state-atom)
                      (recur)))
