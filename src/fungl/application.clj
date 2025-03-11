@@ -22,19 +22,23 @@
    [fungl.swing.root-renderer :as swing-root-renderer]
    [fungl.view-compiler :as view-compiler]
    [logga.core :as logga]
-   [taoensso.tufte :as tufte]))
+   [taoensso.tufte :as tufte]
+   [fungl.identity-cache :as identity-cache]))
 
 (tufte/add-basic-println-handler! {})
 
 
 (def ^:dynamic application-loop-state-atom)
+(def ^:dynamic apply-layout-nodes-cache-atom)
+
 (def ^:dynamic state-atom) ;; applicaiton specific state
 
 (defn state-bindings []
   {#'state-atom (dependable-atom/atom {})
    #'application-loop-state-atom (atom {:highlight-view-call-cache-misses? true #_false
                                         :window-width nil
-                                        :window-height nil})})
+                                        :window-height nil})
+   #'apply-layout-nodes-cache-atom (identity-cache/create-cache-atom)})
 
 (defn create-event-handling-state []
   (conj (state-bindings)
@@ -89,7 +93,10 @@
                                                (:window-width @application-loop-state-atom)
                                                (:window-height @application-loop-state-atom))]
 
-    (handle-new-scene-graph! (layout/apply-layout-nodes scene-graph)) ;; TODO: cache apply-layout-nodes
+    (handle-new-scene-graph! (identity-cache/call-with-cache apply-layout-nodes-cache-atom
+                                                             1
+                                                             layout/apply-layout-nodes
+                                                             scene-graph))
     scene-graph))
 
 (defn send-event! [event]
@@ -240,7 +247,10 @@
                                     (keyboard/key-pattern-pressed? [#{:alt :meta} :w]
                                                                    (first events)))
                               nil
-                              (do (process-event! (layout/apply-layout-nodes scene-graph) ;; TODO: cache apply-layout-nodes
+                              (do (process-event! (identity-cache/call-with-cache apply-layout-nodes-cache-atom
+                                                                                  1
+                                                                                  layout/apply-layout-nodes
+                                                                                  scene-graph)
                                                   (first events))
                                   (recur (rest events)
                                          (create-scene-graph (:root-view-call @application-loop-state-atom)))))))]
@@ -286,7 +296,9 @@
                    (let [scene-graph (->> scene-graph
                                           (node-image-cache/render-recurring-nodes-to-images nodes-to-image-node previous-rendered-scene-graph)
                                           (renderer/apply-renderers! gl)
-                                          (layout/apply-layout-nodes))]
+                                          (identity-cache/call-with-cache apply-layout-nodes-cache-atom
+                                                                          1
+                                                                          layout/apply-layout-nodes))]
                      (->> (scene-graph/scene-graph-nodes-in-view scene-graph
                                                                  (:width scene-graph)
                                                                  (:height scene-graph))
