@@ -342,7 +342,7 @@
                  dec)
                cycle-position))
 
-(defn handle-keyboard-event! [_scene-graph event]
+(defn handle-keyboard-event! [event]
   (let [state @state-atom]
     (if-let [focused-node-id (:focused-node-id state)]
       (propagate-event! (scene-graph/path-to-first #(= focused-node-id (:id %))

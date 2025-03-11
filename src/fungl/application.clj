@@ -164,8 +164,7 @@
 
     (when (= :keyboard
              (:source event))
-      (keyboard/handle-keyboard-event! scene-graph-before-event-handling
-                                       event)))
+      (keyboard/handle-keyboard-event! event)))
 
   (when (or (= :redraw (:type event))
             (keyboard/key-pattern-pressed? [#{:alt :meta} :r]
