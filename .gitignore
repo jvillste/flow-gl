@@ -16,3 +16,4 @@ debug-log.txt
 .Ds_store
 /checkouts
 /profiles.clj
+/temp
