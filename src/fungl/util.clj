@@ -197,6 +197,10 @@
   (is (= "clojure.core/inc"
          (fully-qualified-function-name inc))))
 
+(defn fully-qualified-function-name-without-random-numbers [function]
+  (-> (fully-qualified-function-name function)
+      (string/replace #"--\d+" "")))
+
 ;; originally from https://github.com/trhura/clojure-term-colors/blob/master/src/clojure/term/colors.clj
 (defn- escape-code
   [i]
