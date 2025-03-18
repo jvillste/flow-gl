@@ -300,8 +300,9 @@
                             (scene-graph/nodes-on-local-id-path scene-graph)
                             (reverse)
                             (doall))]
-      (when (not (= focused-node-id
-                    (:id (first focused-path))))
+      (when (or (not (= focused-node-id
+                        (:id (first focused-path))))
+                (not (:can-gain-focus? (first focused-path))))
         (when-let [first-focusable-node (or (scene-graph/find-first-child :can-gain-focus?
                                                                           (first focused-path))
                                             (medley/find-first :can-gain-focus?
