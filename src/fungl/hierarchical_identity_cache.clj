@@ -111,6 +111,10 @@
 
 (defn changed-dependency-value? [dependency-value-pair]
   (let [[dependency value] dependency-value-pair]
+    ;; (when (not (if (coll? value)
+    ;;              (identical? value (depend/current-value dependency))
+    ;;              (= value (depend/current-value dependency))))
+    ;;    (println "changed dependency" (:name dependency) "equal?" (= value (depend/current-value dependency))))
     (not (if (coll? value)
            (identical? value (depend/current-value dependency))
            (= value (depend/current-value dependency))))))
@@ -194,40 +198,43 @@
         invalid? (invalid-mapping? mapping)]
 
     #_(when true
-      #_(or invalid?
-            (= ::not-found mapping))
-      #_(= path [:view-call :view-call 0 0 :buttons :meta-node :view-call])
-      (println "call-with-cache"
-               function
-               path
-               (if (= ::not-found
-                      mapping)
-                 "not found"
-                 "found")
-               (if invalid?
-                 "invalid"
-                 "valid")
-               (for [dependency-value-pair (:dependencies mapping)]
-                 [(:name (first dependency-value-pair))
-                  (if (changed-dependency-value? dependency-value-pair)
-                    "invalid"
-                    "unchanged")])))
+        #_(or invalid?
+              (= ::not-found mapping))
+        #_(= path [:view-call :view-call 0 0 :buttons :meta-node :view-call])
+        (println "call-with-cache"
+                 function
+                 path
+                 (if (= ::not-found
+                        mapping)
+                   "not found"
+                   "found")
+                 (if invalid?
+                   "invalid"
+                   "valid")
+                 (for [dependency-value-pair (:dependencies mapping)]
+                   [(:name (first dependency-value-pair))
+                    (if (changed-dependency-value? dependency-value-pair)
+                      "invalid"
+                      "unchanged")])))
 
 
     (if (or invalid?
             (= ::not-found mapping))
-      (let [{:keys [result dependencies]} (depend/call-and-return-result-and-dependencies function arguments)]
-        (swap! cache-atom update-in [:usage-statistics :miss-count] (fnil inc 0))
-        (add-to-cache! cache-atom
-                       path
-                       function
-                       identity-keys
-                       value-keys
-                       result
-                       dependencies)
-        result)
+      (do ;; (println invalid? (= ::not-found mapping) "cache miss for " function)
+          (let [{:keys [result dependencies]} (depend/call-and-return-result-and-dependencies function arguments)]
 
-      (do (depend/add-dependencies (:dependencies mapping))
+            (swap! cache-atom update-in [:usage-statistics :miss-count] (fnil inc 0))
+            (add-to-cache! cache-atom
+                           path
+                           function
+                           identity-keys
+                           value-keys
+                           result
+                           dependencies)
+            result))
+
+      (do ;; (println "cache hit for " function)
+          (depend/add-dependencies (:dependencies mapping))
           (swap! cache-atom
                  (fn [cache]
                    (update cache :cache-trie

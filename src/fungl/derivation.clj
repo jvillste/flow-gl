@@ -14,11 +14,13 @@
       (cond (identical? old-cached-value
                         result)
 
-            old-cached-value
+            (do ;; (println "derivation" name "evaluated to identical value")
+                old-cached-value)
 
             (= old-cached-value
                result)
-            (do (cache/put! (cache/function-call-key function []) old-cached-value)
+            (do ;; (println "derivation" name "evaluated to equal value")
+                (cache/put! (cache/function-call-key function []) old-cached-value)
                 old-cached-value)
 
             :else

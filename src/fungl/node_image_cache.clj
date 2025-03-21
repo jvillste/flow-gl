@@ -89,7 +89,7 @@
         layout-node))))
 
 (defn render-recurring-nodes-to-images [nodes-to-image-node previous-scene-graph scene-graph]
-;;  (prn "image-cache" (hierarchical-identity-cache/statistics image-cache-atom))
+  ;; (prn "image-cache" (hierarchical-identity-cache/statistics image-cache-atom))
   (hierarchical-identity-cache/with-cache-cleanup image-cache-atom
     (render-recurring-nodes-to-images* nodes-to-image-node
                                        previous-scene-graph
