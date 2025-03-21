@@ -16,6 +16,11 @@
                      (.getClassName %)))
          (map #(str (.getClassName %) ":" (.getLineNumber %))))))
 
+(defn only-function-name [caller]
+  (second (re-find #"\$(.*):" caller)))
+
+(defn remove-namespace [caller]
+  (second (re-find #"\$(.*)" caller)))
 
 (defn foo []
   (callers))
