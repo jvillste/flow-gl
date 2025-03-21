@@ -181,7 +181,10 @@
 
   (when (keyboard/key-pattern-pressed? [#{:alt :meta} :i]
                                        event)
-    (swap! application-loop-state-atom update :show-development-tools? not)))
+    (swap! application-loop-state-atom update :show-development-tools? not))
+
+  ;;  (Thread/sleep 500)
+  )
 
 (defn close-window! [window]
   (window/close window)
@@ -294,7 +297,7 @@
         (with-gl (fn [gl]
                    (let [scene-graph (->> scene-graph
                                           (node-image-cache/render-recurring-nodes-to-images nodes-to-image-node previous-rendered-scene-graph)
-                                          (renderer/apply-renderers! gl)
+                                          (renderer/apply-renderers! gl) ;; TODO: this should be cached to make the scene graph stay identical when possible
                                           (identity-cache/call-with-cache apply-layout-nodes-cache-atom
                                                                           1
                                                                           layout/apply-layout-nodes))]
@@ -309,7 +312,10 @@
 (defn render-to-swing-window! []
   (render! visuals/nodes-to-buffered-image-node
            with-window-gl
-           swing-root-renderer/render-nodes))
+           (fn [graphics nodes]
+             (swing-root-renderer/render-nodes graphics
+                                               nodes
+                                               {:color-nodes? false}))))
 
 (defn create-bindings-wight-swing-window [root-view-call]
   (let [bindings (create-bindings-without-window root-view-call)]

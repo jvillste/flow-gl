@@ -24,7 +24,9 @@
 
       (when color-nodes?
         (rectangle/fill graphics
-                        (concat (color/hsl-to-rgb (rand-int 360)
+                        (concat (color/hsl-to-rgb (mod (System/identityHashCode node)
+                                                       360)
+                                                  #_(rand-int 360)
                                                   1
                                                   0.5)
                                 [40])
