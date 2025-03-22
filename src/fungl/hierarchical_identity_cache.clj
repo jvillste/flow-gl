@@ -2,7 +2,7 @@
   (:require [clojure.test :refer [deftest is testing]]
             [medley.core :as medley]
             [fungl.trie :as trie]
-;;            [strict-core :refer :all]
+            ;; [strict-core :refer :all]
             [fungl.depend :as depend]
             [fungl.dependable-atom :as dependable-atom]
             [clojure.set :as set]))
@@ -145,8 +145,8 @@
 
 (defn get-value-with-path-only [cache-atom path mapping-id]
   (if-some [mapping (get-mapping-from-cache-without-keys @cache-atom
-                                                           path
-                                                           mapping-id)]
+                                                         path
+                                                         mapping-id)]
     (do (swap! cache-atom
                (fn [cache]
                  (update cache :cache-trie
@@ -220,32 +220,32 @@
 
     (if (or invalid?
             (= ::not-found mapping))
-      (do ;; (println invalid? (= ::not-found mapping) "cache miss for " function)
-          (let [{:keys [result dependencies]} (depend/call-and-return-result-and-dependencies function arguments)]
+      (do ;; (println "cache miss for " function "invalid?" invalid? "not found?" (= ::not-found mapping))
+        (let [{:keys [result dependencies]} (depend/call-and-return-result-and-dependencies function arguments)]
 
-            (swap! cache-atom update-in [:usage-statistics :miss-count] (fnil inc 0))
-            (add-to-cache! cache-atom
-                           path
-                           function
-                           identity-keys
-                           value-keys
-                           result
-                           dependencies)
-            result))
+          (swap! cache-atom update-in [:usage-statistics :miss-count] (fnil inc 0))
+          (add-to-cache! cache-atom
+                         path
+                         function
+                         identity-keys
+                         value-keys
+                         result
+                         dependencies)
+          result))
 
       (do ;; (println "cache hit for " function)
-          (depend/add-dependencies (:dependencies mapping))
-          (swap! cache-atom
-                 (fn [cache]
-                   (update cache :cache-trie
-                           trie/update-in-trie
-                           path
-                           (fn [trie-node]
-                             (assoc trie-node
-                                    :last-accessed (:cycle-number @cache-atom)
-                                    :status :reused)))))
-          (swap! cache-atom update-in [:usage-statistics :hit-count] (fnil inc 0))
-          (:value mapping)))))
+        (depend/add-dependencies (:dependencies mapping))
+        (swap! cache-atom
+               (fn [cache]
+                 (update cache :cache-trie
+                         trie/update-in-trie
+                         path
+                         (fn [trie-node]
+                           (assoc trie-node
+                                  :last-accessed (:cycle-number @cache-atom)
+                                  :status :reused)))))
+        (swap! cache-atom update-in [:usage-statistics :hit-count] (fnil inc 0))
+        (:value mapping)))))
 
 
 
