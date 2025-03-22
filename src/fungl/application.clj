@@ -48,15 +48,16 @@
         (animation/state-bindings)
         (cache/state-bindings)
         (view-compiler/state-bindings)
-        (layout/state-bindings)))
+        (layout/state-bindings)
+        (scene-graph/state-bindings)))
 
 (defn create-render-state []
   (node-image-cache/state-bindings))
 
-
 (defn handle-new-scene-graph! [scene-graph]
-  ;;  (scene-graph/print-scene-graph (scene-graph/select-node-keys [:compilation-path :type :can-gain-focus? :keyboard-event-handler] scene-graph))
-
+  ;; (println "new scene graph:" (System/identityHashCode scene-graph))
+  ;; (scene-graph/print-scene-graph (scene-graph/select-node-keys [:compilation-path :type :can-gain-focus? :keyboard-event-handler] scene-graph))
+  (reset! scene-graph/current-scene-graph-atom scene-graph)
   (keyboard/handle-new-scene-graph! scene-graph)
   (mouse/handle-new-scene-graph! scene-graph))
 
@@ -148,7 +149,7 @@
   (reset! events-atom [])
   )
 
-(defn process-event! [scene-graph-before-event-handling event]
+(defn process-event! [event]
   ;; (swap! events-atom conj event)
 
   ;; (prn "cache stats" (cache/stats cache/state)) ;; TODO: remove me
@@ -157,14 +158,13 @@
   ;; (println "handling" (:type event) (:key event) #_(pr-str event))
   ;; (println)
 
-  (binding [scene-graph/current-scene-graph scene-graph-before-event-handling]
-    (when (= :mouse
-             (:source event))
-      (mouse/handle-mouse-event! event))
+  (when (= :mouse
+           (:source event))
+    (mouse/handle-mouse-event! event))
 
-    (when (= :keyboard
-             (:source event))
-      (keyboard/handle-keyboard-event! event)))
+  (when (= :keyboard
+           (:source event))
+    (keyboard/handle-keyboard-event! event))
 
   (when (or (= :redraw (:type event))
             (keyboard/key-pattern-pressed? [#{:alt :meta} :r]
@@ -249,11 +249,7 @@
                                     (keyboard/key-pattern-pressed? [#{:alt :meta} :w]
                                                                    (first events)))
                               nil
-                              (do (process-event! (identity-cache/call-with-cache apply-layout-nodes-cache-atom
-                                                                                  1
-                                                                                  layout/apply-layout-nodes
-                                                                                  scene-graph)
-                                                  (first events))
+                              (do (process-event! (first events))
                                   (recur (rest events)
                                          (create-scene-graph (:root-view-call @application-loop-state-atom)))))))]
     (swap! application-loop-state-atom
@@ -297,7 +293,7 @@
         (with-gl (fn [gl]
                    (let [scene-graph (->> scene-graph
                                           (node-image-cache/render-recurring-nodes-to-images nodes-to-image-node previous-rendered-scene-graph)
-                                          (renderer/apply-renderers! gl) ;; TODO: this should be cached to make the scene graph stay identical when possible
+                                          ;; (renderer/apply-renderers! gl) ;; TODO: this should be cached to make the scene graph stay identical when possible
                                           (identity-cache/call-with-cache apply-layout-nodes-cache-atom
                                                                           1
                                                                           layout/apply-layout-nodes))]

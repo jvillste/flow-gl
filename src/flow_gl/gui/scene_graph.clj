@@ -3,10 +3,13 @@
             [clojure.test :as test :refer [deftest is testing]]
             [fungl.cache :as cache]
             [medley.core :as medley]
-            [logga.core :as logga]))
+            [logga.core :as logga]
+            [fungl.dependable-atom :as dependable-atom]))
 
-(def ^:dynamic current-scene-graph)
+(def ^:dynamic current-scene-graph-atom)
 
+(defn state-bindings []
+  {#'current-scene-graph-atom (dependable-atom/atom nil)})
 
 #_(defprotocol Node
     (children [this]))
