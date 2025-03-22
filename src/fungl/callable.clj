@@ -1,6 +1,5 @@
 (ns fungl.callable
   (:require [clojure.test :refer [deftest is]]
-            [fungl.cache :as cache]
             [fungl.hierarchical-identity-cache :as hierarchical-identity-cache]))
 
 (defn call [callable & arguments]
@@ -11,16 +10,6 @@
 
         (fn? callable)
         (apply callable arguments)))
-
-(defn call-with-cache [callable & arguments]
-  (cond (vector? callable)
-        (apply cache/call!
-               (first callable)
-               (concat (rest callable)
-                       arguments))
-
-        (fn? callable)
-        (apply cache/call! callable arguments)))
 
 (defn call-with-hierarchical-identity-cache [cache-atom path number-of-identity-arguments callable & arguments]
   (cond (vector? callable)
