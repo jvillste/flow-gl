@@ -8,23 +8,26 @@
   (deref [this]
     ;; TODO: add dependency tracking to identity-cache and use it here.
     (let [old-cached-value (cache/get (cache/function-call-key function []))
-          result (depend/with-hidden-dependencies (cache/call! function))]
+          new-value (depend/with-hidden-dependencies (cache/call! function))]
+      ;; (when (and (not (= old-cached-value new-value))
+      ;;            (= "focused-subtrees-with-command-sets" name))
+      ;;   (def the-difference (clojure.data/diff old-cached-value
+      ;;                                          new-value)))
       (depend/add-dependency this
-                             result)
+                             new-value)
       (cond (identical? old-cached-value
-                        result)
-
+                        new-value)
             (do ;; (println "derivation" name "evaluated to identical value")
-                old-cached-value)
+              old-cached-value)
 
             (= old-cached-value
-               result)
+               new-value)
             (do ;; (println "derivation" name "evaluated to equal value")
                 (cache/put! (cache/function-call-key function []) old-cached-value)
                 old-cached-value)
 
             :else
-            result)))
+            new-value)))
 
   clojure.lang.Named
   (getName [this]
