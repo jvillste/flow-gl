@@ -363,7 +363,7 @@
                                      rows
                                      state
                                      command-and-parameters)))))
-        nil)
+        (assoc event :handled? true))
     event))
 
 (defn text-area-mouse-event-handler [state-atom rows node event]
