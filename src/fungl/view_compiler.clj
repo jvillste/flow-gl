@@ -388,6 +388,9 @@
         (-> value
             (update :children
                     (fn [children]
+                      (when (= clojure.lang.LazySeq (type children))
+                        (throw (Exception. (str "Scene graph node children can not be a lazy seq for id binding to work. Use doall or vec to force realization during view call. Node id was: " (:type value)))))
+
                       (vec (map-indexed (fn [index child]
                                           (assert (nil? (:local-id (meta child)))
                                                   (str "Using metadata is deprecated. Use {:local-id 1 :node node} i.e. meta nodes instead. local-id was: " (:local-id (meta child))))
