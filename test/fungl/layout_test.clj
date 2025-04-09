@@ -14,7 +14,8 @@
             [clojure.string :as string]
             [flow-gl.gui.visuals :as visuals]
             [clojure.core.async :as async]
-            [clj-async-profiler.core :as clj-async-profiler]))
+;;            [clj-async-profiler.core :as clj-async-profiler]
+            ))
 
 (deftest test-adapt-to-space
   (is (= '{:type :fungl.layouts/vertical-stack,
