@@ -31,7 +31,8 @@
     (->> values
          (remove nil?)
          (flatten-except-vectors)
-         (remove nil?))))
+         (remove nil?)
+         (vec))))
 
 (deftest test-faltten-except-vectors
   (is (= '(1 2 3 [1 2 3])
@@ -399,16 +400,15 @@
      :height (+ y height)}))
 
 (defn scale-make-layout [{:keys [x-scale y-scale] :as node}]
-  (throw (Exception. "scale-make-layout does not yet implement layout nodes"))
   (update-in node
              [:children]
              (fn [[child]]
                [(scene-graph/update-depth-first child
                                                 identity
                                                 (fn [node]
-                                                  (-> node
-                                                      (scale-node x-scale y-scale)
-                                                      (adapt-node-to-scale x-scale y-scale))))])))
+                                                  (merge {:node (adapt-node-to-scale node x-scale y-scale)}
+                                                         (select-keys (scale-node node x-scale y-scale)
+                                                                      [:x :y :width :height]))))])))
 
 
 (defn scale [x-scale y-scale child]
