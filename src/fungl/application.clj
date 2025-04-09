@@ -170,6 +170,10 @@
             (keyboard/key-pattern-pressed? [#{:alt :meta} :r]
                                            event))
     (cache/invalidate-all!)
+
+    (reset! node-image-cache/image-cache-atom (hierarchical-identity-cache/initial-state))
+    (reset! renderer/cache-atom (hierarchical-identity-cache/initial-state))
+    (reset! view-compiler/compile-node-cache-atom (hierarchical-identity-cache/initial-state))
     (reset! layout/layout-node-cache-atom (hierarchical-identity-cache/initial-state))
     (reset! layout/adapt-to-space-cache-atom (hierarchical-identity-cache/initial-state)))
 
