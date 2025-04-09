@@ -49,7 +49,8 @@
         (cache/state-bindings)
         (view-compiler/state-bindings)
         (layout/state-bindings)
-        (scene-graph/state-bindings)))
+        (scene-graph/state-bindings)
+        (renderer/state-bindings)))
 
 (defn create-render-state []
   (node-image-cache/state-bindings))
@@ -297,7 +298,7 @@
         (with-gl (fn [gl]
                    (let [scene-graph (->> scene-graph
                                           (node-image-cache/render-recurring-nodes-to-images nodes-to-image-node previous-rendered-scene-graph)
-                                          ;; (renderer/apply-renderers! gl) ;; TODO: this should be cached to make the scene graph stay identical when possible
+                                          (renderer/apply-renderers! gl) ;; TODO: this should be cached to make the scene graph stay identical when possible
                                           (identity-cache/call-with-cache apply-layout-nodes-cache-atom
                                                                           1
                                                                           layout/apply-layout-nodes))]
