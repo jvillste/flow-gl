@@ -1,6 +1,7 @@
 (ns flow-gl.graphics.text
   (:require [flow-gl.graphics.buffered-image :as buffered-image]
-            [flow-gl.graphics.font :as font])
+            [flow-gl.graphics.font :as font]
+            [flow-gl.graphics.color :as color])
   (:import (java.awt Color RenderingHints)
            (java.awt.font LineBreakMeasurer TextAttribute)
            (java.awt.image BufferedImage)
@@ -29,7 +30,7 @@
 
 
 (defn vector-to-awt-color [color-vector]
-  (let [[r g b a] (map (fn [color] (float (/ color 255))) color-vector)]
+  (let [[r g b a] (color/convert-color-channel-values-to-floats color-vector)]
     (Color. r g b a)))
 
 (defn create-attributed-string [text font color]

@@ -1,11 +1,11 @@
 (ns flow-gl.graphics.rectangle
-  (:require [flow-gl.graphics.buffered-image :as buffered-image])
+  (:require [flow-gl.graphics.buffered-image :as buffered-image]
+            [flow-gl.graphics.color :as color])
   (:import (java.awt BasicStroke Color RenderingHints)
            (java.awt.geom RoundRectangle2D$Double Rectangle2D$Double)))
 
 (defn fill [^java.awt.Graphics2D graphics color width height corner-arc-width corner-arc-height]
-  (let [[r g b a] (map (fn [color] (float (/ color 255)))
-                       color)]
+  (let [[r g b a] (color/convert-color-channel-values-to-floats color)]
     (doto graphics
       #_(.setRenderingHint RenderingHints/KEY_ANTIALIASING RenderingHints/VALUE_ANTIALIAS_ON)
       (.setColor (Color. r g b a))
@@ -23,8 +23,7 @@
                                          (double corner-arc-height)))))))
 
 (defn draw [^java.awt.Graphics2D graphics color line-width width height corner-arc-width corner-arc-height]
-  (let [[r g b a] (map (fn [color] (float (/ color 255)))
-                       color)
+  (let [[r g b a] (color/convert-color-channel-values-to-floats color)
         half-line-width (/ line-width 2)]
     (doto graphics
       #_(.setRenderingHint RenderingHints/KEY_ANTIALIASING RenderingHints/VALUE_ANTIALIAS_ON)
