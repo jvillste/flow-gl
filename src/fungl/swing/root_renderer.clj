@@ -12,10 +12,6 @@
              ;;           (first (call-stack/callers))
              )
 
-  (doto graphics
-    (.setColor (Color. 0 0 0 255))
-    (.fillRect 0 0 5000 5000))
-
   (let [transform (AffineTransform.)]
     (doseq [node nodes]
       (.setToTranslation transform (:x node) (:y node))

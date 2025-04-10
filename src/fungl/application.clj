@@ -23,7 +23,8 @@
    [fungl.view-compiler :as view-compiler]
    [logga.core :as logga]
    [taoensso.tufte :as tufte]
-   [fungl.identity-cache :as identity-cache]))
+   [fungl.identity-cache :as identity-cache])
+  (:import java.awt.Color))
 
 (tufte/add-basic-println-handler! {})
 
@@ -314,6 +315,11 @@
   (render! visuals/nodes-to-buffered-image-node
            with-window-gl
            (fn [graphics nodes]
+
+             (doto graphics
+               (.setColor (Color. 0 0 0 255))
+               (.fillRect 0 0 5000 5000))
+
              (swing-root-renderer/render-nodes graphics
                                                nodes
                                                {:color-nodes? false}))))
