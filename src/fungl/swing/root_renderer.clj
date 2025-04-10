@@ -4,12 +4,17 @@
    [fungl.color :as color]
    [fungl.render :as render])
   (:import
-   (java.awt.geom AffineTransform)))
+   (java.awt.geom AffineTransform)
+   java.awt.Color))
 
 (defn render-nodes [^java.awt.Graphics2D graphics nodes & [{:keys [color-nodes?] :or {color-nodes? false}}]]
   #_(println "render-nodes" (count nodes)
              ;;           (first (call-stack/callers))
              )
+
+  (doto graphics
+    (.setColor (Color. 0 0 0 255))
+    (.fillRect 0 0 5000 5000))
 
   (let [transform (AffineTransform.)]
     (doseq [node nodes]
