@@ -362,6 +362,16 @@
      @focused-node-id-derivation
      #_(:focused-node-id @state-atom)))
 
+(defn select-node-and-move-focus! [& select-node-functions]
+  (let [nodes (scene-graph/flatten @scene-graph/current-scene-graph-atom)]
+    (when-let [selected-node (some (fn [select-node]
+                                     (select-node (scene-graph/find-by-id @focused-node-id-derivation
+                                                                          nodes)
+                                                  (filter :can-gain-focus?
+                                                          nodes)))
+                                   select-node-functions)]
+      (move-focus-2! selected-node))))
+
 ;; events
 
 (defn key-pressed-event? [keyboard-event key]
