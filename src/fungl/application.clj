@@ -359,3 +359,16 @@
                    (logga/write "closing window")
                    (close-window! (:window @application-loop-state-atom)))))
     (window/event-channel (:window @application-loop-state-atom))))
+
+
+(defmacro def-start [view]
+  `(do (defonce ~'event-channel-atom (atom nil))
+
+       (defn ~'start []
+         (reset! ~'event-channel-atom
+                 (application/start-application (var ~view)
+                                                :on-exit #(reset! ~'event-channel-atom nil))))
+
+       (when (deref ~'event-channel-atom)
+         (async/>!! (deref ~'event-channel-atom)
+                    {:type :redraw}))))
