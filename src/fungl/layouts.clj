@@ -689,6 +689,38 @@
    :children (flatten-contents children)})
 
 
+;; fill
+
+(defn- fill-get-size [node _available-width available-height]
+  (case (:fill-direction node)
+    :down {:width (apply max
+                         (conj (remove nil? (map :width (:children node)))
+                               0))
+           :height available-height}))
+
+(defn- fill-make-layout [node]
+  (case (:fill-direction node)
+    :down (update node :children
+                  (fn [[packed-child filling-child]]
+                    [{:node packed-child
+                      :x 0
+                      :y 0
+                      :width (:width packed-child)
+                      :height (:height packed-child)}
+                     {:node filling-child
+                      :x 0
+                      :y (inc (:height packed-child))
+                      :width (:width filling-child)
+                      :height (- (:height node)
+                                 (:height packed-child))}]))))
+
+(defn fill [fill-direction packed-child filling-child]
+  {:type ::fill
+   :fill-direction fill-direction
+   :children [packed-child filling-child]
+   :get-size fill-get-size
+   :make-layout fill-make-layout})
+
 ;; vertical-split
 
 (defn- vertical-split-get-size [_node available-width available-height]
