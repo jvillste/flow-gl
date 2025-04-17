@@ -8,7 +8,7 @@
            (java.text AttributedString)))
 
 (defn draw [^java.awt.Graphics2D graphics color font text]
-  (let [[r g b a] (map (fn [color] (float (/ color 255))) color)]
+  (let [[r g b a] (color/convert-color-channel-values-to-floats color)]
     (doto graphics
       (.setColor (Color. r g b a))
       (.setFont (font/graphics-font font))
