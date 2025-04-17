@@ -97,6 +97,8 @@
 
 (def liberation-sans-regular-path  (.getPath (io/resource "LiberationSans-Regular.ttf")))
 
+(def courier-new (font/create-by-name "CourierNewPSMT" 30))
+
 (util/defno text [string] {color [255 255 255 255]
                            font-size 30
                            font-file-path nil #_liberation-sans-regular-path
@@ -106,6 +108,7 @@
   (assert (string? string))
   (assert (vector? color))
   (assert (number? font-size))
+
 
   (let [font (cond font
                    font
@@ -117,7 +120,7 @@
                    (font/create-by-name font-name font-size)
 
                    :else
-                   (font/create-by-name "CourierNewPSMT" font-size))]
+                   courier-new)]
     {:type ::text
      :font-size font-size
      :font-file-path font-file-path
