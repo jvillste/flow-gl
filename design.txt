@@ -194,3 +194,10 @@ When a node is invalidated
 
 - descendant scene graphs may become obsolete
 - descendant constructors may become obsolete
+
+
+22.3.2025
+
+focused subtrees is invalidated when new scene graph is formed, it invalidates view compilation because it produces new closures in the text editor component commands
+
+what if view compilation would be done twice before layout and rendering?
