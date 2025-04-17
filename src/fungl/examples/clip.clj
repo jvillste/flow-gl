@@ -4,12 +4,15 @@
    [fungl.application :as application]
    [fungl.component.text-area :as text-area]))
 
-(defn root []
+;; (defn root []
 
-  {:node (visuals/clip {:node (text-area/text "fo")
-                        :x 0
-                        :y -10})
-   :x -100
-   :y 100})
+;;   {:node (visuals/clip {:node (text-area/text "fo")
+;;                         :x 0
+;;                         :y -10})
+;;    :x -100
+;;    :y 100})
 
-(application/def-start root)
+(defn app []
+  (text-area/text "hello world!"))
+
+(application/def-start app)
