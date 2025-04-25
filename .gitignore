@@ -17,3 +17,5 @@ debug-log.txt
 /checkouts
 /profiles.clj
 /temp
+/.clj-kondo/
+/.lsp/
