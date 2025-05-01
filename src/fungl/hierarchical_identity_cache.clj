@@ -18,6 +18,7 @@
 
 
 (defn add-to-cache! [cache-atom path mapping-id identity-keys value-keys cached-value dependencies]
+  (swap! cache-atom update-in [:usage-statistics :add-to-cache mapping-id] (fnil inc 0))
   (swap! cache-atom
          (fn [cache]
            (update cache
@@ -114,7 +115,9 @@
     ;; (when (not (if (coll? value)
     ;;              (identical? value (depend/current-value dependency))
     ;;              (= value (depend/current-value dependency))))
-    ;;    (println "changed dependency" (:name dependency) "equal?" (= value (depend/current-value dependency))))
+    ;;   (def the-value value)
+    ;;   (def the-current-value (depend/current-value dependency))
+    ;;   (println "changed dependency" (:name dependency) "equal?" (= value (depend/current-value dependency))))
     (not (if (coll? value)
            (identical? value (depend/current-value dependency))
            (= value (depend/current-value dependency))))))
@@ -123,7 +126,7 @@
   (some changed-dependency-value?
         (:dependencies mapping)))
 
-(defn cached? [cache-atom path mapping-id identity-keys value-keys]
+(defn- cached? [cache-atom path mapping-id identity-keys value-keys]
   (let [mapping (get-mapping-from-cache @cache-atom path mapping-id identity-keys value-keys)]
     (not (or (= ::not-found
                 mapping)
@@ -158,7 +161,8 @@
                                   :status :reused)))))
         (swap! cache-atom update-in [:usage-statistics :hit-count] (fnil inc 0))
         (:value mapping))
-    ::not-found))
+    (do (swap! cache-atom update-in [:usage-statistics :get-value-with-path-only-misses mapping-id] (fnil inc 0))
+        ::not-found)))
 
 (defn call-with-path-only-cache [cache-atom path function & arguments]
   (if-some [mapping (get-mapping-from-cache-without-keys @cache-atom
@@ -196,6 +200,25 @@
         mapping (get-mapping-from-cache @cache-atom path function identity-keys value-keys)
 
         invalid? (invalid-mapping? mapping)]
+
+    (when invalid?
+      (swap! cache-atom
+             update-in
+             [:usage-statistics
+              :invalid-mappings
+              [function (->> (:dependencies mapping)
+                             (filter changed-dependency-value?)
+                             (map (comp :name first))
+                             (sort))]]
+             (fnil inc 0)))
+
+    (when (= ::not-found mapping)
+      (swap! cache-atom
+             update-in
+             [:usage-statistics
+              :not-found-mappings
+              function]
+             (fnil inc 0)))
 
     #_(when true
         #_(or invalid?
@@ -340,6 +363,23 @@
 (defn statistics [cache-atom]
   (merge (:usage-statistics @cache-atom)
          {:mapping-count (trie/value-count (:cache-trie @cache-atom))}))
+
+(defn print-statistics [cache-atom]
+  (let [statistics (statistics cache-atom)
+        frequency-keys [:add-to-cache
+                        :get-value-with-path-only-misses
+                        :invalid-mappings
+                        :not-found-mappings]]
+    (println (:name @cache-atom))
+    (doseq [frequency-key frequency-keys]
+      (prn frequency-key)
+      (doseq [[mapping-id frequency] (->> statistics
+                                          frequency-key
+                                          (sort-by second)
+                                          reverse)]
+        (print "    ")
+        (prn mapping-id frequency)))
+   (prn (apply dissoc statistics frequency-keys))))
 
 (def ^:dynamic maximum-number-of-cycles-without-removing-unused-keys 10)
 
