@@ -63,10 +63,14 @@
                 (reduce + (map :height (:children node)))))})
 
 (defn- vertical-stack-make-layout [node]
-  (let [maximum-given-width (when (not (:fill-width? node))
-                              (min (:width node)
-                                   (apply max (conj (remove nil? (map :given-width (:children node)))
-                                                    0))))]
+  (let [maximum-width (when (:fill-width? node)
+                        (min (:width node)
+                             (apply max (conj (remove nil?
+                                                      (map (fn [child]
+                                                             (or (:given-width child)
+                                                                 (:width child)))
+                                                           (:children node)))
+                                              0))))]
     (assoc node :children
            (loop [layouted-nodes []
                   y 0
@@ -80,8 +84,8 @@
                                      2)
                                   0)
                              :y y
-                             :width (if (not (:fill-width? node))
-                                      maximum-given-width
+                             :width (if (:fill-width? node)
+                                      maximum-width
                                       (:width child))
                              :height (:height child)})
                       (+ y (:height child)
