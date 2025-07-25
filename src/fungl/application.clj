@@ -16,15 +16,17 @@
    [fungl.component :as component]
    [fungl.dependable-atom :as dependable-atom]
    [fungl.hierarchical-identity-cache :as hierarchical-identity-cache]
+   [fungl.identity-cache :as identity-cache]
    [fungl.layout :as layout]
+   [fungl.log :as log]
    [fungl.node-image-cache :as node-image-cache]
    [fungl.renderer :as renderer]
    [fungl.swing.root-renderer :as swing-root-renderer]
    [fungl.view-compiler :as view-compiler]
    [logga.core :as logga]
-   [taoensso.tufte :as tufte]
-   [fungl.identity-cache :as identity-cache])
-  (:import java.awt.Color))
+   [taoensso.tufte :as tufte])
+  (:import
+   java.awt.Color))
 
 (tufte/add-basic-println-handler! {})
 
@@ -210,11 +212,7 @@
              assoc
              :window-width 1000
              :window-height 1000
-             :root-view-call root-view-call)
-      (let [scene-graph (create-scene-graph root-view-call)]
-        (swap! application-loop-state-atom
-               assoc
-               :scene-graph scene-graph)))
+             :root-view-call root-view-call))
     bindings))
 
 (defn preserve-only-latest-event [filtered-event-type events]
@@ -317,14 +315,14 @@
            (fn [graphics nodes]
 
              (doto graphics
-               (.setColor (Color. 0 0 0 255))
+               (.setColor (Color. 255 0 0 255))
                (.fillRect 0 0 5000 5000))
 
              (swing-root-renderer/render-nodes graphics
                                                nodes
                                                {:color-nodes? false}))))
 
-(defn create-bindings-wight-swing-window [root-view-call]
+(defn create-bindings-with-swing-window [root-view-call]
   (let [bindings (create-bindings-without-window root-view-call)]
     (with-bindings bindings
       (swap! application-loop-state-atom
@@ -334,46 +332,54 @@
     bindings))
 
 (defn start-application [root-view & {:keys [target-frame-rate
-                                             on-exit]
+                                             on-exit
+                                             bindings]
                                       :or {target-frame-rate 60}}]
+
   (println "------------ start-window -------------")
-  (with-bindings (create-bindings-wight-swing-window [root-view])
-    (handle-events! [{:type :resize-requested
-                      :width (* 2 (:window-width @application-loop-state-atom)),
-                      :height (* 2 (:window-height @application-loop-state-atom))}])
+  (let [root-view-call [root-view]]
 
-    (render-to-swing-window!)
+    (with-bindings (merge (or bindings {})
+                          (create-bindings-with-swing-window root-view-call))
 
-    (thread "fungl application"
-            (try (loop []
-                   (identity-cache/with-cache-cleanup apply-layout-nodes-cache-atom
-                     (handle-events! (read-events (window/event-channel (:window @application-loop-state-atom))
-                                                  target-frame-rate))
-                     (render-to-swing-window!))
+      (thread "fungl application"
 
-                   (when (:scene-graph @application-loop-state-atom)
-                     (recur)))
+              (handle-events! [{:type :resize-requested
+                                :width (* 2 (:window-width @application-loop-state-atom)),
+                                :height (* 2 (:window-height @application-loop-state-atom))}])
 
-                 (logga/write "exiting application loop")
+              (render-to-swing-window!)
 
-                 (catch Exception e
-                   (logga/write "Exception in application loop:" (prn-str e))
-                   (throw e))
-                 (finally
-                   (when on-exit
-                     (on-exit))
-                   (logga/write "closing window")
-                   (close-window! (:window @application-loop-state-atom)))))
-    (window/event-channel (:window @application-loop-state-atom))))
+              (try (loop []
+                     (identity-cache/with-cache-cleanup apply-layout-nodes-cache-atom
+                       (handle-events! (read-events (window/event-channel (:window @application-loop-state-atom))
+                                                    target-frame-rate))
+                       (render-to-swing-window!))
 
+                     (when (:scene-graph @application-loop-state-atom)
+                       (recur)))
 
-(defmacro def-start [view]
+                   (logga/write "exiting application loop")
+
+                   (catch Exception e
+                     (logga/write "Exception in application loop:" (prn-str e))
+                     (throw e))
+                   (finally
+                     (when on-exit
+                       (on-exit))
+                     (logga/write "closing window")
+                     (close-window! (:window @application-loop-state-atom)))))
+
+      (window/event-channel (:window @application-loop-state-atom)))))
+
+(defmacro def-start [view & {:keys [bindings]}]
   `(do (defonce ~'event-channel-atom (atom nil))
 
        (defn ~'start []
          (reset! ~'event-channel-atom
-                 (application/start-application (var ~view)
-                                                :on-exit #(reset! ~'event-channel-atom nil))))
+                 (start-application (var ~view)
+                                    :on-exit #(reset! ~'event-channel-atom nil)
+                                    :bindings ~bindings)))
 
        (when (deref ~'event-channel-atom)
          (async/>!! (deref ~'event-channel-atom)
