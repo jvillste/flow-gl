@@ -814,13 +814,13 @@
 
 (defn grid [rows]
   {:type ::grid
-   :children (apply concat (map-indexed (fn [row-number row]
-                                          (map-indexed (fn [column-number cell]
-                                                         {::column column-number
-                                                          ::row row-number
-                                                          :node cell})
-                                                       row))
-                                        rows))
+   :children (vec (apply concat (map-indexed (fn [row-number row]
+                                               (map-indexed (fn [column-number cell]
+                                                              {::column column-number
+                                                               ::row row-number
+                                                               :node cell})
+                                                            row))
+                                             rows)))
    :get-size grid-get-size
    :available-area-for-children grid-available-area-for-children
    :make-layout grid-make-layout})
