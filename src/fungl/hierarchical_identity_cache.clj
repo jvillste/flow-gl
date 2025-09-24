@@ -1,11 +1,12 @@
 (ns fungl.hierarchical-identity-cache
-  (:require [clojure.test :refer [deftest is testing]]
-            [medley.core :as medley]
-            [fungl.trie :as trie]
-            ;; [strict-core :refer :all]
-            [fungl.depend :as depend]
-            [fungl.dependable-atom :as dependable-atom]
-            [clojure.set :as set]))
+  (:require
+   [clojure.test :refer [deftest is testing]]
+   [fungl.depend :as depend]
+   [fungl.dependable-atom :as dependable-atom]
+   [fungl.log :as log]
+   [fungl.trie :as trie] ;; [strict-core :refer :all]
+   [fungl.util :as util]
+   [medley.core :as medley]))
 
 (defn initial-state []
   {:cache-trie (trie/create-trie)
@@ -201,6 +202,7 @@
 
         invalid? (invalid-mapping? mapping)]
 
+
     (when invalid?
       (swap! cache-atom
              update-in
@@ -208,7 +210,7 @@
               :invalid-mappings
               [function (->> (:dependencies mapping)
                              (filter changed-dependency-value?)
-                             (map (comp :name first))
+                             (map (comp str :name first))
                              (sort))]]
              (fnil inc 0)))
 
@@ -243,32 +245,41 @@
 
     (if (or invalid?
             (= ::not-found mapping))
-      (do ;; (println "cache miss for " function "invalid?" invalid? "not found?" (= ::not-found mapping))
-        (let [{:keys [result dependencies]} (depend/call-and-return-result-and-dependencies function arguments)]
+      (do (log/write "cache miss"
+                     (util/fully-qualified-function-or-var-name function)
+                     (cond invalid?
+                           "was invalid"
 
-          (swap! cache-atom update-in [:usage-statistics :miss-count] (fnil inc 0))
-          (add-to-cache! cache-atom
-                         path
-                         function
-                         identity-keys
-                         value-keys
-                         result
-                         dependencies)
-          result))
+                           (= ::not-found mapping)
+                           "was not found")
+                     path)
+          (let [{:keys [result dependencies]} (depend/call-and-return-result-and-dependencies function arguments)]
 
-      (do ;; (println "cache hit for " function)
-        (depend/add-dependencies (:dependencies mapping))
-        (swap! cache-atom
-               (fn [cache]
-                 (update cache :cache-trie
-                         trie/update-in-trie
-                         path
-                         (fn [trie-node]
-                           (assoc trie-node
-                                  :last-accessed (:cycle-number @cache-atom)
-                                  :status :reused)))))
-        (swap! cache-atom update-in [:usage-statistics :hit-count] (fnil inc 0))
-        (:value mapping)))))
+            (swap! cache-atom update-in [:usage-statistics :miss-count] (fnil inc 0))
+            (add-to-cache! cache-atom
+                           path
+                           function
+                           identity-keys
+                           value-keys
+                           result
+                           dependencies)
+            result))
+
+      (do (log/write "cache hit"
+                     (util/fully-qualified-function-or-var-name function)
+                     path)
+          (depend/add-dependencies (:dependencies mapping))
+          (swap! cache-atom
+                 (fn [cache]
+                   (update cache :cache-trie
+                           trie/update-in-trie
+                           path
+                           (fn [trie-node]
+                             (assoc trie-node
+                                    :last-accessed (:cycle-number @cache-atom)
+                                    :status :reused)))))
+          (swap! cache-atom update-in [:usage-statistics :hit-count] (fnil inc 0))
+          (:value mapping)))))
 
 
 
@@ -396,12 +407,31 @@
 (defmacro with-cache-cleanup [cache-atom & body]
   `(with-cache-cleanup* ~cache-atom (fn [] ~@body)))
 
+;; (defn cached-call? [cache-atom path number-of-identity-arguments function & arguments]
+;;   (cached? cache-atom
+;;            path
+;;            function
+;;            (select-identity-keys number-of-identity-arguments arguments)
+;;            (select-value-keys number-of-identity-arguments arguments)))
+
 (defn cached-call? [cache-atom path number-of-identity-arguments function & arguments]
-  (cached? cache-atom
-           path
-           function
-           (select-identity-keys number-of-identity-arguments arguments)
-           (select-value-keys number-of-identity-arguments arguments)))
+  (let [identity-keys (select-identity-keys number-of-identity-arguments arguments)
+        value-keys (select-value-keys number-of-identity-arguments arguments)
+        mapping (get-mapping-from-cache @cache-atom path function identity-keys value-keys)
+        invalid? (invalid-mapping? mapping)
+        cached? (not (or invalid?
+                         (= ::not-found mapping)))]
+
+    (when (not cached?)
+      (log/write "cache miss"
+                 (util/fully-qualified-function-or-var-name function)
+                 (cond invalid?
+                       "was invalid"
+
+                       (= ::not-found mapping)
+                       "was not found")
+                 path))
+    cached?))
 
 (deftest cache-test
   (binding [maximum-number-of-cycles-without-removing-unused-keys 0]

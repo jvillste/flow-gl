@@ -1,17 +1,17 @@
 (ns flow-gl.gui.visuals
-  (:require [clojure.java.io :as io]
-            [clojure.test :refer :all]
-            [flow-gl.graphics.buffered-image :as buffered-image]
-            [flow-gl.graphics.font :as font]
-            [flow-gl.graphics.rectangle :as rectangle]
-            [flow-gl.graphics.text :as text]
-            [fungl.handler :as handler]
-            [fungl.util :as util]
-            [fungl.swing.root-renderer :as root-renderer]
-            [fungl.cache :as cache]
-            [flow-gl.gui.scene-graph :as scene-graph]
-            [fungl.renderer :as renderer]
-            [fungl.layout :as layout]))
+  (:require
+   [clojure.java.io :as io]
+   [clojure.test :refer :all]
+   [flow-gl.graphics.buffered-image :as buffered-image]
+   [flow-gl.graphics.font :as font]
+   [flow-gl.graphics.rectangle :as rectangle]
+   [flow-gl.graphics.text :as text]
+   [flow-gl.gui.scene-graph :as scene-graph]
+   [fungl.layout :as layout]
+   [fungl.log :as log]
+   [fungl.renderer :as renderer]
+   [fungl.swing.root-renderer :as root-renderer]
+   [fungl.util :as util]))
 
 
 

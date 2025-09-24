@@ -193,6 +193,7 @@
          (-> (nth match 2)
              (string/replace "_" "-")))))
 
+
 (deftest test-fully-qualified-function-name
   (is (= "clojure.core/inc"
          (fully-qualified-function-name inc))))
@@ -200,6 +201,21 @@
 (defn fully-qualified-function-name-without-random-numbers [function]
   (-> (fully-qualified-function-name function)
       (string/replace #"--\d+" "")))
+
+
+(defn fully-qualified-var-name [var]
+  (let [meta (meta var)]
+    (str (ns-name (:ns meta))
+         "/"
+         (:name meta))))
+
+
+(defn fully-qualified-function-or-var-name [function-or-var]
+  (cond (fn? function-or-var)
+        (fully-qualified-function-name function-or-var)
+
+        (var? function-or-var)
+        (fully-qualified-var-name function-or-var)))
 
 ;; originally from https://github.com/trhura/clojure-term-colors/blob/master/src/clojure/term/colors.clj
 (defn- escape-code

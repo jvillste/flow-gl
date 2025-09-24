@@ -1,11 +1,13 @@
 (ns fungl.layout
-  (:require [clojure.spec.alpha :as spec]
-            [fungl.callable :as callable]
-            [flow-gl.gui.scene-graph :as scene-graph]
-            [fungl.view-compiler :as view-compiler]
-            [fungl.layout.measuring :as measuring]
-            [clojure.test :refer [deftest is]]
-            [fungl.hierarchical-identity-cache :as hierarchical-identity-cache]))
+  (:require
+   [clojure.spec.alpha :as spec]
+   [clojure.test :refer [deftest is]]
+   [flow-gl.gui.scene-graph :as scene-graph]
+   [fungl.callable :as callable]
+   [fungl.hierarchical-identity-cache :as hierarchical-identity-cache]
+   [fungl.layout.measuring :as measuring]
+   [fungl.log :as log]
+   [fungl.view-compiler :as view-compiler]))
 
 (def ^:dynamic layout-node-cache-atom)
 (def ^:dynamic adapt-to-space-cache-atom)
@@ -103,6 +105,8 @@
 ;; (def count-atom (atom 0))
 
 (defn layout-node [node available-width available-height]
+   (log/write "layout-node" (:compilation-path node))
+
   ;;   (swap! count-atom inc)
   (-> node
       (adapt-to-space available-width available-height)
@@ -114,6 +118,7 @@
 
 
 (defn- layout-root [scene-graph available-width available-height]
+  (log/write "layout-root")
   {:node (layout-node scene-graph available-width available-height)
    :x 0
    :y 0

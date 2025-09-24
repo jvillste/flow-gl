@@ -1,4 +1,5 @@
 (ns fungl.derivation
+  (:refer-clojure :exclude [derive])
   (:require [fungl.depend :as depend]
             [fungl.cache :as cache]
             clojure.pprint))
@@ -8,7 +9,8 @@
   (deref [this]
     ;; TODO: add dependency tracking to identity-cache and use it here.
     (let [old-cached-value (cache/get (cache/function-call-key function []))
-          new-value (depend/with-hidden-dependencies (cache/call! function))]
+          new-value (depend/with-hidden-dependencies (cache/call! function))
+          debug-print? false #_(= "focused-node-id-derivation" name)]
       ;; (when (and (not (= old-cached-value new-value))
       ;;            (= "focused-subtrees-with-command-sets" name))
       ;;   (def the-difference (clojure.data/diff old-cached-value
@@ -17,17 +19,21 @@
                              new-value)
       (cond (identical? old-cached-value
                         new-value)
-            (do ;; (println "derivation" name "evaluated to identical value")
-              old-cached-value)
+            (do #_(when debug-print?
+                    (println "derivation" name "evaluated to identical value"))
+                old-cached-value)
 
             (= old-cached-value
                new-value)
-            (do ;; (println "derivation" name "evaluated to equal value")
+            (do #_(when debug-print?
+                    (println "derivation" name "evaluated to equal value"))
                 (cache/put! (cache/function-call-key function []) old-cached-value)
                 old-cached-value)
 
             :else
-            new-value)))
+            (do (when debug-print?
+                  (println "derivation" name "evaluated to new value"))
+                new-value))))
 
   clojure.lang.Named
   (getName [this]

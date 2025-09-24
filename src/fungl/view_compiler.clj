@@ -1,24 +1,25 @@
 (ns fungl.view-compiler
-  (:require [fungl.cache :as cache]
-            [clojure.test :refer :all]
-            [fungl.callable :as callable]
-            [fungl.dependable-atom :as dependable-atom]
-            [medley.core :as medley]
-            [clojure.walk :as walk]
-            [fungl.depend :as depend]
-            [clojure.string :as string]
-            [fungl.util :as util]
-            [fungl.id-comparator :as id-comparator]
-            (clojure.test.check [clojure-test :as clojure-test]
+  (:require
+   [clojure.string :as string]
+   [clojure.test :refer :all]
+   (clojure.test.check [clojure-test :as clojure-test]
                                 [generators :as generators]
                                 [properties :as properties])
-            taoensso.tufte
-            [fungl.hierarchical-identity-cache :as hierarchical-identity-cache]
-            [fungl.trie :as trie]))
+   [clojure.walk :as walk]
+   [fungl.cache :as cache]
+   [fungl.callable :as callable]
+   [fungl.depend :as depend]
+   [fungl.dependable-atom :as dependable-atom]
+   [fungl.hierarchical-identity-cache :as hierarchical-identity-cache]
+   [fungl.id-comparator :as id-comparator]
+   [fungl.log :as log]
+   [fungl.util :as util]
+   taoensso.tufte))
 
 (def ^:dynamic compile-node-cache-atom)
 
 (def ^:dynamic id)
+(def ^:dynamic compilation-path)
 
 (defn is-prefix [sequence prefix-candidate]
   (or (= [] prefix-candidate)
@@ -237,6 +238,7 @@
 (defn- scene-graph? [value]
   (map? value))
 
+
 (defn- apply-view-call [the-id compilation-path view-call]
   ;; (when-some [size (some (fn [argument]
   ;;                          (when (coll? argument)
@@ -248,7 +250,8 @@
   ;;            (util/fully-qualified-function-name (first view-call))
   ;;            size
   ;;            the-id))
-  (binding [id the-id]
+  (binding [id the-id
+            compilation-path compilation-path]
     (let [[view-function-or-constructor & arguments] view-call
           scene-graph-or-view-call (if (hierarchical-identity-cache/cached-call? compile-node-cache-atom
                                                                                  compilation-path
@@ -256,14 +259,18 @@
                                                                                  view-function-or-constructor
                                                                                  arguments)
 
-                                     ;; cached view function
+                                     (do (log/write "view-function was cached"
+                                                    (util/fully-qualified-function-or-var-name (first view-call))
+                                                    compilation-path)
 
-                                     (apply hierarchical-identity-cache/call-with-cache
-                                            compile-node-cache-atom
-                                            compilation-path
-                                            0
-                                            view-function-or-constructor
-                                            arguments)
+                                         ;; cached view function
+
+                                         (apply hierarchical-identity-cache/call-with-cache
+                                                compile-node-cache-atom
+                                                compilation-path
+                                                0
+                                                view-function-or-constructor
+                                                arguments))
 
                                      (let [cached-value (hierarchical-identity-cache/get-value-with-path-only compile-node-cache-atom
                                                                                                               compilation-path
@@ -280,7 +287,10 @@
 
                                              ;; the given function was a constructor and returend a view function
 
-                                             (do (hierarchical-identity-cache/add-to-cache! compile-node-cache-atom
+                                             (do (log/write "ran constructor"
+                                                            (util/fully-qualified-function-or-var-name (first view-call))
+                                                            compilation-path)
+                                                 (hierarchical-identity-cache/add-to-cache! compile-node-cache-atom
                                                                                             compilation-path
                                                                                             [:constructor view-function-or-constructor]
                                                                                             []
@@ -296,7 +306,10 @@
 
                                              ;; the given function was a view function
 
-                                             (do (hierarchical-identity-cache/add-to-cache! compile-node-cache-atom
+                                             (do (log/write "called view-function"
+                                                            (util/fully-qualified-function-or-var-name (first view-call))
+                                                            compilation-path)
+                                                 (hierarchical-identity-cache/add-to-cache! compile-node-cache-atom
                                                                                             compilation-path
                                                                                             view-function-or-constructor
                                                                                             []
@@ -307,12 +320,15 @@
 
                                          ;; view function was found from constructor cache
 
-                                         (apply hierarchical-identity-cache/call-with-cache
-                                                compile-node-cache-atom
-                                                compilation-path
-                                                0
-                                                cached-value
-                                                arguments))))]
+                                         (do (log/write "running view function from constructor cache"
+                                                        (util/fully-qualified-function-or-var-name cached-value)
+                                                        compilation-path)
+                                             (apply hierarchical-identity-cache/call-with-cache
+                                                    compile-node-cache-atom
+                                                    compilation-path
+                                                    0
+                                                    cached-value
+                                                    arguments)))))]
 
       (cond (view-call? scene-graph-or-view-call)
             scene-graph-or-view-call
@@ -389,11 +405,12 @@
             (update :children
                     (fn [children]
                       (when (= clojure.lang.LazySeq (type children))
-                        (throw (Exception. (str "Scene graph node children can not be a lazy seq for id binding to work. Use doall or vec to force realization during view call. Node id was: " (:type value)))))
+                        (throw (Exception. (str "Scene graph node children can not be a lazy seq for id binding to work. Use doall or vec to force realization during view call. compilation path was: " compilation-path " node type was " (:type value)))))
 
                       (vec (map-indexed (fn [index child]
                                           (assert (nil? (:local-id (meta child)))
                                                   (str "Using metadata is deprecated. Use {:local-id 1 :node node} i.e. meta nodes instead. local-id was: " (:local-id (meta child))))
+
                                           (call-compile-node-with-cache (vec (conj id
                                                                                    (or (:local-id child)
                                                                                        index)))
@@ -422,7 +439,7 @@
 
 (defn compile-view-calls [view-call-or-scene-graph]
   (hierarchical-identity-cache/with-cache-cleanup compile-node-cache-atom
-    ;;    (prn "compile-node-cache" (hierarchical-identity-cache/statistics compile-node-cache-atom))
+
 
     ;; (def invalid (->> (hierarchical-identity-cache/dependenciy-nodes @compile-node-cache-atom)
     ;;                   (hierarchical-identity-cache/filter-invalid-dependencies)
@@ -435,9 +452,13 @@
     ;;      (sort-by (comp count :path))
     ;;      (hierarchical-identity-cache/print-dependency-nodes))
 
-    (call-compile-node-with-cache []
-                                  []
-                                  view-call-or-scene-graph)))
+    (let [result (call-compile-node-with-cache []
+                                               []
+                                               view-call-or-scene-graph)]
+      ;; (println)
+      ;; (hierarchical-identity-cache/print-statistics compile-node-cache-atom)
+      result)))
+
 (defn state-bindings []
   {#'compile-node-cache-atom (hierarchical-identity-cache/create-cache-atom "compile-node")})
 

@@ -1,10 +1,9 @@
 (ns fungl.node-image-cache
   (:require
-   [flow-gl.gui.scene-graph :as scene-graph]
    [flow-gl.gui.visuals :as visuals]
    [fungl.hierarchical-identity-cache :as hierarchical-identity-cache]
-   [clojure.test :refer [deftest is]]
-   [fungl.layout :as layout]))
+   [fungl.layout :as layout]
+   [fungl.log :as log]))
 
 (def ^:dynamic image-cache-atom)
 
@@ -25,13 +24,14 @@
                                                                            nodes-to-image-node
                                                                            (:node layout-node)
                                                                            (dissoc layout-node :node))
-                               (hierarchical-identity-cache/call-with-cache image-cache-atom
-                                                                            (-> layout-node :node :id)
-                                                                            1
-                                                                            render-to-images
-                                                                            nodes-to-image-node
-                                                                            (:node layout-node)
-                                                                            (dissoc layout-node :node))
+                               (do (log/write "using image from cache" (:compilation-path (:node layout-node)))
+                                   (hierarchical-identity-cache/call-with-cache image-cache-atom
+                                                                                (-> layout-node :node :id)
+                                                                                1
+                                                                                render-to-images
+                                                                                nodes-to-image-node
+                                                                                (:node layout-node)
+                                                                                (dissoc layout-node :node)))
                                layout-node))
                            layout-node
                            {:descend? (fn [layout-node]
@@ -44,6 +44,7 @@
                                                                                        (dissoc layout-node :node))))}))
 
 (defn apply-cache-and-render-to-images [nodes-to-image-node node layout]
+  (log/write "apply-cache-and-render-to-images" (:compilation-path node))
   (->> (assoc layout
               :node node)
        (apply-image-cache nodes-to-image-node)
@@ -89,6 +90,7 @@
         layout-node))))
 
 (defn render-recurring-nodes-to-images [nodes-to-image-node previous-scene-graph scene-graph]
+  (log/write "render-recurring-nodes-to-images")
   ;; (prn "image-cache" (hierarchical-identity-cache/statistics image-cache-atom))
   (hierarchical-identity-cache/with-cache-cleanup image-cache-atom
     (render-recurring-nodes-to-images* nodes-to-image-node
