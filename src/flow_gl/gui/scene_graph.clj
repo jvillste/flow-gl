@@ -729,20 +729,20 @@
   (let [closest-node (first (sort-by distance-to-reference-node
                                      nodes))
         row-nodes (filter (fn [node]
-                            (intersects-in-one-dimension?  (minimum closest-node)
-                                                           (maximum closest-node)
+                            (intersects-in-one-dimension? (minimum closest-node)
+                                                          (maximum closest-node)
 
-                                                           (minimum node)
-                                                           (maximum node)))
+                                                          (minimum node)
+                                                          (maximum node)))
                           nodes)
         row-nodes-on-the-same-focus-depth (filter (fn [node]
                                                     (= (:focus-depth reference-node)
                                                        (:focus-depth node)))
                                                   row-nodes)]
     (first (sort-by (fn [node]
-                      [(distance-to-reference-node node)
-                       (Math/abs (- (orthogonal-center reference-node)
-                                    (orthogonal-center node)))])
+                      [(Math/abs (- (orthogonal-center reference-node)
+                                    (orthogonal-center node)))
+                       (distance-to-reference-node node)])
                     (if (empty? row-nodes-on-the-same-focus-depth)
                       row-nodes
                       row-nodes-on-the-same-focus-depth)))))
