@@ -438,26 +438,29 @@
 
 
 (defn compile-view-calls [view-call-or-scene-graph]
-  (hierarchical-identity-cache/with-cache-cleanup compile-node-cache-atom
+  ;; component state must be cleared after every other frame so that if
+  ;; the compnent with the same id is created again, its state is reset
+  (binding [hierarchical-identity-cache/maximum-number-of-cycles-without-removing-unused-keys 1]
+    (hierarchical-identity-cache/with-cache-cleanup compile-node-cache-atom
 
 
-    ;; (def invalid (->> (hierarchical-identity-cache/dependenciy-nodes @compile-node-cache-atom)
-    ;;                   (hierarchical-identity-cache/filter-invalid-dependencies)
-    ;;                   (sort-by (comp count :path))
-    ;;                   (first)))
+      ;; (def invalid (->> (hierarchical-identity-cache/dependenciy-nodes @compile-node-cache-atom)
+      ;;                   (hierarchical-identity-cache/filter-invalid-dependencies)
+      ;;                   (sort-by (comp count :path))
+      ;;                   (first)))
 
-    ;; (println "invalid dependencies:")
-    ;; (->> (hierarchical-identity-cache/dependency-nodes @compile-node-cache-atom)
-    ;;      (hierarchical-identity-cache/filter-invalid-dependencies)
-    ;;      (sort-by (comp count :path))
-    ;;      (hierarchical-identity-cache/print-dependency-nodes))
+      ;; (println "invalid dependencies:")
+      ;; (->> (hierarchical-identity-cache/dependency-nodes @compile-node-cache-atom)
+      ;;      (hierarchical-identity-cache/filter-invalid-dependencies)
+      ;;      (sort-by (comp count :path))
+      ;;      (hierarchical-identity-cache/print-dependency-nodes))
 
-    (let [result (call-compile-node-with-cache []
-                                               []
-                                               view-call-or-scene-graph)]
-      ;; (println)
-      ;; (hierarchical-identity-cache/print-statistics compile-node-cache-atom)
-      result)))
+      (let [result (call-compile-node-with-cache []
+                                                 []
+                                                 view-call-or-scene-graph)]
+        ;; (println)
+        ;; (hierarchical-identity-cache/print-statistics compile-node-cache-atom)
+        result))))
 
 (defn state-bindings []
   {#'compile-node-cache-atom (hierarchical-identity-cache/create-cache-atom "compile-node")})
