@@ -260,6 +260,7 @@
          :shift (.isShiftDown event)
          :control (.isControlDown event)
          :alt (.isAltDown event)
+         :meta (.isMetaDown event)
          :x (* (.getX event) 2 #_(first surface-scale))
          :y (* (.getY event) 2 #_(second surface-scale))
          ;; :pressure (.getPressure event true)
