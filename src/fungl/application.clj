@@ -331,46 +331,51 @@
                                           (:window-height @application-loop-state-atom))))
     bindings))
 
+(defn- applicaiton-loop [target-frame-rate on-exit]
+  (try (handle-events! [{:type :resize-requested
+                         :width (* 2 (:window-width @application-loop-state-atom)),
+                         :height (* 2 (:window-height @application-loop-state-atom))}])
+
+       (render-to-swing-window!)
+       (loop []
+         (identity-cache/with-cache-cleanup apply-layout-nodes-cache-atom
+           (handle-events! (read-events (window/event-channel (:window @application-loop-state-atom))
+                                        target-frame-rate))
+           (render-to-swing-window!))
+
+         (when (:scene-graph @application-loop-state-atom)
+           (recur)))
+
+       (logga/write "exiting application loop")
+
+       (catch Exception exception
+         (logga/write "Exception in application loop:" (prn-str exception))
+         (throw exception))
+       (finally
+         (when on-exit
+           (on-exit))
+         (logga/write "closing window")
+         (close-window! (:window @application-loop-state-atom)))))
+
+
 (defn start-application [root-view & {:keys [target-frame-rate
                                              on-exit
-                                             bindings]
-                                      :or {target-frame-rate 60}}]
+                                             bindings
+                                             join?]
+                                      :or {target-frame-rate 60
+                                           join? false}}]
 
   (println "------------ start-window -------------")
-  (let [root-view-call [root-view]]
 
-    (with-bindings (merge (or bindings {})
-                          (create-bindings-with-swing-window root-view-call))
+  (with-bindings (merge (or bindings {})
+                        (create-bindings-with-swing-window [root-view]))
 
+    (if join?
+      (applicaiton-loop target-frame-rate on-exit)
       (thread "fungl application"
+              (applicaiton-loop target-frame-rate on-exit)))
 
-              (handle-events! [{:type :resize-requested
-                                :width (* 2 (:window-width @application-loop-state-atom)),
-                                :height (* 2 (:window-height @application-loop-state-atom))}])
-
-              (render-to-swing-window!)
-
-              (try (loop []
-                     (identity-cache/with-cache-cleanup apply-layout-nodes-cache-atom
-                       (handle-events! (read-events (window/event-channel (:window @application-loop-state-atom))
-                                                    target-frame-rate))
-                       (render-to-swing-window!))
-
-                     (when (:scene-graph @application-loop-state-atom)
-                       (recur)))
-
-                   (logga/write "exiting application loop")
-
-                   (catch Exception e
-                     (logga/write "Exception in application loop:" (prn-str e))
-                     (throw e))
-                   (finally
-                     (when on-exit
-                       (on-exit))
-                     (logga/write "closing window")
-                     (close-window! (:window @application-loop-state-atom)))))
-
-      (window/event-channel (:window @application-loop-state-atom)))))
+    (window/event-channel (:window @application-loop-state-atom))))
 
 (defmacro def-start [view & {:keys [bindings]}]
   `(do (defonce ~'event-channel-atom (atom nil))
