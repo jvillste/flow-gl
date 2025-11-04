@@ -1,7 +1,7 @@
 (ns flow-gl.graphics.text
   (:require [flow-gl.graphics.buffered-image :as buffered-image]
             [flow-gl.graphics.font :as font]
-            [flow-gl.graphics.color :as color])
+            [fungl.color :as color])
   (:import (java.awt Color RenderingHints)
            (java.awt.font LineBreakMeasurer TextAttribute)
            (java.awt.image BufferedImage)

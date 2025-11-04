@@ -1,14 +1,15 @@
 (ns flow-gl.graphics.path
-  (:require [flow-gl.graphics.buffered-image :as buffered-image])
-  (:import (java.awt BasicStroke Color RenderingHints)
-           (java.awt.geom GeneralPath)))
+  (:require
+   [fungl.color :as color])
+  (:import
+   (java.awt BasicStroke Color)
+   (java.awt.geom GeneralPath)))
 
 (defn draw [graphics color line-width points]
   (let [general-path (GeneralPath. GeneralPath/WIND_EVEN_ODD
                                    (count points))
         first-point (first points)
-        [r g b a] (map (fn [color] (float (/ color 255)))
-                       color)]
+        [r g b a] (color/convert-color-channel-values-to-floats color)]
 
     (.moveTo general-path
                (double (:x first-point))

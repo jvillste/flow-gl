@@ -1,6 +1,6 @@
 (ns flow-gl.graphics.rectangle
   (:require [flow-gl.graphics.buffered-image :as buffered-image]
-            [flow-gl.graphics.color :as color])
+            [fungl.color :as color])
   (:import (java.awt BasicStroke Color RenderingHints)
            (java.awt.geom RoundRectangle2D$Double Rectangle2D$Double)))
 
