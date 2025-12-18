@@ -47,8 +47,10 @@
 
   (is (vector? (flatten-contents [1 2 3]))))
 
-(defn get-first-child-size [node _available-width _available-height]
-  (measuring/size (first (:children node))))
+(defn get-first-child-size [node available-width available-height]
+  (measuring/size (first (:children node))
+                  available-width
+                  available-height))
 
 ;; vertically
 
@@ -545,7 +547,6 @@
      :children [child]}))
 
 
-;; superimpose
 
 (defn superimpose-get-size [node _available-width _available-height]
   (let [child-sizes (map (fn [child]
