@@ -15,7 +15,8 @@
                  [logga "1"]
                  [slamhound "1.5.5"]
                  [org.clojure/test.check "1.1.1"]
-                 [com.clojure-goes-fast/clj-async-profiler "1.1.1"]]
+                 [com.clojure-goes-fast/clj-async-profiler "1.1.1"]
+                 [org.hsluv/hsluv "1.0"]]
   :aliases {"slamhound" ["run" "-m" "slam.hound"]}
   :test-paths ["src" "test"]
   :jvm-opts ["-Xmx1g"
