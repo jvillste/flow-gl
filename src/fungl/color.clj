@@ -52,3 +52,16 @@
            (float (/ color-channel-value 255))
            (float color-channel-value)))
        color-channel-values))
+
+(defn add-alpha [color-channel-values-with-possible-alpha alpha]
+  (if (= (count color-channel-values-with-possible-alpha)
+         4)
+    color-channel-values-with-possible-alpha
+    (vec (concat color-channel-values-with-possible-alpha [alpha]))))
+
+(deftest test-add-alpha
+  (is (= [1 2 3 4]
+         (add-alpha [1 2 3] 4)))
+
+  (is (= [1 2 3 4]
+         (add-alpha [1 2 3 4] 5))))

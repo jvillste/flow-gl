@@ -30,7 +30,9 @@
 
 
 (defn vector-to-awt-color [color-vector]
-  (let [[r g b a] (color/convert-color-channel-values-to-floats color-vector)]
+  (let [[r g b a] (-> color-vector
+                      (color/add-alpha 1.0)
+                      (color/convert-color-channel-values-to-floats))]
     (Color. r g b a)))
 
 (defn create-attributed-string [text font color]
