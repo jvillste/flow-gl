@@ -6,9 +6,12 @@
   (.getSystemClipboard (Toolkit/getDefaultToolkit)))
 
 (defn slurp-clipboard []
-  (.getTransferData (.getContents (get-clipboard)
-                                  nil)
-                    (DataFlavor/stringFlavor)))
+  (try
+    (.getTransferData (.getContents (get-clipboard)
+                                    nil)
+                      (DataFlavor/stringFlavor))
+    (catch Throwable _throwable
+      nil)))
 
 (defn spit-clipboard [text]
   (.setContents (get-clipboard)
