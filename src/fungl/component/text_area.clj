@@ -387,7 +387,12 @@
                             (:color style)
                             (:font style)
                             text
-                            available-width))]
+                            available-width))
+        ;; highlight-polygon (when (and (:anchor @state-atom)
+        ;;                              (= (:index @state-atom)
+        ;;                                 (:anchor @state-atom)))
+        ;;                     (.getLogicalHighlightShape ))
+        ]
 
     (-> (layouts/with-minimum-size (font/width (:font style) "W") (font/height (:font style))
           (layouts/superimpose (when index
