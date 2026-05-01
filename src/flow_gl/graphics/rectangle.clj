@@ -5,7 +5,7 @@
            (java.awt.geom RoundRectangle2D$Double Rectangle2D$Double)))
 
 (defn fill [^java.awt.Graphics2D graphics color width height corner-arc-width corner-arc-height]
-  (let [[r g b a] (color/convert-color-channel-values-to-floats color)]
+  (let [[r g b a] (color/convert-color-channel-values-to-floats (color/add-alpha color 1.0))]
     (doto graphics
       #_(.setRenderingHint RenderingHints/KEY_ANTIALIASING RenderingHints/VALUE_ANTIALIAS_ON)
       (.setColor (Color. r g b a))
