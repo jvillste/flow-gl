@@ -108,6 +108,16 @@
   (async/put! (window/event-channel (:window @application-loop-state-atom))
               event))
 
+(defn event-channel []
+  (window/event-channel (:window @application-loop-state-atom)))
+
+(defn send-event-to-event-channel! [event-channel event]
+  (async/>!! event-channel event))
+
+(defn redraw! [event-channel]
+  (async/>!! event-channel
+             {:type :redraw}))
+
 (defn cache-miss? [node]
   (and (contains? node :view-functions)
        (some view-compiler/changed-dependency?
@@ -170,7 +180,7 @@
            (:source event))
     (keyboard/handle-keyboard-event! event))
 
-  (when (or (= :redraw (:type event))
+  (when (or (= :reset (:type event))
             (keyboard/key-pattern-pressed? [#{:alt :meta} :r]
                                            event))
     (cache/invalidate-all!)
@@ -315,7 +325,7 @@
            (fn [graphics nodes]
 
              (doto graphics
-               (.setColor (Color. 255 0 0 255))
+               (.setColor (Color. 0 0 0 255))
                (.fillRect 0 0 5000 5000))
 
              (swing-root-renderer/render-nodes graphics
@@ -388,4 +398,4 @@
 
        (when (deref ~'event-channel-atom)
          (async/>!! (deref ~'event-channel-atom)
-                    {:type :redraw}))))
+                    {:type :reset}))))
