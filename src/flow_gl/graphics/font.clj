@@ -25,9 +25,10 @@
      :font-metrics (.getFontMetrics graphics)}))
 
 (defn create-by-name [name size]
-  (font-with-metrics (.deriveFont (medley/find-first #(= name (.getName %))
-                                                     (.getAllFonts (GraphicsEnvironment/getLocalGraphicsEnvironment)))
-                                  (float size))))
+  (when-some [font (medley/find-first #(= name (.getName %))
+                                      (.getAllFonts (GraphicsEnvironment/getLocalGraphicsEnvironment)))]
+    (font-with-metrics (.deriveFont font
+                                    (float size)))))
 
 (defn built-in-font [& [{:keys [name size style]
                          :or {name :dialog
