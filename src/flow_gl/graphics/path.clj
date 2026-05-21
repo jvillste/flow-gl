@@ -9,7 +9,8 @@
   (let [general-path (GeneralPath. GeneralPath/WIND_EVEN_ODD
                                    (count points))
         first-point (first points)
-        [r g b a] (color/convert-color-channel-values-to-floats color)]
+        [r g b a] (color/convert-color-channel-values-to-floats (color/add-alpha color
+                                                                                 1.0))]
 
     (.moveTo general-path
                (double (:x first-point))
