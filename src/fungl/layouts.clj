@@ -277,10 +277,12 @@
 
 (spec/def ::margin int?)
 
-(defn box-get-size [{:keys [margin children]} _available-width _available-height]
-  (let [[outer inner] children]
-    {:width (+ (* 2 margin)
-               (:width inner))
+(defn box-get-size [{:keys [margin children fill-width?]} available-width _available-height]
+  (let [[_outer inner] children]
+    {:width (if fill-width?
+              available-width
+              (+ (* 2 margin)
+                 (:width inner)))
      :height (+ (* 2 margin)
                 (:height inner))}))
 
