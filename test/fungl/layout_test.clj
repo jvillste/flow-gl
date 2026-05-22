@@ -1,21 +1,20 @@
 (ns fungl.layout-test
-  (:require [fungl.layout :as layout]
-            [fungl.layouts :as layouts]
-            [clojure.test :refer [deftest is]]
-            [flow-gl.gui.scene-graph :as scene-graph]
-            [fungl.view-compiler :as view-compiler]
-            [fungl.cache :as cache]
-            [fungl.component.text-area :as text-area]
-            [fungl.application :as application]
-            [fungl.hierarchical-identity-cache :as hierarchical-identity-cache]
-            [fungl.node-image-cache :as node-image-cache]
-            [flow-gl.graphics.font :as font]
-            [fungl.dependable-atom :as dependable-atom]
-            [clojure.string :as string]
-            [flow-gl.gui.visuals :as visuals]
-            [clojure.core.async :as async]
-;;            [clj-async-profiler.core :as clj-async-profiler]
-            ))
+  (:require
+   [clojure.core.async :as async] ;;            [clj-async-profiler.core :as clj-async-profiler]
+   [clojure.string :as string]
+   [clojure.test :refer [deftest is testing]]
+   [flow-gl.graphics.font :as font]
+   [flow-gl.gui.scene-graph :as scene-graph]
+   [flow-gl.gui.visuals :as visuals]
+   [fungl.application :as application]
+   [fungl.component.text-area :as text-area]
+   [fungl.dependable-atom :as dependable-atom]
+   [fungl.hierarchical-identity-cache :as hierarchical-identity-cache]
+   [fungl.layout :as layout]
+   [fungl.layouts :as layouts]
+   [fungl.node-image-cache :as node-image-cache]
+   [fungl.util :as util :refer [remove-indentation]]
+   [fungl.view-compiler :as view-compiler]))
 
 (deftest test-adapt-to-space
   (is (= '{:type :fungl.layouts/vertical-stack,
@@ -310,6 +309,88 @@
 
 
   ) ;; TODO: remove me
+
+(deftest test-layout-scene-graph
+  (with-bindings (application/bindings)
+    (let [scene-graph (layouts/vertically-2 {:margin 50 :fill-width? true}
+                                            (layouts/box 10
+                                                         (visuals/rectangle-2)
+                                                         (visuals/text-area "foo")
+                                                         {:fill-width? true})
+                                            (layouts/box 10
+                                                         (visuals/rectangle-2)
+                                                         (visuals/text-area "foobarbaz")
+                                                         {:fill-width? true}))
+          layouted-scene-graph (layout/layout-scene-graph (view-compiler/compile-view-calls scene-graph)
+                                                          Integer/MAX_VALUE
+                                                          Integer/MAX_VALUE)]
+
+      (is (= (remove-indentation "{:type :fungl.layouts/vertical-stack}
+                                    {:type :fungl.layouts/box}
+                                      {:type :flow-gl.gui.visuals/rectangle}
+                                      {:type :flow-gl.gui.visuals/text-area}
+                                    {:type :fungl.layouts/box}
+                                      {:type :flow-gl.gui.visuals/rectangle}
+                                      {:type :flow-gl.gui.visuals/text-area}
+                                 ")
+             (with-out-str (scene-graph/print-scene-graph (scene-graph/select-node-keys [:x :y :width :height :type] scene-graph)))))
+
+      (is (= (remove-indentation "{:x 0, :y 0, :width 2147483647, :height 2147483647}
+                                    {:width 2147483647, :height 203.28125, :type :fungl.layouts/vertical-stack}
+                                      {:x 0, :y 0, :width 2147483647, :height 76.640625}
+                                        {:width 2147483647, :height 76.640625, :type :fungl.layouts/box}
+                                          {:x 0, :y 0, :width 2147483647, :height 76.640625}
+                                            {:width 2147483647, :height 2147483647, :type :flow-gl.gui.visuals/rectangle}
+                                          {:x 10, :y 10, :width 90.0, :height 56.640625}
+                                            {:width 90.0, :height 56.640625, :type :flow-gl.gui.visuals/text-area}
+                                      {:x 0, :y 126.640625, :width 2147483647, :height 76.640625}
+                                        {:width 2147483647, :height 76.640625, :type :fungl.layouts/box}
+                                          {:x 0, :y 0, :width 2147483647, :height 76.640625}
+                                            {:width 2147483647, :height 2147483647, :type :flow-gl.gui.visuals/rectangle}
+                                          {:x 10, :y 10, :width 270.0, :height 56.640625}
+                                            {:width 270.0, :height 56.640625, :type :flow-gl.gui.visuals/text-area}
+                                 ")
+             (with-out-str (scene-graph/print-scene-graph (scene-graph/select-node-keys [:x :y :width :height :type] layouted-scene-graph)))))
+
+      (is (= (remove-indentation "{:x 0, :y 0, :width 2147483647, :height 2147483647, :type :fungl.layouts/vertical-stack}
+                                    {:x 0, :y 0, :width 2147483647, :height 76.640625, :type :fungl.layouts/box}
+                                      {:x 0, :y 0, :width 2147483647, :height 76.640625, :type :flow-gl.gui.visuals/rectangle}
+                                      {:x 10, :y 10, :width 90.0, :height 56.640625, :type :flow-gl.gui.visuals/text-area}
+                                    {:x 0, :y 126.640625, :width 2147483647, :height 76.640625, :type :fungl.layouts/box}
+                                      {:x 0, :y 0, :width 2147483647, :height 76.640625, :type :flow-gl.gui.visuals/rectangle}
+                                      {:x 10, :y 10, :width 270.0, :height 56.640625, :type :flow-gl.gui.visuals/text-area}
+                                 ")
+             (with-out-str (scene-graph/print-scene-graph (scene-graph/select-node-keys [:x :y :width :height :type] (layout/apply-layout-nodes layouted-scene-graph)))))))))
+
+
+(deftest test-box-layout
+  (with-bindings (application/bindings)
+    (testing ":fill-width false"
+      (is (= (remove-indentation "{:x 0, :y 0, :width 500, :height 500, :type :fungl.layouts/box}
+                                    {:x 0, :y 0, :width 120, :height 40, :type :rectangle}
+                                    {:x 10, :y 10, :width 100, :height 20, :type :text}
+                                 ")
+             (with-out-str (scene-graph/print-scene-graph (scene-graph/select-node-keys [:x :y :width :height :type]
+                                                                                        (layout/apply-layout-nodes (layout/layout-scene-graph (layouts/box 10
+                                                                                                                                                           {:type :rectangle}
+                                                                                                                                                           {:type :text
+                                                                                                                                                            :get-size (constantly {:width 100 :height 20})}
+                                                                                                                                                           {:fill-width? false})
+                                                                                                                                              500
+                                                                                                                                              500))))))))
+    (testing ":fill-width true"
+      (is (= (remove-indentation "{:x 0, :y 0, :width 500, :height 500, :type :fungl.layouts/box}
+                                    {:x 0, :y 0, :width 500, :height 40, :type :rectangle}
+                                    {:x 10, :y 10, :width 100, :height 20, :type :text}
+                                 ")
+             (with-out-str (scene-graph/print-scene-graph (scene-graph/select-node-keys [:x :y :width :height :type]
+                                                                                        (layout/apply-layout-nodes (layout/layout-scene-graph (layouts/box 10
+                                                                                                                                                           {:type :rectangle}
+                                                                                                                                                           {:type :text
+                                                                                                                                                            :get-size (constantly {:width 100 :height 20})}
+                                                                                                                                                           {:fill-width? true})
+                                                                                                                                              500
+                                                                                                                                              500))))))))))
 
 
 (def key-press-events [{:key-code 83,

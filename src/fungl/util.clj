@@ -240,6 +240,22 @@
 (defn escapes [& keys]
   (apply str (map escape keys)))
 
+(defmacro remove-indentation [string]
+  (let [intendation (+ 2 (count (name (first &form))) #_20 (:column (meta &form)))
+        rows (string/split string #"\n")]
+    (string/join "\n"
+                 (concat [(first rows)]
+                         (map #(subs % (min intendation
+                                            (count %)))
+                              (rest rows))))))
+
+(deftest test-remove-indentation
+  (is (= "this is\nmultiline\nstring"
+         (remove-indentation "this is
+                              multiline
+                              string"))))
+
+
 
 ;;;; Test
 
