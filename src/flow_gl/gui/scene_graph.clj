@@ -675,14 +675,27 @@
 
 (defn map-nodes [function scene-graph & [{:keys [descend?] :as options :or {descend? (constantly true)}}]]
   (let [result (function scene-graph)]
-    (if-let [children (:children scene-graph)]
+    (if-some [children (or (:children scene-graph)
+                           (when-some [child-node (:node scene-graph)]
+                             [child-node]))]
       (if (descend? scene-graph)
-        (assoc result
-               :children (doall (map (fn [child]
-                                       (map-nodes function
-                                                  child
-                                                  options))
-                                     children)))
+        (cond (some? (:children scene-graph))
+              (assoc result
+                     :children
+                     (doall (map (fn [child]
+                                   (map-nodes function
+                                              child
+                                              options))
+                                 children)))
+              (some? (:node scene-graph))
+              (assoc result
+                     :node
+                     (map-nodes function
+                                (first children)
+                                options))
+
+              :else
+              result)
         result)
       result)))
 
@@ -898,6 +911,12 @@
   (map-nodes #(select-keys % keys)
              scene-graph))
 
+(deftest test-select-node-keys
+  (is (= '{:node {:a 1, :children ({:a 2})}}
+         (select-node-keys [:a]
+                           {:node {:a 1
+                                   :children [{:a 2}]}}))))
+
 (defn print-scene-graph
   "use with select-node-keys"
   ([scene-graph]
@@ -906,10 +925,13 @@
   ([level scene-graph]
    (println (str (apply str (repeat (* level 2) " "))
                  (pr-str (dissoc scene-graph
-                                 :children))))
+                                 :children
+                                 :node))))
 
    (run! (partial print-scene-graph (inc level))
-         (:children scene-graph))))
+         (or (:children scene-graph)
+             (when-some [child-node (:node scene-graph)]
+               [child-node])))))
 
 (defn nodes-in-view [width height leaf-nodes]
   (filter (fn [node]
