@@ -172,6 +172,11 @@
                               :x 5
                               :y 5})))
 
+  (is (= {:x 5, :y 5}
+         (apply-layout-nodes {:node {:x 40 :y 50}
+                              :x 5
+                              :y 5})))
+
   (is (= '{:y 5,
            :x 0,
            :children ({:expected-position 1, :x 5, :y 5} {:x 5, :y 5, :z 10})}
