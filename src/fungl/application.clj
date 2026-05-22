@@ -58,6 +58,10 @@
 (defn create-render-state []
   (node-image-cache/state-bindings))
 
+(defn bindings []
+  (merge (create-event-handling-state)
+         (create-render-state)))
+
 (defn handle-new-scene-graph! [scene-graph]
   ;; (println "new scene graph:" (System/identityHashCode scene-graph))
   ;; (scene-graph/print-scene-graph (scene-graph/select-node-keys [:compilation-path :type :can-gain-focus? :keyboard-event-handler] scene-graph))
@@ -215,8 +219,7 @@
   (close-window! (:window state)))
 
 (defn create-bindings-without-window [root-view-call]
-  (let [bindings (merge (create-event-handling-state)
-                        (create-render-state))]
+  (let [bindings (bindings)]
     (with-bindings bindings
       (swap! application-loop-state-atom
              assoc
