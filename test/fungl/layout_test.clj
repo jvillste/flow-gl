@@ -332,7 +332,7 @@
                                     {:type :fungl.layouts/box}
                                       {:type :flow-gl.gui.visuals/rectangle}
                                       {:type :flow-gl.gui.visuals/text-area}
-                                 ")
+                                  ")
              (with-out-str (scene-graph/print-scene-graph (scene-graph/select-node-keys [:x :y :width :height :type] scene-graph)))))
 
       (is (= (remove-indentation "{:x 0, :y 0, :width 2147483647, :height 2147483647}
@@ -349,7 +349,7 @@
                                             {:width 2147483647, :height 2147483647, :type :flow-gl.gui.visuals/rectangle}
                                           {:x 10, :y 10, :width 270.0, :height 56.640625}
                                             {:width 270.0, :height 56.640625, :type :flow-gl.gui.visuals/text-area}
-                                 ")
+                                  ")
              (with-out-str (scene-graph/print-scene-graph (scene-graph/select-node-keys [:x :y :width :height :type] layouted-scene-graph)))))
 
       (is (= (remove-indentation "{:x 0, :y 0, :width 2147483647, :height 2147483647, :type :fungl.layouts/vertical-stack}
@@ -359,9 +359,35 @@
                                     {:x 0, :y 126.640625, :width 2147483647, :height 76.640625, :type :fungl.layouts/box}
                                       {:x 0, :y 0, :width 2147483647, :height 76.640625, :type :flow-gl.gui.visuals/rectangle}
                                       {:x 10, :y 10, :width 270.0, :height 56.640625, :type :flow-gl.gui.visuals/text-area}
-                                 ")
-             (with-out-str (scene-graph/print-scene-graph (scene-graph/select-node-keys [:x :y :width :height :type] (layout/apply-layout-nodes layouted-scene-graph)))))))))
+                                  ")
+             (with-out-str (scene-graph/print-scene-graph (scene-graph/select-node-keys [:x :y :width :height :type] (layout/apply-layout-nodes layouted-scene-graph))))))))
 
+
+
+  (testing "box :fill-width true no :set-available-width-to-fit-the-widest-child"
+    (is (= (remove-indentation "{:x 0, :y 0, :width 500, :height 500, :type :fungl.layouts/vertical-stack}
+                                  {:x 0, :y 0, :width 500, :height 40, :type :fungl.layouts/box}
+                                    {:x 0, :y 0, :width 500, :height 40, :type :rectangle}
+                                    {:x 10, :y 10, :width 50, :height 20, :type :text}
+                                  {:x 0, :y 90, :width 500, :height 40, :type :fungl.layouts/box}
+                                    {:x 0, :y 0, :width 500, :height 40, :type :rectangle}
+                                    {:x 10, :y 10, :width 100, :height 20, :type :text}
+                                ")
+           (with-out-str (scene-graph/print-scene-graph (scene-graph/select-node-keys [:x :y :width :height :type]
+                                                                                      (layout/apply-layout-nodes (with-bindings (application/bindings)
+                                                                                                                   (layout/layout-scene-graph (layouts/vertically-2 {:margin 50}
+                                                                                                                                                                    (layouts/box 10
+                                                                                                                                                                                 {:type :rectangle}
+                                                                                                                                                                                 {:type :text
+                                                                                                                                                                                  :get-size (constantly {:width 50 :height 20})}
+                                                                                                                                                                                 {:fill-width? true})
+                                                                                                                                                                    (layouts/box 10
+                                                                                                                                                                                 {:type :rectangle}
+                                                                                                                                                                                 {:type :text
+                                                                                                                                                                                  :get-size (constantly {:width 100 :height 20})}
+                                                                                                                                                                                 {:fill-width? true}))
+                                                                                                                                              500
+                                                                                                                                              500))))))))))
 
 (deftest test-box-layout
   (with-bindings (application/bindings)
