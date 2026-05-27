@@ -36,7 +36,7 @@
 
 (defn add-size [node available-width available-height]
   (merge node
-        (size node available-width available-height)))
+         (size node available-width available-height)))
 
 (defn make-layout [node]
   (if-let [make-layout-callable (:make-layout node)]
