@@ -344,7 +344,7 @@
                                           (:window-height @application-loop-state-atom))))
     bindings))
 
-(defn- applicaiton-loop [target-frame-rate on-exit]
+(defn- application-loop [target-frame-rate on-exit]
   (try (handle-events! [{:type :resize-requested
                          :width (* 2 (:window-width @application-loop-state-atom)),
                          :height (* 2 (:window-height @application-loop-state-atom))}])
@@ -384,9 +384,9 @@
                         (create-bindings-with-swing-window [root-view]))
 
     (if join?
-      (applicaiton-loop target-frame-rate on-exit)
+      (application-loop target-frame-rate on-exit)
       (thread "fungl application"
-              (applicaiton-loop target-frame-rate on-exit)))
+              (application-loop target-frame-rate on-exit)))
 
     (window/event-channel (:window @application-loop-state-atom))))
 
