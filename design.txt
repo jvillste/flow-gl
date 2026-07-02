@@ -201,3 +201,21 @@ When a node is invalidated
 focused subtrees is invalidated when new scene graph is formed, it invalidates view compilation because it produces new closures in the text editor component commands
 
 what if view compilation would be done twice before layout and rendering?
+
+
+# Equalizing width of boxes on a vertical stack
+
+Vertical stack with :fill-width?, equalized the box sizes, but we want
+to equalize the widths of the first childs, which are the rectangles
+wrapping the contents. Box with :fille-width? sets the rectangle
+widths to available-width. That is too wide, since we want to set the
+width to the widest box in the stack.
+
+Setting the available-width to the width of the widest box in
+vertical-stack is not possible, since the widths of the children are
+not known when the available-widths of the children must be given.
+
+Box should know it's final size before laying out it's children. If
+box has boxes as children, they should know their final size before
+laying out their children. Vertical stack needs to know the preferred
+sizes of the children before setting their final size.
