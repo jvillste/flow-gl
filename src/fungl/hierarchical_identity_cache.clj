@@ -192,16 +192,23 @@
                      [])
       result)))
 
-(defn call-with-cache [cache-atom path number-of-identity-arguments function & arguments]
-  #_(apply function arguments)
-  (let [identity-keys (select-identity-keys number-of-identity-arguments arguments)
+(defn select-values [indexes a-vector]
+  (vec (for [index indexes]
+         (get (vec a-vector) index))))
 
-        value-keys (select-value-keys number-of-identity-arguments arguments)
+(deftest test-select-values
+  (is (= [2]
+         (select-values [1] [1 2 3]))))
+
+(defn call-with-cache-2 [cache-atom path identity-key-indexes value-key-indexes function & arguments]
+  #_(apply function arguments)
+  (let [identity-keys (select-values identity-key-indexes arguments)
+
+        value-keys (select-values value-key-indexes arguments)
 
         mapping (get-mapping-from-cache @cache-atom path function identity-keys value-keys)
 
         invalid? (invalid-mapping? mapping)]
-
 
     (when invalid?
       (swap! cache-atom
@@ -281,7 +288,15 @@
           (swap! cache-atom update-in [:usage-statistics :hit-count] (fnil inc 0))
           (:value mapping)))))
 
-
+(defn call-with-cache [cache-atom path number-of-identity-arguments function & arguments]
+  (apply call-with-cache-2
+         cache-atom
+         path
+         (range number-of-identity-arguments)
+         (range number-of-identity-arguments
+                (count arguments))
+         function
+         arguments))
 
 (defn remove-unused-mappings [last-cleanup-cycle-number cache-trie]
   (let [status (or (when-some [last-accessed (-> cache-trie ::trie/value :last-accessed)]
@@ -390,7 +405,7 @@
                                           reverse)]
         (print "    ")
         (prn mapping-id frequency)))
-   (prn (apply dissoc statistics frequency-keys))))
+    (prn (apply dissoc statistics frequency-keys))))
 
 (def ^:dynamic maximum-number-of-cycles-without-removing-unused-keys 10)
 
