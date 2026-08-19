@@ -117,7 +117,7 @@
                             fill-width?
                             margin]
                      :or {centered? false
-                          fill-width? true
+                          fill-width? false
                           margin 0}}
                     & children]
   (assoc vertical-stack
@@ -278,15 +278,12 @@
 
 (spec/def ::margin int?)
 
-(defn box-get-size [{:keys [margin children fill-width?]} available-width _available-height]
+(defn box-get-size [{:keys [margin children]} _available-width _available-height]
   (let [[_outer inner] children]
-    {:width (if fill-width?
-              available-width
-              (+ (* 2 margin)
-                 (:width inner)))
+    {:width (+ (* 2 margin)
+               (:width inner))
      :height (+ (* 2 margin)
                 (:height inner))}))
-
 
 (defn box-available-area-for-children [node available-width available-height]
   [{:available-width available-width
@@ -296,7 +293,7 @@
     :available-height (- available-height
                          (* 2 (:margin node)))}])
 
-(defn box-make-layout [{:keys [width height margin fill-width?] :as node}]
+(defn box-make-layout [{:keys [width height margin fill-width? fill-height?] :as node}]
   (update-in node
              [:children]
              (fn [[outer inner]]
@@ -308,9 +305,11 @@
                                       (max width
                                            (+ (:width inner)
                                               (* 2 margin))))
-                                    (max height
-                                         (+ (:height inner)
-                                            (* 2 margin))))
+                                    (if fill-height?
+                                      height
+                                      (max height
+                                           (+ (:height inner)
+                                              (* 2 margin)))))
                 (layout/place-child inner
                                     margin
                                     margin
@@ -318,10 +317,11 @@
                                     (:height inner))])))
 
 
-(defn box [margin outer inner & [{:keys [fill-width?] :or {fill-width? false}}]]
+(defn box [margin outer inner & [{:keys [fill-width? fill-height?]}]]
   (when (and outer inner)
     {:type ::box
      :fill-width? fill-width?
+     :fill-height? fill-height?
      :get-size box-get-size
      :available-area-for-children box-available-area-for-children
      :make-layout box-make-layout
@@ -513,15 +513,19 @@
                          top-margin
                          bottom-margin)}])
 
-(defn with-margins-make-layout [{:keys [left-margin top-margin] :as node}]
+(defn with-margins-make-layout [{:keys [top-margin right-margin bottom-margin left-margin width height fill-width? fill-height?] :as node}]
   (update-in node
              [:children]
              (fn [[child]]
                [(layout/place-child child
                                     left-margin
                                     top-margin
-                                    (:width child)
-                                    (:height child))])))
+                                    (if fill-width?
+                                      (- width right-margin)
+                                      (:width child))
+                                    (if fill-height?
+                                      (- height bottom-margin)
+                                      (:height child)))])))
 
 (defn with-margins [top-margin right-margin bottom-margin left-margin child]
   (when child
@@ -542,6 +546,24 @@
      :get-size with-margins-get-size
      :available-area-for-children with-margins-available-area-for-children
      :make-layout with-margins-make-layout
+
+     :top-margin margin
+     :right-margin margin
+     :bottom-margin margin
+     :left-margin margin
+
+     :children [child]}))
+
+
+(defn with-margin-2 [{:keys [margin fill-width? fill-height?]}  child]
+  (when child
+    {:type ::with-margins
+     :get-size with-margins-get-size
+     :available-area-for-children with-margins-available-area-for-children
+     :make-layout with-margins-make-layout
+
+     :fill-width? fill-width?
+     :fill-height? fill-height?
 
      :top-margin margin
      :right-margin margin
@@ -790,6 +812,10 @@
                                   (group-by ::column)
                                   (medley/map-vals (fn [column]
                                                      (apply max (map :width column)))))
+               row-heights (->> (:children node)
+                                (group-by ::row)
+                                (medley/map-vals (fn [column]
+                                                   (apply max (map :height column)))))
                rows (partition-by ::row (:children node))]
            (loop [layouted-nodes []
                   x 0
@@ -802,8 +828,12 @@
                             (layout/place-child cell
                                                 x
                                                 y
-                                                (:width cell)
-                                                (:height cell)))
+                                                (if (:fill-width? node)
+                                                  (get column-widths (::column cell))
+                                                  (:width cell))
+                                                (if (:fill-height? node)
+                                                  (get row-heights (::row cell))
+                                                  (:height cell))))
                       (+ x (get column-widths (::column cell)))
                       y
                       (rest cells)
@@ -818,15 +848,24 @@
                         0)
                  layouted-nodes))))))
 
-(defn grid [rows]
-  {:type ::grid
-   :children (vec (apply concat (map-indexed (fn [row-number row]
-                                               (map-indexed (fn [column-number cell]
-                                                              {::column column-number
-                                                               ::row row-number
-                                                               :node cell})
-                                                            row))
-                                             rows)))
-   :get-size grid-get-size
-   :available-area-for-children grid-available-area-for-children
-   :make-layout grid-make-layout})
+(defn grid
+  ([rows]
+   (grid {} rows))
+
+  ([{:keys [fill-width? fill-height?]
+     :or {fill-width? false
+          fill-height? false}}
+    rows]
+   {:type ::grid
+    :fill-width? fill-width?
+    :fill-height? fill-height?
+    :children (vec (apply concat (map-indexed (fn [row-number row]
+                                                (map-indexed (fn [column-number cell]
+                                                               {::column column-number
+                                                                ::row row-number
+                                                                :node cell})
+                                                             row))
+                                              rows)))
+    :get-size grid-get-size
+    :available-area-for-children grid-available-area-for-children
+    :make-layout grid-make-layout}))

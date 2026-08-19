@@ -618,25 +618,48 @@
           ))))
   )
 
-(comment
-  (test)
-  ) ;; TODO: remove me
-
-
-(defn box [content & [{:keys [fill-color]}]]
+(defn box [content]
   (layouts/box 10
-               (visuals/rectangle-2 :fill-color (or fill-color [0.0 0.0 1.0 0.5])
+               (visuals/rectangle-2 :fill-color [0.3 0.3 1.0 1.0]
                                     :corner-arc-radius 20)
-               content))
+               content
+               {:fill-width? true
+                :fill-height? true}))
 
 (defn root-view []
-  (layouts/horizontally-2 {:margin 10}
-                          (box (layouts/vertically-2 {:margin 10}
-                                                     (text "hello")
-                                                     (text "hello world !!!!")))
-                          (box (layouts/vertically-2 {:margin 10}
-                                                     (text "hello")
-                                                     (text "hello world")))))
+  (layouts/grid {:fill-width? true :fill-height? true}
+                [[(layouts/with-margin-2 {:margin 10 :fill-width? false :fill-height? true}
+                    (box (text "hello")))
+
+                  (layouts/with-margin-2 {:margin 10 :fill-width? true :fill-height? true}
+                    (box (layouts/vertically-2 {:margin 10}
+                                               (text "hello")
+                                               (text "world !!!!"))))]
+
+                 [(layouts/with-margin-2 {:margin 10 :fill-width? true :fill-height? true}
+                    (box (layouts/vertically-2 {:margin 10}
+                                               (text "hello")
+                                               (text "world !!!!"))))
+
+                  (layouts/with-margin-2 {:margin 10 :fill-width? true :fill-height? false}
+                    (box (text "hello")))]]))
+
+
+;; (defn root-view []
+;;   (layouts/horizontally-2 {:margin 10}
+;;                           (layouts/vertically-2 {:margin 10}
+;;                                                 (box (layouts/vertically-2 {:margin 10}
+;;                                                                            (text "hello world !!!!")))
+;;                                                 (box (layouts/vertically-2 {:margin 10}
+;;                                                                            (text "hello"))))
+;;                           (layouts/vertically-2 {:fill-width? true
+;;                                                  :margin 10}
+;;                                                 (box (layouts/vertically-2 {:margin 10}
+;;                                                                            (text "hello world")))
+;;                                                 (box (layouts/vertically-2 {:margin 10}
+;;                                                                            (text "hello"))))))
+
+
 (application/def-start root-view)
 
 (comment
