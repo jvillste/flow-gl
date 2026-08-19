@@ -1,5 +1,6 @@
 (ns fungl.layout
   (:require
+   clojure.data
    [clojure.spec.alpha :as spec]
    [clojure.test :refer [deftest is]]
    [flow-gl.gui.scene-graph :as scene-graph]
@@ -72,6 +73,25 @@
           :given-y nil}
          (save-layout {:x 10 :width 20}))))
 
+(defn uncached-place-child [child x y width height]
+  (assoc child :x x :y y :width width :height height))
+
+(defn place-child [child x y width height]
+  ;; returns the same java object as the previous time the same measured
+  ;; child was given the same position and dimensions, so that the caches
+  ;; below the child hit and java object identity is preserved. Only the
+  ;; identity of the child and the four numbers are compared, never the
+  ;; contents of the child
+  (hierarchical-identity-cache/call-with-cache view-compiler/compile-node-cache-atom
+                                               (:compilation-path child)
+                                               1
+                                               uncached-place-child
+                                               child
+                                               x
+                                               y
+                                               width
+                                               height))
+
 (defn log-node [message node]
   (println message (:id node) (System/identityHashCode node))
   node)
@@ -105,8 +125,6 @@
 ;; (def count-atom (atom 0))
 
 (defn layout-node [node available-width available-height]
-   (log/write "layout-node" (:compilation-path node))
-
   ;;   (swap! count-atom inc)
   (-> node
       (adapt-to-space available-width available-height)
@@ -115,15 +133,70 @@
       (measuring/add-size available-width available-height)
       (measuring/make-layout)))
 
+(declare cached-measure)
+
+(defn measure [node available-width available-height]
+  (-> node
+      (adapt-to-space available-width available-height)
+      (cond->
+          (some? (:children node))
+        (update :children
+                (fn [children]
+                  (mapv (fn [child available-area]
+                          (cached-measure child
+                                          (:available-width available-area)
+                                          (:available-height available-area)))
+                        children
+                        (if-some [available-area-for-children (:available-area-for-children node)]
+                          (available-area-for-children node
+                                                       available-width
+                                                       available-height)
+                          (repeat (count children)
+                                  {:available-width available-width
+                                   :available-height available-height}))))))
+      (measuring/add-size available-width available-height)))
+
+(defn cached-measure [node available-width available-height]
+  (hierarchical-identity-cache/call-with-cache view-compiler/compile-node-cache-atom
+                                               (:compilation-path node)
+                                               1
+                                               measure
+                                               node
+                                               available-width
+                                               available-height))
+
+(declare cached-make-layout)
+
+(defn make-layout [node]
+  (-> node
+      (save-layout)
+      (measuring/make-layout)
+      (cond->
+          (some? (:children node))
+        (update :children
+                (fn [children]
+                  (mapv cached-make-layout
+                        children))))))
+
+(defn cached-make-layout [node]
+  (hierarchical-identity-cache/call-with-cache view-compiler/compile-node-cache-atom
+                                               (:compilation-path node)
+                                               1
+                                               make-layout
+                                               node))
+
+(defn layout-node-in-two-passes [node available-width available-height]
+  (-> node
+      (cached-measure available-width available-height)
+      (cached-make-layout)))
 
 
 (defn- layout-root [scene-graph available-width available-height]
-  (log/write "layout-root")
-  {:node (layout-node scene-graph available-width available-height)
-   :x 0
-   :y 0
-   :width available-width
-   :height available-height})
+  (place-child (layout-node-in-two-passes #_layout-node scene-graph available-width available-height)
+               0
+               0
+               available-width
+               available-height))
 
 (defn layout-scene-graph [scene-graph available-width available-height]
   (hierarchical-identity-cache/with-cache-cleanup layout-node-cache-atom

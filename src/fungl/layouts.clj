@@ -1,6 +1,7 @@
 (ns fungl.layouts
   (:require [clojure.spec.alpha :as spec]
             [flow-gl.gui.scene-graph :as scene-graph]
+            [fungl.layout :as layout]
             [fungl.layout.measuring :as measuring]
             [clojure.test :refer :all]
             [medley.core :as medley]))
@@ -79,17 +80,17 @@
                   children (:children node)]
              (if-let [child (first children)]
                (recur (conj layouted-nodes
-                            {:node child
-                             :x (if (::centered node)
-                                  (/ (- (:width node)
-                                        (:width child))
-                                     2)
-                                  0)
-                             :y y
-                             :width (if (:fill-width? node)
-                                      maximum-width
-                                      (:width child))
-                             :height (:height child)})
+                            (layout/place-child child
+                                                (if (::centered node)
+                                                  (/ (- (:width node)
+                                                        (:width child))
+                                                     2)
+                                                  0)
+                                                y
+                                                (if (:fill-width? node)
+                                                  maximum-width
+                                                  (:width child))
+                                                (:height child)))
                       (+ y (:height child)
                          (:margin node))
                       (rest children))
@@ -515,11 +516,11 @@
   (update-in node
              [:children]
              (fn [[child]]
-               [{:node child
-                 :x left-margin
-                 :y top-margin
-                 :width (:width child)
-                 :height (:height child)}])))
+               [(layout/place-child child
+                                    left-margin
+                                    top-margin
+                                    (:width child)
+                                    (:height child))])))
 
 (defn with-margins [top-margin right-margin bottom-margin left-margin child]
   (when child
