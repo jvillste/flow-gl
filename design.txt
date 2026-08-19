@@ -219,3 +219,33 @@ Box should know it's final size before laying out it's children. If
 box has boxes as children, they should know their final size before
 laying out their children. Vertical stack needs to know the preferred
 sizes of the children before setting their final size.
+
+
+2.7.2026
+# two pass layout
+
+parent adds child :x :y :width and :height and calls layout for it.
+
+
+when vertical stack lays out it's children some of them might be the
+same objects as when the layout was done previously. If they are laid
+out as before, the previously laid out object should be preserved.
+
+How can we make sure, that if a child is the same as on the last
+layout round and it gets the same position, the same java object is
+retained?
+
+If some other child is changed, the parent is not the same and thus we
+can't find the previous layout from the cache.
+
+We find the previous node by path from the previous layout.
+
+when measuring and layout was done on a single pass from bottom to
+top, cacheing was trivial since layout of a node did not affect the
+layout it's siblings and could thus be cached like the measuring can
+be cached in two pass layout.
+
+Because size of a node can affect the size of it's siblings, we must
+first calculate the new layout and compare it to the previous one to
+see if we could use the same java object as the final result. That is
+what node-image-cache does.
