@@ -631,15 +631,14 @@
 
 (defn root-view []
   (layouts/horizontally-2 {:margin 10}
-                          (box (layouts/with-minimum-size 500 nil
-                                 (layouts/vertically-2 {:margin 10}
+                          (box (layouts/vertically-2 {:margin 10}
+                                                     (text "hello")
+                                                     (text "hello world !!!!")))
+                          (box (layouts/vertically-2 {:margin 10}
+                                                     (text "hello")
+                                                     (text "hello world")))))
+(application/def-start root-view)
 
-                                                       (text "hello")
-                                                       (text "hello world"))))
-                          (box (layouts/with-minimum-size 500 nil
-                                 (layouts/vertically-2 {:margin 10}
-                                                       (text "hello")
-                                                       (text "hello world"))))))
 (comment
   (application/start-application (var root-view))
 
