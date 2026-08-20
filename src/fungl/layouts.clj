@@ -869,3 +869,19 @@
     :get-size grid-get-size
     :available-area-for-children grid-available-area-for-children
     :make-layout grid-make-layout}))
+
+
+(defn grid-2 [{:keys [gap padding cell-background fill-width? fill-height?] :or {gap 0 padding 0}} rows]
+  (grid {:fill-width? fill-width?
+         :fill-height? fill-height?}
+        (for [row rows]
+          (for [cell row]
+            (with-margin-2 {:margin (/ gap 2)
+                            :fill-width? fill-width?
+                            :fill-height? fill-height?}
+              (box padding
+                   (or cell-background
+                       {})
+                   cell
+                   {:fill-width? fill-width?
+                    :fill-height? fill-height?}))))))

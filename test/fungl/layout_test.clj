@@ -626,23 +626,42 @@
                {:fill-width? true
                 :fill-height? true}))
 
+;; (defn root-view []
+;;   (layouts/grid {:fill-width? true :fill-height? true}
+;;                 [[(layouts/with-margin-2 {:margin 10 :fill-width? false :fill-height? true}
+;;                     (box (text "hello")))
+
+;;                   (layouts/with-margin-2 {:margin 10 :fill-width? true :fill-height? true}
+;;                     (box (layouts/vertically-2 {:margin 10}
+;;                                                (text "hello")
+;;                                                (text "world !!!!"))))]
+
+;;                  [(layouts/with-margin-2 {:margin 10 :fill-width? true :fill-height? true}
+;;                     (box (layouts/vertically-2 {:margin 10}
+;;                                                (text "hello")
+;;                                                (text "world !!!!"))))
+
+;;                   (layouts/with-margin-2 {:margin 10 :fill-width? true :fill-height? false}
+;;                     (box (text "hello")))]]))
+
 (defn root-view []
-  (layouts/grid {:fill-width? true :fill-height? true}
-                [[(layouts/with-margin-2 {:margin 10 :fill-width? false :fill-height? true}
-                    (box (text "hello")))
+  (layouts/grid-2 {:gap 10
+                   :padding 20
+                   :fill-width? false
+                   :fill-height? true
+                   :cell-background (visuals/rectangle-2 :fill-color [0.3 0.3 1.0 1.0]
+                                                         :corner-arc-radius 50)}
+                  [[(box (text "hello"))
 
-                  (layouts/with-margin-2 {:margin 10 :fill-width? true :fill-height? true}
-                    (box (layouts/vertically-2 {:margin 10}
-                                               (text "hello")
-                                               (text "world !!!!"))))]
+                    (layouts/vertically-2 {:margin 10}
+                                          (text "hello")
+                                          (text "world !!!!"))]
 
-                 [(layouts/with-margin-2 {:margin 10 :fill-width? true :fill-height? true}
-                    (box (layouts/vertically-2 {:margin 10}
-                                               (text "hello")
-                                               (text "world !!!!"))))
+                   [(layouts/vertically-2 {:margin 10}
+                                          (text "hello")
+                                          (text "world !!!!"))
 
-                  (layouts/with-margin-2 {:margin 10 :fill-width? true :fill-height? false}
-                    (box (text "hello")))]]))
+                    (box (text "hello"))]]))
 
 
 ;; (defn root-view []
