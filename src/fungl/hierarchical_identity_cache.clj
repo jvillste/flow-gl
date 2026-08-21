@@ -192,21 +192,9 @@
                      [])
       result)))
 
-(defn select-values [indexes a-vector]
-  (vec (for [index indexes]
-         (get (vec a-vector) index))))
-
-(deftest test-select-values
-  (is (= [2]
-         (select-values [1] [1 2 3]))))
-
-(defn call-with-cache-2 [cache-atom path identity-key-indexes value-key-indexes function & arguments]
+(defn call-with-cache-3 [cache-atom path identity-keys value-keys function & arguments]
   #_(apply function arguments)
-  (let [identity-keys (select-values identity-key-indexes arguments)
-
-        value-keys (select-values value-key-indexes arguments)
-
-        mapping (get-mapping-from-cache @cache-atom path function identity-keys value-keys)
+  (let [mapping (get-mapping-from-cache @cache-atom path function identity-keys value-keys)
 
         invalid? (invalid-mapping? mapping)]
 
@@ -287,6 +275,23 @@
                                     :status :reused)))))
           (swap! cache-atom update-in [:usage-statistics :hit-count] (fnil inc 0))
           (:value mapping)))))
+
+(defn select-values [indexes a-vector]
+  (vec (for [index indexes]
+         (get (vec a-vector) index))))
+
+(deftest test-select-values
+  (is (= [2]
+         (select-values [1] [1 2 3]))))
+
+(defn call-with-cache-2 [cache-atom path identity-key-indexes value-key-indexes function & arguments]
+  (apply call-with-cache-3
+         cache-atom
+         path
+         (select-values identity-key-indexes arguments)
+         (select-values value-key-indexes arguments)
+         function
+         arguments))
 
 (defn call-with-cache [cache-atom path number-of-identity-arguments function & arguments]
   (apply call-with-cache-2
