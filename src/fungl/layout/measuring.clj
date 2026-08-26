@@ -29,9 +29,11 @@
       (assoc size
              :given-width (:width size)
              :given-height (:height size)))
-    {:width (or (:given-width node)
+    {:width (or (:width node)
+                (:given-width node)
                 available-width)
-     :height (or (:given-height node)
+     :height (or (:height node)
+                 (:given-height node)
                  available-height)}))
 
 (defn add-size [node available-width available-height]
