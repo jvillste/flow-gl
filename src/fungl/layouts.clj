@@ -70,8 +70,7 @@
                         (min (:width node)
                              (apply max (conj (remove nil?
                                                       (map (fn [child]
-                                                             (or (:given-width child)
-                                                                 (:width child)))
+                                                             (:width child))
                                                            (:children node)))
                                               0))))]
     (assoc node :children
@@ -91,7 +90,8 @@
                                                   maximum-width
                                                   (:width child))
                                                 (:height child)))
-                      (+ y (:height child)
+                      (+ y
+                         (:height child)
                          (:margin node))
                       (rest children))
                layouted-nodes)))))
