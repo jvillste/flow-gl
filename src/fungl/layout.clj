@@ -96,43 +96,6 @@
   (println message (:id node) (System/identityHashCode node))
   node)
 
-(declare do-layout
-         layout-node)
-
-(defn do-layout-for-children [node available-width available-height]
-  (update node
-          :children
-          (fn [children]
-            (if children
-              (mapv (fn [child available-area]
-                      (hierarchical-identity-cache/call-with-cache view-compiler/compile-node-cache-atom
-                                                                   (:compilation-path child)
-                                                                   1
-                                                                   layout-node
-                                                                   child
-                                                                   (:available-width available-area)
-                                                                   (:available-height available-area)))
-                    children
-                    (if-some [available-area-for-children (:available-area-for-children node)]
-                      (available-area-for-children node
-                                                   available-width
-                                                   available-height)
-                      (repeat (count children)
-                              {:available-width available-width
-                               :available-height available-height})))
-              nil))))
-
-;; (def count-atom (atom 0))
-
-(defn layout-node [node available-width available-height]
-  ;;   (swap! count-atom inc)
-  (-> node
-      (adapt-to-space available-width available-height)
-      (do-layout-for-children available-width available-height)
-      (save-layout)
-      (measuring/add-size available-width available-height)
-      (measuring/make-layout)))
-
 (declare cached-measure)
 
 (defn measure [node available-width available-height]
