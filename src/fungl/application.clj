@@ -361,9 +361,9 @@
 
        (logga/write "exiting application loop")
 
-       (catch Exception exception
-         (logga/write "Exception in application loop:" (prn-str exception))
-         (throw exception))
+       (catch Throwable throwable
+         (logga/write "Exception in application loop:" (prn-str throwable))
+         (throw throwable))
        (finally
          (when on-exit
            (on-exit))
