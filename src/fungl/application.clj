@@ -310,10 +310,7 @@
         (with-gl (fn [gl]
                    (let [scene-graph (->> scene-graph
                                           (node-image-cache/render-recurring-nodes-to-images nodes-to-image-node previous-rendered-scene-graph)
-                                          (renderer/apply-renderers! gl) ;; TODO: this should be cached to make the scene graph stay identical when possible
-                                          (identity-cache/call-with-cache apply-layout-nodes-cache-atom
-                                                                          1
-                                                                          layout/apply-layout-nodes))]
+                                          (renderer/apply-renderers! gl))]  ;; TODO: this should be cached to make the scene graph stay identical when possible
                      (->> (scene-graph/scene-graph-nodes-in-view scene-graph
                                                                  (:width scene-graph)
                                                                  (:height scene-graph))

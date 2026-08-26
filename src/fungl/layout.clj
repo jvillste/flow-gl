@@ -73,8 +73,28 @@
           :given-y nil}
          (save-layout {:x 10 :width 20}))))
 
+(defn uncached-set-child-size [child width height]
+  (assoc child
+         :width width
+         :height height))
+
+(defn set-child-size [child width height]
+  (hierarchical-identity-cache/call-with-cache view-compiler/compile-node-cache-atom
+                                               (:compilation-path child)
+                                               1
+                                               uncached-set-child-size
+                                               child
+                                               width
+                                               height))
+
 (defn uncached-place-child [child x y width height]
-  (assoc child :x x :y y :width width :height height))
+  (let [unplaced-child (set-child-size child
+                                       width
+                                       height)]
+    (assoc unplaced-child
+           :x x
+           :y y
+           :unplaced-node unplaced-child)))
 
 (defn place-child [child x y width height]
   ;; returns the same java object as the previous time the same measured
@@ -132,7 +152,7 @@
 
 (defn make-layout [node]
   (-> node
-      (save-layout)
+;;      (save-layout)
       (measuring/make-layout)
       (cond->
           (some? (:children node))
