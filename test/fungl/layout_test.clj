@@ -228,10 +228,7 @@
               {:type :flow-gl.gui.visuals/text-area})}
            (scene-graph/select-node-keys [:type] (layout/apply-layout-nodes (render-scene-graphs [child-list 1]
                                                                                                  [child-list 2])))))
-    )
-
-  )
-
+    ))
 
 (comment
   (test-layout-cache)
@@ -393,6 +390,37 @@
                                                                                                                                                                                  {:fill-width? true}))
                                                                                                                                               500
                                                                                                                                               500))))))))))
+
+(deftest test-vertical-stack
+  (with-bindings (application/bindings)
+    (is (= '{:children ({:height 50, :width 10, :x 0, :y 0}),
+             :height 500,
+             :type :fungl.layouts/vertical-stack,
+             :width 500,
+             :x 0,
+             :y 0}
+           (scene-graph/select-node-keys [:x :y :width :height :type]
+                                         (-> (layouts/vertically-2 {:margin 50}
+                                                                   {:width 10
+                                                                    :height 50})
+                                             (view-compiler/compile-view-calls)
+                                             (layout/layout-scene-graph 500
+                                                                        500)))))
+
+    (is (= '{:children ({:height 50, :width 10, :x 0, :y 0}),
+             :height 500,
+             :type :fungl.layouts/vertical-stack,
+             :width 500,
+             :x 0,
+             :y 0}
+           (scene-graph/select-node-keys [:x :y :width :height :type]
+                                         (-> (layouts/vertically-2 {:margin 50}
+                                                                   {:get-size (fn [_node _available-width _available-height]
+                                                                                {:width 10
+                                                                                 :height 50})})
+                                             (view-compiler/compile-view-calls)
+                                             (layout/layout-scene-graph 500
+                                                                        500)))))))
 
 (deftest test-box-layout
   (with-bindings (application/bindings)
@@ -651,7 +679,16 @@
                    :fill-height? true
                    :cell-background (visuals/rectangle-2 :fill-color [0.3 0.3 1.0 1.0]
                                                          :corner-arc-radius 50)}
-                  [[(box (text "hello"))
+                  [[(visuals/rectangle-2 :fill-color [0.3 0.3 1.0 1.0]
+                                         :line-width 0
+                                         :corner-arc-radius 50
+                                         :width 500
+                                         :height 500)
+                    (visuals/rectangle-2 :fill-color [0.3 1.0 0.3 1.0]
+                                         :corner-arc-radius 50
+                                         :width 500
+                                         :height 500)]
+                   [(box (text "hello"))
 
                     (layouts/vertically-2 {:margin 10}
                                           (text "hello")
@@ -682,6 +719,7 @@
 (application/def-start root-view)
 
 (comment
+
   (application/start-application (var root-view))
 
   (with-bindings (application/create-bindings-without-window [root-view])
