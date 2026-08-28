@@ -22,40 +22,38 @@
     node
     (if (identical? (:unplaced-node previous-node)
                     (:unplaced-node node))
-        (cond-> (hierarchical-identity-cache/call-with-cache image-cache-atom
+      (cond-> (hierarchical-identity-cache/call-with-cache-3 image-cache-atom
                                                              (:id node)
-                                                             2
+                                                             [(:unplaced-node node)]
+                                                             []
                                                              render-to-images
                                                              nodes-to-image-node
-                                                             (:unplaced-node node))
-          (contains? node :x) (assoc :x (:x node))
-          (contains? node :y) (assoc :y (:y node))
-          ;; (contains? node :given-x) (assoc :given-x (:given-x node))
-          ;; (contains? node :given-y) (assoc :given-y (:given-y node))
-          )
-        (if (some? (:children node))
-          (update node
-                  :children
-                  (fn [children]
-                    (mapv (fn [[previous-child child]]
-                            (if (and (some? previous-child)
-                                     (or (identical? previous-child child)
-                                         (and (= (:type previous-child)
-                                                 (:type child))
-                                              (= (:local-id previous-child)
-                                                 (:local-id child)))))
-                              (render-recurring-nodes-to-images* nodes-to-image-node
-                                                                 previous-child
-                                                                 child)
-                              child))
-                          (partition 2
-                                     (interleave (concat (:children previous-node)
-                                                         (repeat (max 0
-                                                                      (- (count children)
-                                                                         (count (:children previous-node))))
-                                                                 nil))
-                                                 children)))))
-          node))))
+                                                             node)
+        (contains? node :x) (assoc :x (:x node))
+        (contains? node :y) (assoc :y (:y node)))
+      (if (some? (:children node))
+        (update node
+                :children
+                (fn [children]
+                  (mapv (fn [[previous-child child]]
+                          (if (and (some? previous-child)
+                                   (or (identical? previous-child child)
+                                       (and (= (:type previous-child)
+                                               (:type child))
+                                            (= (:local-id previous-child)
+                                               (:local-id child)))))
+                            (render-recurring-nodes-to-images* nodes-to-image-node
+                                                               previous-child
+                                                               child)
+                            child))
+                        (partition 2
+                                   (interleave (concat (:children previous-node)
+                                                       (repeat (max 0
+                                                                    (- (count children)
+                                                                       (count (:children previous-node))))
+                                                               nil))
+                                               children)))))
+        node))))
 
 (defn render-recurring-nodes-to-images [nodes-to-image-node previous-scene-graph scene-graph]
   (log/write "render-recurring-nodes-to-images")

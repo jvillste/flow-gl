@@ -152,7 +152,7 @@
 
 (defn make-layout [node]
   (-> node
-;;      (save-layout)
+      ;;      (save-layout)
       (measuring/make-layout)
       (cond->
           (some? (:children node))
@@ -175,7 +175,7 @@
 
 
 (defn- layout-root [scene-graph available-width available-height]
-  (place-child (layout-node-in-two-passes #_layout-node scene-graph available-width available-height)
+  (place-child (layout-node-in-two-passes scene-graph available-width available-height)
                0
                0
                available-width
