@@ -348,9 +348,8 @@
                                                    nodes-to-image-node))
                                      (doall)))))
 
-(defn render-to-image [_graphics original-layout-node]
-  (let [original-node (layout/apply-layout-nodes original-layout-node)
-        leaf-nodes (filter :draw-function (scene-graph/nodes-in-view-2 original-node
+(defn render-to-image [_graphics original-node]
+  (let [leaf-nodes (filter :draw-function (scene-graph/nodes-in-view-2 original-node
                                                                        (scene-graph/leaf-nodes (renderer/apply-renderers! nil
                                                                                                                           (dissoc original-node
                                                                                                                                   :render)))))

@@ -42,13 +42,13 @@
              :children nil})}
          (with-bindings (merge (view-compiler/state-bindings)
                                (layout/state-bindings))
-           (layout/select-layout-keys (layout/apply-layout-nodes (layout/layout-scene-graph (view-compiler/compile-view-calls {:local-id :a
-                                                                                                                               :adapt-to-space (fn [_node _available-width _available-height]
-                                                                                                                                                 {:node (layouts/vertically-2 {}
-                                                                                                                                                                              {:width 100 :height 100 :local-id :a}
-                                                                                                                                                                              {:width 100 :height 100 :local-id :b})
-                                                                                                                                                  :local-id :new-root})})
-                                                                                            100 100)))))))
+           (layout/select-layout-keys (layout/layout-scene-graph (view-compiler/compile-view-calls {:local-id :a
+                                                                                                    :adapt-to-space (fn [_node _available-width _available-height]
+                                                                                                                      {:node (layouts/vertically-2 {}
+                                                                                                                                                   {:width 100 :height 100 :local-id :a}
+                                                                                                                                                   {:width 100 :height 100 :local-id :b})
+                                                                                                                       :local-id :new-root})})
+                                                                 100 100))))))
 
 
 (def font (font/create-by-name "CourierNewPSMT" 40))
@@ -86,10 +86,10 @@
              (:id scene-graph))
         (prn "scene graph"
              (identical? previous-scene-graph scene-graph)
-             (scene-graph/select-node-keys [:type] (layout/apply-layout-nodes scene-graph)))
+             (scene-graph/select-node-keys [:type] scene-graph))
         (prn "image"
              (identical? previous-image image)
-             (scene-graph/select-node-keys [:type] (layout/apply-layout-nodes image)))
+             (scene-graph/select-node-keys [:type] image))
         (recur (rest view-calls)
                scene-graph
                image))
@@ -226,8 +226,8 @@
              ({:type :flow-gl.gui.visuals/text-area}
               {:type :rendered-to-images, :children ({:type :image})}
               {:type :flow-gl.gui.visuals/text-area})}
-           (scene-graph/select-node-keys [:type] (layout/apply-layout-nodes (render-scene-graphs [child-list 1]
-                                                                                                 [child-list 2])))))
+           (scene-graph/select-node-keys [:type] (render-scene-graphs [child-list 1]
+                                                                      [child-list 2]))))
     ))
 
 (comment
@@ -323,7 +323,7 @@
                                                           500)]
 
       (scene-graph/print-scene-graph (scene-graph/select-node-keys [:x :y :width :height :type]
-                                                                   (layout/apply-layout-nodes layouted-scene-graph)))
+                                                                   layouted-scene-graph))
       ;; (scene-graph/print-scene-graph (scene-graph/select-node-keys [:x :y :width :height :type] layouted-scene-graph))
 
       ;; (is (= (remove-indentation "{:type :fungl.layouts/vertical-stack}
@@ -376,20 +376,20 @@
                                     {:width 100, :height 20, :type :text}
                                 ")
            (with-out-str (scene-graph/print-scene-graph (scene-graph/select-node-keys [:x :y :width :height :type]
-                                                                                      (layout/apply-layout-nodes (with-bindings (application/bindings)
-                                                                                                                   (layout/layout-scene-graph (layouts/vertically-2 {:margin 50}
-                                                                                                                                                                    (layouts/box 10
-                                                                                                                                                                                 {:type :rectangle}
-                                                                                                                                                                                 {:type :text
-                                                                                                                                                                                  :get-size (constantly {:width 50 :height 20})}
-                                                                                                                                                                                 {:fill-width? true})
-                                                                                                                                                                    (layouts/box 10
-                                                                                                                                                                                 {:type :rectangle}
-                                                                                                                                                                                 {:type :text
-                                                                                                                                                                                  :get-size (constantly {:width 100 :height 20})}
-                                                                                                                                                                                 {:fill-width? true}))
-                                                                                                                                              500
-                                                                                                                                              500))))))))))
+                                                                                      (with-bindings (application/bindings)
+                                                                                        (layout/layout-scene-graph (layouts/vertically-2 {:margin 50}
+                                                                                                                                         (layouts/box 10
+                                                                                                                                                      {:type :rectangle}
+                                                                                                                                                      {:type :text
+                                                                                                                                                       :get-size (constantly {:width 50 :height 20})}
+                                                                                                                                                      {:fill-width? true})
+                                                                                                                                         (layouts/box 10
+                                                                                                                                                      {:type :rectangle}
+                                                                                                                                                      {:type :text
+                                                                                                                                                       :get-size (constantly {:width 100 :height 20})}
+                                                                                                                                                      {:fill-width? true}))
+                                                                                                                   500
+                                                                                                                   500)))))))))
 
 (deftest test-vertical-stack
   (with-bindings (application/bindings)
@@ -430,26 +430,26 @@
                                     {:x 10, :y 10, :width 100, :height 20, :type :text}
                                  ")
              (with-out-str (scene-graph/print-scene-graph (scene-graph/select-node-keys [:x :y :width :height :type]
-                                                                                        (layout/apply-layout-nodes (layout/layout-scene-graph (layouts/box 10
-                                                                                                                                                           {:type :rectangle}
-                                                                                                                                                           {:type :text
-                                                                                                                                                            :get-size (constantly {:width 100 :height 20})}
-                                                                                                                                                           {:fill-width? false})
-                                                                                                                                              500
-                                                                                                                                              500))))))))
+                                                                                        (layout/layout-scene-graph (layouts/box 10
+                                                                                                                                {:type :rectangle}
+                                                                                                                                {:type :text
+                                                                                                                                 :get-size (constantly {:width 100 :height 20})}
+                                                                                                                                {:fill-width? false})
+                                                                                                                   500
+                                                                                                                   500)))))))
     (testing ":fill-width true"
       (is (= (remove-indentation "{:x 0, :y 0, :width 500, :height 500, :type :fungl.layouts/box}
                                     {:x 0, :y 0, :width 500, :height 40, :type :rectangle}
                                     {:x 10, :y 10, :width 100, :height 20, :type :text}
                                  ")
              (with-out-str (scene-graph/print-scene-graph (scene-graph/select-node-keys [:x :y :width :height :type]
-                                                                                        (layout/apply-layout-nodes (layout/layout-scene-graph (layouts/box 10
-                                                                                                                                                           {:type :rectangle}
-                                                                                                                                                           {:type :text
-                                                                                                                                                            :get-size (constantly {:width 100 :height 20})}
-                                                                                                                                                           {:fill-width? true})
-                                                                                                                                              500
-                                                                                                                                              500))))))))))
+                                                                                        (layout/layout-scene-graph (layouts/box 10
+                                                                                                                                {:type :rectangle}
+                                                                                                                                {:type :text
+                                                                                                                                 :get-size (constantly {:width 100 :height 20})}
+                                                                                                                                {:fill-width? true})
+                                                                                                                   500
+                                                                                                                   500)))))))))
 
 
 (def key-press-events [{:key-code 83,
@@ -646,6 +646,20 @@
           ))))
   )
 
+(deftest test-static-size
+  (with-bindings (application/bindings)
+    (is (= '{:children ({:width 10,
+                         :height 50,
+                         :x 0,
+                         :y 0}),
+             :width 100,
+             :height 100,
+             :x 0,
+             :y 0}
+           (scene-graph/dissoc-node-keys [:unplaced-node]
+                                         (layout/layout-scene-graph {:children [{:width 10 :height 50}]}
+                                                                    100 100))))))
+
 (defn box [content]
   (layouts/box 10
                (visuals/rectangle-2 :fill-color [0.3 0.3 1.0 1.0]
@@ -739,10 +753,9 @@
                                                    (text "hello"))))
           scene-graph (view-compiler/compile-view-calls [root-view])
 
-          layout-nodes (layout/layout-scene-graph scene-graph
+          layout (layout/layout-scene-graph scene-graph
                                                   500
-                                                  500)
-          layout (layout/apply-layout-nodes layout-nodes)]
+                                                  500)]
 
       #_(application/handle-new-scene-graph! (layout/apply-layout-nodes layout))
 
@@ -750,8 +763,6 @@
       ;;                               {:type :flow-gl.gui.visuals/text-area, :string \"foo\"}
       ;;                            ")
       ;;        (scene-graph-to-string scene-graph)))
-      (= (scene-graph-to-string layout-nodes)
-         (scene-graph-to-string layout))
       #_(is (= (remove-indentation "{:x 0, :y 0, :width 500, :height 500}
                                     {:width 110.0, :height 76.640625, :type :fungl.layouts/with-margins}
                                       {:x 10, :y 10, :width 90.0, :height 56.640625}

@@ -917,6 +917,17 @@
                            {:node {:a 1
                                    :children [{:a 2}]}}))))
 
+(defn dissoc-node-keys [keys scene-graph]
+  (map-nodes #(apply dissoc % keys)
+             scene-graph))
+
+(deftest test-dissoc-node-keys
+  (is (= '{:node {:b 2, :children ({:b 3})}}
+         (dissoc-node-keys [:a]
+                           {:node {:a 1
+                                   :b 2
+                                   :children [{:a 2 :b 3}]}}))))
+
 (defn print-scene-graph
   "use with select-node-keys"
   ([scene-graph]

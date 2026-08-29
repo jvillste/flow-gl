@@ -2,12 +2,11 @@
   (:require
    clojure.data
    [clojure.spec.alpha :as spec]
-   [clojure.test :refer [deftest is]]
    [flow-gl.gui.scene-graph :as scene-graph]
    [fungl.callable :as callable]
    [fungl.hierarchical-identity-cache :as hierarchical-identity-cache]
    [fungl.layout.measuring :as measuring]
-   [fungl.log :as log]
+   [fungl.layout.placing :as placing]
    [fungl.view-compiler :as view-compiler]))
 
 (def ^:dynamic layout-node-cache-atom)
@@ -36,81 +35,6 @@
                                                                            :adapt-to-space)))
                     available-width available-height)
     node))
-
-
-;; TODO: would it be possible to adjust child size after children are given sizes? Some children are not given sizes and their sizes might depend on the ones that are given. For example horizontal lines in a table header
-
-(defn save-property [node key]
-  (let [storage-key (keyword (str "given-" (name key)))]
-    (assoc node
-           storage-key
-           (if (contains? node storage-key)
-             (storage-key node)
-             (key node)))))
-
-(deftest test-save-property
-  (is (= {:x 1, :given-x 1}
-         (save-property {:x 1} :x)))
-
-  (is (= {:x 1 :given-y nil}
-         (save-property {:x 1} :y)))
-
-  (is (= {:x 1, :given-x 2}
-         (save-property {:x 1
-                         :given-x 2} :x))))
-
-(defn save-layout [node]
-  (reduce save-property
-          node
-          [:width :height :x :y]))
-
-(deftest test-save-layout
-  (is (= {:x 10,
-          :width 20,
-          :given-width 20,
-          :given-height nil,
-          :given-x 10,
-          :given-y nil}
-         (save-layout {:x 10 :width 20}))))
-
-(defn uncached-set-child-size [child width height]
-  (assoc child
-         :width width
-         :height height))
-
-(defn set-child-size [child width height]
-  (hierarchical-identity-cache/call-with-cache view-compiler/compile-node-cache-atom
-                                               (:compilation-path child)
-                                               1
-                                               uncached-set-child-size
-                                               child
-                                               width
-                                               height))
-
-(defn uncached-place-child [child x y width height]
-  (let [unplaced-child (set-child-size child
-                                       width
-                                       height)]
-    (assoc unplaced-child
-           :x x
-           :y y
-           :unplaced-node unplaced-child)))
-
-(defn place-child [child x y width height]
-  ;; returns the same java object as the previous time the same measured
-  ;; child was given the same position and dimensions, so that the caches
-  ;; below the child hit and java object identity is preserved. Only the
-  ;; identity of the child and the four numbers are compared, never the
-  ;; contents of the child
-  (hierarchical-identity-cache/call-with-cache view-compiler/compile-node-cache-atom
-                                               (:compilation-path child)
-                                               1
-                                               uncached-place-child
-                                               child
-                                               x
-                                               y
-                                               width
-                                               height))
 
 (defn log-node [message node]
   (println message (:id node) (System/identityHashCode node))
@@ -173,13 +97,12 @@
       (cached-measure available-width available-height)
       (cached-make-layout)))
 
-
 (defn- layout-root [scene-graph available-width available-height]
-  (place-child (layout-node-in-two-passes scene-graph available-width available-height)
-               0
-               0
-               available-width
-               available-height))
+  (placing/place-child (layout-node-in-two-passes scene-graph available-width available-height)
+                       0
+                       0
+                       available-width
+                       available-height))
 
 (defn layout-scene-graph [scene-graph available-width available-height]
   (hierarchical-identity-cache/with-cache-cleanup layout-node-cache-atom
@@ -207,80 +130,3 @@
 (defn select-layout-keys [scene-graph]
   (scene-graph/map-nodes #(select-keys % layout-keys)
                          scene-graph))
-
-(defn apply-layout-nodes [node]
-  (let [node (if (:node node)
-               (cond-> (:node node)
-                 (:x node) (assoc :x (:x node))
-                 (:y node) (assoc :y (:y node))
-                 (:z node) (assoc :z (:z node))
-                 (:width node) (assoc :width (:width node))
-                 (:height node) (assoc :height (:height node)))
-               node)]
-    (if (:children node)
-      (update node :children (partial map apply-layout-nodes))
-      node)))
-
-(deftest test-apply-layout-nodes
-
-  (is (= {:expected-position 1, :x 5, :y 5}
-         (apply-layout-nodes {:node {:expected-position 1}
-                              :x 5
-                              :y 5})))
-
-  (is (= {:x 5, :y 5}
-         (apply-layout-nodes {:node {:x 40 :y 50}
-                              :x 5
-                              :y 5})))
-
-  (is (= '{:y 5,
-           :x 0,
-           :children ({:expected-position 1, :x 5, :y 5} {:x 5, :y 5, :z 10})}
-         (apply-layout-nodes {:y 5 :x 0
-                              :children
-                              [{:node {:expected-position 1}
-                                :x 5 :y 5}
-                               {:x 5 :y 5 :z 10}]}))))
-
-
-
-(defn map-layout-nodes [function layout-node & [{:keys [descend?] :as options :or {descend? (constantly true)}}]]
-  (let [result (function layout-node)]
-    (if-some [children (:children (:node layout-node))]
-      (if (descend? layout-node)
-        (assoc-in result
-                  [:node :children]
-                  (mapv (fn [child]
-                          (map-layout-nodes function
-                                            child
-                                            options))
-                        children))
-        result)
-      result)))
-
-(deftest test-map-layout-nodes
-  (is (= (map-layout-nodes (fn [layout-node]
-                             (-> layout-node
-                                 (update-in [:node :value]
-                                            inc)))
-                           {:node {:value 1
-                                   :children [{:node {:value 2}}
-                                              {:node {:value 3}}]}})
-         '{:node {:value 2
-                  :children ({:node {:value 3}}
-                             {:node {:value 4}})}})))
-
-(defn select-layout-node-keys [layout-keys node-keys scene-graph]
-  (map-layout-nodes (fn [layout-node]
-                      (-> (select-keys layout-node (conj layout-keys :node))
-                          (update :node (fn [node]
-                                          (select-keys node node-keys)))))
-                    scene-graph))
-
-(deftest test-select-layout-node-keys
-  (is (= {:x 1, :node {:y 2, :children [{:node {:y 3}}]}}
-         (select-layout-node-keys [:x]
-                                  [:y]
-                                  {:x 1
-                                   :node {:y 2
-                                          :children [{:node {:y 3}}]}}))))

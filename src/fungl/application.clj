@@ -102,10 +102,7 @@
                                                (:window-width @application-loop-state-atom)
                                                (:window-height @application-loop-state-atom))]
 
-    (handle-new-scene-graph! (identity-cache/call-with-cache apply-layout-nodes-cache-atom
-                                                             1
-                                                             layout/apply-layout-nodes
-                                                             scene-graph))
+    (handle-new-scene-graph! scene-graph)
     scene-graph))
 
 (defn send-event! [event]
