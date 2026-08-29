@@ -646,19 +646,42 @@
           ))))
   )
 
-(deftest test-static-size
+(defn create-test-layout [scene-graph]
   (with-bindings (application/bindings)
-    (is (= '{:children ({:width 10,
-                         :height 50,
-                         :x 0,
-                         :y 0}),
-             :width 100,
-             :height 100,
-             :x 0,
-             :y 0}
-           (scene-graph/dissoc-node-keys [:unplaced-node]
-                                         (layout/layout-scene-graph {:children [{:width 10 :height 50}]}
-                                                                    100 100))))))
+    (scene-graph/dissoc-node-keys [:unplaced-node]
+                                  (layout/layout-scene-graph scene-graph
+                                                             100 100))))
+
+(deftest test-static-size
+  (is (= '{:children ({:width 10,
+                       :height 50,
+                       :x 0,
+                       :y 0}),
+           :width 100,
+           :height 100,
+           :x 0,
+           :y 0}
+         (create-test-layout {:children [{:width 10 :height 50}]})))
+
+  (is (= '{:children ({:width 10,
+                       :height 100,
+                       :x 0,
+                       :y 0}),
+           :width 100,
+           :height 100,
+           :x 0,
+           :y 0}
+         (create-test-layout {:children [{:width 10}]})))
+
+  (is (= '{:children ({:width 10,
+                       :height 100,
+                       :x 0,
+                       :y 10}),
+           :width 100,
+           :height 100,
+           :x 0,
+           :y 0}
+         (create-test-layout {:children [{:y 10 :width 10}]}))))
 
 (defn box [content]
   (layouts/box 10
@@ -713,6 +736,14 @@
                                           (text "world !!!!"))
 
                     (box (text "hello"))]]))
+
+;; (defn root-view []
+;;   {:children [(visuals/rectangle-2 :fill-color [0.3 0.3 1.0 1.0]
+;;                                    :corner-arc-radius 150
+;;                                    :width 500
+;;                                    :height 500
+;;                                    :y 400
+;;                                    :x 150)]})
 
 
 ;; (defn root-view []

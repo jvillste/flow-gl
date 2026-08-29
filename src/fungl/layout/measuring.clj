@@ -5,7 +5,10 @@
 
 (defn size [node available-width available-height]
   (if-let [get-size (:get-size node)]
-    (callable/call get-size node available-width available-height)
+    (callable/call get-size
+                   node
+                   available-width
+                   available-height)
     {:width (or (:width node)
                 available-width)
      :height (or (:height node)
