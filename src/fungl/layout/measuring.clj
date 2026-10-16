@@ -10,9 +10,13 @@
                    available-width
                    available-height)
     {:width (or (:width node)
-                available-width)
+                (when-some [child (first (:children node))]
+                  (:width child))
+                0)
      :height (or (:height node)
-                 available-height)}))
+                 (when-some [child (first (:children node))]
+                   (:height child))
+                 0)}))
 
 (defn add-size [node available-width available-height]
   (merge node
