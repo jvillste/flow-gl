@@ -153,8 +153,8 @@
      :height (font/height font)}))
 
 (defn default-font []
-  #_(font/create-by-name "CourierNewPSMT" 50)
-  (font/create (.getPath (io/resource "LiberationSans-Regular.ttf"))
+  (font/create-by-name "CourierNewPSMT" 30)
+  #_(font/create (.getPath (io/resource "LiberationSans-Regular.ttf"))
                30))
 
 (defn liberation-sans-regular [size]
