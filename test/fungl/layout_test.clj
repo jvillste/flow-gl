@@ -646,6 +646,21 @@
           ))))
   )
 
+
+(comment
+
+
+  (with-bindings (application/bindings)
+    (layout/layout-scene-graph (view-compiler/compile-view-calls [text-area/text "foo"])
+                               100 100))
+
+  (with-bindings (application/bindings)
+    (layout/layout-scene-graph (view-compiler/compile-view-calls [text-area/text-area-3 {:text "area 3"}])
+                               100 100))
+
+
+  )
+
 (defn create-test-layout [scene-graph]
   (with-bindings (application/bindings)
     (scene-graph/dissoc-node-keys [:unplaced-node]
@@ -710,10 +725,10 @@
 ;;                     (box (text "hello")))]]))
 
 (defn root-view []
-  (layouts/grid-2 {:gap 10
-                   :padding 20
-                   :fill-width? false
-                   :fill-height? true
+  (layouts/grid-2 {:gap             10
+                   :padding         20
+                   :fill-width?     false
+                   :fill-height?    true
                    :cell-background (visuals/rectangle-2 :fill-color [0.3 0.3 1.0 1.0]
                                                          :corner-arc-radius 50)}
                   [[(visuals/rectangle-2 :fill-color [0.3 0.3 1.0 1.0]
@@ -728,7 +743,9 @@
                    [(box (text "hello"))
 
                     (layouts/vertically-2 {:margin 10}
-                                          (text "hello")
+                                          #_[text-area/text-area-3 {:text "area 3"}]
+                                          #_(layouts/with-minimum-size 600 600
+                                              [text-area/text  "foo"])
                                           (text "world !!!!"))]
 
                    [(layouts/vertically-2 {:margin 10}
@@ -764,6 +781,7 @@
 (application/def-start root-view)
 
 (comment
+  (start)
 
   (application/start-application (var root-view))
 
@@ -785,8 +803,8 @@
           scene-graph (view-compiler/compile-view-calls [root-view])
 
           layout (layout/layout-scene-graph scene-graph
-                                                  500
-                                                  500)]
+                                            500
+                                            500)]
 
       #_(application/handle-new-scene-graph! (layout/apply-layout-nodes layout))
 

@@ -620,31 +620,69 @@
                                               :children [{:id [:b 0]}]}]}
                                  [:b 0]))))
 
-(defn intersection [rectangle-1 rectangle-2]
-  (if (or
-       ;; 2 is left of 1
-       (< (+ (:x rectangle-2)
-             (:width rectangle-2))
-          (:x rectangle-1))
+(defn interval-intersection [start-a length-a start-b length-b]
+  (max 0 (- (min (+ start-a length-a) (+ start-b length-b))
+            (max start-a start-b))))
 
-       (< (+ (:x rectangle-1)
-             (:width rectangle-1))
-          (:x rectangle-2)))
-    nil
-    {}))
+(deftest test-interval-intersection
+  (testing "overlapping intervals"
+    (is (= 2 (interval-intersection 0 5 3 5)))
+    (is (= 5 (interval-intersection 0 5 0 5))))
+  (testing "touching intervals have no overlap"
+    (is (= 0 (interval-intersection 0 5 5 5))))
+  (testing "disjoint intervals"
+    (is (= 0 (interval-intersection 0 5 10 5))))
+  (testing "one interval contained in the other"
+    (is (= 2 (interval-intersection 0 10 4 2)))))
 
+(defn rectangle-intersection
+  "Calculates the intersection of two rectangles. Each rectangle is a map
+   with keys :x, :y, :width and :height, where (:x, :y) is the corner of the
+   rectangle. Returns the intersection rectangle as a map with the same keys,
+   or nil when the rectangles do not overlap."
+  [rectangle-a rectangle-b]
+  (let [overlap-width (interval-intersection (:x rectangle-a) (:width rectangle-a)
+                                            (:x rectangle-b) (:width rectangle-b))
+        overlap-height (interval-intersection (:y rectangle-a) (:height rectangle-a)
+                                             (:y rectangle-b) (:height rectangle-b))]
+    (when (and (pos? overlap-width) (pos? overlap-height))
+      {:x (max (:x rectangle-a) (:x rectangle-b))
+       :y (max (:y rectangle-a) (:y rectangle-b))
+       :width overlap-width
+       :height overlap-height})))
 
-(deftest intersection-test
-  ;; 2 is left of 1
-  (is (= nil
-         (intersection {:x 0 :y 0 :width 100}
-                       {:x -100 :y 0 :width 10})))
+(deftest test-rectangle-intersection
+  (testing "partially overlapping rectangles"
+    (is (= {:x 2 :y 2 :width 3 :height 3}
+           (rectangle-intersection {:x 0 :y 0 :width 5 :height 5}
+                                   {:x 2 :y 2 :width 5 :height 5}))))
+  (testing "identical rectangles"
+    (is (= {:x 0 :y 0 :width 5 :height 5}
+           (rectangle-intersection {:x 0 :y 0 :width 5 :height 5}
+                                   {:x 0 :y 0 :width 5 :height 5}))))
+  (testing "rectangle contained in another"
+    (is (= {:x 2 :y 2 :width 1 :height 1}
+           (rectangle-intersection {:x 0 :y 0 :width 10 :height 10}
+                                   {:x 2 :y 2 :width 1 :height 1}))))
 
-  ;; 2 is right of 1
-  (is (= nil
-         (intersection {:x 0 :y 0 :width 100}
-                       {:x 200 :y 0 :width 10}))))
+  (testing "order does not matter"
+    (is (= {:x 5, :y 5, :width 5, :height 5}
+           (rectangle-intersection {:x 0 :y 0 :width 10 :height 10}
+                                   {:x 5 :y 5 :width 10 :height 10})))
 
+    (is (= {:x 5, :y 5, :width 5, :height 5}
+           (rectangle-intersection {:x 5 :y 5 :width 10 :height 10}
+                                   {:x 0 :y 0 :width 10 :height 10}))))
+
+  (testing "touching rectangles do not intersect"
+    (is (nil? (rectangle-intersection {:x 0 :y 0 :width 5 :height 5}
+                                      {:x 5 :y 0 :width 5 :height 5}))))
+  (testing "disjoint rectangles"
+    (is (nil? (rectangle-intersection {:x 0 :y 0 :width 5 :height 5}
+                                      {:x 10 :y 10 :width 5 :height 5}))))
+  (testing "overlap on one axis only"
+    (is (nil? (rectangle-intersection {:x 0 :y 0 :width 5 :height 5}
+                                      {:x 2 :y 10 :width 5 :height 5})))))
 
 (defn above? [below above]
   (> (:y below)
@@ -988,7 +1026,17 @@
 (deftest test-clip
   (is (= {:x 10, :y 10, :width 100, :height 50}
          (clip {:x 0 :y 0 :width 100 :height 100}
-               {:x 10 :y 10 :width 150 :height 50}))))
+               {:x 10 :y 10 :width 150 :height 50})))
+
+  (is (= {:x 0, :y 0, :width 90, :height 90}
+         (clip {:x -10 :y -10 :width 100 :height 100}
+               {:x 0 :y 0 :width 100 :height 100})))
+
+  (is (= {:x 0, :y 0, :width 90, :height 90}
+         (clip {:x 490, :y 100, :width 100.0, :height 100.0}
+               {:x 0, :y 0, :width 500, :height 500})))
+
+  )
 
 (defn get-in-path [scene-graph path]
   (loop [path path

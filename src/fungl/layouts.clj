@@ -581,11 +581,15 @@
                                   #_(measuring/size child)))
                          (:children node))]
     {:width (apply max
+                   (or (:width node)
+                       0)
                    (map (fn [child-size]
                           (+ (or (:x child-size) 0)
                              (:width child-size)))
                         child-sizes))
      :height (apply max
+                    (or (:height node)
+                        0)
                     (map (fn [child-size]
                            (+ (or (:y child-size) 0)
                               (:height child-size)))

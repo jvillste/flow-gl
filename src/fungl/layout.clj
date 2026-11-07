@@ -59,8 +59,10 @@
                                                        available-width
                                                        available-height)
                           (repeat (count children)
-                                  {:available-width available-width
-                                   :available-height available-height}))))))
+                                  {:available-width (or (:width node)
+                                                        available-width)
+                                   :available-height (or (:height node)
+                                                         available-height)}))))))
       (measuring/add-size available-width available-height)))
 
 (defn cached-measure [node available-width available-height]
@@ -99,10 +101,15 @@
 
 (defn- layout-root [scene-graph available-width available-height]
   (placing/place-child (layout-node-in-two-passes scene-graph available-width available-height)
-                       0
-                       0
-                       available-width
-                       available-height))
+                       (or (:x scene-graph)
+                           0)
+                       (or (:y scene-graph)
+                           0)
+                       (or (:width scene-graph)
+                           available-width)
+
+                       (or (:height scene-graph)
+                           available-height)))
 
 (defn layout-scene-graph [scene-graph available-width available-height]
   (hierarchical-identity-cache/with-cache-cleanup layout-node-cache-atom

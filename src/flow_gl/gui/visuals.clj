@@ -155,7 +155,7 @@
 (defn default-font []
   (font/create-by-name "CourierNewPSMT" 30)
   #_(font/create (.getPath (io/resource "LiberationSans-Regular.ttf"))
-               30))
+                 30))
 
 (defn liberation-sans-regular [size]
   (font/create liberation-sans-regular-path
@@ -348,25 +348,26 @@
                                                    nodes-to-image-node))
                                      (doall)))))
 
-(defn render-to-image [_graphics original-node]
-  (let [leaf-nodes (filter :draw-function (scene-graph/nodes-in-view-2 original-node
-                                                                       (scene-graph/leaf-nodes (renderer/apply-renderers! nil
-                                                                                                                          (dissoc original-node
-                                                                                                                                  :render)))))
+(defn- clip-render [_graphics original-node]
+  (let [leaf-nodes (filter :draw-function
+                           (scene-graph/scene-graph-nodes-in-view original-node
+                                                                  (:width original-node)
+                                                                  (:height original-node)))
         bounding-box (scene-graph/bounding-box leaf-nodes)
-        clipped-bounding-box (scene-graph/clip bounding-box
-                                               original-node)]
-    (assoc (image (render-to-buffered-image (:width clipped-bounding-box)
-                                            (:height clipped-bounding-box)
-                                            (transpose-nodes-to-bounding-box bounding-box
-                                                                             leaf-nodes)))
-           :id (:id original-node)
-           :z 0
-           :x (:x clipped-bounding-box)
-           :y (:y clipped-bounding-box))))
+        clipped-bounding-box (scene-graph/rectangle-intersection bounding-box
+                                                                 original-node)]
+    (when clipped-bounding-box
+      (merge clipped-bounding-box
+             (image (render-to-buffered-image (:width clipped-bounding-box)
+                                              (:height clipped-bounding-box)
+                                              (map (fn [node]
+                                                     (-> node
+                                                         (assoc :x (min 0 (:x node)))
+                                                         (assoc :y (min 0 (:y node)))))
+                                                   leaf-nodes)))))))
 
 (defn clip [child]
   {:children [child]
-   :render render-to-image
+   :render clip-render
    :render-on-descend? true
    :type :clip})

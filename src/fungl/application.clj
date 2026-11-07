@@ -307,10 +307,10 @@
         (with-gl (fn [gl]
                    (let [scene-graph (->> scene-graph
                                           (node-image-cache/render-recurring-nodes-to-images nodes-to-image-node previous-rendered-scene-graph)
-                                          (renderer/apply-renderers! gl))]  ;; TODO: this should be cached to make the scene graph stay identical when possible
+                                          (renderer/apply-renderers! gl))] ;; TODO: this should be cached to make the scene graph stay identical when possible
                      (->> (scene-graph/scene-graph-nodes-in-view scene-graph
-                                                                 (:width scene-graph)
-                                                                 (:height scene-graph))
+                                                                 (:window-width @application-loop-state-atom)
+                                                                 (:window-height @application-loop-state-atom))
                           (filter :draw-function)
                           (render-nodes gl)))))
 
