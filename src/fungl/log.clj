@@ -16,6 +16,7 @@
 
 (def ^:private print-ns? #{;; "fungl.view-compiler"
                            ;; "fungl.layout"
+                           ;; "fungl.layout.measuring"
                            ;; "fungl.hierarchical-identity-cache"
                            ;; "fungl.application"
                            ;; "fungl.node-image-cache"

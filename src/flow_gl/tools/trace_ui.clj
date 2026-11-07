@@ -234,7 +234,7 @@
 
 
 (defn call-view [state reduce! call]
-  (let [character-width (:width (measuring/size (layout/do-layout (text "0"))))]
+  (let [character-width (:width (measuring/size (layout/make-layout (text "0"))))]
     (layouts/vertically (layouts/horizontally (layouts/with-minimum-size (* 4 character-width) 0
                                                 (if (> (count (:child-calls call)) 0)
                                                   (open-button state reduce! (:call-id call) (count (:child-calls call)))
@@ -301,7 +301,7 @@
              :y 0
              :available-width width
              :available-height height)
-      (layout/do-layout)))
+      (layout/make-layout)))
 
 (defn create-trace-scene-graph [state reduce! width height]
   #_(println "create-trace-scene-graph")
@@ -322,7 +322,7 @@
              :y 0
              :available-width width
              :available-height height)
-      (layout/do-layout)))
+      (layout/make-layout)))
 
 (defn trace-printer-stateful [trace-channel reduce!]
   (let [throttled-channel (csp/throttle-at-constant-rate trace-channel 500)]

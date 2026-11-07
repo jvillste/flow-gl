@@ -102,10 +102,7 @@
                                                (:window-width @application-loop-state-atom)
                                                (:window-height @application-loop-state-atom))]
 
-    (handle-new-scene-graph! (identity-cache/call-with-cache apply-layout-nodes-cache-atom
-                                                             1
-                                                             layout/apply-layout-nodes
-                                                             scene-graph))
+    (handle-new-scene-graph! scene-graph)
     scene-graph))
 
 (defn send-event! [event]
@@ -310,13 +307,10 @@
         (with-gl (fn [gl]
                    (let [scene-graph (->> scene-graph
                                           (node-image-cache/render-recurring-nodes-to-images nodes-to-image-node previous-rendered-scene-graph)
-                                          (renderer/apply-renderers! gl) ;; TODO: this should be cached to make the scene graph stay identical when possible
-                                          (identity-cache/call-with-cache apply-layout-nodes-cache-atom
-                                                                          1
-                                                                          layout/apply-layout-nodes))]
+                                          (renderer/apply-renderers! gl))] ;; TODO: this should be cached to make the scene graph stay identical when possible
                      (->> (scene-graph/scene-graph-nodes-in-view scene-graph
-                                                                 (:width scene-graph)
-                                                                 (:height scene-graph))
+                                                                 (:window-width @application-loop-state-atom)
+                                                                 (:window-height @application-loop-state-atom))
                           (filter :draw-function)
                           (render-nodes gl)))))
 
@@ -361,9 +355,9 @@
 
        (logga/write "exiting application loop")
 
-       (catch Exception exception
-         (logga/write "Exception in application loop:" (prn-str exception))
-         (throw exception))
+       (catch Throwable throwable
+         (logga/write "Exception in application loop:" (prn-str throwable))
+         (throw throwable))
        (finally
          (when on-exit
            (on-exit))

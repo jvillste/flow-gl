@@ -112,8 +112,9 @@
                                                              (:y node)))
                                           event))]
 
-    (when (spec/invalid? (spec/conform ::mouse-event event-after-call))
-      (throw (ex-info "Handler did not return valid mouse event"
+    (when (not (or (= :stop event-after-call)
+                   (not (spec/invalid? (spec/conform ::mouse-event event-after-call)))))
+      (throw (ex-info "Handler did not return valid mouse event or :stop"
                       {:returned-event event-after-call
                        :node node})))
 
@@ -126,41 +127,37 @@
                            :node ::scene-graph/node))
 
 (defn call-mouse-event-handlers-for-nodes [event nodes]
-  (reduce (fn [event node]
-            (call-mouse-event-handler-for-node event
-                                               node))
-          event
-          nodes))
+  (loop [event event
+         nodes nodes]
+    (if-some [node (first nodes)]
+      (let [new-event (call-mouse-event-handler-for-node event
+                                                         node)]
+        (if (= :stop new-event)
+          :stop
+          (recur new-event
+                 (rest nodes))))
+      event)))
 
-#_(defn call-mouse-event-handlers [nodes-with-mouse-event-handlers event]
-    (let [parent-nodes (drop-last nodes-with-mouse-event-handlers)
-          target-node (last nodes-with-mouse-event-handlers)]
-      (-> event
-          (cond-> (not (empty? parent-nodes))
-            (-> (assoc :handling-phase :going-up)
-                (call-mouse-event-handlers-for-nodes parent-nodes)))
-          (cond-> target-node
-            (-> (assoc :handling-phase :on-target)
-                (call-mouse-event-handler-for-node target-node)))
-          (cond-> (not (empty? parent-nodes))
-            (-> (assoc :handling-phase :going-down)
-                (call-mouse-event-handlers-for-nodes (reverse parent-nodes)))))))
+(defn call-mouse-event-handlers-2! [nodes-under-mouse event]
 
-(defn call-mouse-event-handlers-2 [nodes-under-mouse event]
-  (let [nodes-with-mouse-event-handlers (filter :mouse-event-handler nodes-under-mouse)
-        parent-nodes (drop-last nodes-with-mouse-event-handlers)
-        target-node (last nodes-with-mouse-event-handlers)]
-    (-> event
-        (assoc :nodes-under-mouse nodes-under-mouse)
-        (cond-> (not (empty? parent-nodes))
-          (-> (assoc :handling-phase :going-up)
-              (call-mouse-event-handlers-for-nodes parent-nodes)))
-        (cond-> target-node
-          (-> (assoc :handling-phase :on-target)
-              (call-mouse-event-handler-for-node target-node)))
-        (cond-> (not (empty? parent-nodes))
-          (-> (assoc :handling-phase :going-down)
-              (call-mouse-event-handlers-for-nodes (reverse parent-nodes)))))))
+  #_(when (= :mouse-clicked (:type event))
+      (def nodes-under-mouse nodes-under-mouse))
+
+  (let [nodes-with-mouse-event-handlers (filter :mouse-event-handler nodes-under-mouse)]
+    (when (not (empty? nodes-with-mouse-event-handlers))
+      (let [parent-nodes (drop-last nodes-with-mouse-event-handlers)
+            target-node (last nodes-with-mouse-event-handlers)
+
+            event (call-mouse-event-handlers-for-nodes (assoc event
+                                                              :nodes-under-mouse nodes-under-mouse
+                                                              :handling-phase :going-down)
+                                                       parent-nodes)]
+        (when (not (= :stop event))
+          (let [event (call-mouse-event-handler-for-node (assoc event :handling-phase :on-target)
+                                                         target-node)]
+            (when (not (= :stop event))
+              (call-mouse-event-handlers-for-nodes (assoc event :handling-phase :going-up)
+                                                   (reverse parent-nodes)))))))))
 
 
 (spec/fdef call-mouse-event-handlers
@@ -298,7 +295,7 @@
                                   (assoc event
                                          :covered (not (:mouse-event-handler uncovered-node-under-mouse))))
 
-    (call-mouse-event-handlers-2 (:nodes-under-mouse state)
+    (call-mouse-event-handlers-2! (:nodes-under-mouse state)
                                  event)
 
     (send-mouse-over-events-and-update-state state)))

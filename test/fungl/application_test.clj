@@ -66,7 +66,7 @@
                                                          [scene-graph available-width available-height]
                                                          layouted-scene-graph
                                                          []
-                                                         [(log! :scene-graph-layout-ready :layouted-scene-graph (layout/select-layout-node-keys [] [:id :compilation-path] layouted-scene-graph))
+                                                         [(log! :scene-graph-layout-ready :layouted-scene-graph (layout/select-layout-keys [] [:id :compilation-path] layouted-scene-graph))
                                                           layouted-scene-graph])]
     (binding [log-atom (atom [])]
       (with-bindings (application/create-bindings-without-window [root-view])

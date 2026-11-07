@@ -344,10 +344,10 @@
   (if metadata
     (reduce (fn [node key]
               (if-let [metadata-value (get metadata key)]
-                (do #_(when (and (some? (get node key))
-                                 (not (= (get node key)
-                                         metadata-value)))
-                        (println "WARNING: metadata is overriding key" key "in node" (:id compiled-node)))
+                (do (when (and (some? (get node key))
+                               (not (= (get node key)
+                                       metadata-value)))
+                      (println "WARNING: metadata is overriding key" key "in node" (:id compiled-node)))
                     (assoc node key metadata-value))
                 node))
             compiled-node
