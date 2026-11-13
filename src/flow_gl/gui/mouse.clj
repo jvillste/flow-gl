@@ -123,8 +123,8 @@
 
 
 (spec/fdef call-mouse-event-handler-for-node
-           :args (spec/cat :event ::mouse-event
-                           :node ::scene-graph/node))
+  :args (spec/cat :event ::mouse-event
+                  :node ::scene-graph/node))
 
 (defn call-mouse-event-handlers-for-nodes [event nodes]
   (loop [event event
@@ -156,13 +156,13 @@
           (let [event (call-mouse-event-handler-for-node (assoc event :handling-phase :on-target)
                                                          target-node)]
             (when (not (= :stop event))
-              (call-mouse-event-handlers-for-nodes (assoc event :handling-phase :going-up)
+              (call-mouse-event-handlers-for-nodes (assoc event :handling-phase :coming-up)
                                                    (reverse parent-nodes)))))))))
 
 
 (spec/fdef call-mouse-event-handlers
-           :args (spec/cat :nodes-with-mouse-event-handlers (spec/coll-of ::scene-graph/node)
-                           :event ::mouse-event))
+  :args (spec/cat :nodes-with-mouse-event-handlers (spec/coll-of ::scene-graph/node)
+                  :event ::mouse-event))
 
 (defn call-handler-for-node [nodes-by-id id event]
   (let [node (get nodes-by-id
@@ -208,15 +208,15 @@
 
       (doseq [node (vals affected-mouse-event-handler-nodes)]
         (callable/call (:mouse-event-handler node)
-         node
-         {:type :nodes-under-mouse-changed
-          :handling-phase :on-target
-          :nodes-under-mouse current-nodes-under-mouse})))))
+                       node
+                       {:type :nodes-under-mouse-changed
+                        :handling-phase :on-target
+                        :nodes-under-mouse current-nodes-under-mouse})))))
 
 (spec/fdef send-mouse-over-events
-           :args (spec/cat :previous-mouse-event-handlers-by-id (spec/map-of (constantly true) ::scene-graph/node)
-                           :current-mouse-event-handler-nodes-by-id (spec/map-of (constantly true) ::scene-graph/node))
-           :ret map?)
+  :args (spec/cat :previous-mouse-event-handlers-by-id (spec/map-of (constantly true) ::scene-graph/node)
+                  :current-mouse-event-handler-nodes-by-id (spec/map-of (constantly true) ::scene-graph/node))
+  :ret map?)
 
 
 #_(defn send-uncovered-mouse-over-events [previous-uncovered-mouse-event-handler-node current-uncovered-mouse-event-handler-node]
@@ -296,7 +296,7 @@
                                          :covered (not (:mouse-event-handler uncovered-node-under-mouse))))
 
     (call-mouse-event-handlers-2! (:nodes-under-mouse state)
-                                 event)
+                                  event)
 
     (send-mouse-over-events-and-update-state state)))
 
