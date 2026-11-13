@@ -90,14 +90,12 @@
                                                       20
                                                       0))))
 
-
 (defn nodes-in-coordinates [containing-roots global-x global-y]
-  (apply concat
-         (map (fn [containing-root]
-                (nodes-in-coordinates-in-one-containing-root containing-root
-                                                             global-x
-                                                             global-y))
-              containing-roots)))
+  (mapcat (fn [containing-root]
+            (nodes-in-coordinates-in-one-containing-root containing-root
+                                                         global-x
+                                                         global-y))
+          containing-roots))
 
 
 
