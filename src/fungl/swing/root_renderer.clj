@@ -7,7 +7,7 @@
    (java.awt.geom AffineTransform)
    java.awt.Color))
 
-(defn render-nodes [^java.awt.Graphics2D graphics nodes & [{:keys [color-nodes?] :or {color-nodes? false}}]]
+(defn render-nodes [^java.awt.Graphics2D graphics nodes]
   #_(println "render-nodes" (count nodes)
              ;;           (first (call-stack/callers))
              )
@@ -21,17 +21,4 @@
 
       (apply (:draw-function node)
              graphics
-             (render/image-function-parameters node))
-
-      (when color-nodes?
-        (rectangle/fill graphics
-                        (concat (color/hsl-to-rgb (mod (System/identityHashCode node)
-                                                       360)
-                                                  #_(rand-int 360)
-                                                  1
-                                                  0.5)
-                                [40])
-                        (:width node)
-                        (:height node)
-                        0
-                        0)))))
+             (render/image-function-parameters node)))))

@@ -61,20 +61,24 @@
                                      (property "focused node id:"
                                                (:focused-node-id @keyboard/state-atom))
 
-                                     (property "focused keyboard event handler:"
-                                               (util/function-name (first (:keyboard-event-handler (:focused-node @keyboard/state-atom))))))))
+                                     (property "nodes under mouse:"
+                                               (string/join ", " (map pr-str (map :type (:nodes-under-mouse @mouse/state-atom)))))
+
+                                     #_(property "focused keyboard event handler:"
+                                                 (util/function-name (first (:keyboard-event-handler (:focused-node @keyboard/state-atom))))))))
+
+(defn development-tools-layout [application-loop-state-atom scene-graph]
+  (layout/layout-scene-graph (view-compiler/compile-view-calls (development-tools-view scene-graph))
+                             (:window-width @application-loop-state-atom)
+                             (:window-height @application-loop-state-atom)))
 
 (defn add-development-tools [application-loop-state-atom scene-graph]
-  (if false #_(:show-development-tools? @application-loop-state-atom) ;; TODO: development tools should be added to the scene graph before the layout to make layout cache work
-      (let [development-tools-layout (layout/layout-scene-graph (view-compiler/compile-view-calls (development-tools-view scene-graph))
-                                                                (:window-width @application-loop-state-atom)
-                                                                (:window-height @application-loop-state-atom))]
-        {:children [scene-graph
-                    (assoc development-tools-layout
-                           :y (- (:window-height @application-loop-state-atom)
-                                 (:height development-tools-layout)))]
-         :x 0
-         :y 0
-         :width (:window-width @application-loop-state-atom)
-         :height (:window-height @application-loop-state-atom)})
-      scene-graph))
+  (let [development-tools-layout (development-tools-layout application-loop-state-atom scene-graph)]
+    {:children [scene-graph
+                (assoc development-tools-layout
+                       :y (- (:window-height @application-loop-state-atom)
+                             (:height development-tools-layout)))]
+     :x 0
+     :y 0
+     :width (:window-width @application-loop-state-atom)
+     :height (:window-height @application-loop-state-atom)}))

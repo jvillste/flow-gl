@@ -15,10 +15,10 @@
    [fungl.cache :as cache]
    [fungl.component :as component]
    [fungl.dependable-atom :as dependable-atom]
+   [fungl.development-tools :as development-tools]
    [fungl.hierarchical-identity-cache :as hierarchical-identity-cache]
    [fungl.identity-cache :as identity-cache]
    [fungl.layout :as layout]
-   [fungl.log :as log]
    [fungl.node-image-cache :as node-image-cache]
    [fungl.renderer :as renderer]
    [fungl.swing.root-renderer :as swing-root-renderer]
@@ -299,35 +299,47 @@
 
 (defn render! [nodes-to-image-node with-gl render-nodes]
   (when-some [scene-graph (:scene-graph @application-loop-state-atom)]
+    (let [scene-graph-with-development-tools (if (:show-development-tools? @application-loop-state-atom)
+                                               (development-tools/add-development-tools application-loop-state-atom
+                                                                                        scene-graph)
+                                               scene-graph)]
+      (with-gl (fn [gl]
 
-    (let [previous-rendered-scene-graph (:previous-rendered-scene-graph @application-loop-state-atom)]
-      (when (not (identical? scene-graph
-                             previous-rendered-scene-graph))
+                 (let [previous-rendered-scene-graph (:previous-rendered-scene-graph @application-loop-state-atom)]
+                   (when (not (identical? scene-graph-with-development-tools
+                                          previous-rendered-scene-graph))
 
-        (with-gl (fn [gl]
-                   (let [scene-graph (->> scene-graph
-                                          (node-image-cache/render-recurring-nodes-to-images nodes-to-image-node previous-rendered-scene-graph)
-                                          (renderer/apply-renderers! gl))] ;; TODO: this should be cached to make the scene graph stay identical when possible
-                     (->> (scene-graph/scene-graph-nodes-in-view scene-graph
-                                                                 (:window-width @application-loop-state-atom)
-                                                                 (:window-height @application-loop-state-atom))
-                          (filter :draw-function)
-                          (render-nodes gl)))))
+                     ;; clear
+                     (doto gl
+                       (.setColor (Color. 0 0 0 255))
+                       (.fillRect 0 0 5000 5000))
 
-        (swap! application-loop-state-atom assoc :previous-rendered-scene-graph scene-graph)))))
+
+                     ;; redner UI
+                     (let [scene-graph-with-image-cache-applied (->> scene-graph-with-development-tools
+                                                                     (node-image-cache/render-recurring-nodes-to-images nodes-to-image-node previous-rendered-scene-graph)
+                                                                     (renderer/apply-renderers! gl))] ;; TODO: this should be cached to make the scene graph stay identical when possible
+                       (->> (concat (scene-graph/scene-graph-nodes-in-view scene-graph-with-image-cache-applied
+                                                                           (:window-width @application-loop-state-atom)
+                                                                           (:window-height @application-loop-state-atom))
+
+                                    ;; highlight nodes
+                                    (if (:show-development-tools? @application-loop-state-atom)
+                                      (for [node (scene-graph/flatten scene-graph)]
+                                        (merge (visuals/rectangle-2 :fill-color [1.0 0.1 1.0 0.1])
+                                               (select-keys node [:x :y :width :height])))
+                                      [])
+)
+                            (filter :draw-function)
+                            (render-nodes gl)))
+                     (swap! application-loop-state-atom assoc :previous-rendered-scene-graph scene-graph))))))))
 
 (defn render-to-swing-window! []
   (render! visuals/nodes-to-buffered-image-node
            with-window-gl
            (fn [graphics nodes]
-
-             (doto graphics
-               (.setColor (Color. 0 0 0 255))
-               (.fillRect 0 0 5000 5000))
-
              (swing-root-renderer/render-nodes graphics
-                                               nodes
-                                               {:color-nodes? false}))))
+                                               nodes))))
 
 (defn create-bindings-with-swing-window [root-view-call]
   (let [bindings (create-bindings-without-window root-view-call)]
