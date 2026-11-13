@@ -576,24 +576,22 @@
 
 
 (defn superimpose-get-size [node _available-width _available-height]
-  (let [child-sizes (map (fn [child]
-                           (merge (select-keys child [:x :y :width :height])
-                                  #_(measuring/size child)))
-                         (:children node))]
-    {:width (apply max
-                   (or (:width node)
-                       0)
-                   (map (fn [child-size]
-                          (+ (or (:x child-size) 0)
-                             (:width child-size)))
-                        child-sizes))
-     :height (apply max
-                    (or (:height node)
-                        0)
-                    (map (fn [child-size]
-                           (+ (or (:y child-size) 0)
-                              (:height child-size)))
-                         child-sizes))}))
+  {:width (apply max
+                 (or (:width node)
+                     0)
+                 (map (fn [child-size]
+                        (prn (:x child-size)) ;; TODO: remove me
+
+                        (+ (or (:x child-size) 0)
+                           (:width child-size)))
+                      (:children node)))
+   :height (apply max
+                  (or (:height node)
+                      0)
+                  (map (fn [child-size]
+                         (+ (or (:y child-size) 0)
+                            (:height child-size)))
+                       (:children node)))})
 
 (defn superimpose [& children]
   (let [children (flatten-contents children)]
