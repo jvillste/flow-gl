@@ -10,11 +10,11 @@
                    available-width
                    available-height)
     {:width (or (:width node)
-                (when-some [child (first (:children node))]
+                #_(when-some [child (first (:children node))]
                   (:width child))
                 available-width)
      :height (or (:height node)
-                 (when-some [child (first (:children node))]
+                 #_(when-some [child (first (:children node))]
                    (:height child))
                  available-height)}))
 
